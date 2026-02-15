@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "4.0.0"
+__version__ = "4.1.0"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -122,3 +122,9 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          settings.lang singleton replaces 5 widget self._lang copies.
 #          Clean hexagonal boundary: core/ + services/ (pure Python) →
 #          adapters/ (device/system/infra I/O). 2290 tests.
+# 4.1.0  - Setup wizard: CLI (trcc setup) interactive step-by-step + GUI
+#          (trcc setup-gui) PySide6 wizard with check panel, Install buttons,
+#          terminal output streaming. Bootstrap script (setup.sh) auto-detects
+#          GUI/CLI. Expanded distro support (Solus, Clear Linux, SteamOS, Artix,
+#          PostmarketOS). PM provides fallback for unmapped deps. Uninstall
+#          --yes flag for non-interactive use. 2290 tests.

@@ -46,7 +46,12 @@ else
     python3 -m pip install "$install_src"
 fi
 
-# Launch the setup wizard GUI
+# Launch setup wizard — GUI if display available, CLI otherwise
 echo
-echo "Launching setup wizard..."
-exec trcc setup-gui
+if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    echo "Launching setup wizard (GUI)..."
+    exec trcc setup-gui
+else
+    echo "No display detected — running CLI setup..."
+    exec trcc setup
+fi
