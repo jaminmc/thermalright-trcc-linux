@@ -91,9 +91,7 @@ class BulkDevice:
         if dev is None:
             raise RuntimeError(f"USB device {self.vid:04x}:{self.pid:04x} not found")
 
-        # Detach kernel driver before set_configuration() to avoid EBUSY.
-        # Can't rely on get_active_configuration() — it throws if no config
-        # is active yet.  Try interfaces 0-3 (covers all known devices).
+        # Detach kernel drivers (best effort — SELinux may silently block this).
         for i in range(4):
             try:
                 if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
@@ -102,29 +100,36 @@ class BulkDevice:
             except (usb.core.USBError, NotImplementedError) as e:
                 log.debug("Could not detach kernel driver from interface %d: %s", i, e)
 
+        # Skip set_configuration() if device already has an active config.
+        # On SELinux (Bazzite, Silverblue) detach_kernel_driver() is silently
+        # blocked, so set_configuration() always fails with EBUSY.  The kernel
+        # has already configured the device — just use the existing config.
+        cfg = None
         try:
-            dev.set_configuration()  # type: ignore[union-attr]
+            cfg = dev.get_active_configuration()  # type: ignore[union-attr]
+            log.debug("Device already configured, skipping set_configuration()")
         except usb.core.USBError:
-            # SELinux or other security modules may block detach_kernel_driver
-            # silently.  Reset the device to force-release all drivers, then retry.
-            log.warning("set_configuration() failed, resetting device and retrying")
-            dev.reset()  # type: ignore[union-attr]
-            import time
-            time.sleep(0.5)
-            # Re-find after reset (handle is invalidated)
-            dev = usb.core.find(idVendor=self.vid, idProduct=self.pid)
-            if dev is None:
-                raise RuntimeError(
-                    f"USB device {self.vid:04x}:{self.pid:04x} not found after reset"
-                )
-            for i in range(4):
-                try:
-                    if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
-                        dev.detach_kernel_driver(i)  # type: ignore[union-attr]
-                except (usb.core.USBError, NotImplementedError):
-                    pass
-            dev.set_configuration()  # type: ignore[union-attr]
-        cfg = dev.get_active_configuration()  # type: ignore[union-attr]
+            log.debug("No active configuration, calling set_configuration()")
+            try:
+                dev.set_configuration()  # type: ignore[union-attr]
+            except usb.core.USBError:
+                log.warning("set_configuration() failed, resetting device and retrying")
+                dev.reset()  # type: ignore[union-attr]
+                import time
+                time.sleep(0.5)
+                dev = usb.core.find(idVendor=self.vid, idProduct=self.pid)
+                if dev is None:
+                    raise RuntimeError(
+                        f"USB device {self.vid:04x}:{self.pid:04x} not found after reset"
+                    )
+                for i in range(4):
+                    try:
+                        if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
+                            dev.detach_kernel_driver(i)  # type: ignore[union-attr]
+                    except (usb.core.USBError, NotImplementedError):
+                        pass
+                dev.set_configuration()  # type: ignore[union-attr]
+            cfg = dev.get_active_configuration()  # type: ignore[union-attr]
 
         # Prefer vendor-specific interface (bInterfaceClass=255)
         intf = None
