@@ -174,15 +174,23 @@ class VideoController:
 
     def play(self):
         self._svc.play()
+        if self.on_state_changed:
+            self.on_state_changed(self._svc.state.state)
 
     def pause(self):
         self._svc.pause()
+        if self.on_state_changed:
+            self.on_state_changed(self._svc.state.state)
 
     def stop(self):
         self._svc.stop()
+        if self.on_state_changed:
+            self.on_state_changed(self._svc.state.state)
 
     def toggle_play_pause(self):
         self._svc.toggle()
+        if self.on_state_changed:
+            self.on_state_changed(self._svc.state.state)
 
     def seek(self, percent: float):
         self._svc.seek(percent)
@@ -513,10 +521,10 @@ class LCDDeviceController:
             # Progress is forwarded by VideoController callbacks
             pass
 
-        rgb565 = result.get('rgb565')
-        if rgb565:
-            self.devices.send_image_async(
-                rgb565, self.lcd_width, self.lcd_height)
+        send_img = result.get('send_image')
+        if send_img:
+            self.devices.send_pil_async(
+                send_img, self.lcd_width, self.lcd_height)
 
     def get_video_interval(self) -> int:
         return self._display.get_video_interval()
@@ -571,20 +579,17 @@ class LCDDeviceController:
             self.on_error(message)
 
     def _send_frame_to_lcd(self, image: Any):
-        """Send a processed image to the LCD via DeviceService."""
+        """Send a processed image to the LCD via DeviceService.
+
+        Encodes and sends in a background thread to avoid blocking the
+        main Qt thread (JPEG encoding for bulk devices can take 50-200ms).
+        """
         device = self.devices.get_selected()
         if not device:
             log.debug("Send skipped — no device selected")
             return
-        try:
-            encoded = self._display._encode_for_device(image)
-            log.debug("Sending %d bytes to %s (%dx%d)",
-                      len(encoded), device.path,
-                      self.lcd_width, self.lcd_height)
-            self.devices.send_image_async(
-                encoded, self.lcd_width, self.lcd_height)
-        except Exception as e:
-            self._fire_error(f"LCD send error: {e}")
+        self.devices.send_pil_async(
+            image, self.lcd_width, self.lcd_height)
 
     # ── Compat shim: _setup_theme_dirs (used by qt_app_mvc) ──────────
 

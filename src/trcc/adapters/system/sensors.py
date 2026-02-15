@@ -17,6 +17,8 @@ Sensor IDs follow the format:
     computed:{metric}         e.g., computed:disk_read
 """
 
+import logging
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -33,6 +35,8 @@ try:
 except Exception:
     pynvml = None  # type: ignore[assignment]
     NVML_AVAILABLE = False
+
+log = logging.getLogger(__name__)
 
 
 # Maps hwmon input prefix to (category, unit)
@@ -103,6 +107,11 @@ class SensorEnumerator:
         self._rapl_prev: dict[str, tuple[float, float]] = {}  # id -> (energy, time)
         self._net_prev: Optional[tuple] = None     # (counters, time)
         self._disk_prev: Optional[tuple] = None    # (counters, time)
+        # Background polling thread — avoids blocking Qt main thread
+        self._cached_readings: dict[str, float] = {}
+        self._cache_lock = threading.Lock()
+        self._poll_thread: Optional[threading.Thread] = None
+        self._poll_stop = threading.Event()
 
     def discover(self) -> list[SensorInfo]:
         """Scan the system for all available sensors. Call once at startup."""
@@ -130,7 +139,48 @@ class SensorEnumerator:
         return [s for s in self._sensors if s.category == category]
 
     def read_all(self) -> dict[str, float]:
-        """Read current values for ALL discovered sensors."""
+        """Return cached sensor readings (non-blocking).
+
+        Background thread refreshes the cache every ~900ms.  If no background
+        thread is running (e.g. CLI usage), falls back to a synchronous read.
+        """
+        with self._cache_lock:
+            if self._cached_readings:
+                return dict(self._cached_readings)
+        # Fallback: no cache yet (first call or no bg thread)
+        return self._read_all_sync()
+
+    def start_polling(self) -> None:
+        """Start background sensor polling thread."""
+        if self._poll_thread is not None and self._poll_thread.is_alive():
+            return
+        self._poll_stop.clear()
+        self._poll_thread = threading.Thread(
+            target=self._poll_loop, daemon=True, name="sensor-poll")
+        self._poll_thread.start()
+        log.debug("Sensor polling thread started")
+
+    def stop_polling(self) -> None:
+        """Stop background sensor polling thread."""
+        self._poll_stop.set()
+        if self._poll_thread is not None:
+            self._poll_thread.join(timeout=2)
+            self._poll_thread = None
+            log.debug("Sensor polling thread stopped")
+
+    def _poll_loop(self) -> None:
+        """Background loop: read sensors, update cache, sleep."""
+        while not self._poll_stop.is_set():
+            try:
+                readings = self._read_all_sync()
+                with self._cache_lock:
+                    self._cached_readings = readings
+            except Exception:
+                log.debug("Sensor poll error", exc_info=True)
+            self._poll_stop.wait(0.9)  # ~900ms between reads
+
+    def _read_all_sync(self) -> dict[str, float]:
+        """Read current values for ALL discovered sensors (blocking)."""
         readings: dict[str, float] = {}
 
         # hwmon sensors

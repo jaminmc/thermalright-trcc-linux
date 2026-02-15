@@ -405,9 +405,9 @@ class DisplayService:
         result: dict[str, Any] = {'preview': processed, 'progress': progress}
 
         if should_send and self.auto_send:
-            result['rgb565'] = self._encode_for_device(processed)
+            result['send_image'] = processed
         else:
-            result['rgb565'] = None
+            result['send_image'] = None
 
         return result
 

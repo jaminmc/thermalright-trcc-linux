@@ -795,7 +795,7 @@ class TestFormCZTVVideoAndSend(unittest.TestCase):
         previews = []
         self.ctrl.on_preview_update = lambda img: previews.append(img)
 
-        fake_result = {'preview': _make_test_image(), 'rgb565': None, 'progress': None}
+        fake_result = {'preview': _make_test_image(), 'send_image': None, 'progress': None}
         with patch.object(self.ctrl._display, 'video_tick', return_value=fake_result):
             self.ctrl.video_tick()
 
@@ -806,13 +806,13 @@ class TestFormCZTVVideoAndSend(unittest.TestCase):
             self.ctrl.video_tick()
 
     def test_video_tick_sends_to_lcd(self):
-        rgb565 = b'\x00' * 100
-        fake_result = {'preview': _make_test_image(), 'rgb565': rgb565, 'progress': None}
+        send_img = _make_test_image()
+        fake_result = {'preview': _make_test_image(), 'send_image': send_img, 'progress': None}
 
         with patch.object(self.ctrl._display, 'video_tick', return_value=fake_result), \
-             patch.object(self.ctrl.devices, 'send_image_async') as mock_send:
+             patch.object(self.ctrl.devices, 'send_pil_async') as mock_send:
             self.ctrl.video_tick()
-            mock_send.assert_called_once_with(rgb565, 320, 320)
+            mock_send.assert_called_once_with(send_img, 320, 320)
 
     def test_get_video_interval(self):
         ms = self.ctrl.get_video_interval()
@@ -840,7 +840,7 @@ class TestFormCZTVVideoAndSend(unittest.TestCase):
         dev = DeviceInfo(name='LCD', path='/dev/sg0')
         self.ctrl.devices._svc.select(dev)
 
-        with patch.object(self.ctrl.devices, 'send_image_async') as mock_send:
+        with patch.object(self.ctrl.devices, 'send_pil_async') as mock_send:
             self.ctrl._send_frame_to_lcd(_make_test_image())
             mock_send.assert_called_once()
             args = mock_send.call_args

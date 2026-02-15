@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 from datetime import datetime
 from typing import TYPE_CHECKING, Dict, Optional
 
@@ -34,6 +35,9 @@ class SystemService:
         self._enumerator = SensorEnumerator()
         self._discovered = False
         self._defaults: Optional[Dict[str, str]] = None
+        # Cached fallback values — computed once, reused on subsequent calls
+        self._fallback_cache: Optional[Dict[str, float]] = None
+        self._fallback_lock = threading.Lock()
 
     # ── Sensor discovery ──────────────────────────────────────────────
 
@@ -42,7 +46,17 @@ class SystemService:
         sensors = self._enumerator.discover()
         self._discovered = True
         self._defaults = None  # Reset cached defaults
+        self._enumerator.start_polling()
         return sensors
+
+    def start_polling(self) -> None:
+        """Start background sensor polling thread."""
+        self._ensure_discovered()
+        self._enumerator.start_polling()
+
+    def stop_polling(self) -> None:
+        """Stop background sensor polling thread."""
+        self._enumerator.stop_polling()
 
     def _ensure_discovered(self) -> None:
         """Lazy-discover sensors on first use."""
@@ -186,10 +200,15 @@ class SystemService:
 
     @property
     def all_metrics(self) -> Dict[str, float]:
-        """All system metrics as a flat dict."""
+        """All system metrics as a flat dict (non-blocking).
+
+        Sensor readings come from cached background thread.
+        Fallback values come from a separate background computation.
+        Only date/time is computed inline (instant).
+        """
         metrics: Dict[str, float] = {}
 
-        # Date and time
+        # Date and time (instant — no I/O)
         now = datetime.now()
         metrics['date_year'] = now.year
         metrics['date_month'] = now.month
@@ -202,15 +221,32 @@ class SystemService:
         metrics['time'] = 0
         metrics['weekday'] = 0
 
-        # Batch read ALL sensors once
+        # Batch read ALL sensors from cache (instant)
         defaults = self._ensure_defaults()
         readings = self._enumerator.read_all()
         for legacy_key, sensor_id in defaults.items():
             if sensor_id in readings:
                 metrics[legacy_key] = readings[sensor_id]
 
-        # Fallbacks for metrics the enumerator couldn't provide
-        _fallbacks = [
+        # Fallback values for metrics the enumerator couldn't provide.
+        # Computed once (may call subprocess), then cached for future calls.
+        self._ensure_fallbacks(set(metrics.keys()))
+        with self._fallback_lock:
+            if self._fallback_cache:
+                for key, value in self._fallback_cache.items():
+                    if key not in metrics:
+                        metrics[key] = value
+
+        return metrics
+
+    def _ensure_fallbacks(self, existing_keys: set[str]) -> None:
+        """Compute fallback metrics once, then cache for future calls."""
+        with self._fallback_lock:
+            if self._fallback_cache is not None:
+                return  # Already computed
+
+        cache: Dict[str, float] = {}
+        fallbacks = [
             ('cpu_temp', self._fallback_cpu_temp),
             ('cpu_percent', self._fallback_cpu_usage),
             ('cpu_freq', self._fallback_cpu_freq),
@@ -218,12 +254,16 @@ class SystemService:
             ('mem_clock', self._fallback_mem_clock),
             ('disk_temp', self._fallback_disk_temp),
         ]
-        for key, fallback in _fallbacks:
-            if key not in metrics:
-                if (v := fallback()) is not None:
-                    metrics[key] = v
-
-        return metrics
+        for key, fallback in fallbacks:
+            if key not in existing_keys:
+                try:
+                    v = fallback()
+                    if v is not None:
+                        cache[key] = v
+                except Exception:
+                    pass
+        with self._fallback_lock:
+            self._fallback_cache = cache
 
     # ── Formatting ────────────────────────────────────────────────────
 

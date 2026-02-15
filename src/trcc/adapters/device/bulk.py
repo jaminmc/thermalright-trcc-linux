@@ -99,10 +99,31 @@ class BulkDevice:
                 if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
                     dev.detach_kernel_driver(i)  # type: ignore[union-attr]
                     log.debug("Detached kernel driver from interface %d", i)
-            except (usb.core.USBError, NotImplementedError):
-                pass
+            except (usb.core.USBError, NotImplementedError) as e:
+                log.debug("Could not detach kernel driver from interface %d: %s", i, e)
 
-        dev.set_configuration()  # type: ignore[union-attr]
+        try:
+            dev.set_configuration()  # type: ignore[union-attr]
+        except usb.core.USBError:
+            # SELinux or other security modules may block detach_kernel_driver
+            # silently.  Reset the device to force-release all drivers, then retry.
+            log.warning("set_configuration() failed, resetting device and retrying")
+            dev.reset()  # type: ignore[union-attr]
+            import time
+            time.sleep(0.5)
+            # Re-find after reset (handle is invalidated)
+            dev = usb.core.find(idVendor=self.vid, idProduct=self.pid)
+            if dev is None:
+                raise RuntimeError(
+                    f"USB device {self.vid:04x}:{self.pid:04x} not found after reset"
+                )
+            for i in range(4):
+                try:
+                    if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
+                        dev.detach_kernel_driver(i)  # type: ignore[union-attr]
+                except (usb.core.USBError, NotImplementedError):
+                    pass
+            dev.set_configuration()  # type: ignore[union-attr]
         cfg = dev.get_active_configuration()  # type: ignore[union-attr]
 
         # Prefer vendor-specific interface (bInterfaceClass=255)
