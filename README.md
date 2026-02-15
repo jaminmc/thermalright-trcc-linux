@@ -63,10 +63,29 @@ Run `lsusb` to find your USB ID (`xxxx:xxxx` after `ID`), then match it below.
 
 ```bash
 pip install trcc-linux
-sudo trcc setup-udev
+trcc setup        # interactive wizard — deps, udev, desktop entry
 ```
 
 Then **unplug and replug the USB cable** and run `trcc gui`.
+
+### One-line bootstrap
+
+Download and run — installs trcc-linux, then launches the setup wizard (GUI if you have a display, CLI otherwise):
+
+```bash
+bash <(curl -sSL https://raw.githubusercontent.com/Lexonight1/thermalright-trcc-linux/stable/setup.sh)
+```
+
+### Setup wizard
+
+After installing, run the setup wizard to configure everything:
+
+```bash
+trcc setup        # interactive CLI wizard
+trcc setup-gui    # GUI wizard with Install buttons
+```
+
+The wizard checks system dependencies, GPU packages, udev rules, and desktop integration — and offers to install anything missing.
 
 ### Automatic (recommended for full setup)
 
@@ -194,13 +213,16 @@ trcc video clip.mp4       # Play video on LCD
 trcc led-color "#00ff00"  # Set LED color
 trcc led-mode breathing   # Set LED effect mode
 trcc serve                # Start REST API server
+trcc setup                # Interactive setup wizard (CLI)
+trcc setup-gui            # Setup wizard (GUI)
 trcc doctor               # Check system dependencies
 trcc report               # Generate diagnostic report
 trcc setup-udev           # Install udev rules
 trcc install-desktop      # Install app menu entry and icon
+trcc uninstall            # Remove TRCC completely
 ```
 
-See the **[CLI Reference](doc/CLI_REFERENCE.md)** for all 36 commands, options, and troubleshooting.
+See the **[CLI Reference](doc/CLI_REFERENCE.md)** for all 38 commands, options, and troubleshooting.
 
 ## Documentation
 
