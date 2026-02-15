@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 
-from trcc.data_repository import DataManager
+from trcc.adapters.infra.data_repository import DataManager
 
 from ..core.models import MaskItem
 from .base import BaseThumbnail, DownloadableThemeBrowser

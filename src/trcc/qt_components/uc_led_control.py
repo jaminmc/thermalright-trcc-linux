@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .assets import Assets, load_pixmap
+from .assets import Assets
 from .base import set_background_pixmap
 from .uc_color_wheel import UCColorWheel
 from .uc_screen_led import UCScreenLED
@@ -202,8 +202,8 @@ class UCInfoImage(QWidget):
         self._mode = 1  # 1=temp/percent, 2=MHz/RPM
 
         # Load assets
-        self._bg_pixmap = load_pixmap(f"P0M{index}.png")
-        self._bar_pixmap = load_pixmap(f"P环H{index}.png")
+        self._bg_pixmap = Assets.load_pixmap(f"P0M{index}.png")
+        self._bar_pixmap = Assets.load_pixmap(f"P环H{index}.png")
 
     def set_value(self, value: float, text: str, unit: str = "") -> None:
         """Update displayed value.
@@ -290,7 +290,6 @@ class UCLedControl(QWidget):
         self._zone_count = 1
         self._style_id = 0
         self._is_hr10 = False
-        self._lang = 'en'
 
         # Zone state
         self._selected_zone = 0
@@ -820,7 +819,7 @@ class UCLedControl(QWidget):
     # ================================================================
 
     def initialize(self, style_id: int, segment_count: int,
-                   zone_count: int = 1, lang: str = 'en',
+                   zone_count: int = 1,
                    model: str = '') -> None:
         """Configure for a specific LED device style.
 
@@ -828,12 +827,10 @@ class UCLedControl(QWidget):
             style_id: LED device style (1-13).
             segment_count: Number of LED segments.
             zone_count: Number of independent zones.
-            lang: Language code for localized background.
             model: Device model name (for PM-specific preview image).
         """
         self._style_id = style_id
         self._zone_count = zone_count
-        self._lang = lang
         self._model = model
         self._is_hr10 = (style_id == 13)
 
@@ -845,7 +842,7 @@ class UCLedControl(QWidget):
             self._preview.set_style(style_id, segment_count)
 
         # Load device preview background (PM-specific or style default)
-        from ..device_led import LED_STYLES, PmRegistry
+        from ..adapters.device.led import LED_STYLES, PmRegistry
         style = LED_STYLES.get(style_id)
         if style:
             if not self._is_hr10:
@@ -861,11 +858,10 @@ class UCLedControl(QWidget):
                 if preview_pixmap:
                     self._preview.set_overlay(QPixmap(preview_pixmap))
 
-            # Set panel background
-            bg_base = style.background_base
-            bg_name = f"{bg_base}{lang}" if lang and lang != '' else bg_base
-            bg_path = Assets.get(bg_name) or Assets.get(bg_base)
-            if bg_path:
+            # Set panel background (localized with fallback)
+            from ..conf import settings
+            bg_name = Assets.get_localized(style.background_base, settings.lang)
+            if Assets.get(bg_name):
                 set_background_pixmap(self, bg_name)
 
             self._title.setText(f"RGB LED Control \u2014 {style.model_name}")
@@ -920,16 +916,14 @@ class UCLedControl(QWidget):
         """Update status text."""
         self._status.setText(text)
 
-    def set_language(self, lang: str) -> None:
-        """Apply localized background."""
-        self._lang = lang
-        from ..device_led import LED_STYLES
+    def apply_localized_background(self) -> None:
+        """Re-apply localized background for current settings.lang."""
+        from ..adapters.device.led import LED_STYLES
+        from ..conf import settings
         style = LED_STYLES.get(self._style_id)
         if style:
-            bg_base = style.background_base
-            bg_name = f"{bg_base}{lang}" if lang else bg_base
-            bg_path = Assets.get(bg_name) or Assets.get(bg_base)
-            if bg_path:
+            bg_name = Assets.get_localized(style.background_base, settings.lang)
+            if Assets.get(bg_name):
                 set_background_pixmap(self, bg_name)
 
     def set_sensor_source(self, source: str) -> None:

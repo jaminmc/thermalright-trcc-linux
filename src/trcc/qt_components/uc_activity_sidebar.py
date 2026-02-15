@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
-from ..system_info import get_all_metrics
+from ..adapters.system.info import get_all_metrics
 
 log = logging.getLogger(__name__)
 

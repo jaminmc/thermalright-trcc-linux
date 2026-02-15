@@ -21,15 +21,15 @@ from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QWidget
 
-from ..system_config import (
+from ..adapters.system.config import (
     CATEGORY_COLORS,
     CATEGORY_IMAGES,
     PanelConfig,
     SensorBinding,
     SysInfoConfig,
 )
-from ..system_sensors import SensorEnumerator
-from .assets import Assets, load_pixmap
+from ..adapters.system.sensors import SensorEnumerator
+from .assets import Assets
 from .base import set_background_pixmap
 from .constants import Layout
 
@@ -92,12 +92,12 @@ class SystemInfoPanel(QWidget):
 
         # Load background image (no tiling — matches Windows ImageLayout.None)
         img_name = CATEGORY_IMAGES.get(config.category_id, 'A自定义.png')
-        self._bg_pixmap = load_pixmap(img_name, PANEL_W, PANEL_H)
+        self._bg_pixmap = Assets.load_pixmap(img_name, PANEL_W, PANEL_H)
         if not self._bg_pixmap.isNull():
             set_background_pixmap(self, self._bg_pixmap)
 
         # Load selector button image
-        self._sel_pixmap = load_pixmap('A数据选择.png', 16, 30)
+        self._sel_pixmap = Assets.load_pixmap('A数据选择.png', 16, 30)
 
         # Value labels and selector buttons (row labels are baked into the PNG)
         value_font = QFont('Arial', 10)
@@ -233,13 +233,12 @@ class UCSystemInfo(QWidget):
 
     panel_clicked = Signal(object)  # SystemInfoPanel
 
-    def __init__(self, enumerator: SensorEnumerator, lang: str = 'en', parent=None):
+    def __init__(self, enumerator: SensorEnumerator, parent=None):
         super().__init__(parent)
         _, _, w, h = Layout.SYSINFO_PANEL
         self.setFixedSize(w, h)
 
         self._enumerator = enumerator
-        self._lang = lang
         self._config = SysInfoConfig()
         self._page = 0
         self._temp_unit = 0  # 0=Celsius, 1=Fahrenheit
@@ -323,7 +322,7 @@ class UCSystemInfo(QWidget):
             add_x = START_X + add_col * SPACING_X
             add_y = START_Y + add_row * SPACING_Y
 
-            add_pixmap = load_pixmap('A增加数组.png', PANEL_W, PANEL_H)
+            add_pixmap = Assets.load_pixmap('A增加数组.png', PANEL_W, PANEL_H)
             self._add_btn = QLabel(self)
             if not add_pixmap.isNull():
                 self._add_btn.setPixmap(add_pixmap)
@@ -380,7 +379,7 @@ class UCSystemInfo(QWidget):
             return
 
         # Previous page button
-        prev_px = load_pixmap('A上一页a.png', 64, 24)
+        prev_px = Assets.load_pixmap('A上一页a.png', 64, 24)
         self._page_prev = QPushButton(self)
         px, py, pw, ph = PAGE_PREV_POS
         self._page_prev.setGeometry(px, py, pw, ph)
@@ -402,7 +401,7 @@ class UCSystemInfo(QWidget):
         self._page_prev.show()
 
         # Next page button
-        next_px = load_pixmap('A下一页a.png', 64, 24)
+        next_px = Assets.load_pixmap('A下一页a.png', 64, 24)
         self._page_next = QPushButton(self)
         nx, ny, nw, nh = PAGE_NEXT_POS
         self._page_next.setGeometry(nx, ny, nw, nh)
@@ -453,7 +452,7 @@ class UCSystemInfo(QWidget):
         if row < len(panel.config.sensors):
             current_id = panel.config.sensors[row].sensor_id
 
-        dialog = SensorPickerDialog(self._enumerator, self._lang, self)
+        dialog = SensorPickerDialog(self._enumerator, self)
         if current_id:
             dialog.set_current_sensor(current_id)
 

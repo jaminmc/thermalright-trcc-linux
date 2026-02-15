@@ -1,7 +1,7 @@
 """Enable HID device detection for all tests in this directory."""
 import pytest
 
-from trcc.device_detector import enable_hid_testing
+from trcc.adapters.device.detector import enable_hid_testing
 
 
 @pytest.fixture(autouse=True)

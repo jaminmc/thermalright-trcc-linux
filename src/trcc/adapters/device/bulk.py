@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import struct
 
-from .core.models import HandshakeResult, fbl_to_resolution, pm_to_fbl
+from trcc.core.models import HandshakeResult, fbl_to_resolution, pm_to_fbl
 
 log = logging.getLogger(__name__)
 

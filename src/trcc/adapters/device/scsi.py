@@ -17,9 +17,9 @@ import tempfile
 import time
 from typing import Dict, List, Set
 
-from .core.models import RESOLUTION_TO_PM as _RESOLUTION_TO_PM
-from .core.models import HandshakeResult, fbl_to_resolution
-from .data_repository import SysUtils
+from trcc.adapters.infra.data_repository import SysUtils
+from trcc.core.models import RESOLUTION_TO_PM as _RESOLUTION_TO_PM
+from trcc.core.models import HandshakeResult, fbl_to_resolution
 
 log = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ def find_lcd_devices() -> List[Dict]:
         model, button_image, protocol, device_type, vid, pid
     """
     try:
-        from .device_detector import detect_devices
+        from .detector import detect_devices
     except ImportError:
         return []
 
@@ -227,7 +227,7 @@ def find_lcd_devices() -> List[Dict]:
             button_image = dev.button_image
             scsi_pm = _RESOLUTION_TO_PM.get(resolution)
             if scsi_pm is not None:
-                from .device_hid import get_button_image
+                from .hid import get_button_image
                 resolved = get_button_image(scsi_pm, 0)
                 if resolved:
                     button_image = resolved
@@ -258,7 +258,7 @@ def find_lcd_devices() -> List[Dict]:
             # to discover the real model (AX120, PA120, LC1, etc.).
             if dev.implementation == 'hid_led':
                 try:
-                    from .device_led import PmRegistry, probe_led_model
+                    from .led import PmRegistry, probe_led_model
                     info = probe_led_model(dev.vid, dev.pid,
                                            usb_path=dev.usb_path)
                     if info and info.model_name:

@@ -7,9 +7,8 @@ import struct
 import tempfile
 import unittest
 
-from trcc.core.models import CarouselConfig, DisplayElement, ThemeConfig
-from trcc.dc_parser import parse_dc_file
-from trcc.dc_writer import (
+from trcc.adapters.infra.dc_parser import parse_dc_file
+from trcc.adapters.infra.dc_writer import (
     _hex_to_argb,
     _metric_to_hardware_ids,
     _write_string,
@@ -23,6 +22,7 @@ from trcc.dc_writer import (
     write_dc_file,
     write_tr_export,
 )
+from trcc.core.models import CarouselConfig, DisplayElement, ThemeConfig
 
 
 class TestWriteString(unittest.TestCase):

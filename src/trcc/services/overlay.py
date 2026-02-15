@@ -12,7 +12,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
-from ..font_resolver import FontResolver
+from ..adapters.infra.font_resolver import FontResolver
 from .system import SystemService
 
 log = logging.getLogger(__name__)
@@ -156,12 +156,12 @@ class OverlayService:
         Returns:
             display_options dict (may contain 'animation_file', etc.).
         """
-        from ..data_repository import ThemeDir
+        from ..adapters.infra.data_repository import ThemeDir
 
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
         if json_path and json_path.exists():
             try:
-                from ..dc_parser import load_config_json
+                from ..adapters.infra.dc_parser import load_config_json
 
                 result = load_config_json(str(json_path))
                 if result is not None:
@@ -176,7 +176,7 @@ class OverlayService:
         if not dc_path or not dc_path.exists():
             return {}
         try:
-            from ..dc_config import DcConfig
+            from ..adapters.infra.dc_config import DcConfig
 
             dc = DcConfig(dc_path)
             overlay_config = dc.to_overlay_config()

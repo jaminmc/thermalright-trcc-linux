@@ -17,7 +17,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from trcc.theme_downloader import (
+from trcc.adapters.infra.theme_downloader import (
     _SHORT_ALIASES,
     THEME_REGISTRY,
     PackInfo,
@@ -189,7 +189,7 @@ class TestDownloadPack(unittest.TestCase):
     def test_already_installed_with_alias(self, _count, _inst):
         self.assertEqual(download_pack('themes-320'), 0)
 
-    @patch('trcc.theme_downloader.DataManager.ensure_themes', return_value=True)
+    @patch('trcc.adapters.infra.theme_downloader.DataManager.ensure_themes', return_value=True)
     @patch.object(ThemeDownloader, '_theme_count', return_value=5)
     @patch.object(ThemeDownloader, '_is_installed', return_value=False)
     def test_successful_download(self, _inst, _count, mock_ensure):
@@ -197,7 +197,7 @@ class TestDownloadPack(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_ensure.assert_called_once_with(320, 320)
 
-    @patch('trcc.theme_downloader.DataManager.ensure_themes', return_value=True)
+    @patch('trcc.adapters.infra.theme_downloader.DataManager.ensure_themes', return_value=True)
     @patch.object(ThemeDownloader, '_theme_count', return_value=5)
     @patch.object(ThemeDownloader, '_is_installed', return_value=False)
     def test_download_with_alias(self, _inst, _count, mock_ensure):
@@ -205,14 +205,14 @@ class TestDownloadPack(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_ensure.assert_called_once_with(480, 480)
 
-    @patch('trcc.theme_downloader.DataManager.ensure_themes', return_value=False)
+    @patch('trcc.adapters.infra.theme_downloader.DataManager.ensure_themes', return_value=False)
     @patch.object(ThemeDownloader, '_is_installed', return_value=False)
     def test_download_failure_returns_1(self, _inst, mock_ensure):
         result = download_pack('themes-320x320')
         self.assertEqual(result, 1)
 
-    @patch('trcc.theme_downloader.DataManager.ensure_themes', return_value=True)
-    @patch('trcc.theme_downloader.shutil.rmtree')
+    @patch('trcc.adapters.infra.theme_downloader.DataManager.ensure_themes', return_value=True)
+    @patch('trcc.adapters.infra.theme_downloader.shutil.rmtree')
     @patch.object(ThemeDownloader, '_theme_count', return_value=5)
     @patch.object(ThemeDownloader, '_is_installed', return_value=True)
     def test_force_reinstall(self, _inst, _count, mock_rmtree, mock_ensure):
@@ -221,7 +221,7 @@ class TestDownloadPack(unittest.TestCase):
         self.assertEqual(result, 0)
         mock_ensure.assert_called_once_with(320, 320)
 
-    @patch('trcc.theme_downloader.DataManager.ensure_themes', return_value=True)
+    @patch('trcc.adapters.infra.theme_downloader.DataManager.ensure_themes', return_value=True)
     @patch.object(ThemeDownloader, '_theme_count', return_value=5)
     @patch.object(ThemeDownloader, '_is_installed', return_value=False)
     def test_non_square_resolution(self, _inst, _count, mock_ensure):
@@ -239,7 +239,7 @@ class TestRemovePack(unittest.TestCase):
         self.assertEqual(remove_pack('nonexistent'), 1)
 
     def test_not_installed_returns_1(self):
-        with patch('trcc.theme_downloader.USER_DATA_DIR', '/nonexistent'):
+        with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', '/nonexistent'):
             self.assertEqual(remove_pack('themes-320x320'), 1)
 
     def test_removes_installed(self):
@@ -248,7 +248,7 @@ class TestRemovePack(unittest.TestCase):
             theme_dir.mkdir()
             (theme_dir / 'Theme1').mkdir()
 
-            with patch('trcc.theme_downloader.USER_DATA_DIR', tmp):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', tmp):
                 result = remove_pack('themes-320x320')
 
             self.assertEqual(result, 0)
@@ -260,7 +260,7 @@ class TestRemovePack(unittest.TestCase):
             theme_dir.mkdir()
             (theme_dir / 'Theme1').mkdir()
 
-            with patch('trcc.theme_downloader.USER_DATA_DIR', tmp):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', tmp):
                 result = remove_pack('themes-320')
 
             self.assertEqual(result, 0)
@@ -279,8 +279,8 @@ class TestHelpers(unittest.TestCase):
             pkg_dir = Path(tmp) / 'pkg' / 'theme320320'
             pkg_dir.mkdir(parents=True)
 
-            with patch('trcc.theme_downloader.USER_DATA_DIR', str(Path(tmp) / 'user')), \
-                 patch('trcc.theme_downloader.DATA_DIR', str(Path(tmp) / 'pkg')):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', str(Path(tmp) / 'user')), \
+                 patch('trcc.adapters.infra.theme_downloader.DATA_DIR', str(Path(tmp) / 'pkg')):
                 result = ThemeDownloader._theme_dir(320, 320)
             self.assertEqual(result, user_dir)
 
@@ -289,8 +289,8 @@ class TestHelpers(unittest.TestCase):
             pkg_dir = Path(tmp) / 'pkg' / 'theme320320'
             pkg_dir.mkdir(parents=True)
 
-            with patch('trcc.theme_downloader.USER_DATA_DIR', str(Path(tmp) / 'user')), \
-                 patch('trcc.theme_downloader.DATA_DIR', str(Path(tmp) / 'pkg')):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', str(Path(tmp) / 'user')), \
+                 patch('trcc.adapters.infra.theme_downloader.DATA_DIR', str(Path(tmp) / 'pkg')):
                 result = ThemeDownloader._theme_dir(320, 320)
             self.assertEqual(result, pkg_dir)
 
@@ -298,8 +298,8 @@ class TestHelpers(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp) / 'theme320320'
             d.mkdir()
-            with patch('trcc.theme_downloader.USER_DATA_DIR', tmp), \
-                 patch('trcc.theme_downloader.DATA_DIR', '/nonexistent'):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', tmp), \
+                 patch('trcc.adapters.infra.theme_downloader.DATA_DIR', '/nonexistent'):
                 self.assertFalse(ThemeDownloader._is_installed(320, 320))
 
     def test_is_installed_true_with_content(self):
@@ -307,8 +307,8 @@ class TestHelpers(unittest.TestCase):
             d = Path(tmp) / 'theme320320'
             d.mkdir()
             (d / 'Theme1').mkdir()
-            with patch('trcc.theme_downloader.USER_DATA_DIR', tmp), \
-                 patch('trcc.theme_downloader.DATA_DIR', '/nonexistent'):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', tmp), \
+                 patch('trcc.adapters.infra.theme_downloader.DATA_DIR', '/nonexistent'):
                 self.assertTrue(ThemeDownloader._is_installed(320, 320))
 
     def test_theme_count(self):
@@ -318,13 +318,13 @@ class TestHelpers(unittest.TestCase):
             (d / 'Theme1').mkdir()
             (d / 'Theme2').mkdir()
             (d / 'readme.txt').write_text('hi')  # file, not dir
-            with patch('trcc.theme_downloader.USER_DATA_DIR', tmp), \
-                 patch('trcc.theme_downloader.DATA_DIR', '/nonexistent'):
+            with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', tmp), \
+                 patch('trcc.adapters.infra.theme_downloader.DATA_DIR', '/nonexistent'):
                 self.assertEqual(ThemeDownloader._theme_count(320, 320), 2)
 
     def test_theme_count_nonexistent(self):
-        with patch('trcc.theme_downloader.USER_DATA_DIR', '/nonexistent'), \
-             patch('trcc.theme_downloader.DATA_DIR', '/nonexistent'):
+        with patch('trcc.adapters.infra.theme_downloader.USER_DATA_DIR', '/nonexistent'), \
+             patch('trcc.adapters.infra.theme_downloader.DATA_DIR', '/nonexistent'):
             self.assertEqual(ThemeDownloader._theme_count(999, 999), 0)
 
 

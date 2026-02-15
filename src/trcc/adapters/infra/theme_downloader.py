@@ -21,7 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
-from .core.models import FBL_TO_RESOLUTION
+from trcc.core.models import FBL_TO_RESOLUTION
+
 from .data_repository import DATA_DIR, USER_DATA_DIR, DataManager
 
 log = logging.getLogger(__name__)

@@ -23,7 +23,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .core.models import HandshakeResult
+from trcc.core.models import (
+    DEVICE_TYPE_NAMES,
+    LED_DEVICE_TYPE_NAME,
+    PROTOCOL_NAMES,
+    HandshakeResult,
+)
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +148,7 @@ class ScsiProtocol(DeviceProtocol):
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
         try:
-            from .device_scsi import send_image_to_device
+            from .scsi import send_image_to_device
             log.debug("SCSI send: %d bytes to %s (%dx%d)", len(image_data), self._path, width, height)
             success = send_image_to_device(self._path, image_data, width, height)
             self._notify_send_complete(success)
@@ -214,7 +219,7 @@ class HidProtocol(DeviceProtocol):
                 self._transport.open()
                 self._notify_state_changed("transport_open", True)
 
-            from .device_hid import HidDeviceType2, HidDeviceType3
+            from .hid import HidDeviceType2, HidDeviceType3
             if self._device_type == 2:
                 handler = HidDeviceType2(self._transport)
             elif self._device_type == 3:
@@ -246,7 +251,7 @@ class HidProtocol(DeviceProtocol):
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
         try:
-            from .device_hid import HidDeviceManager
+            from .hid import HidDeviceManager
             if self._transport is None:
                 self._transport = self._create_transport()
                 self._transport.open()
@@ -361,10 +366,10 @@ class LedProtocol(DeviceProtocol):
                 self._notify_state_changed("transport_open", True)
 
             if self._sender is None:
-                from .device_led import LedHidSender
+                from .led import LedHidSender
                 self._sender = LedHidSender(self._transport)
 
-            from .device_led import LedPacketBuilder, remap_led_colors
+            from .led import LedPacketBuilder, remap_led_colors
 
             # Remap logical LED order → physical wire order (per-style).
             if self._handshake_info and self._handshake_info.style:
@@ -403,7 +408,7 @@ class LedProtocol(DeviceProtocol):
                 self._notify_state_changed("transport_open", True)
 
             if self._sender is None:
-                from .device_led import LedHidSender
+                from .led import LedHidSender
                 self._sender = LedHidSender(self._transport)
 
             self._handshake_info = self._sender.handshake()
@@ -499,7 +504,7 @@ class BulkProtocol(DeviceProtocol):
     def _ensure_device(self):
         """Lazily create and handshake the bulk device."""
         if self._device is None:
-            from .device_bulk import BulkDevice
+            from .bulk import BulkDevice
             self._device = BulkDevice(self._vid, self._pid)
             result = self._device.handshake()
             self._handshake_result = result
@@ -702,12 +707,12 @@ class DeviceProtocolFactory:
     @staticmethod
     def create_usb_transport(vid: int, pid: int):
         """Create the best available USB transport (pyusb preferred, hidapi fallback)."""
-        from .device_hid import HIDAPI_AVAILABLE, PYUSB_AVAILABLE
+        from .hid import HIDAPI_AVAILABLE, PYUSB_AVAILABLE
         if PYUSB_AVAILABLE:
-            from .device_hid import PyUsbTransport
+            from .hid import PyUsbTransport
             return PyUsbTransport(vid, pid)
         elif HIDAPI_AVAILABLE:
-            from .device_hid import HidApiTransport
+            from .hid import HidApiTransport
             return HidApiTransport(vid, pid)
         else:
             raise ImportError(
@@ -720,7 +725,7 @@ class DeviceProtocolFactory:
     def _get_hid_backends() -> Dict[str, bool]:
         """Check HID backend availability."""
         try:
-            from .device_hid import HIDAPI_AVAILABLE, PYUSB_AVAILABLE
+            from .hid import HIDAPI_AVAILABLE, PYUSB_AVAILABLE
             return {"pyusb": PYUSB_AVAILABLE, "hidapi": HIDAPI_AVAILABLE}
         except ImportError:
             return {"pyusb": False, "hidapi": False}
@@ -816,21 +821,8 @@ class DeviceProtocolFactory:
 # Protocol Info API — for GUI to query device/backend state
 # =========================================================================
 
-PROTOCOL_NAMES = {
-    "scsi": "SCSI (sg_raw)",
-    "hid": "HID (USB bulk)",
-    "led": "LED (HID 64-byte)",
-    "bulk": "USB Bulk (USBLCDNew)",
-}
-
-DEVICE_TYPE_NAMES = {
-    1: "SCSI RGB565",
-    2: "HID Type 2 (H)",
-    3: "HID Type 3 (ALi)",
-    4: "Raw USB Bulk LCD",
-}
-
-LED_DEVICE_TYPE_NAME = "RGB LED Controller"
+# Domain data re-exported from core.models (canonical location):
+# PROTOCOL_NAMES, DEVICE_TYPE_NAMES, LED_DEVICE_TYPE_NAME
 
 
 @dataclass

@@ -309,18 +309,8 @@ class Layout:
     ]
     ABOUT_CHECKBOX_SIZE = 14
 
-    # System locale → Windows asset suffix (for auto-detect on startup)
-    LOCALE_TO_LANG = {
-        'zh_CN': '',     # Chinese Simplified = default (no suffix)
-        'zh_TW': 'tc',   # Traditional Chinese
-        'en': 'en',       # English
-        'de': 'd',        # German
-        'es': 'x',        # Spanish
-        'fr': 'f',        # French
-        'pt': 'p',        # Portuguese
-        'ru': 'e',        # Russian
-        'ja': 'r',        # Japanese
-    }
+    # Re-export from models — single source of truth for locale→suffix mapping
+    from ..core.models import LOCALE_TO_LANG
 
 
 class Styles:

@@ -15,17 +15,17 @@ from unittest.mock import MagicMock, mock_open, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from trcc.debug_report import _KNOWN_VIDS, DebugReport
+from trcc.adapters.infra.debug_report import _KNOWN_VIDS, DebugReport
 
 
 class TestDebugReportStructure(unittest.TestCase):
     """Test overall report structure."""
 
-    @patch("trcc.debug_report.subprocess.run")
-    @patch("trcc.debug_report.DebugReport._devices")
-    @patch("trcc.debug_report.DebugReport._device_permissions")
-    @patch("trcc.debug_report.DebugReport._handshakes")
-    @patch("trcc.debug_report.DebugReport._config")
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._devices")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._device_permissions")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._handshakes")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._config")
     def test_collect_creates_sections(self, *mocks):
         rpt = DebugReport()
         rpt.collect()
@@ -33,11 +33,11 @@ class TestDebugReportStructure(unittest.TestCase):
         self.assertIn("Version", titles)
         self.assertIn("lsusb (filtered)", titles)
 
-    @patch("trcc.debug_report.subprocess.run")
-    @patch("trcc.debug_report.DebugReport._devices")
-    @patch("trcc.debug_report.DebugReport._device_permissions")
-    @patch("trcc.debug_report.DebugReport._handshakes")
-    @patch("trcc.debug_report.DebugReport._config")
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._devices")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._device_permissions")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._handshakes")
+    @patch("trcc.adapters.infra.debug_report.DebugReport._config")
     def test_str_contains_footer(self, *mocks):
         rpt = DebugReport()
         rpt.collect()
@@ -68,7 +68,7 @@ class TestVersionSection(unittest.TestCase):
 class TestLsusbSection(unittest.TestCase):
     """Test lsusb filtering."""
 
-    @patch("trcc.debug_report.subprocess.run")
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
     def test_filters_known_vids(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout=(
@@ -84,7 +84,7 @@ class TestLsusbSection(unittest.TestCase):
         self.assertIn("87ad:70db", body)
         self.assertNotIn("1d6b:0002", body)
 
-    @patch("trcc.debug_report.subprocess.run")
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
     def test_no_devices_found(self, mock_run):
         mock_run.return_value = MagicMock(
             stdout="Bus 001 Device 001: ID 1d6b:0002 Linux Foundation\n"
@@ -94,7 +94,7 @@ class TestLsusbSection(unittest.TestCase):
         _, body = rpt.sections[0]
         self.assertIn("no Thermalright devices", body)
 
-    @patch("trcc.debug_report.subprocess.run", side_effect=FileNotFoundError)
+    @patch("trcc.adapters.infra.debug_report.subprocess.run", side_effect=FileNotFoundError)
     def test_lsusb_not_installed(self, _):
         rpt = DebugReport()
         rpt._lsusb()
@@ -136,7 +136,7 @@ class TestUdevSection(unittest.TestCase):
 class TestSelinuxSection(unittest.TestCase):
     """Test SELinux status."""
 
-    @patch("trcc.debug_report.subprocess.run")
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
     def test_enforcing(self, mock_run):
         mock_run.return_value = MagicMock(stdout="Enforcing\n")
         rpt = DebugReport()
@@ -144,7 +144,7 @@ class TestSelinuxSection(unittest.TestCase):
         _, body = rpt.sections[0]
         self.assertIn("Enforcing", body)
 
-    @patch("trcc.debug_report.subprocess.run", side_effect=FileNotFoundError)
+    @patch("trcc.adapters.infra.debug_report.subprocess.run", side_effect=FileNotFoundError)
     def test_not_installed(self, _):
         rpt = DebugReport()
         rpt._selinux()
@@ -168,14 +168,14 @@ class TestDependenciesSection(unittest.TestCase):
 class TestDevicesSection(unittest.TestCase):
     """Test device listing."""
 
-    @patch("trcc.device_detector.DeviceDetector.detect", return_value=[])
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect", return_value=[])
     def test_no_devices(self, _):
         rpt = DebugReport()
         rpt._devices()
         _, body = rpt.sections[0]
         self.assertIn("none", body)
 
-    @patch("trcc.device_detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
     def test_lists_devices(self, mock_detect):
         dev = MagicMock()
         dev.vid = 0x0416
@@ -267,8 +267,8 @@ class TestKnownVids(unittest.TestCase):
 class TestFullCollect(unittest.TestCase):
     """Test full collect with everything mocked."""
 
-    @patch("trcc.debug_report.subprocess.run")
-    @patch("trcc.device_detector.DeviceDetector.detect", return_value=[])
+    @patch("trcc.adapters.infra.debug_report.subprocess.run")
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect", return_value=[])
     @patch("trcc.conf.load_config", return_value={})
     @patch("os.listdir", return_value=[])
     @patch("builtins.open", side_effect=FileNotFoundError)

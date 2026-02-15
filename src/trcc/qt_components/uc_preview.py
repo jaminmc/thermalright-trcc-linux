@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSlider, QVBoxLayout
 
-from .assets import Assets, load_pixmap
+from .assets import Assets
 from .base import BasePanel, ImageLabel, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
 
@@ -121,8 +121,8 @@ class UCPreview(BasePanel):
         # Play/Pause button
         self.play_btn = QPushButton(self.progress_container)
         self.play_btn.setGeometry(*Layout.PLAY_BTN)
-        play_pix = load_pixmap(Assets.ICON_PLAY, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
-        pause_pix = load_pixmap(Assets.ICON_PAUSE, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
+        play_pix = Assets.load_pixmap(Assets.ICON_PLAY, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
+        pause_pix = Assets.load_pixmap(Assets.ICON_PAUSE, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
         if not play_pix.isNull():
             self.play_btn.setIcon(QIcon(play_pix))
             self.play_btn.setIconSize(self.play_btn.size())

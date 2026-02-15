@@ -15,12 +15,22 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, Optional, Tuple
 
-from .core.models import HandshakeResult
-from .device_hid import (
+from trcc.core.models import (
+    LED_REMAP_TABLES,  # noqa: F401 — re-export
+    LED_STYLES,  # noqa: F401 — re-export
+    PRESET_COLORS,  # noqa: F401 — re-export
+    HandshakeResult,  # noqa: F401 — re-export
+    LedDeviceStyle,  # noqa: F401 — re-export
+    LedHandshakeInfo,
+    PmEntry,  # noqa: F401 — re-export
+    PmRegistry,
+    remap_led_colors,  # noqa: F401 — re-export
+)
+
+from .hid import (
     DEFAULT_TIMEOUT_MS,
     EP_READ_01,
     EP_WRITE_02,
@@ -67,268 +77,10 @@ DELAY_PRE_INIT_S = 0.050    # Thread.Sleep(50) before init
 DELAY_POST_INIT_S = 0.200   # Thread.Sleep(200) after init
 
 
-# =========================================================================
-# Device styles (from FormLED.cs FormLEDInit, lines 1598-1750)
-# =========================================================================
 
-@dataclass
-class LedDeviceStyle:
-    """LED device configuration derived from FormLEDInit pm→nowLedStyle.
-
-    Attributes:
-        style_id: Internal style number (nowLedStyle in Windows).
-        led_count: Total addressable LEDs (LedCountValN).
-        segment_count: Logical segments (LedCountValNs).
-        zone_count: Number of independent zones (1=single, 2-4=multi).
-        model_name: Human-readable model name.
-        preview_image: Device background asset name (D{Name}.png).
-        background_base: Localized background base (D0{Name}).
-    """
-    style_id: int
-    led_count: int
-    segment_count: int
-    zone_count: int = 1
-    model_name: str = ""
-    preview_image: str = ""
-    background_base: str = "D0数码屏"
-
-
-# All LED styles from FormLED.cs FormLEDInit and UCScreenLED.cs constants
-LED_STYLES = {
-    1: LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
-    2: LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "DPA120_DIGITAL", "D0数码屏4区域"),
-    3: LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "DAK120_DIGITAL", "D0数码屏"),
-    4: LedDeviceStyle(4, 31, 14, 1, "LC1", "DLC1", "D0LC1"),
-    5: LedDeviceStyle(5, 93, 23, 2, "LF8", "DLF8", "D0LF8"),
-    6: LedDeviceStyle(6, 124, 72, 2, "LF12", "DLF12", "D0LF12"),
-    7: LedDeviceStyle(7, 116, 12, 3, "LF10", "DLF10", "D0LF10"),
-    8: LedDeviceStyle(8, 18, 13, 4, "CZ1", "DCZ1", "D0CZ1"),
-    9: LedDeviceStyle(9, 61, 31, 1, "LC2", "DLC2", "D0LC2"),
-    10: LedDeviceStyle(10, 38, 17, 1, "LF11", "DLF11", "D0LF11"),
-    11: LedDeviceStyle(11, 93, 72, 2, "LF15", "DLF15", "D0LF15"),
-    12: LedDeviceStyle(12, 62, 62, 1, "LF13", "DLF13", "D0rgblf13"),
-    # HR10 2280 Pro Digital — NVMe SSD heatsink with ARGB digital display.
-    # Shares PM=128 and LED config with LC1 (31 LEDs, 14 segments, 1 zone).
-    # Distinguished from LC1 by sub_type=129 in handshake response.
-    13: LedDeviceStyle(13, 31, 14, 1, "HR10_2280_PRO_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
-}
-
-# -------------------------------------------------------------------------
-# PM registry — single source of truth for PM → (style, model, button image)
-# -------------------------------------------------------------------------
-
-class PmEntry(NamedTuple):
-    """PM registry entry mapping a firmware PM byte to device metadata."""
-    style_id: int
-    model_name: str
-    button_image: str
-    preview_image: str = ""  # PM-specific preview; empty = use style default
-
-
-class PmRegistry:
-    """Encapsulates all PM-to-device metadata lookups.
-
-    Maps firmware PM bytes (from HID handshake) to device style, model name,
-    and button image.  Handles sub-type overrides (e.g. HR10 vs LC1 on PM=128)
-    and PA120 variant range (PMs 17-31).
-    """
-
-    # (pm, sub_type) → PmEntry override for devices that share a PM byte.
-    _OVERRIDES: dict[tuple[int, int], PmEntry] = {
-        (128, 129): PmEntry(13, "HR10_2280_PRO_DIGITAL", "A1HR10 2280 PRO DIGITAL"),
-    }
-
-    # PM → PmEntry base registry (built once at class load time).
-    _REGISTRY: dict[int, PmEntry] = {
-        1:   PmEntry(1, "FROZEN_HORIZON_PRO", "A1FROZEN HORIZON PRO", "DFROZEN_HORIZON_PRO"),
-        2:   PmEntry(1, "FROZEN_MAGIC_PRO", "A1FROZEN MAGIC PRO", "DFROZEN_MAGIC_PRO"),
-        3:   PmEntry(1, "AX120_DIGITAL", "A1AX120 DIGITAL"),
-        16:  PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL"),
-        23:  PmEntry(2, "RK120_DIGITAL", "A1RK120 DIGITAL"),
-        32:  PmEntry(3, "AK120_DIGITAL", "A1AK120 Digital"),
-        48:  PmEntry(5, "LF8", "A1LF8"),
-        49:  PmEntry(5, "LF10", "A1LF10"),
-        80:  PmEntry(6, "LF12", "A1LF12"),
-        96:  PmEntry(7, "LF10", "A1LF10"),
-        112: PmEntry(9, "LC2", "A1LC2"),
-        128: PmEntry(4, "LC1", "A1LC1"),
-        129: PmEntry(10, "LF11", "A1LF11"),
-        144: PmEntry(11, "LF15", "A1LF15"),
-        160: PmEntry(12, "LF13", "A1LF13"),
-        208: PmEntry(8, "CZ1", "A1CZ1"),
-        # PA120 variants (PMs 17-22, 24-31) all map to style 2.
-        **{pm: PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL")
-           for pm in range(17, 32) if pm not in (23,)},
-    }
-
-    # PM → style_id convenience mapping (used by cli.py, debug_report.py).
-    PM_TO_STYLE: dict[int, int] = {pm: e.style_id for pm, e in _REGISTRY.items()}
-
-    @classmethod
-    def resolve(cls, pm: int, sub_type: int = 0) -> Optional[PmEntry]:
-        """Resolve PM + SUB to a PmEntry, checking overrides first."""
-        return cls._OVERRIDES.get((pm, sub_type)) or cls._REGISTRY.get(pm)
-
-    @classmethod
-    def get_button_image(cls, pm: int, sub: int = 0) -> Optional[str]:
-        """Resolve LED device button image from PM byte.
-
-        Returns None if PM is unknown.
-        """
-        entry = cls.resolve(pm, sub)
-        return entry.button_image if entry else None
-
-    @classmethod
-    def get_model_name(cls, pm: int, sub_type: int = 0) -> str:
-        """Get human-readable model name for a PM + SUB byte combo.
-
-        Checks overrides first (e.g. HR10 vs LC1), then base registry.
-        Falls back to "Unknown (pm=N)" for unrecognized PMs.
-        """
-        entry = cls.resolve(pm, sub_type)
-        return entry.model_name if entry else f"Unknown (pm={pm})"
-
-    @classmethod
-    def get_style(cls, pm: int, sub_type: int = 0) -> LedDeviceStyle:
-        """Get LED device style from firmware PM byte (and optional sub_type).
-
-        Falls back to style 1 (30 LEDs) for unknown PM values.
-        """
-        entry = cls.resolve(pm, sub_type)
-        return LED_STYLES[entry.style_id if entry else 1]
-
-    @classmethod
-    def get_preview_image(cls, pm: int, sub_type: int = 0) -> str:
-        """Get device preview image name, PM-specific or style default."""
-        entry = cls.resolve(pm, sub_type)
-        if entry and entry.preview_image:
-            return entry.preview_image
-        style = cls.get_style(pm, sub_type)
-        return style.preview_image
-
-
-# Preset colors from FormLED.cs ucColor1_ChangeColor handlers
-# Note: Windows ucColor1Delegate has swapped B,G params (R,B,G order)
-PRESET_COLORS: List[Tuple[int, int, int]] = [
-    (255, 0, 42),     # C1: Red-pink
-    (255, 110, 0),    # C2: Orange
-    (255, 255, 0),    # C3: Yellow
-    (0, 255, 0),      # C4: Green
-    (0, 255, 255),    # C5: Cyan
-    (0, 91, 255),     # C6: Blue
-    (214, 0, 255),    # C7: Purple
-    (255, 255, 255),  # C8: White
-]
-
-
-# =========================================================================
-# LED index remapping tables (from FormLED.cs SendHidVal)
-# =========================================================================
-# Each style has a hardware-specific mapping from logical LED indices to
-# physical wire positions.  Windows builds colors in logical order, then
-# remaps before sending.  Without this step, colors land on wrong LEDs.
-#
-# Table format: tuple of logical LED indices, one per physical position.
-# Physical position i on the device wire gets colors from logical LED table[i].
-
-# Style 2: PA120_DIGITAL (84 LEDs, 4 zones)
-_REMAP_STYLE_2: tuple[int, ...] = (
-    # Cpu2 Cpu1 | Zone 1: F A B G E D C
-    3, 2, 14, 9, 10, 15, 13, 12, 11,
-    # Zone 2: F A B G E D C
-    21, 16, 17, 22, 20, 19, 18,
-    # Zone 3: F A B G E D C
-    28, 23, 24, 29, 27, 26, 25,
-    # Zone 4: F A B G E D C
-    36, 31, 32, 37, 35, 34, 33,
-    # Zone 5: F A B G E D C
-    43, 38, 39, 44, 42, 41, 40,
-    # BFB BFB1
-    8, 8,
-    # Zone 10 (reversed): C D E G B A F
-    75, 76, 77, 79, 74, 73, 78,
-    # Zone 9 (reversed): C D E G B A F
-    68, 69, 70, 72, 67, 66, 71,
-    # B12 C12 SSD1 HSD1
-    82, 83, 6, 7,
-    # Zone 8 (reversed): C D E G B A F
-    61, 62, 63, 65, 60, 59, 64,
-    # Zone 7 (reversed): C D E G B A F
-    54, 55, 56, 58, 53, 52, 57,
-    # Zone 6 (reversed): C D E G B A F
-    47, 48, 49, 51, 46, 45, 50,
-    # Gpu1 Gpu2 SSD HSD C11 B11
-    4, 5, 6, 7, 81, 80,
-)
-
-# Style 3: AK120_DIGITAL (64 LEDs, 2 zones)
-_REMAP_STYLE_3: tuple[int, ...] = (
-    # WATT | Zone 3: C D E G B A F
-    1, 25, 26, 27, 29, 24, 23, 28,
-    # B2 Cpu1 | Zone 2: A F G C D E
-    17, 2, 16, 21, 22, 18, 19, 20,
-    # Zone 1: B A F G C D E
-    10, 9, 14, 15, 11, 12, 13,
-    # Zone 4: F A B G E D C
-    36, 31, 32, 37, 35, 34, 33,
-    # Zone 5: F A B G E D C
-    43, 38, 39, 44, 42, 41, 40,
-    # Zone 6: F A B G E D C
-    50, 45, 46, 51, 49, 48, 47,
-    # SSD HSD BFB
-    6, 7, 8,
-    # Zone 8: C D E G B A F
-    61, 62, 63, 65, 60, 59, 64,
-    # C7 Gpu1 | Zone 7: D E G B A F
-    54, 4, 55, 56, 58, 53, 52, 57,
-    # B9 C9
-    67, 68,
-)
-
-# Style 4: LC1 (31 LEDs, 1 zone) — also base for HR10 (style 13)
-_REMAP_STYLE_4: tuple[int, ...] = (
-    # GNo MTNo | Zone 4: C D E G B A | SSD
-    2, 1, 33, 34, 35, 37, 32, 31, 6,
-    # F4 | Zone 3: C D E G B A F
-    36, 25, 26, 27, 29, 24, 23, 28,
-    # Zone 2: C D E G B A F
-    18, 19, 20, 22, 17, 16, 21,
-    # Zone 1: C D E G B A F
-    11, 12, 13, 15, 10, 9, 14,
-)
-
-# Style → remap table.  Styles not listed use identity mapping (no remap).
-LED_REMAP_TABLES: dict[int, tuple[int, ...]] = {
-    2: _REMAP_STYLE_2,   # PA120_DIGITAL (84 LEDs)
-    3: _REMAP_STYLE_3,   # AK120_DIGITAL (64 LEDs)
-    4: _REMAP_STYLE_4,   # LC1 (31 LEDs)
-    13: _REMAP_STYLE_4,  # HR10 shares LC1 layout
-}
-
-
-def remap_led_colors(
-    colors: List[Tuple[int, int, int]],
-    style_id: int,
-) -> List[Tuple[int, int, int]]:
-    """Remap LED colors from logical to physical wire order.
-
-    Each LED device style has a hardware-specific mapping from logical LED
-    indices (used by the GUI) to physical wire positions (sent to device).
-    Windows applies this remap in FormLED.cs SendHidVal before sending.
-
-    Args:
-        colors: LED colors in logical order (index = logical LED number).
-        style_id: Device style ID (from LedDeviceStyle.style_id).
-
-    Returns:
-        Colors reordered for the physical device wire.  If no remap table
-        exists for this style, returns the input unchanged.
-    """
-    table = LED_REMAP_TABLES.get(style_id)
-    if table is None:
-        return colors
-    black = (0, 0, 0)
-    return [colors[idx] if idx < len(colors) else black for idx in table]
+# LedDeviceStyle, LED_STYLES, PmEntry, PmRegistry, PRESET_COLORS,
+# LED_REMAP_TABLES, remap_led_colors, LedHandshakeInfo — all imported
+# from core.models (canonical location). Re-exported for backward compat.
 
 
 # =========================================================================
@@ -445,26 +197,6 @@ class ColorEngine:
         return gradient[-1][1]
 
 
-
-
-# =========================================================================
-# Handshake response
-# =========================================================================
-
-@dataclass
-class LedHandshakeInfo(HandshakeResult):
-    """LED-specific handshake info (extends HandshakeResult).
-
-    Attributes:
-        pm: Product model byte (raw resp[5], Windows data[6]) — identifies device type.
-        sub_type: Sub-type byte (raw resp[4], Windows data[5]).
-        style: Resolved LedDeviceStyle for this device.
-        model_name: Human-readable model name.
-    """
-    pm: int = 0
-    sub_type: int = 0
-    style: Optional[LedDeviceStyle] = None
-    model_name: str = ""
 
 
 # =========================================================================
@@ -843,7 +575,7 @@ def probe_led_model(vid: int = LED_VID, pid: int = LED_PID,
 
     transport = None
     try:
-        from .device_factory import DeviceProtocolFactory
+        from .factory import DeviceProtocolFactory
         transport = DeviceProtocolFactory.create_usb_transport(vid, pid)
         transport.open()
         sender = LedHidSender(transport)

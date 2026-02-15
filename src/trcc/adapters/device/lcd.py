@@ -7,11 +7,12 @@ Combines device detection with implementation-specific protocols.
 import logging
 from typing import Optional
 
-from .core.models import LCDDeviceConfig
-from .device_detector import DetectedDevice, detect_devices, get_default_device
-from .device_scsi import ScsiDevice
-from .services.device import DeviceService
-from .services.image import ImageService
+from trcc.core.models import LCDDeviceConfig
+from trcc.services.device import DeviceService
+from trcc.services.image import ImageService
+
+from .detector import DetectedDevice, detect_devices, get_default_device
+from .scsi import ScsiDevice
 
 log = logging.getLogger(__name__)
 

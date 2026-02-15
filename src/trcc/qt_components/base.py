@@ -222,14 +222,14 @@ def set_background_pixmap(widget, asset_name, width=None, height=None,
     Returns:
         The QPixmap if successfully set, or None.
     """
-    from .assets import load_pixmap as _load
+    from .assets import Assets
 
     if isinstance(asset_name, QPixmap):
         pixmap = asset_name
     else:
         w = width or widget.width() or None
         h = height or widget.height() or None
-        pixmap = _load(asset_name, w, h)
+        pixmap = Assets.load_pixmap(asset_name, w, h)
 
     if pixmap and not pixmap.isNull():
         filt = _BgPaintFilter(pixmap, widget)
@@ -261,7 +261,7 @@ def create_image_button(parent, x, y, w, h, normal_img, active_img,
     Returns:
         QPushButton
     """
-    from .assets import load_pixmap
+    from .assets import Assets
 
     btn = QPushButton(parent)
     btn.setGeometry(x, y, w, h)
@@ -272,8 +272,8 @@ def create_image_button(parent, x, y, w, h, normal_img, active_img,
     if checkable:
         btn.setCheckable(True)
 
-    normal_pix = load_pixmap(normal_img, w, h) if normal_img else None
-    active_pix = load_pixmap(active_img, w, h) if active_img else None
+    normal_pix = Assets.load_pixmap(normal_img, w, h) if normal_img else None
+    active_pix = Assets.load_pixmap(active_img, w, h) if active_img else None
 
     if normal_pix and not normal_pix.isNull():
         icon = QIcon(normal_pix)
@@ -315,12 +315,12 @@ def make_icon_button(parent, rect, img_name, fallback, handler):
     Returns:
         QPushButton
     """
-    from .assets import load_pixmap
+    from .assets import Assets
 
     btn = QPushButton(parent)
     btn.setGeometry(*rect)
     btn.setCursor(Qt.CursorShape.PointingHandCursor)
-    pix = load_pixmap(img_name, rect[2], rect[3])
+    pix = Assets.load_pixmap(img_name, rect[2], rect[3])
     if not pix.isNull():
         btn.setIcon(QIcon(pix))
         btn.setIconSize(QSize(rect[2], rect[3]))
@@ -509,9 +509,9 @@ class BaseThemeBrowser(BasePanel):
 
     def _load_filter_assets(self):
         """Load shared filter button pixmaps (normal + active)."""
-        from .assets import load_pixmap as _load
-        normal = _load('P主题分类选择.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
-        active = _load('P主题分类选择0.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
+        from .assets import Assets
+        normal = Assets.load_pixmap('P主题分类选择.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
+        active = Assets.load_pixmap('P主题分类选择0.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
         return normal, active
 
     def _make_filter_button(self, x, y, w, h, normal_pix, active_pix, callback):

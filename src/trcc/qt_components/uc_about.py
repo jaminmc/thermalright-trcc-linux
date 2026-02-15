@@ -30,7 +30,7 @@ from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QToolTip
 
-from .assets import Assets, load_pixmap
+from .assets import Assets
 from .base import BasePanel, create_image_button, set_background_pixmap
 from .constants import Layout, Sizes, Styles
 
@@ -164,11 +164,10 @@ class UCAbout(BasePanel):
     refresh_changed = Signal(int)        # refresh interval (seconds)
     _update_available = Signal(str)      # latest version string
 
-    def __init__(self, lang: str = 'en', parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent, width=Sizes.FORM_W, height=Sizes.FORM_H)
 
-        self._lang = lang
-        self._lang_buttons = {}
+        self._lang_buttons: dict[str, QPushButton] = {}
         self._temp_mode = 'C'
         self._autostart = _is_autostart_enabled()
         self._read_hdd = True
@@ -176,15 +175,16 @@ class UCAbout(BasePanel):
 
         # Load checkbox pixmaps
         sz = Layout.ABOUT_CHECKBOX_SIZE
-        self._cb_off = load_pixmap(Assets.CHECKBOX_OFF, sz, sz)
-        self._cb_on = load_pixmap(Assets.CHECKBOX_ON, sz, sz)
+        self._cb_off = Assets.load_pixmap(Assets.CHECKBOX_OFF, sz, sz)
+        self._cb_on = Assets.load_pixmap(Assets.CHECKBOX_ON, sz, sz)
 
         self._setup_ui()
         self._apply_background()
 
     def _apply_background(self):
         """Set localized background image (no tiling)."""
-        bg_name = Assets.get_localized(Assets.ABOUT_BG, self._lang)
+        from ..conf import settings
+        bg_name = Assets.get_localized(Assets.ABOUT_BG, settings.lang)
         set_background_pixmap(self, bg_name)
 
     def _setup_ui(self):
@@ -226,10 +226,11 @@ class UCAbout(BasePanel):
         self.refresh_input.editingFinished.connect(self._on_refresh_changed)
 
         # === Language selection checkboxes ===
+        from ..conf import settings
         for x, y, lang_suffix in Layout.ABOUT_LANG_BUTTONS:
             btn = self._make_checkbox(x, y, Layout.ABOUT_CHECKBOX_SIZE,
                                       Layout.ABOUT_CHECKBOX_SIZE,
-                                      checked=(lang_suffix == self._lang))
+                                      checked=(lang_suffix == settings.lang))
             btn.clicked.connect(
                 lambda checked, ls=lang_suffix: self._on_lang_clicked(ls))
             self._lang_buttons[lang_suffix] = btn
@@ -374,8 +375,6 @@ class UCAbout(BasePanel):
         """Handle language checkbox click (radio behavior)."""
         for ls, btn in self._lang_buttons.items():
             btn.setChecked(ls == lang_suffix)
-        self._lang = lang_suffix
-        self._apply_background()
         self.language_changed.emit(lang_suffix)
 
     # --- Software update ---
@@ -421,9 +420,9 @@ class UCAbout(BasePanel):
 
     # --- Public API ---
 
-    def set_language(self, lang: str):
-        """Update language from external source."""
-        self._lang = lang
+    def sync_language(self):
+        """Sync button states and background to current settings.lang."""
+        from ..conf import settings
         for ls, btn in self._lang_buttons.items():
-            btn.setChecked(ls == lang)
+            btn.setChecked(ls == settings.lang)
         self._apply_background()

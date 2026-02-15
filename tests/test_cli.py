@@ -188,7 +188,7 @@ class TestDetect(unittest.TestCase):
         """No devices -> returns 1."""
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = []
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = detect(show_all=False)
         self.assertEqual(result, 1)
 
@@ -198,7 +198,7 @@ class TestDetect(unittest.TestCase):
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = [dev]
 
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}), \
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.get_selected_device', return_value='/dev/sg0'):
             result = detect(show_all=False)
         self.assertEqual(result, 0)
@@ -276,7 +276,7 @@ class TestShowInfo(unittest.TestCase):
         }
         mock_mod.format_metric.side_effect = lambda k, v: f"{v}"
 
-        with patch.dict('sys.modules', {'trcc.system_info': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.system.info': mock_mod}):
             result = show_info()
         self.assertEqual(result, 0)
 
@@ -287,7 +287,7 @@ class TestDownloadThemes(unittest.TestCase):
     def test_list_mode(self):
         """show_list=True calls list_available."""
         mock_mod = MagicMock()
-        with patch.dict('sys.modules', {'trcc.theme_downloader': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.infra.theme_downloader': mock_mod}):
             result = download_themes(pack=None, show_list=True, force=False, show_info=False)
         self.assertEqual(result, 0)
 
@@ -295,7 +295,7 @@ class TestDownloadThemes(unittest.TestCase):
         """Pack name dispatches to download_pack."""
         mock_mod = MagicMock()
         mock_mod.download_pack.return_value = 0
-        with patch.dict('sys.modules', {'trcc.theme_downloader': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.infra.theme_downloader': mock_mod}):
             result = download_themes(pack='themes-320', show_list=False,
                                      force=True, show_info=False)
         self.assertEqual(result, 0)
@@ -337,21 +337,21 @@ class TestSelectDevice(unittest.TestCase):
     def test_no_devices(self):
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = []
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(1)
         self.assertEqual(result, 1)
 
     def test_invalid_number_too_low(self):
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = [self._make_device()]
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(0)
         self.assertEqual(result, 1)
 
     def test_invalid_number_too_high(self):
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = [self._make_device()]
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(5)
         self.assertEqual(result, 1)
 
@@ -359,7 +359,7 @@ class TestSelectDevice(unittest.TestCase):
         dev = self._make_device('/dev/sg1', 'Frost Commander')
         mock_mod = MagicMock()
         mock_mod.detect_devices.return_value = [dev]
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}), \
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.save_selected_device') as mock_set:
             result = select_device(1)
         self.assertEqual(result, 0)
@@ -548,7 +548,7 @@ class TestSetupUdev(unittest.TestCase):
 
     def test_dry_run(self):
         """dry_run=True prints rules and returns 0 without writing."""
-        from trcc.device_detector import DeviceEntry
+        from trcc.adapters.device.detector import DeviceEntry
         mock_mod = MagicMock()
         mock_mod.KNOWN_DEVICES = {
             (0x87CD, 0x70DB): DeviceEntry(
@@ -557,7 +557,7 @@ class TestSetupUdev(unittest.TestCase):
             ),
         }
         mock_mod.DeviceEntry = DeviceEntry
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = setup_udev(dry_run=True)
         self.assertEqual(result, 0)
 
@@ -585,7 +585,7 @@ class TestEnsureExtracted(unittest.TestCase):
         """With a valid implementation, extraction runs without error."""
         driver = MagicMock()
         driver.implementation.resolution = (320, 320)
-        with patch('trcc.data_repository.DataManager.ensure_all', return_value=True):
+        with patch('trcc.adapters.infra.data_repository.DataManager.ensure_all', return_value=True):
             _ensure_extracted(driver)  # should not raise
 
     def test_exception_is_swallowed(self):
@@ -593,7 +593,7 @@ class TestEnsureExtracted(unittest.TestCase):
         driver = MagicMock()
         driver.implementation.resolution = (320, 320)
         # Force an exception in the extraction calls
-        with patch('trcc.data_repository.DataManager.ensure_all',
+        with patch('trcc.adapters.infra.data_repository.DataManager.ensure_all',
                    side_effect=RuntimeError('boom')):
             _ensure_extracted(driver)  # should not raise
 
@@ -628,7 +628,7 @@ class TestDetectExtra(unittest.TestCase):
         """detect_devices raises -> returns 1."""
         mock_mod = MagicMock()
         mock_mod.detect_devices.side_effect = RuntimeError('oops')
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = detect()
         self.assertEqual(result, 1)
 
@@ -642,7 +642,7 @@ class TestDetectExtra(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
         buf = io.StringIO()
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}), \
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.get_selected_device', return_value='/dev/sg1'), \
              redirect_stdout(buf):
             result = detect(show_all=True)
@@ -660,7 +660,7 @@ class TestDetectExtra(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
         buf = io.StringIO()
-        with patch.dict('sys.modules', {'trcc.device_detector': mock_mod}), \
+        with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.get_selected_device', return_value='/dev/sg9'), \
              redirect_stdout(buf):
             result = detect(show_all=False)
@@ -706,7 +706,7 @@ class TestDownloadExtra(unittest.TestCase):
     def test_show_info(self):
         """show_info=True calls pack_info."""
         mock_mod = MagicMock()
-        with patch.dict('sys.modules', {'trcc.theme_downloader': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.infra.theme_downloader': mock_mod}):
             result = download_themes(pack='test', show_list=False,
                                      force=False, show_info=True)
         self.assertEqual(result, 0)
@@ -716,7 +716,7 @@ class TestDownloadExtra(unittest.TestCase):
         """Exception during download -> returns 1."""
         mock_mod = MagicMock()
         mock_mod.download_pack.side_effect = RuntimeError('net error')
-        with patch.dict('sys.modules', {'trcc.theme_downloader': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.adapters.infra.theme_downloader': mock_mod}):
             result = download_themes(pack='themes-320', show_list=False,
                                      force=False, show_info=False)
         self.assertEqual(result, 1)
@@ -793,7 +793,7 @@ class TestMainDispatch(unittest.TestCase):
 
 class TestSelectDeviceException(unittest.TestCase):
 
-    @patch('trcc.device_detector.detect_devices', side_effect=RuntimeError("fail"))
+    @patch('trcc.adapters.device.detector.detect_devices', side_effect=RuntimeError("fail"))
     def test_exception_returns_1(self, _):
         result = select_device(1)
         self.assertEqual(result, 1)
@@ -825,8 +825,8 @@ class TestSendColorEdge(unittest.TestCase):
 
 class TestShowInfoMetrics(unittest.TestCase):
 
-    @patch('trcc.system_info.format_metric', side_effect=lambda k, v: str(v))
-    @patch('trcc.system_info.get_all_metrics')
+    @patch('trcc.adapters.system.info.format_metric', side_effect=lambda k, v: str(v))
+    @patch('trcc.adapters.system.info.get_all_metrics')
     def test_shows_gpu_and_memory(self, mock_metrics, _):
         mock_metrics.return_value = {
             'cpu_temp': 65.0,
@@ -845,8 +845,8 @@ class TestShowInfoMetrics(unittest.TestCase):
         result = show_info()
         self.assertEqual(result, 0)
 
-    @patch('trcc.system_info.format_metric', side_effect=lambda k, v: str(v))
-    @patch('trcc.system_info.get_all_metrics')
+    @patch('trcc.adapters.system.info.format_metric', side_effect=lambda k, v: str(v))
+    @patch('trcc.adapters.system.info.get_all_metrics')
     def test_shows_partial_metrics(self, mock_metrics, _):
         """Handles missing keys gracefully."""
         mock_metrics.return_value = {'cpu_temp': 65.0}
@@ -891,19 +891,19 @@ class TestSetupUdevNonDry(unittest.TestCase):
 
 class TestDownloadThemesEdge(unittest.TestCase):
 
-    @patch('trcc.theme_downloader.show_info')
+    @patch('trcc.adapters.infra.theme_downloader.show_info')
     def test_show_info_mode(self, mock_info):
         result = download_themes(pack='320x320', show_info=True)
         mock_info.assert_called_once_with('320x320')
         self.assertEqual(result, 0)
 
-    @patch('trcc.theme_downloader.download_pack', return_value=0)
+    @patch('trcc.adapters.infra.theme_downloader.download_pack', return_value=0)
     def test_download_pack_call(self, mock_dl):
         result = download_themes(pack='320x320')
         mock_dl.assert_called_once_with('320x320', force=False)
         self.assertEqual(result, 0)
 
-    @patch('trcc.theme_downloader.download_pack', side_effect=RuntimeError("net error"))
+    @patch('trcc.adapters.infra.theme_downloader.download_pack', side_effect=RuntimeError("net error"))
     def test_exception_returns_1(self, _):
         result = download_themes(pack='320x320')
         self.assertEqual(result, 1)
@@ -1172,7 +1172,7 @@ class TestProbeDevice(unittest.TestCase):
     """Tests for _probe_device() helper."""
 
     def _make_dev(self, **overrides):
-        from trcc.device_detector import DetectedDevice
+        from trcc.adapters.device.detector import DetectedDevice
         defaults = dict(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -1193,20 +1193,20 @@ class TestProbeDevice(unittest.TestCase):
         mock_info.model_name = "AX120_DIGITAL"
         mock_info.pm = 3
         mock_info.style = MagicMock(style_id=1)
-        with patch('trcc.device_led.probe_led_model', return_value=mock_info):
+        with patch('trcc.adapters.device.led.probe_led_model', return_value=mock_info):
             result = _probe_device(self._make_dev())
         self.assertEqual(result['model'], 'AX120_DIGITAL')
         self.assertEqual(result['pm'], 3)
 
     def test_led_probe_exception(self):
         """Probe returns empty dict when LED probe raises."""
-        with patch('trcc.device_led.probe_led_model', side_effect=Exception("usb")):
+        with patch('trcc.adapters.device.led.probe_led_model', side_effect=Exception("usb")):
             result = _probe_device(self._make_dev())
         self.assertEqual(result, {})
 
     def test_hid_lcd_probe_success(self):
         """Probe resolves HID LCD device info via handshake."""
-        from trcc.device_hid import HidHandshakeInfo
+        from trcc.adapters.device.hid import HidHandshakeInfo
         mock_info = HidHandshakeInfo(
             device_type=2, mode_byte_1=100, mode_byte_2=0,
             serial="ABCDEF0123456789", resolution=(320, 320),
@@ -1216,7 +1216,7 @@ class TestProbeDevice(unittest.TestCase):
         dev = self._make_dev(
             implementation="hid_type2", pid=0x5302, device_type=2,
         )
-        with patch('trcc.device_factory.DeviceProtocolFactory.get_protocol',
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
                     return_value=mock_protocol):
             result = _probe_device(dev)
         self.assertEqual(result['pm'], 100)
@@ -1225,7 +1225,7 @@ class TestProbeDevice(unittest.TestCase):
 
     def test_hid_lcd_probe_exception(self):
         dev = self._make_dev(implementation="hid_type2", pid=0x5302, device_type=2)
-        with patch('trcc.device_factory.DeviceProtocolFactory.get_protocol',
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
                     side_effect=Exception("no device")):
             result = _probe_device(dev)
         self.assertEqual(result, {})
@@ -1241,7 +1241,7 @@ class TestProbeDevice(unittest.TestCase):
             vid=0x87AD, pid=0x70DB, implementation="bulk_usblcdnew",
             protocol="bulk", device_type=4,
         )
-        with patch('trcc.device_factory.BulkProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.factory.BulkProtocol', return_value=mock_protocol):
             result = _probe_device(dev)
         self.assertEqual(result['resolution'], (480, 480))
         self.assertEqual(result['pm'], 50)
@@ -1252,7 +1252,7 @@ class TestFormatDevice(unittest.TestCase):
     """Tests for _format_device() helper."""
 
     def _make_dev(self, **overrides):
-        from trcc.device_detector import DetectedDevice
+        from trcc.adapters.device.detector import DetectedDevice
         defaults = dict(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -1285,7 +1285,7 @@ class TestFormatDevice(unittest.TestCase):
         mock_info.model_name = "PA120_DIGITAL"
         mock_info.pm = 16
         mock_info.style = MagicMock()
-        with patch('trcc.device_led.probe_led_model', return_value=mock_info):
+        with patch('trcc.adapters.device.led.probe_led_model', return_value=mock_info):
             result = _format_device(dev, probe=True)
         self.assertIn("model: PA120_DIGITAL", result)
         self.assertIn("PM=16", result)
@@ -1293,7 +1293,7 @@ class TestFormatDevice(unittest.TestCase):
     def test_probe_empty_no_extra(self):
         """No extra info appended when probe returns nothing."""
         dev = self._make_dev()
-        with patch('trcc.device_led.probe_led_model', return_value=None):
+        with patch('trcc.adapters.device.led.probe_led_model', return_value=None):
             result = _format_device(dev, probe=True)
         self.assertNotIn("model:", result)
 
@@ -1305,19 +1305,19 @@ class TestFormatDevice(unittest.TestCase):
 class TestHidDebug(unittest.TestCase):
     """Tests for hid_debug() command."""
 
-    @patch('trcc.device_detector.detect_devices', return_value=[])
+    @patch('trcc.adapters.device.detector.detect_devices', return_value=[])
     def test_no_hid_devices(self, _):
         result = hid_debug()
         self.assertEqual(result, 0)
 
     def test_exception_returns_1(self):
-        with patch('trcc.device_detector.detect_devices', side_effect=Exception("fail")):
+        with patch('trcc.adapters.device.detector.detect_devices', side_effect=Exception("fail")):
             result = hid_debug()
         self.assertEqual(result, 1)
 
     def test_hid_device_handshake_none(self):
         """LED device found but handshake returns None."""
-        from trcc.device_detector import DetectedDevice
+        from trcc.adapters.device.detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -1326,16 +1326,16 @@ class TestHidDebug(unittest.TestCase):
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = None
-        with patch('trcc.device_detector.detect_devices', return_value=[dev]), \
-             patch('trcc.device_factory.LedProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.detector.detect_devices', return_value=[dev]), \
+             patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
             result = hid_debug()
         self.assertEqual(result, 0)
         mock_protocol.close.assert_called_once()
 
     def test_hid_device_handshake_success(self):
         """LCD device found and handshake succeeds."""
-        from trcc.device_detector import DetectedDevice
-        from trcc.device_hid import HidHandshakeInfo
+        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.device.hid import HidHandshakeInfo
         dev = DetectedDevice(
             vid=0x0416, pid=0x5302, vendor_name="Winbond",
             product_name="USBDISPLAY", usb_path="1-2",
@@ -1348,15 +1348,15 @@ class TestHidDebug(unittest.TestCase):
         )
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
-        with patch('trcc.device_detector.detect_devices', return_value=[dev]), \
-             patch('trcc.device_factory.HidProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.detector.detect_devices', return_value=[dev]), \
+             patch('trcc.adapters.device.factory.HidProtocol', return_value=mock_protocol):
             result = hid_debug()
         self.assertEqual(result, 0)
 
     def test_led_device_handshake_success(self):
         """LED device found and handshake succeeds."""
-        from trcc.device_detector import DetectedDevice
-        from trcc.device_led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -1369,21 +1369,21 @@ class TestHidDebug(unittest.TestCase):
         )
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
-        with patch('trcc.device_detector.detect_devices', return_value=[dev]), \
-             patch('trcc.device_factory.LedProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.detector.detect_devices', return_value=[dev]), \
+             patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
             result = hid_debug()
         self.assertEqual(result, 0)
 
     def test_hid_device_import_error(self):
         """Import error for pyusb/hidapi shows helpful message."""
-        from trcc.device_detector import DetectedDevice
+        from trcc.adapters.device.detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
             implementation="hid_led", protocol="hid", device_type=1,
         )
-        with patch('trcc.device_detector.detect_devices', return_value=[dev]), \
-             patch('trcc.device_factory.LedProtocol',
+        with patch('trcc.adapters.device.detector.detect_devices', return_value=[dev]), \
+             patch('trcc.adapters.device.factory.LedProtocol',
                    side_effect=ImportError("No module named 'usb'")):
             result = hid_debug()
         self.assertEqual(result, 0)
@@ -1405,14 +1405,14 @@ class TestLedDebug(unittest.TestCase):
     """Tests for led_debug() command."""
 
     def test_exception_returns_1(self):
-        with patch('trcc.device_factory.LedProtocol',
+        with patch('trcc.adapters.device.factory.LedProtocol',
                    side_effect=Exception("fail")):
             result = led_debug()
         self.assertEqual(result, 1)
 
     def test_handshake_success(self):
         """Successful LED handshake prints device info."""
-        from trcc.device_led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
         style = LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL")
         info = LedHandshakeInfo(
             pm=3, sub_type=0, style=style,
@@ -1420,7 +1420,7 @@ class TestLedDebug(unittest.TestCase):
         )
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
-        with patch('trcc.device_factory.LedProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
             result = led_debug(test=False)
         self.assertEqual(result, 0)
         mock_protocol.close.assert_called_once()
@@ -1430,14 +1430,14 @@ class TestLedDebug(unittest.TestCase):
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = RuntimeError("timeout")
-        with patch('trcc.device_factory.LedProtocol', return_value=mock_protocol):
+        with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
             result = led_debug(test=False)
         self.assertEqual(result, 1)
         mock_protocol.close.assert_called_once()
 
     def test_test_colors(self):
         """test=True sends test colors via protocol.send_led_data."""
-        from trcc.device_led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
         style = LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL")
         info = LedHandshakeInfo(
             pm=3, sub_type=0, style=style,
@@ -1445,7 +1445,7 @@ class TestLedDebug(unittest.TestCase):
         )
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
-        with patch('trcc.device_factory.LedProtocol', return_value=mock_protocol), \
+        with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol), \
              patch('time.sleep'):
             result = led_debug(test=True)
         self.assertEqual(result, 0)
@@ -1468,7 +1468,7 @@ class TestLedDebug(unittest.TestCase):
 class TestHr10Tempd(unittest.TestCase):
     """Tests for hr10_tempd() command."""
 
-    @patch('trcc.device_led_hr10.run_hr10_daemon', return_value=0)
+    @patch('trcc.adapters.device.led_hr10.run_hr10_daemon', return_value=0)
     def test_success(self, mock_daemon):
         result = hr10_tempd(brightness=50, drive="980", unit="F", verbose=1)
         self.assertEqual(result, 0)
@@ -1476,7 +1476,7 @@ class TestHr10Tempd(unittest.TestCase):
             brightness=50, model_substr="980", unit="F", verbose=True,
         )
 
-    @patch('trcc.device_led_hr10.run_hr10_daemon', side_effect=Exception("no device"))
+    @patch('trcc.adapters.device.led_hr10.run_hr10_daemon', side_effect=Exception("no device"))
     def test_exception_returns_1(self, _):
         result = hr10_tempd()
         self.assertEqual(result, 1)
@@ -1539,8 +1539,8 @@ class TestInstallDesktop(unittest.TestCase):
 class TestReport(unittest.TestCase):
     """Tests for report() command (delegates to DebugReport)."""
 
-    @patch('trcc.debug_report.DebugReport.collect')
-    @patch('trcc.debug_report.DebugReport.__str__', return_value="mock report")
+    @patch('trcc.adapters.infra.debug_report.DebugReport.collect')
+    @patch('trcc.adapters.infra.debug_report.DebugReport.__str__', return_value="mock report")
     def test_report_delegates_to_debug_report(self, mock_str, mock_collect):
         """report() creates DebugReport, collects, and prints."""
         result = report()
@@ -1738,7 +1738,7 @@ class TestRenderOverlay(unittest.TestCase):
         with patch('os.path.exists', return_value=True), \
              patch('trcc.services.OverlayService') as MockOverlay, \
              patch('trcc.services.ImageService.solid_color', return_value=mock_img), \
-             patch('trcc.system_info.get_all_metrics', return_value={}):
+             patch('trcc.adapters.system.info.get_all_metrics', return_value={}):
             overlay_inst = MockOverlay.return_value
             overlay_inst.load_from_dc.return_value = {}
             overlay_inst.config = {'elem1': {}}
@@ -1752,7 +1752,7 @@ class TestRenderOverlay(unittest.TestCase):
         with patch('os.path.exists', return_value=True), \
              patch('trcc.services.OverlayService') as MockOverlay, \
              patch('trcc.services.ImageService.solid_color', return_value=mock_img), \
-             patch('trcc.system_info.get_all_metrics', return_value={}):
+             patch('trcc.adapters.system.info.get_all_metrics', return_value={}):
             overlay_inst = MockOverlay.return_value
             overlay_inst.load_from_dc.return_value = {}
             overlay_inst.config = {}
@@ -1779,7 +1779,7 @@ class TestThemeList(unittest.TestCase):
             ThemeInfo(name='Custom_b', path=Path('/themes/b')),
         ]
         with patch('trcc.conf.settings') as mock_settings, \
-             patch('trcc.data_repository.DataManager.ensure_all'), \
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
              patch('trcc.services.ThemeService.discover_local',
                    return_value=mock_themes):
             mock_settings.width = 320
@@ -1801,7 +1801,7 @@ class TestThemeList(unittest.TestCase):
         mock_web_dir = MagicMock()
         mock_web_dir.exists.return_value = True
         with patch('trcc.conf.settings') as mock_settings, \
-             patch('trcc.data_repository.DataManager.ensure_all'), \
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
              patch('trcc.services.ThemeService.discover_cloud',
                    return_value=mock_themes):
             mock_settings.width = 320
@@ -1825,7 +1825,7 @@ class TestThemeLoad(unittest.TestCase):
         """Non-existent theme returns 1."""
         svc = _mock_service()
         with patch.object(DeviceCommands, '_get_service', return_value=svc), \
-             patch('trcc.data_repository.DataManager.ensure_all'), \
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
              patch('trcc.conf.settings') as mock_settings, \
              patch('trcc.services.ThemeService.discover_local', return_value=[]):
             td = MagicMock()
@@ -1851,7 +1851,7 @@ class TestThemeLoad(unittest.TestCase):
 
             mock_img = MagicMock()
             with patch.object(DeviceCommands, '_get_service', return_value=svc), \
-                 patch('trcc.data_repository.DataManager.ensure_all'), \
+                 patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
                  patch('trcc.conf.settings') as mock_settings, \
                  patch('trcc.services.ThemeService.discover_local',
                        return_value=[theme]), \
@@ -2015,7 +2015,7 @@ class TestThemeExport(unittest.TestCase):
         mock_settings.height = 320
         mock_settings.theme_dir = None
         with patch('trcc.conf.settings', mock_settings), \
-             patch('trcc.data_repository.DataManager.ensure_all'):
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'):
             self.assertEqual(ThemeCommands.export_theme('foo', '/tmp/foo.tr'), 1)
 
     def test_export_theme_not_found(self):
@@ -2028,7 +2028,7 @@ class TestThemeExport(unittest.TestCase):
         mock_td.path = '/themes'
         mock_settings.theme_dir = mock_td
         with patch('trcc.conf.settings', mock_settings), \
-             patch('trcc.data_repository.DataManager.ensure_all'), \
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
              patch('trcc.services.theme.ThemeService.discover_local', return_value=[]):
             self.assertEqual(ThemeCommands.export_theme('nonexistent', '/tmp/x.tr'), 1)
 
@@ -2047,7 +2047,7 @@ class TestThemeExport(unittest.TestCase):
         theme.path = Path('/themes/MyTheme')
 
         with patch('trcc.conf.settings', mock_settings), \
-             patch('trcc.data_repository.DataManager.ensure_all'), \
+             patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
              patch('trcc.services.theme.ThemeService.discover_local',
                    return_value=[theme]), \
              patch('trcc.services.theme.ThemeService.export_tr',

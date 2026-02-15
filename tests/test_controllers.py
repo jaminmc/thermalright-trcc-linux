@@ -34,7 +34,7 @@ from trcc.core.models import (
 
 # Patches to avoid file I/O and downloads during LCDDeviceController tests
 LCD_SVC_PATCHES = [
-    ('trcc.data_repository.DataManager.ensure_all', None),
+    ('trcc.adapters.infra.data_repository.DataManager.ensure_all', None),
     ('trcc.conf.Settings._save_resolution', None),
 ]
 
@@ -471,7 +471,7 @@ class TestLCDDeviceController(unittest.TestCase):
         _settings._height = 320
 
         self.patches = [
-            patch('trcc.data_repository.DataManager.ensure_all'),
+            patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'),
             patch('trcc.conf.Settings._save_resolution'),
         ]
         for p in self.patches:
@@ -712,7 +712,7 @@ class TestFormCZTVThemeOps(unittest.TestCase):
 
     def test_export_config_tr(self):
         self.ctrl._display.current_theme_path = Path('/tmp/theme')
-        with patch('trcc.dc_writer.export_theme') as mock_export:
+        with patch('trcc.adapters.infra.dc_writer.export_theme') as mock_export:
             ok, msg = self.ctrl.export_config(Path('/tmp/out.tr'))
             self.assertTrue(ok)
             mock_export.assert_called_once()
@@ -729,7 +729,7 @@ class TestFormCZTVThemeOps(unittest.TestCase):
 
     def test_export_config_error(self):
         self.ctrl._display.current_theme_path = Path('/tmp/theme')
-        with patch('trcc.dc_writer.export_theme', side_effect=RuntimeError('boom')):
+        with patch('trcc.adapters.infra.dc_writer.export_theme', side_effect=RuntimeError('boom')):
             ok, msg = self.ctrl.export_config(Path('/tmp/out.tr'))
             self.assertFalse(ok)
             self.assertIn('Export failed', msg)
@@ -757,7 +757,7 @@ class TestFormCZTVThemeOps(unittest.TestCase):
         tr_path = Path(self.tmp) / 'theme.tr'
         tr_path.write_bytes(b'\xdd\xdc\xdd\xdc')
 
-        with patch('trcc.dc_writer.import_theme'), \
+        with patch('trcc.adapters.infra.dc_writer.import_theme'), \
              patch.object(self.ctrl._display, 'load_local_theme'):
             ok, msg = self.ctrl.import_config(tr_path, Path(self.tmp))
             self.assertTrue(ok)
@@ -765,7 +765,7 @@ class TestFormCZTVThemeOps(unittest.TestCase):
     def test_import_config_error(self):
         tr_path = Path(self.tmp) / 'bad.tr'
         tr_path.write_bytes(b'junk')
-        with patch('trcc.dc_writer.import_theme', side_effect=RuntimeError('nope')):
+        with patch('trcc.adapters.infra.dc_writer.import_theme', side_effect=RuntimeError('nope')):
             ok, msg = self.ctrl.import_config(tr_path, Path(self.tmp))
             self.assertFalse(ok)
             self.assertIn('Import failed', msg)
@@ -1174,7 +1174,7 @@ class TestCreateController(unittest.TestCase):
             data_dir = Path(tmp)
             (data_dir / 'theme320320').mkdir()
 
-            with patch('trcc.data_repository.DataManager.ensure_all'), \
+            with patch('trcc.adapters.infra.data_repository.DataManager.ensure_all'), \
                  patch('trcc.conf.Settings._save_resolution'):
                 ctrl = create_controller(data_dir)
                 self.assertIsInstance(ctrl, LCDDeviceController)

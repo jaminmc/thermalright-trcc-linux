@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 # Module-level path constants (calculated once at import time)
 # =========================================================================
 
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))  # src/trcc/
+# Navigate from adapters/infra/ back to the trcc package root
+_THIS_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # src/trcc/
 SRC_DIR = os.path.dirname(_THIS_DIR)                     # src/
 PROJECT_ROOT = os.path.dirname(SRC_DIR)                  # project root
 
@@ -481,7 +482,7 @@ class DataManager:
 
         Verifies both the config marker AND that theme files physically exist.
         """
-        from .conf import load_config
+        from trcc.conf import load_config
 
         key = f"{width}x{height}"
         if key not in load_config().get("installed_resolutions", []):
@@ -505,7 +506,7 @@ class DataManager:
     @staticmethod
     def mark_resolution_installed(width: int, height: int) -> None:
         """Record that theme data for this resolution is ready."""
-        from .conf import load_config, save_config
+        from trcc.conf import load_config, save_config
 
         config = load_config()
         installed: list = config.get("installed_resolutions", [])

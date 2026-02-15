@@ -13,8 +13,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
+from ..adapters.infra.data_repository import DataManager, ThemeDir
 from ..conf import settings
-from ..data_repository import DataManager, ThemeDir
 from .device import DeviceService
 from .image import ImageService
 from .media import MediaService
@@ -335,7 +335,7 @@ class DisplayService:
             return None
 
         try:
-            from ..dc_config import DcConfig
+            from ..adapters.infra.dc_config import DcConfig
             dc = DcConfig(dc_path)
             if dc.mask_enabled:
                 center_pos = dc.mask_settings.get('mask_position')

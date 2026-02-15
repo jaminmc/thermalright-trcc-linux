@@ -48,7 +48,7 @@ class MediaService:
         self._delays.clear()
 
         try:
-            from ..media_player import ThemeZtDecoder, VideoDecoder
+            from ..adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
 
             suffix = path.suffix.lower()
             if suffix == '.zt':

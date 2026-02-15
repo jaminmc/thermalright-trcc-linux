@@ -50,13 +50,14 @@ import tempfile
 from pathlib import Path
 from typing import IO, Optional, Tuple
 
-from trcc.binary_reader import BinaryReader
 from trcc.core.models import (
     METRIC_TO_IDS,
     CarouselConfig,
     DisplayElement,
     ThemeConfig,
 )
+
+from .binary_reader import BinaryReader
 
 
 class DcWriter:
@@ -676,7 +677,7 @@ if __name__ == '__main__':
         print(f"Test theme created at: {test_path}")
 
         # Verify by reading back
-        from trcc.dc_parser import DcParser
+        from .dc_parser import DcParser
         parsed = DcParser.parse(os.path.join(test_path, "config1.dc"))
         print(f"Verified: {len(parsed['display_elements'])} elements")
 

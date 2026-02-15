@@ -15,12 +15,12 @@ import subprocess
 from datetime import datetime
 from typing import TYPE_CHECKING, Dict, Optional
 
+from ..adapters.infra.data_repository import SysUtils
 from ..core.models import DATE_FORMATS, TIME_FORMATS, WEEKDAYS
-from ..data_repository import SysUtils
 
 if TYPE_CHECKING:
+    from ..adapters.system.config import PanelConfig
     from ..core.models import SensorInfo
-    from ..system_config import PanelConfig
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class SystemService:
     """Unified system monitoring: sensor discovery, metrics, panel config."""
 
     def __init__(self) -> None:
-        from ..system_sensors import SensorEnumerator
+        from ..adapters.system.sensors import SensorEnumerator
 
         self._enumerator = SensorEnumerator()
         self._discovered = False
@@ -427,19 +427,19 @@ class SystemService:
 
     def load_panels(self) -> list[PanelConfig]:
         """Load dashboard panel config from disk (or defaults)."""
-        from ..system_config import SysInfoConfig
+        from ..adapters.system.config import SysInfoConfig
         return SysInfoConfig().load()
 
     def save_panels(self, panels: list[PanelConfig]) -> None:
         """Save dashboard panel config to disk."""
-        from ..system_config import SysInfoConfig
+        from ..adapters.system.config import SysInfoConfig
         cfg = SysInfoConfig()
         cfg.panels = panels
         cfg.save()
 
     def auto_map_panels(self, panels: list[PanelConfig]) -> None:
         """Fill empty sensor_ids in panels with best-guess defaults."""
-        from ..system_config import SysInfoConfig
+        from ..adapters.system.config import SysInfoConfig
         self._ensure_discovered()
         cfg = SysInfoConfig()
         cfg.panels = panels
@@ -448,5 +448,5 @@ class SystemService:
     @staticmethod
     def default_panels() -> list[PanelConfig]:
         """Return 6 default panels with empty sensor_ids."""
-        from ..system_config import SysInfoConfig
+        from ..adapters.system.config import SysInfoConfig
         return SysInfoConfig.defaults()

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import QWidget
 
 from trcc.services import ImageService
 
-from .assets import load_pixmap
+from .assets import Assets
 from .base import make_icon_button, pil_to_pixmap
 
 # ============================================================================
@@ -145,7 +145,7 @@ class UCImageCut(QWidget):
 
         # Load resolution-specific background
         bg_name = f'P0图片裁减{target_w}{target_h}.png'
-        bg_pix = load_pixmap(bg_name, PANEL_W, PANEL_H)
+        bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
         if not bg_pix.isNull():
             palette = self.palette()
             palette.setBrush(QPalette.ColorRole.Window, QBrush(bg_pix))

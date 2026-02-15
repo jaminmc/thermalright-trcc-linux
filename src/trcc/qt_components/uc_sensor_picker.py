@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..system_sensors import SensorEnumerator, SensorInfo
-from .assets import Assets, load_pixmap
+from ..adapters.system.sensors import SensorEnumerator, SensorInfo
+from .assets import Assets
 from .base import set_background_pixmap
 from .constants import Styles
 
@@ -60,8 +60,8 @@ class SensorRow(QWidget):
         self.setFixedHeight(ROW_H)
 
         # Load checkbox images
-        self._cb_off = load_pixmap('P点选框.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
-        self._cb_on = load_pixmap('P点选框A.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_off = Assets.load_pixmap('P点选框.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_on = Assets.load_pixmap('P点选框A.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
 
         # Checkbox button
         self._cb = QPushButton(self)
@@ -123,7 +123,7 @@ class SensorRow(QWidget):
 class SensorPickerDialog(QDialog):
     """Sensor selection dialog matching Windows FormSystemInfo (490x800)."""
 
-    def __init__(self, enumerator: SensorEnumerator, lang: str = 'en', parent=None):
+    def __init__(self, enumerator: SensorEnumerator, parent=None):
         super().__init__(parent)
         self._enumerator = enumerator
         self._selected_id: str | None = None
@@ -135,7 +135,8 @@ class SensorPickerDialog(QDialog):
         self.setModal(True)
 
         # Background image (no tiling — matches Windows ImageLayout.None)
-        bg_name = Assets.get_localized('P0系统信息.png', lang)
+        from ..conf import settings
+        bg_name = Assets.get_localized('P0系统信息.png', settings.lang)
         self._bg_ref = set_background_pixmap(
             self, bg_name, width=DIALOG_W, height=DIALOG_H,
             fallback_style="background-color: #1A1A2E;"

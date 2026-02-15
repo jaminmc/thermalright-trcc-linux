@@ -6,7 +6,7 @@ and the metric rendering convenience functions.
 
 import pytest
 
-from trcc.device_led_hr10 import (
+from trcc.adapters.device.led_hr10 import (
     CHAR_SEGMENTS,
     DIGIT_LEDS,
     IND_DEG,

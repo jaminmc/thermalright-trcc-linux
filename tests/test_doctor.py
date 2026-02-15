@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from trcc.doctor import (
+from trcc.adapters.infra.doctor import (
     _check_binary,
     _check_library,
     _check_python_module,
@@ -22,15 +22,15 @@ from trcc.doctor import (
 class TestReadOsRelease(unittest.TestCase):
     """Test os-release parsing."""
 
-    @patch('trcc.doctor.platform.freedesktop_os_release',
+    @patch('trcc.adapters.infra.doctor.platform.freedesktop_os_release',
            return_value={'ID': 'fedora', 'PRETTY_NAME': 'Fedora 43'})
     def test_uses_platform_api(self, mock_rel):
         result = _read_os_release()
         self.assertEqual(result['ID'], 'fedora')
         mock_rel.assert_called_once()
 
-    @patch('trcc.doctor.platform.freedesktop_os_release', side_effect=OSError)
-    @patch('trcc.doctor.os.path.isfile', return_value=False)
+    @patch('trcc.adapters.infra.doctor.platform.freedesktop_os_release', side_effect=OSError)
+    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=False)
     def test_fallback_returns_empty(self, _isfile, _rel):
         result = _read_os_release()
         self.assertEqual(result, {})
@@ -39,52 +39,52 @@ class TestReadOsRelease(unittest.TestCase):
 class TestDetectPkgManager(unittest.TestCase):
     """Test distro → package manager mapping."""
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'fedora', 'ID_LIKE': ''})
     def test_fedora(self, _):
         self.assertEqual(_detect_pkg_manager(), 'dnf')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'ubuntu', 'ID_LIKE': 'debian'})
     def test_ubuntu(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'arch', 'ID_LIKE': ''})
     def test_arch(self, _):
         self.assertEqual(_detect_pkg_manager(), 'pacman')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'pop', 'ID_LIKE': 'ubuntu debian'})
     def test_pop_os(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'nobara', 'ID_LIKE': 'fedora'})
     def test_nobara(self, _):
         self.assertEqual(_detect_pkg_manager(), 'dnf')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'cachyos', 'ID_LIKE': 'arch'})
     def test_cachyos_id_like_fallback(self, _):
         self.assertEqual(_detect_pkg_manager(), 'pacman')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'unknowndistro', 'ID_LIKE': ''})
     def test_unknown_returns_none(self, _):
         self.assertIsNone(_detect_pkg_manager())
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'zorin', 'ID_LIKE': 'ubuntu debian'})
     def test_zorin(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'void', 'ID_LIKE': ''})
     def test_void(self, _):
         self.assertEqual(_detect_pkg_manager(), 'xbps')
 
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'ID': 'opensuse-tumbleweed', 'ID_LIKE': 'suse'})
     def test_opensuse(self, _):
         self.assertEqual(_detect_pkg_manager(), 'zypper')
@@ -177,11 +177,11 @@ class TestCheckLibrary(unittest.TestCase):
 class TestCheckUdevRules(unittest.TestCase):
     """Test udev rules check."""
 
-    @patch('trcc.doctor.os.path.isfile', return_value=True)
+    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=True)
     def test_rules_exist(self, _):
         self.assertTrue(_check_udev_rules())
 
-    @patch('trcc.doctor.os.path.isfile', return_value=False)
+    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=False)
     def test_rules_missing(self, _):
         self.assertFalse(_check_udev_rules())
 
@@ -192,22 +192,22 @@ class TestCheckUdevRules(unittest.TestCase):
 class TestRunDoctor(unittest.TestCase):
     """Test run_doctor() return codes."""
 
-    @patch('trcc.doctor._check_udev_rules', return_value=True)
-    @patch('trcc.doctor._check_library', return_value=True)
-    @patch('trcc.doctor._check_binary', return_value=True)
-    @patch('trcc.doctor._check_python_module', return_value=True)
-    @patch('trcc.doctor._detect_pkg_manager', return_value='dnf')
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=True)
+    @patch('trcc.adapters.infra.doctor._check_library', return_value=True)
+    @patch('trcc.adapters.infra.doctor._check_binary', return_value=True)
+    @patch('trcc.adapters.infra.doctor._check_python_module', return_value=True)
+    @patch('trcc.adapters.infra.doctor._detect_pkg_manager', return_value='dnf')
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'PRETTY_NAME': 'TestOS'})
     def test_all_ok_returns_0(self, *_):
         self.assertEqual(run_doctor(), 0)
 
-    @patch('trcc.doctor._check_udev_rules', return_value=False)
-    @patch('trcc.doctor._check_library', return_value=True)
-    @patch('trcc.doctor._check_binary', return_value=True)
-    @patch('trcc.doctor._check_python_module', return_value=True)
-    @patch('trcc.doctor._detect_pkg_manager', return_value='apt')
-    @patch('trcc.doctor._read_os_release',
+    @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=False)
+    @patch('trcc.adapters.infra.doctor._check_library', return_value=True)
+    @patch('trcc.adapters.infra.doctor._check_binary', return_value=True)
+    @patch('trcc.adapters.infra.doctor._check_python_module', return_value=True)
+    @patch('trcc.adapters.infra.doctor._detect_pkg_manager', return_value='apt')
+    @patch('trcc.adapters.infra.doctor._read_os_release',
            return_value={'PRETTY_NAME': 'Ubuntu 24.04'})
     def test_missing_udev_returns_1(self, *_):
         self.assertEqual(run_doctor(), 1)
@@ -219,7 +219,7 @@ class TestRunDoctor(unittest.TestCase):
 class TestDoctorCLI(unittest.TestCase):
     """Test doctor command dispatch from CLI."""
 
-    @patch('trcc.doctor.run_doctor', return_value=0)
+    @patch('trcc.adapters.infra.doctor.run_doctor', return_value=0)
     @patch('sys.argv', ['trcc', 'doctor'])
     def test_dispatch(self, mock_doctor):
         from trcc.cli import main

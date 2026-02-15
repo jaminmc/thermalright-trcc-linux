@@ -1,6 +1,6 @@
 """Application settings and config persistence for TRCC.
 
-Single source of truth for resolution, paths, preferences, and device settings.
+Single source of truth for resolution, paths, preferences, language, and device settings.
 Config is stored at ~/.config/trcc/config.json (XDG-compliant).
 
 Usage:
@@ -13,6 +13,7 @@ Usage:
     settings.web_dir        # Cloud theme preview dir
     settings.masks_dir      # Cloud mask overlay dir
     settings.temp_unit      # 0=Celsius, 1=Fahrenheit
+    settings.lang           # Language suffix ('en', 'd', 'e', 'f', 'p', 'r', 'x', '', 'tc')
 
     # Static settings operations
     Settings.device_config_key(0, 0x87cd, 0x70db)
@@ -25,16 +26,18 @@ Usage:
 from __future__ import annotations
 
 import json
+import locale
 import logging
 import os
 from pathlib import Path
 from typing import Optional
 
-from .data_repository import (
+from .adapters.infra.data_repository import (
     USER_DATA_DIR,
     DataManager,
     ThemeDir,
 )
+from .core.models import LOCALE_TO_LANG
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +76,30 @@ def save_config(config: dict):
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
+
+
+# =========================================================================
+# Language detection (system locale → asset suffix)
+# =========================================================================
+
+
+def _detect_language() -> str:
+    """Detect system language and return Windows asset suffix."""
+    try:
+        lang = (locale.getlocale()[0]
+                or os.environ.get('LANG', '').split('.')[0]
+                or 'en')
+    except Exception:
+        lang = 'en'
+
+    if lang in LOCALE_TO_LANG:
+        return LOCALE_TO_LANG[lang]
+
+    prefix = lang.split('_')[0]
+    if prefix in LOCALE_TO_LANG:
+        return LOCALE_TO_LANG[prefix]
+
+    return 'en'
 
 
 # =========================================================================
@@ -205,6 +232,7 @@ class Settings:
 
         # User preferences
         self.temp_unit: int = Settings._get_saved_temp_unit()
+        self._lang: str = self._get_saved_lang()
 
         # Static paths
         self.user_data_dir = Path(USER_DATA_DIR)
@@ -241,6 +269,26 @@ class Settings:
         """Set temperature unit (0=Celsius, 1=Fahrenheit) and persist."""
         self.temp_unit = unit
         Settings._save_temp_unit(unit)
+
+    @property
+    def lang(self) -> str:
+        """Current language suffix ('en', 'd', 'e', 'f', 'p', 'r', 'x', '', 'tc')."""
+        return self._lang
+
+    @lang.setter
+    def lang(self, value: str) -> None:
+        """Set language suffix and persist."""
+        self._lang = value
+        config = load_config()
+        config['lang'] = value
+        save_config(config)
+
+    def _get_saved_lang(self) -> str:
+        """Get saved language, falling back to system locale detection."""
+        saved = load_config().get('lang')
+        if saved is not None:
+            return saved
+        return _detect_language()
 
     def _resolve_paths(self) -> None:
         """Resolve theme/web/mask directories for current resolution."""

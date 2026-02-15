@@ -13,6 +13,8 @@ import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from trcc.core.models import CATEGORY_COLORS, CATEGORY_IMAGES  # noqa: F401
+
 log = logging.getLogger(__name__)
 
 
@@ -32,27 +34,8 @@ class PanelConfig:
     sensors: list[SensorBinding] = field(default_factory=list)
 
 
-# Category ID → background image name
-CATEGORY_IMAGES = {
-    0: 'A自定义.png',
-    1: 'Acpu.png',
-    2: 'Agpu.png',
-    3: 'Adram.png',
-    4: 'Ahdd.png',
-    5: 'Anet.png',
-    6: 'Afan.png',
-}
-
-# Category ID → value text color
-CATEGORY_COLORS = {
-    0: '#9375FF',     # Custom: Purple
-    1: '#32C5FF',     # CPU: Cyan
-    2: '#44D7B6',     # GPU: Teal
-    3: '#6DD401',     # Memory: Lime
-    4: '#F7B501',     # HDD: Orange
-    5: '#FA6401',     # Network: Red-orange
-    6: '#E02020',     # Fan: Red
-}
+# Domain data re-exported from core.models (canonical location):
+# CATEGORY_IMAGES, CATEGORY_COLORS
 
 
 class SysInfoConfig:
@@ -153,7 +136,7 @@ class SysInfoConfig:
 
         Only fills sensors where sensor_id is empty (preserves user customizations).
         """
-        from .system_sensors import map_defaults
+        from .sensors import map_defaults
         defaults = map_defaults(enumerator)
 
         # Map category_id + row index to legacy metric key

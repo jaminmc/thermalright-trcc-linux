@@ -7,9 +7,9 @@ These models can be used by any GUI framework (Tkinter, PyQt6, etc.)
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-from ..data_repository import ThemeDir
+from ..adapters.infra.data_repository import ThemeDir
 
 # =============================================================================
 # Browser Item Dataclasses (replace raw dicts in theme/mask panels)
@@ -193,6 +193,15 @@ class HandshakeResult:
     model_id: int = 0
     serial: str = ""
     raw_response: bytes = field(default=b"", repr=False)
+
+
+@dataclass
+class HidHandshakeInfo(HandshakeResult):
+    """HID-specific handshake info (extends HandshakeResult)."""
+    device_type: int = 0      # 2 or 3
+    mode_byte_1: int = 0     # Type 2: resp[5] (PM), Type 3: resp[0]-1
+    mode_byte_2: int = 0     # Type 2: resp[4] (SUB), Type 3: 0
+    fbl: Optional[int] = None  # FBL code resolved from PM/SUB
 
 
 # Implementation key → display name (SCSI LCD devices)
@@ -391,6 +400,225 @@ class LEDState:
 
 
 # =============================================================================
+# LED Device Styles (from FormLED.cs FormLEDInit, lines 1598-1750)
+# =============================================================================
+
+@dataclass
+class LedDeviceStyle:
+    """LED device configuration derived from FormLEDInit pm→nowLedStyle.
+
+    Attributes:
+        style_id: Internal style number (nowLedStyle in Windows).
+        led_count: Total addressable LEDs (LedCountValN).
+        segment_count: Logical segments (LedCountValNs).
+        zone_count: Number of independent zones (1=single, 2-4=multi).
+        model_name: Human-readable model name.
+        preview_image: Device background asset name (D{Name}.png).
+        background_base: Localized background base (D0{Name}).
+    """
+    style_id: int
+    led_count: int
+    segment_count: int
+    zone_count: int = 1
+    model_name: str = ""
+    preview_image: str = ""
+    background_base: str = "D0数码屏"
+
+
+# All LED styles from FormLED.cs FormLEDInit and UCScreenLED.cs constants
+LED_STYLES: dict[int, LedDeviceStyle] = {
+    1: LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
+    2: LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "DPA120_DIGITAL", "D0数码屏4区域"),
+    3: LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "DAK120_DIGITAL", "D0数码屏"),
+    4: LedDeviceStyle(4, 31, 14, 1, "LC1", "DLC1", "D0LC1"),
+    5: LedDeviceStyle(5, 93, 23, 2, "LF8", "DLF8", "D0LF8"),
+    6: LedDeviceStyle(6, 124, 72, 2, "LF12", "DLF12", "D0LF12"),
+    7: LedDeviceStyle(7, 116, 12, 3, "LF10", "DLF10", "D0LF10"),
+    8: LedDeviceStyle(8, 18, 13, 4, "CZ1", "DCZ1", "D0CZ1"),
+    9: LedDeviceStyle(9, 61, 31, 1, "LC2", "DLC2", "D0LC2"),
+    10: LedDeviceStyle(10, 38, 17, 1, "LF11", "DLF11", "D0LF11"),
+    11: LedDeviceStyle(11, 93, 72, 2, "LF15", "DLF15", "D0LF15"),
+    12: LedDeviceStyle(12, 62, 62, 1, "LF13", "DLF13", "D0rgblf13"),
+    # HR10 2280 Pro Digital — NVMe SSD heatsink with ARGB digital display.
+    13: LedDeviceStyle(13, 31, 14, 1, "HR10_2280_PRO_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
+}
+
+
+@dataclass
+class LedHandshakeInfo(HandshakeResult):
+    """LED-specific handshake info (extends HandshakeResult)."""
+    pm: int = 0
+    sub_type: int = 0
+    style: Optional[LedDeviceStyle] = None
+    model_name: str = ""
+
+
+# =============================================================================
+# PM Registry — PM byte → (style, model, button image)
+# =============================================================================
+
+class PmEntry(NamedTuple):
+    """PM registry entry mapping a firmware PM byte to device metadata."""
+    style_id: int
+    model_name: str
+    button_image: str
+    preview_image: str = ""  # PM-specific preview; empty = use style default
+
+
+class PmRegistry:
+    """Encapsulates all PM-to-device metadata lookups.
+
+    Maps firmware PM bytes (from HID handshake) to device style, model name,
+    and button image.  Handles sub-type overrides (e.g. HR10 vs LC1 on PM=128)
+    and PA120 variant range (PMs 17-31).
+    """
+
+    # (pm, sub_type) → PmEntry override for devices that share a PM byte.
+    _OVERRIDES: dict[tuple[int, int], PmEntry] = {
+        (128, 129): PmEntry(13, "HR10_2280_PRO_DIGITAL", "A1HR10 2280 PRO DIGITAL"),
+    }
+
+    # PM → PmEntry base registry (built once at class load time).
+    _REGISTRY: dict[int, PmEntry] = {
+        1:   PmEntry(1, "FROZEN_HORIZON_PRO", "A1FROZEN HORIZON PRO", "DFROZEN_HORIZON_PRO"),
+        2:   PmEntry(1, "FROZEN_MAGIC_PRO", "A1FROZEN MAGIC PRO", "DFROZEN_MAGIC_PRO"),
+        3:   PmEntry(1, "AX120_DIGITAL", "A1AX120 DIGITAL"),
+        16:  PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL"),
+        23:  PmEntry(2, "RK120_DIGITAL", "A1RK120 DIGITAL"),
+        32:  PmEntry(3, "AK120_DIGITAL", "A1AK120 Digital"),
+        48:  PmEntry(5, "LF8", "A1LF8"),
+        49:  PmEntry(5, "LF10", "A1LF10"),
+        80:  PmEntry(6, "LF12", "A1LF12"),
+        96:  PmEntry(7, "LF10", "A1LF10"),
+        112: PmEntry(9, "LC2", "A1LC2"),
+        128: PmEntry(4, "LC1", "A1LC1"),
+        129: PmEntry(10, "LF11", "A1LF11"),
+        144: PmEntry(11, "LF15", "A1LF15"),
+        160: PmEntry(12, "LF13", "A1LF13"),
+        208: PmEntry(8, "CZ1", "A1CZ1"),
+        # PA120 variants (PMs 17-22, 24-31) all map to style 2.
+        **{pm: PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL")
+           for pm in range(17, 32) if pm not in (23,)},
+    }
+
+    # PM → style_id convenience mapping (used by cli.py, debug_report.py).
+    PM_TO_STYLE: dict[int, int] = {pm: e.style_id for pm, e in _REGISTRY.items()}
+
+    @classmethod
+    def resolve(cls, pm: int, sub_type: int = 0) -> Optional[PmEntry]:
+        """Resolve PM + SUB to a PmEntry, checking overrides first."""
+        return cls._OVERRIDES.get((pm, sub_type)) or cls._REGISTRY.get(pm)
+
+    @classmethod
+    def get_button_image(cls, pm: int, sub: int = 0) -> Optional[str]:
+        """Resolve LED device button image from PM byte."""
+        entry = cls.resolve(pm, sub)
+        return entry.button_image if entry else None
+
+    @classmethod
+    def get_model_name(cls, pm: int, sub_type: int = 0) -> str:
+        """Get human-readable model name for a PM + SUB byte combo."""
+        entry = cls.resolve(pm, sub_type)
+        return entry.model_name if entry else f"Unknown (pm={pm})"
+
+    @classmethod
+    def get_style(cls, pm: int, sub_type: int = 0) -> LedDeviceStyle:
+        """Get LED device style from firmware PM byte."""
+        entry = cls.resolve(pm, sub_type)
+        return LED_STYLES[entry.style_id if entry else 1]
+
+    @classmethod
+    def get_preview_image(cls, pm: int, sub_type: int = 0) -> str:
+        """Get device preview image name, PM-specific or style default."""
+        entry = cls.resolve(pm, sub_type)
+        if entry and entry.preview_image:
+            return entry.preview_image
+        style = cls.get_style(pm, sub_type)
+        return style.preview_image
+
+
+# Preset colors from FormLED.cs ucColor1_ChangeColor handlers
+PRESET_COLORS: List[Tuple[int, int, int]] = [
+    (255, 0, 42),     # C1: Red-pink
+    (255, 110, 0),    # C2: Orange
+    (255, 255, 0),    # C3: Yellow
+    (0, 255, 0),      # C4: Green
+    (0, 255, 255),    # C5: Cyan
+    (0, 91, 255),     # C6: Blue
+    (214, 0, 255),    # C7: Purple
+    (255, 255, 255),  # C8: White
+]
+
+
+# =============================================================================
+# LED Index Remapping Tables (from FormLED.cs SendHidVal)
+# =============================================================================
+
+# Style 2: PA120_DIGITAL (84 LEDs, 4 zones)
+_REMAP_STYLE_2: tuple[int, ...] = (
+    3, 2, 14, 9, 10, 15, 13, 12, 11,
+    21, 16, 17, 22, 20, 19, 18,
+    28, 23, 24, 29, 27, 26, 25,
+    36, 31, 32, 37, 35, 34, 33,
+    43, 38, 39, 44, 42, 41, 40,
+    8, 8,
+    75, 76, 77, 79, 74, 73, 78,
+    68, 69, 70, 72, 67, 66, 71,
+    82, 83, 6, 7,
+    61, 62, 63, 65, 60, 59, 64,
+    54, 55, 56, 58, 53, 52, 57,
+    47, 48, 49, 51, 46, 45, 50,
+    4, 5, 6, 7, 81, 80,
+)
+
+# Style 3: AK120_DIGITAL (64 LEDs, 2 zones)
+_REMAP_STYLE_3: tuple[int, ...] = (
+    1, 25, 26, 27, 29, 24, 23, 28,
+    17, 2, 16, 21, 22, 18, 19, 20,
+    10, 9, 14, 15, 11, 12, 13,
+    36, 31, 32, 37, 35, 34, 33,
+    43, 38, 39, 44, 42, 41, 40,
+    50, 45, 46, 51, 49, 48, 47,
+    6, 7, 8,
+    61, 62, 63, 65, 60, 59, 64,
+    54, 4, 55, 56, 58, 53, 52, 57,
+    67, 68,
+)
+
+# Style 4: LC1 (31 LEDs, 1 zone) — also base for HR10 (style 13)
+_REMAP_STYLE_4: tuple[int, ...] = (
+    2, 1, 33, 34, 35, 37, 32, 31, 6,
+    36, 25, 26, 27, 29, 24, 23, 28,
+    18, 19, 20, 22, 17, 16, 21,
+    11, 12, 13, 15, 10, 9, 14,
+)
+
+# Style → remap table.  Styles not listed use identity mapping (no remap).
+LED_REMAP_TABLES: dict[int, tuple[int, ...]] = {
+    2: _REMAP_STYLE_2,   # PA120_DIGITAL (84 LEDs)
+    3: _REMAP_STYLE_3,   # AK120_DIGITAL (64 LEDs)
+    4: _REMAP_STYLE_4,   # LC1 (31 LEDs)
+    13: _REMAP_STYLE_4,  # HR10 shares LC1 layout
+}
+
+
+def remap_led_colors(
+    colors: List[Tuple[int, int, int]],
+    style_id: int,
+) -> List[Tuple[int, int, int]]:
+    """Remap LED colors from logical to physical wire order.
+
+    Each LED device style has a hardware-specific mapping from logical LED
+    indices (used by the GUI) to physical wire positions (sent to device).
+    """
+    table = LED_REMAP_TABLES.get(style_id)
+    if table is None:
+        return colors
+    black = (0, 0, 0)
+    return [colors[idx] if idx < len(colors) else black for idx in table]
+
+
+# =============================================================================
 # DC File Format DTOs (config1.dc overlay configuration)
 # =============================================================================
 
@@ -569,6 +797,20 @@ WEEKDAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 # Chinese weekday names (for Language == 1)
 WEEKDAYS_CN = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 
+# System locale → Windows asset suffix (from FormLED.cs / UCAbout.cs)
+# C# uses arbitrary single-char suffixes: 'e'=Russian, 'r'=Japanese, 'x'=Spanish
+LOCALE_TO_LANG: dict[str, str] = {
+    'zh_CN': '',     # Chinese Simplified = default (no suffix)
+    'zh_TW': 'tc',   # Traditional Chinese
+    'en': 'en',      # English
+    'de': 'd',       # German
+    'es': 'x',       # Spanish
+    'fr': 'f',       # French
+    'pt': 'p',       # Portuguese
+    'ru': 'e',       # Russian
+    'ja': 'r',       # Japanese
+}
+
 # FBL → Resolution mapping (from FormCZTV.cs lines 811-821)
 # FBL (Frame Buffer Layout) byte determines LCD resolution.
 FBL_TO_RESOLUTION: dict[int, tuple[int, int]] = {
@@ -640,4 +882,109 @@ def pm_to_fbl(pm: int, sub: int = 0) -> int:
     if pm == 1 and sub == 49:
         return 192
     return _PM_TO_FBL_OVERRIDES.get(pm, pm)
+
+
+# =============================================================================
+# Device Button Image Map (from UCDevice.cs ADDUserButton)
+# =============================================================================
+
+# Unified device → button image map.
+# Outer key: HID PM byte (0-255) or SCSI VID (>255).
+# Inner key: HID SUB byte or SCSI PID.  None = default when sub/pid not matched.
+DEVICE_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
+    # -- HID Vision/RGB devices (case 257, PM + SUB) --
+    1:   {0: 'A1GRAND VISION', 1: 'A1GRAND VISION',
+          48: 'A1LM22', 49: 'A1LF14', None: 'A1GRAND VISION'},
+    3:   {None: 'A1CORE VISION'},
+    4:   {1: 'A1HYPER VISION', 2: 'A1RP130 VISION', 3: 'A1LM16SE'},
+    5:   {None: 'A1Mjolnir VISION'},
+    6:   {1: 'FROZEN WARFRAME Ultra', 2: 'A1FROZEN VISION V2'},
+    7:   {1: 'A1Stream Vision', 2: 'A1Mjolnir VISION PRO'},
+    9:   {None: 'A1LC2JD'},
+    10:  {5: 'A1LF16', 6: 'A1LF18', None: 'A1LC3'},
+    11:  {None: 'A1LF19'},
+    12:  {None: 'A1LF167'},
+    # -- HID LCD devices (case 2 + case 257 merged, PM + SUB) --
+    32:  {0: 'A1ELITE VISION', 1: 'A1FROZEN WARFRAME PRO',
+          None: 'A1ELITE VISION'},
+    36:  {None: 'A1AS120 VISION'},
+    50:  {None: 'A1FROZEN WARFRAME'},
+    51:  {None: 'A1FROZEN WARFRAME'},
+    52:  {None: 'A1BA120 VISION'},
+    53:  {None: 'A1BA120 VISION'},
+    54:  {None: 'A1LC5'},
+    58:  {0: 'A1FROZEN WARFRAME SE', None: 'A1LM26'},
+    64:  {0: 'A1FROZEN WARFRAME PRO', 1: 'A1LM22', 2: 'A1LM27'},
+    65:  {0: 'A1ELITE VISION', 1: 'A1LF14'},
+    100: {0: 'A1FROZEN WARFRAME PRO', 1: 'A1LM22',
+          None: 'A1FROZEN WARFRAME PRO'},
+    101: {0: 'A1ELITE VISION', 1: 'A1LF14', None: 'A1ELITE VISION'},
+    128: {None: 'A1LM24'},
+    # -- SCSI devices (VID → {PID: image}) --
+    0x87CD: {0x70DB: 'A1CZTV', None: 'A1CZTV'},
+    0x87AD: {0x70DB: 'A1GRAND VISION', None: 'A1GRAND VISION'},
+    0x0402: {0x3922: 'A1FROZEN WARFRAME', None: 'A1FROZEN WARFRAME'},
+    0x0416: {0x5406: 'A1CZTV', None: 'A1CZTV'},
+}
+
+# Backward-compat alias
+PM_TO_BUTTON_IMAGE = DEVICE_BUTTON_IMAGE
+
+
+def get_button_image(key: int, sub: int = 0) -> Optional[str]:
+    """Resolve device button image from PM+SUB (HID) or VID+PID (SCSI)."""
+    sub_map = DEVICE_BUTTON_IMAGE.get(key)
+    if sub_map is None:
+        return None
+    if sub in sub_map:
+        return sub_map[sub]
+    return sub_map.get(None)
+
+
+# =============================================================================
+# Protocol / Device Type Display Names
+# =============================================================================
+
+PROTOCOL_NAMES: dict[str, str] = {
+    "scsi": "SCSI (sg_raw)",
+    "hid": "HID (USB bulk)",
+    "led": "LED (HID 64-byte)",
+    "bulk": "USB Bulk (USBLCDNew)",
+}
+
+DEVICE_TYPE_NAMES: dict[int, str] = {
+    1: "SCSI RGB565",
+    2: "HID Type 2 (H)",
+    3: "HID Type 3 (ALi)",
+    4: "Raw USB Bulk LCD",
+}
+
+LED_DEVICE_TYPE_NAME: str = "RGB LED Controller"
+
+
+# =============================================================================
+# Sensor Dashboard Category Display Mappings
+# =============================================================================
+
+# Category ID → background image name
+CATEGORY_IMAGES: dict[int, str] = {
+    0: 'A自定义.png',
+    1: 'Acpu.png',
+    2: 'Agpu.png',
+    3: 'Adram.png',
+    4: 'Ahdd.png',
+    5: 'Anet.png',
+    6: 'Afan.png',
+}
+
+# Category ID → value text color
+CATEGORY_COLORS: dict[int, str] = {
+    0: '#9375FF',     # Custom: Purple
+    1: '#32C5FF',     # CPU: Cyan
+    2: '#44D7B6',     # GPU: Teal
+    3: '#6DD401',     # Memory: Lime
+    4: '#F7B501',     # HDD: Orange
+    5: '#FA6401',     # Network: Red-orange
+    6: '#E02020',     # Fan: Red
+}
 

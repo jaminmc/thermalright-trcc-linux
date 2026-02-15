@@ -12,7 +12,6 @@ import struct
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from trcc.binary_reader import BinaryReader
 from trcc.core.models import (
     HARDWARE_METRICS,
     METRIC_TO_IDS,
@@ -20,6 +19,8 @@ from trcc.core.models import (
     ElementConfig,
     FontConfig,
 )
+
+from .binary_reader import BinaryReader
 
 
 class DcParser:

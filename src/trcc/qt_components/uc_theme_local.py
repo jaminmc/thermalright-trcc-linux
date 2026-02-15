@@ -20,7 +20,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton
 
 from ..core.models import LocalThemeItem
-from .assets import load_pixmap
+from .assets import Assets
 from .base import BaseThemeBrowser, BaseThumbnail
 from .constants import Layout, Styles
 
@@ -148,8 +148,8 @@ class UCThemeLocal(BaseThemeBrowser):
         self._filter_buttons[0].setChecked(True)
 
         # Slideshow toggle — Windows: buttonLunbo (531, 28) 40x17
-        self._lunbo_off = load_pixmap('P主题轮播.png', 40, 17)
-        self._lunbo_on = load_pixmap('P主题轮播a.png', 40, 17)
+        self._lunbo_off = Assets.load_pixmap('P主题轮播.png', 40, 17)
+        self._lunbo_on = Assets.load_pixmap('P主题轮播a.png', 40, 17)
         self.slideshow_btn = QPushButton(self)
         self.slideshow_btn.setGeometry(531, 28, 40, 17)
         self.slideshow_btn.setFlat(True)
@@ -175,7 +175,7 @@ class UCThemeLocal(BaseThemeBrowser):
         self.timer_input.editingFinished.connect(self._on_timer_changed)
 
         # Export button — Windows: buttonThemeOut (651, 27) 60x18 (empty handler)
-        export_px = load_pixmap('P导出所有主题.png', 60, 18)
+        export_px = Assets.load_pixmap('P导出所有主题.png', 60, 18)
         self.export_btn = QPushButton(self)
         self.export_btn.setGeometry(651, 27, 60, 18)
         self.export_btn.setFlat(True)
@@ -214,7 +214,7 @@ class UCThemeLocal(BaseThemeBrowser):
         # Scan primary dir + user data dir (merge, dedup by name).
         # This ensures Custom_ themes saved to ~/.trcc/data/ are visible
         # even when the primary dir is the package data dir.
-        from ..data_repository import USER_DATA_DIR
+        from ..adapters.infra.data_repository import USER_DATA_DIR
         dirs_to_scan = [self.theme_directory]
         user_theme_dir = Path(USER_DATA_DIR) / self.theme_directory.name
         if user_theme_dir != self.theme_directory and user_theme_dir.exists():

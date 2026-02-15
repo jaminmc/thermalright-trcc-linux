@@ -4,7 +4,7 @@ Tests for qt_components widgets – UCPreview, UCDevice, UCThemeLocal, UCAbout, 
 Uses QT_QPA_PLATFORM=offscreen for headless testing.
 
 Tests cover:
-- assets: get_asset_path, load_pixmap, asset_exists, Assets class methods
+- Assets: path, load_pixmap, exists, get, get_localized, auto .png resolution
 - UCPreview: init, resolution offsets, set_status, show_video_controls, set_resolution
 - UCDevice: init, device button creation, selection, about/home signals, DEVICE_IMAGE_MAP
 - UCThemeLocal: init, filter modes, slideshow toggle, theme loading from directory
@@ -31,51 +31,50 @@ from PIL import Image  # noqa: E402
 # ============================================================================
 # Assets
 # ============================================================================
-from trcc.qt_components.assets import (  # noqa: E402
-    ASSETS_DIR,
-    Assets,
-    asset_exists,
-    get_asset_path,
-    load_pixmap,
-)
+from trcc.qt_components.assets import _ASSETS_DIR, Assets  # noqa: E402
 
 
 class TestAssets(unittest.TestCase):
     """Test asset loader functions."""
 
     def test_assets_dir_exists(self):
-        self.assertTrue(ASSETS_DIR.exists(), f"ASSETS_DIR missing: {ASSETS_DIR}")
+        self.assertTrue(_ASSETS_DIR.exists(), f"ASSETS_DIR missing: {_ASSETS_DIR}")
 
-    def test_get_asset_path(self):
-        path = get_asset_path('P0CZTV.png')
+    def test_path(self):
+        path = Assets.path('P0CZTV.png')
         self.assertIsInstance(path, Path)
         self.assertTrue(str(path).endswith('P0CZTV.png'))
 
     def test_load_pixmap_missing(self):
         """Missing asset returns empty QPixmap."""
-        pix = load_pixmap.__wrapped__('definitely_not_a_file.png')
+        pix = Assets.load_pixmap.__wrapped__(Assets, 'definitely_not_a_file.png')
         self.assertTrue(pix.isNull())
 
     def test_load_pixmap_existing(self):
         """Loading a real asset returns valid pixmap."""
-        # Use a known asset
-        if asset_exists('P0CZTV.png'):
-            pix = load_pixmap.__wrapped__('P0CZTV.png')
+        if Assets.exists('P0CZTV.png'):
+            pix = Assets.load_pixmap.__wrapped__(Assets, 'P0CZTV.png')
             self.assertFalse(pix.isNull())
         else:
             self.skipTest('P0CZTV.png not found')
 
     def test_load_pixmap_scaled(self):
         """Scaling produces correct dimensions."""
-        if asset_exists('P0CZTV.png'):
-            pix = load_pixmap.__wrapped__('P0CZTV.png', 100, 80)
+        if Assets.exists('P0CZTV.png'):
+            pix = Assets.load_pixmap.__wrapped__(Assets, 'P0CZTV.png', 100, 80)
             self.assertEqual(pix.width(), 100)
             self.assertEqual(pix.height(), 80)
         else:
             self.skipTest('P0CZTV.png not found')
 
-    def test_asset_exists(self):
-        self.assertFalse(asset_exists('nonexistent_file_xyz.png'))
+    def test_exists(self):
+        self.assertFalse(Assets.exists('nonexistent_file_xyz.png'))
+
+    def test_auto_png_resolution(self):
+        """Base names without .png resolve if .png file exists."""
+        if Assets.exists('P0CZTV.png'):
+            self.assertTrue(Assets.exists('P0CZTV'))
+            self.assertIsNotNone(Assets.get('P0CZTV'))
 
     def test_assets_preview_for_resolution(self):
         name = Assets.get_preview_for_resolution(320, 320)
@@ -98,13 +97,18 @@ class TestAssets(unittest.TestCase):
         # Should be P0CZTVen.png if that file exists, else P0CZTV.png
         self.assertIsInstance(result, str)
 
+    def test_get_localized_base_name(self):
+        """Localization works with base names (no .png)."""
+        result = Assets.get_localized('P0CZTV', 'en')
+        self.assertIsInstance(result, str)
+
     def test_led_mode_button_assets_exist(self):
         """All 6 LED mode button images (normal + active) must exist."""
         for i in range(1, 7):
-            normal = f"D2\u706f\u5149{i}.png"
-            active = f"D2\u706f\u5149{i}a.png"
-            self.assertTrue(asset_exists(normal), f"Missing {normal}")
-            self.assertTrue(asset_exists(active), f"Missing {active}")
+            normal = f"D2\u706f\u5149{i}"
+            active = f"D2\u706f\u5149{i}a"
+            self.assertTrue(Assets.exists(normal), f"Missing {normal}")
+            self.assertTrue(Assets.exists(active), f"Missing {active}")
 
 
 # ============================================================================
@@ -196,9 +200,9 @@ class TestDeviceImageMap(unittest.TestCase):
     def test_get_device_images_unknown(self):
         """Unknown device falls back to CZTV or None."""
         normal, active = _get_device_images({'name': 'Unknown Device XYZ'})
-        # Either CZTV fallback or None if no assets
+        # Either CZTV fallback (base name) or None if no assets
         if normal:
-            self.assertTrue(normal.endswith('.png'))
+            self.assertIsInstance(normal, str)
 
     def test_get_device_images_hid_default_skipped(self):
         """HID devices with generic A1CZTV return None (await handshake)."""
@@ -531,14 +535,15 @@ class TestAutostart(unittest.TestCase):
 # detect_language
 # ============================================================================
 
-from trcc.qt_components.qt_app_mvc import LOCALE_TO_LANG, detect_language  # noqa: E402
+from trcc.conf import _detect_language  # noqa: E402
+from trcc.core.models import LOCALE_TO_LANG  # noqa: E402
 
 
 class TestDetectLanguage(unittest.TestCase):
     """Test language detection from locale."""
 
     def test_returns_string(self):
-        lang = detect_language()
+        lang = _detect_language()
         self.assertIsInstance(lang, str)
 
     def test_locale_mapping_keys(self):
@@ -547,26 +552,26 @@ class TestDetectLanguage(unittest.TestCase):
         self.assertIn('zh_CN', LOCALE_TO_LANG)
         self.assertIn('de', LOCALE_TO_LANG)
 
-    @patch('trcc.qt_components.qt_app_mvc.locale')
+    @patch('trcc.conf.locale')
     def test_english_locale(self, mock_locale):
         mock_locale.getlocale.return_value = ('en_US', 'UTF-8')
-        self.assertEqual(detect_language(), 'en')
+        self.assertEqual(_detect_language(), 'en')
 
-    @patch('trcc.qt_components.qt_app_mvc.locale')
+    @patch('trcc.conf.locale')
     def test_chinese_locale(self, mock_locale):
         mock_locale.getlocale.return_value = ('zh_CN', 'UTF-8')
-        self.assertEqual(detect_language(), '')
+        self.assertEqual(_detect_language(), '')
 
-    @patch('trcc.qt_components.qt_app_mvc.locale')
+    @patch('trcc.conf.locale')
     def test_unknown_locale_defaults_to_en(self, mock_locale):
         mock_locale.getlocale.return_value = ('zz_ZZ', 'UTF-8')
-        self.assertEqual(detect_language(), 'en')
+        self.assertEqual(_detect_language(), 'en')
 
     @patch.dict('os.environ', {'LANG': ''})
-    @patch('trcc.qt_components.qt_app_mvc.locale')
+    @patch('trcc.conf.locale')
     def test_none_locale_defaults_to_en(self, mock_locale):
         mock_locale.getlocale.return_value = (None, None)
-        self.assertEqual(detect_language(), 'en')
+        self.assertEqual(_detect_language(), 'en')
 
 
 if __name__ == '__main__':

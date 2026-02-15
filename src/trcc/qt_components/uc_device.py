@@ -10,8 +10,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 
-from ..device_scsi import find_lcd_devices
-from .assets import Assets, asset_exists
+from ..adapters.device.scsi import find_lcd_devices
+from .assets import Assets
 from .base import BasePanel, create_image_button, set_background_pixmap
 from .constants import Colors, Layout, Sizes
 
@@ -85,38 +85,30 @@ def _get_device_images(device_info: dict) -> tuple[str | None, str | None]:
 
     # Try button_image field first (from DetectedDevice)
     if button_image:
-        normal = f"{button_image}.png"
-        active = f"{button_image}a.png"
-        if asset_exists(normal):
-            return normal, active
+        if Assets.exists(button_image):
+            return button_image, f"{button_image}a"
 
         spaced = button_image.replace('_', ' ')
-        normal = f"{spaced}.png"
-        active = f"{spaced}a.png"
-        if asset_exists(normal):
-            return normal, active
+        if Assets.exists(spaced):
+            return spaced, f"{spaced}a"
 
     # Try model field
     model = device_info.get('model', '')
     if model in DEVICE_IMAGE_MAP:
         base = DEVICE_IMAGE_MAP[model]
-        normal = f"{base}.png"
-        active = f"{base}a.png"
-        if asset_exists(normal):
-            return normal, active
+        if Assets.exists(base):
+            return base, f"{base}a"
 
     # Try name field as fallback
     name = device_info.get('name', '')
     for model_key, img_base in DEVICE_IMAGE_MAP.items():
         if model_key.lower() in name.lower():
-            normal = f"{img_base}.png"
-            active = f"{img_base}a.png"
-            if asset_exists(normal):
-                return normal, active
+            if Assets.exists(img_base):
+                return img_base, f"{img_base}a"
 
     # Default to CZTV for non-HID devices
-    if protocol != 'hid' and asset_exists('A1CZTV.png'):
-        return 'A1CZTV.png', 'A1CZTVa.png'
+    if protocol != 'hid' and Assets.exists('A1CZTV'):
+        return 'A1CZTV', 'A1CZTVa'
 
     return None, None
 

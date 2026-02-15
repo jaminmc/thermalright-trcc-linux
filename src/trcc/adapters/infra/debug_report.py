@@ -153,7 +153,7 @@ class DebugReport:
             sec.lines.append(f"  getenforce failed: {e}")
 
     def _dependencies(self) -> None:
-        from trcc.doctor import get_module_version
+        from .doctor import get_module_version
 
         sec = self._add("Dependencies")
         for import_name, pkg_name in [
@@ -170,7 +170,7 @@ class DebugReport:
     def _devices(self) -> None:
         sec = self._add("Detected devices")
         try:
-            from trcc.device_detector import DeviceDetector
+            from trcc.adapters.device.detector import DeviceDetector
 
             devices = DeviceDetector.detect()
             self._detected_devices = devices
@@ -263,9 +263,9 @@ class DebugReport:
     # ------------------------------------------------------------------
 
     def _handshake_hid_lcd(self, dev, sec: _Section) -> None:
+        from trcc.adapters.device.factory import HidProtocol
+        from trcc.adapters.device.hid import HidHandshakeInfo
         from trcc.core.models import fbl_to_resolution, pm_to_fbl
-        from trcc.device_factory import HidProtocol
-        from trcc.device_hid import HidHandshakeInfo
 
         protocol = HidProtocol(vid=dev.vid, pid=dev.pid, device_type=dev.device_type)
         try:
@@ -290,8 +290,8 @@ class DebugReport:
             protocol.close()
 
     def _handshake_led(self, dev, sec: _Section) -> None:
-        from trcc.device_factory import LedProtocol
-        from trcc.device_led import LedHandshakeInfo, PmRegistry
+        from trcc.adapters.device.factory import LedProtocol
+        from trcc.adapters.device.led import LedHandshakeInfo, PmRegistry
 
         protocol = LedProtocol(vid=dev.vid, pid=dev.pid)
         try:
@@ -317,7 +317,7 @@ class DebugReport:
             protocol.close()
 
     def _handshake_bulk(self, dev, sec: _Section) -> None:
-        from trcc.device_factory import BulkProtocol
+        from trcc.adapters.device.factory import BulkProtocol
 
         protocol = BulkProtocol(vid=dev.vid, pid=dev.pid)
         try:

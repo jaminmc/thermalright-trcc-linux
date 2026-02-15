@@ -25,10 +25,10 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
 
-from trcc.media_player import FFMPEG_AVAILABLE
+from trcc.adapters.infra.media_player import FFMPEG_AVAILABLE
 from trcc.services import ImageService
 
-from .assets import load_pixmap
+from .assets import Assets
 from .base import make_icon_button, pil_to_pixmap
 
 # ============================================================================
@@ -509,7 +509,7 @@ class UCVideoCut(QWidget):
 
         # Try to load resolution-specific background
         bg_name = f'P0裁减{w}{h}.png'
-        bg_pix = load_pixmap(bg_name, PANEL_W, PANEL_H)
+        bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
         if not bg_pix.isNull():
             palette = self.palette()
             palette.setBrush(QPalette.ColorRole.Window, QBrush(bg_pix))

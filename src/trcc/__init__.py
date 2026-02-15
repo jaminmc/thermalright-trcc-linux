@@ -27,14 +27,14 @@ __version__ = "1.0.0"
 __author__ = "TRCC Linux Contributors"
 
 # Core exports
-from trcc.dc_config import DcConfig
-from trcc.dc_parser import dc_to_overlay_config, parse_dc_file
-from trcc.device_detector import detect_devices, get_device_path
-from trcc.device_lcd import LCDDriver
+from trcc.adapters.device.detector import detect_devices, get_device_path
+from trcc.adapters.device.lcd import LCDDriver
+from trcc.adapters.infra.dc_config import DcConfig
+from trcc.adapters.infra.dc_parser import dc_to_overlay_config, parse_dc_file
 
 # Animation
-from trcc.media_player import VideoDecoder
-from trcc.system_info import format_metric, get_all_metrics
+from trcc.adapters.infra.media_player import VideoDecoder
+from trcc.adapters.system.info import format_metric, get_all_metrics
 
 __all__ = [
     # Version

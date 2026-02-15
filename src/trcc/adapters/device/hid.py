@@ -22,15 +22,18 @@ import logging
 import struct
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Optional, Set
 
 import usb.core
 import usb.util
 
-from .core.models import (
-    HandshakeResult,
+from trcc.core.models import (
+    DEVICE_BUTTON_IMAGE,  # noqa: F401 — re-export
+    PM_TO_BUTTON_IMAGE,  # noqa: F401 — re-export
+    HandshakeResult,  # noqa: F401 — re-export
+    HidHandshakeInfo,
     fbl_to_resolution,
+    get_button_image,  # noqa: F401 — re-export
     pm_to_fbl,
 )
 
@@ -106,80 +109,8 @@ USB_INTERFACE = 0
 
 
 
-# _PM_TO_FBL_OVERRIDES, fbl_to_resolution, pm_to_fbl imported from core.models
-
-# Unified device → button image map (from UCDevice.cs ADDUserButton).
-# Outer key: HID PM byte (0-255) or SCSI VID (>255).
-# Inner key: HID SUB byte or SCSI PID.  None = default when sub/pid not matched.
-DEVICE_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
-    # -- HID Vision/RGB devices (case 257, PM + SUB) --
-    1:   {0: 'A1GRAND VISION', 1: 'A1GRAND VISION',
-          48: 'A1LM22', 49: 'A1LF14', None: 'A1GRAND VISION'},
-    3:   {None: 'A1CORE VISION'},
-    4:   {1: 'A1HYPER VISION', 2: 'A1RP130 VISION', 3: 'A1LM16SE'},
-    5:   {None: 'A1Mjolnir VISION'},
-    6:   {1: 'FROZEN WARFRAME Ultra', 2: 'A1FROZEN VISION V2'},
-    7:   {1: 'A1Stream Vision', 2: 'A1Mjolnir VISION PRO'},
-    9:   {None: 'A1LC2JD'},
-    10:  {5: 'A1LF16', 6: 'A1LF18', None: 'A1LC3'},
-    11:  {None: 'A1LF19'},
-    12:  {None: 'A1LF167'},
-    # -- HID LCD devices (case 2 + case 257 merged, PM + SUB) --
-    32:  {0: 'A1ELITE VISION', 1: 'A1FROZEN WARFRAME PRO',
-          None: 'A1ELITE VISION'},
-    36:  {None: 'A1AS120 VISION'},
-    50:  {None: 'A1FROZEN WARFRAME'},
-    51:  {None: 'A1FROZEN WARFRAME'},
-    52:  {None: 'A1BA120 VISION'},
-    53:  {None: 'A1BA120 VISION'},
-    54:  {None: 'A1LC5'},
-    58:  {0: 'A1FROZEN WARFRAME SE', None: 'A1LM26'},
-    64:  {0: 'A1FROZEN WARFRAME PRO', 1: 'A1LM22', 2: 'A1LM27'},
-    65:  {0: 'A1ELITE VISION', 1: 'A1LF14'},
-    100: {0: 'A1FROZEN WARFRAME PRO', 1: 'A1LM22',
-          None: 'A1FROZEN WARFRAME PRO'},
-    101: {0: 'A1ELITE VISION', 1: 'A1LF14', None: 'A1ELITE VISION'},
-    128: {None: 'A1LM24'},
-    # -- SCSI devices (VID → {PID: image}) --
-    0x87CD: {0x70DB: 'A1CZTV', None: 'A1CZTV'},
-    0x87AD: {0x70DB: 'A1GRAND VISION', None: 'A1GRAND VISION'},
-    0x0402: {0x3922: 'A1FROZEN WARFRAME', None: 'A1FROZEN WARFRAME'},
-    0x0416: {0x5406: 'A1CZTV', None: 'A1CZTV'},
-}
-
-# Keep old name as alias for backward compat
-PM_TO_BUTTON_IMAGE = DEVICE_BUTTON_IMAGE
-
-
-def get_button_image(key: int, sub: int = 0) -> Optional[str]:
-    """Resolve device button image from PM+SUB (HID) or VID+PID (SCSI).
-
-    Args:
-        key: PM byte (0-255) for HID devices, or VID for SCSI devices.
-        sub: SUB byte for HID devices, or PID for SCSI devices.
-
-    Returns image name, or None if unknown.
-    """
-    sub_map = DEVICE_BUTTON_IMAGE.get(key)
-    if sub_map is None:
-        return None
-    if sub in sub_map:
-        return sub_map[sub]
-    return sub_map.get(None)
-
-
-# =========================================================================
-# Data classes
-# =========================================================================
-
-@dataclass
-class HidHandshakeInfo(HandshakeResult):
-    """HID-specific handshake info (extends HandshakeResult)."""
-    device_type: int = 0      # 2 or 3
-    mode_byte_1: int = 0     # Type 2: resp[5] (PM), Type 3: resp[0]-1
-    mode_byte_2: int = 0     # Type 2: resp[4] (SUB), Type 3: 0
-    fbl: Optional[int] = None  # FBL code resolved from PM/SUB
-
+# Domain data re-exported from core.models (canonical location):
+# DEVICE_BUTTON_IMAGE, PM_TO_BUTTON_IMAGE, get_button_image, HidHandshakeInfo
 
 # =========================================================================
 # Abstract USB transport

@@ -10,13 +10,13 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from trcc.device_hid import (
+from trcc.adapters.device.hid import (
     DEFAULT_TIMEOUT_MS,
     EP_READ_01,
     EP_WRITE_02,
     UsbTransport,
 )
-from trcc.device_led import (
+from trcc.adapters.device.led import (
     DELAY_POST_INIT_S,
     DELAY_PRE_INIT_S,
     HID_REPORT_SIZE,
@@ -51,14 +51,14 @@ pytestmark = pytest.mark.usefixtures("_patch_sleep")
 @pytest.fixture(autouse=True)
 def _patch_sleep():
     """Disable time.sleep in led_device for fast tests."""
-    with patch("trcc.device_led.time.sleep"):
+    with patch("trcc.adapters.device.led.time.sleep"):
         yield
 
 
 @pytest.fixture(autouse=True)
 def _clear_rgb_table_cache():
     """Reset the ColorEngine cached table between tests."""
-    from trcc.device_led import ColorEngine
+    from trcc.adapters.device.led import ColorEngine
     original = ColorEngine._cached_table
     ColorEngine._cached_table = None
     yield
@@ -897,7 +897,7 @@ class TestLedHidSenderHandshake:
         transport.read.return_value = _make_valid_handshake_response()
 
         sender = LedHidSender(transport)
-        with patch("trcc.device_led.time.sleep") as mock_sleep:
+        with patch("trcc.adapters.device.led.time.sleep") as mock_sleep:
             sender.handshake()
             calls = mock_sleep.call_args_list
             assert len(calls) == 2
@@ -1055,7 +1055,7 @@ class TestLedHidSenderSendLedData:
         transport = _make_mock_transport()
         sender = LedHidSender(transport)
 
-        with patch("trcc.device_led.time.sleep") as mock_sleep:
+        with patch("trcc.adapters.device.led.time.sleep") as mock_sleep:
             sender.send_led_data(b'\xAA' * 20)
             mock_sleep.assert_called_once_with(SEND_COOLDOWN_S)
 

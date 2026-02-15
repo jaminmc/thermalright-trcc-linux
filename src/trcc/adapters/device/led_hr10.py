@@ -377,8 +377,8 @@ def run_hr10_daemon(
     Returns:
         Exit code (0 = clean shutdown, 1 = error).
     """
-    from .device_factory import DeviceProtocolFactory
-    from .device_led import (
+    from .factory import DeviceProtocolFactory
+    from .led import (
         LED_PID,
         LED_VID,
         ColorEngine,

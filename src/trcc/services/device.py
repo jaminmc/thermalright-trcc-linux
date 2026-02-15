@@ -29,7 +29,7 @@ class DeviceService:
         """Scan for all connected LCD/LED/Bulk devices via device_detector."""
         log.debug("DeviceService: scanning for devices...")
         try:
-            from ..device_detector import DetectedDevice, DeviceDetector
+            from ..adapters.device.detector import DetectedDevice, DeviceDetector
 
             raw: list[DetectedDevice] = DeviceDetector.detect()
             self._devices = [
@@ -87,7 +87,7 @@ class DeviceService:
             HandshakeResult or None on error/import failure.
         """
         try:
-            from ..device_factory import DeviceProtocolFactory
+            from ..adapters.device.factory import DeviceProtocolFactory
 
             protocol = DeviceProtocolFactory.get_protocol(device)
             if hasattr(protocol, 'handshake'):
@@ -110,7 +110,7 @@ class DeviceService:
             self._send_busy = True
 
         try:
-            from ..device_factory import DeviceProtocolFactory
+            from ..adapters.device.factory import DeviceProtocolFactory
 
             log.debug("send_rgb565: device=%s protocol=%s %dx%d (%d bytes)",
                       self._selected.path if self._selected else 'None',
@@ -195,8 +195,8 @@ class DeviceService:
         Resolution is now detected in ScsiDevice.handshake() directly,
         so this is only needed for pre-handshake discovery.
         """
+        from ..adapters.device.scsi import ScsiDevice
         from ..core.models import fbl_to_resolution
-        from ..device_scsi import ScsiDevice
 
         try:
             poll_header = ScsiDevice._build_header(0xF5, 0xE100)
@@ -226,7 +226,7 @@ class DeviceService:
     def get_protocol_info(self) -> Optional[Any]:
         """Get protocol/backend info for the selected device."""
         try:
-            from ..device_factory import DeviceProtocolFactory
+            from ..adapters.device.factory import DeviceProtocolFactory
 
             return DeviceProtocolFactory.get_protocol_info(self._selected)
         except ImportError:

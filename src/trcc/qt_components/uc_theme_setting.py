@@ -32,8 +32,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..system_info import format_metric
-from .assets import load_pixmap
+from ..adapters.system.info import format_metric
+from .assets import Assets
 from .base import BasePanel, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
 
@@ -151,11 +151,11 @@ class OverlayElementWidget(QWidget):
         # Preload mode images (shared via lru_cache)
         self._mode_pixmaps = {}
         for mode, img_name in MODE_IMAGES.items():
-            px = load_pixmap(img_name, Sizes.OVERLAY_CELL, Sizes.OVERLAY_CELL)
+            px = Assets.load_pixmap(img_name, Sizes.OVERLAY_CELL, Sizes.OVERLAY_CELL)
             if not px.isNull():
                 self._mode_pixmaps[mode] = px
 
-        self._select_pixmap = load_pixmap(SELECT_IMAGE, Sizes.OVERLAY_CELL, Sizes.OVERLAY_CELL)
+        self._select_pixmap = Assets.load_pixmap(SELECT_IMAGE, Sizes.OVERLAY_CELL, Sizes.OVERLAY_CELL)
 
     def set_config(self, config):
         """Set element config or None to clear."""
@@ -337,8 +337,8 @@ class OverlayGridPanel(QFrame):
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.setChecked(True)
 
-        on_px = load_pixmap('P滑动开.png', 36, 18)
-        off_px = load_pixmap('P滑动关.png', 36, 18)
+        on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
+        off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
         if not on_px.isNull() and not off_px.isNull():
             icon = QIcon()
             icon.addPixmap(on_px, QIcon.Mode.Normal, QIcon.State.On)
@@ -719,7 +719,7 @@ class ColorPickerPanel(QFrame):
         # Eyedropper button (matches Windows buttonGetColor at (12, 276, 48, 48))
         self.eyedropper_btn = QPushButton(self)
         self.eyedropper_btn.setGeometry(*Layout.COLOR_EYEDROPPER)
-        eyedrop_pixmap = load_pixmap('P吸管.png', 48, 48)
+        eyedrop_pixmap = Assets.load_pixmap('P吸管.png', 48, 48)
         if not eyedrop_pixmap.isNull():
             self.eyedropper_btn.setIcon(QIcon(eyedrop_pixmap))
             self.eyedropper_btn.setIconSize(self.eyedropper_btn.size())
@@ -940,8 +940,8 @@ class DataTablePanel(QFrame):
         self.unit_btn.setFlat(True)
         self.unit_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.unit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._unit_off = load_pixmap('P单位开关.png', 70, 24)   # °C
-        self._unit_on = load_pixmap('P单位开关a.png', 70, 24)   # °F
+        self._unit_off = Assets.load_pixmap('P单位开关.png', 70, 24)   # °C
+        self._unit_on = Assets.load_pixmap('P单位开关a.png', 70, 24)   # °F
         self.unit_btn.setToolTip("Temperature unit (C/F)")
         self.unit_btn.clicked.connect(self._on_unit_clicked)
         self.unit_btn.setVisible(False)
@@ -953,8 +953,8 @@ class DataTablePanel(QFrame):
         self.time_btn.setFlat(True)
         self.time_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.time_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._time_12h = load_pixmap('P12H.png', 54, 22)
-        self._time_24h = load_pixmap('P24H.png', 54, 22)
+        self._time_12h = Assets.load_pixmap('P12H.png', 54, 22)
+        self._time_24h = Assets.load_pixmap('P24H.png', 54, 22)
         self.time_btn.setToolTip("Time format (12h/24h)")
         self.time_btn.clicked.connect(self._on_time_clicked)
         self.time_btn.setVisible(False)
@@ -967,7 +967,7 @@ class DataTablePanel(QFrame):
         self.date_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.date_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._date_pixmaps = {
-            k: load_pixmap(v, 54, 22) for k, v in self._DATE_IMAGES.items()
+            k: Assets.load_pixmap(v, 54, 22) for k, v in self._DATE_IMAGES.items()
         }
         self.date_btn.setToolTip("Date format")
         self.date_btn.clicked.connect(self._on_date_clicked)
@@ -1106,12 +1106,12 @@ class DisplayModePanel(QFrame):
         self.toggle_btn = QPushButton(self)
         if self.mode_id == 'mask':
             self.toggle_btn.setGeometry(*Layout.TOGGLE_MASK)
-            on_px = load_pixmap('P滑动开.png', 36, 18)
-            off_px = load_pixmap('P滑动关.png', 36, 18)
+            on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
+            off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
         else:
             self.toggle_btn.setGeometry(*Layout.TOGGLE_DEFAULT)
-            on_px = load_pixmap('P功能选择a.png', 50, 50)
-            off_px = load_pixmap('P功能选择.png', 50, 50)
+            on_px = Assets.load_pixmap('P功能选择a.png', 50, 50)
+            off_px = Assets.load_pixmap('P功能选择.png', 50, 50)
 
         self.toggle_btn.setCheckable(True)
         if not on_px.isNull() and not off_px.isNull():
@@ -1140,7 +1140,7 @@ class DisplayModePanel(QFrame):
             btn.setGeometry(*action_positions[i])
             icon_name = _ICON_MAP.get(action_name)
             if icon_name:
-                px = load_pixmap(icon_name, 40, 40)
+                px = Assets.load_pixmap(icon_name, 40, 40)
                 if not px.isNull():
                     btn.setIcon(QIcon(px))
                     btn.setIconSize(btn.size())
@@ -1277,7 +1277,7 @@ class ScreenCastPanel(DisplayModePanel):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
         img_name = 'P加.png' if delta > 0 else 'P减.png'
-        pix = load_pixmap(img_name, w, h)
+        pix = Assets.load_pixmap(img_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
             btn.setIconSize(btn.size())
@@ -1340,7 +1340,7 @@ class ScreenCastPanel(DisplayModePanel):
 
     def _update_border_icon(self):
         img = 'P显示边框A.png' if self._show_border else 'P显示边框.png'
-        pix = load_pixmap(img, 24, 16)
+        pix = Assets.load_pixmap(img, 24, 16)
         if not pix.isNull():
             self.border_btn.setIcon(QIcon(pix))
             self.border_btn.setIconSize(self.border_btn.size())

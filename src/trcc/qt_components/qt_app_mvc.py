@@ -12,7 +12,6 @@ Visual polish matches Windows TRCC exactly:
 """
 from __future__ import annotations
 
-import locale
 import logging
 import os
 import sys
@@ -34,18 +33,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..adapters.device.scsi import find_lcd_devices
+from ..adapters.infra.dc_writer import CarouselConfig, read_carousel_config, write_carousel_config
+from ..adapters.system.info import get_all_metrics
+from ..adapters.system.sensors import SensorEnumerator
 from ..conf import Settings, settings
 
 # Import MVC core
 from ..core.controllers import LEDDeviceController, create_controller
 from ..core.models import DeviceInfo, PlaybackState, ThemeInfo
-from ..dc_writer import CarouselConfig, read_carousel_config, write_carousel_config
-from ..device_scsi import find_lcd_devices
-from ..system_info import get_all_metrics
-from ..system_sensors import SensorEnumerator
 
 # Import view components
-from .assets import Assets, load_pixmap
+from .assets import Assets
 from .base import create_image_button, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
 from .uc_about import UCAbout, ensure_autostart
@@ -63,30 +62,6 @@ from .uc_theme_web import UCThemeWeb
 from .uc_video_cut import UCVideoCut
 
 log = logging.getLogger(__name__)
-
-LOCALE_TO_LANG = Layout.LOCALE_TO_LANG
-
-
-def detect_language() -> str:
-    """Detect system language and return Windows asset suffix."""
-    try:
-        lang = (locale.getlocale()[0]
-                or os.environ.get('LANG', '').split('.')[0]
-                or 'en')
-    except Exception:
-        lang = 'en'
-
-    # Try exact match first
-    if lang in LOCALE_TO_LANG:
-        return LOCALE_TO_LANG[lang]
-
-    # Try language prefix (e.g., 'en_US' -> 'en')
-    prefix = lang.split('_')[0]
-    if prefix in LOCALE_TO_LANG:
-        return LOCALE_TO_LANG[prefix]
-
-    return 'en'  # Default to English
-
 
 class TRCCMainWindowMVC(QMainWindow):
     """
@@ -188,9 +163,6 @@ class TRCCMainWindowMVC(QMainWindow):
         self._drive_metrics_timer = QTimer(self)
         self._drive_metrics_timer.timeout.connect(self._on_drive_metrics_tick)
 
-        # Language for localized backgrounds
-        self._lang = detect_language()
-
         # Per-device config tracking
         self._active_device_key = ''
 
@@ -283,10 +255,6 @@ class TRCCMainWindowMVC(QMainWindow):
         self._force_quit = True
         self.close()
 
-    def _localized(self, base_name: str) -> str:
-        """Get localized asset name for current language."""
-        return Assets.get_localized(base_name, self._lang)
-
     def _set_panel_background(self, widget: QWidget, asset_name: str):
         """Set background image on a panel via QPalette."""
         pix = set_background_pixmap(widget, asset_name)
@@ -327,7 +295,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self.form_container.setGeometry(*Layout.FORM_CONTAINER)
 
         # Set FormCZTV background image (localized)
-        form_bg_name = self._localized(Assets.FORM_CZTV_BG)
+        form_bg_name = Assets.get_localized(Assets.FORM_CZTV_BG, settings.lang)
         pix = set_background_pixmap(self.form_container, form_bg_name,
             fallback_style=f"background-color: {Colors.WINDOW_BG};")
         if pix:
@@ -363,15 +331,15 @@ class TRCCMainWindowMVC(QMainWindow):
 
         # Create theme panels with localized backgrounds
         self.uc_theme_local = UCThemeLocal()
-        self._set_panel_background(self.uc_theme_local, self._localized(Assets.THEME_LOCAL_BG))
+        self._set_panel_background(self.uc_theme_local, Assets.get_localized(Assets.THEME_LOCAL_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_local)
 
         self.uc_theme_web = UCThemeWeb()
-        self._set_panel_background(self.uc_theme_web, self._localized(Assets.THEME_WEB_BG))
+        self._set_panel_background(self.uc_theme_web, Assets.get_localized(Assets.THEME_WEB_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_web)
 
         self.uc_theme_mask = UCThemeMask()
-        self._set_panel_background(self.uc_theme_mask, self._localized(Assets.THEME_MASK_BG))
+        self._set_panel_background(self.uc_theme_mask, Assets.get_localized(Assets.THEME_MASK_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_mask)
 
         self.uc_theme_setting = UCThemeSetting()
@@ -392,7 +360,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._apply_settings_backgrounds()
 
         # === About / Control Center panel (sibling of form_container) ===
-        self.uc_about = UCAbout(self._lang, central)
+        self.uc_about = UCAbout(parent=central)
         self.uc_about.setGeometry(*Layout.FORM_CONTAINER)
         self.uc_about.setVisible(False)
 
@@ -401,8 +369,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._system_sensors.discover()
 
         # === System Info dashboard (sibling of form_container) ===
-        self.uc_system_info = UCSystemInfo(self._system_sensors, self._lang,
-                                           central)
+        self.uc_system_info = UCSystemInfo(self._system_sensors, parent=central)
         self.uc_system_info.setGeometry(*Layout.SYSINFO_PANEL)
         self.uc_system_info.setVisible(False)
 
@@ -606,7 +573,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._brightness_level = 2  # Default L2 (75%), Windows starts at L2
         self._brightness_pixmaps = {}
         for level in range(4):
-            pix = load_pixmap(f'PL{level}.png')
+            pix = Assets.load_pixmap(f'PL{level}.png')
             if not pix.isNull():
                 self._brightness_pixmaps[level] = pix
 
@@ -651,7 +618,7 @@ class TRCCMainWindowMVC(QMainWindow):
         """Create a button that shows an icon if available, or text fallback."""
         btn = QPushButton(self.form_container)
         btn.setGeometry(x, y, w, h)
-        pix = load_pixmap(icon_name, w, h)
+        pix = Assets.load_pixmap(icon_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
             btn.setIconSize(btn.size())
@@ -694,57 +661,55 @@ class TRCCMainWindowMVC(QMainWindow):
         setting = self.uc_theme_setting
 
         # Mask/Layout panel at (10, 441) - P01布局蒙板{lang}.png
-        mask_bg = self._localized('P01布局蒙板.png')
+        mask_bg = Assets.get_localized('P01布局蒙板.png', settings.lang)
         self._set_panel_background(setting.mask_panel, mask_bg)
 
         # Background panel at (371, 441) - P01背景显示{lang}.png
-        bg_bg = self._localized('P01背景显示.png')
+        bg_bg = Assets.get_localized('P01背景显示.png', settings.lang)
         self._set_panel_background(setting.background_panel, bg_bg)
 
         # Screencast panel at (10, 551) - P01投屏显示xy{lang}.png
-        sc_bg = self._localized('P01投屏显示xy.png')
+        sc_bg = Assets.get_localized('P01投屏显示xy.png', settings.lang)
         self._set_panel_background(setting.screencast_panel, sc_bg)
 
         # Video player panel at (371, 551) - P01播放器{lang}.png
-        vp_bg = self._localized('P01播放器.png')
+        vp_bg = Assets.get_localized('P01播放器.png', settings.lang)
         self._set_panel_background(setting.video_panel, vp_bg)
 
         # Overlay grid (ucXiTongXianShi1) at (10, 1) - P01内容{lang}.png
-        content_bg = self._localized('P01内容.png')
+        content_bg = Assets.get_localized('P01内容.png', settings.lang)
         self._set_panel_background(setting.overlay_grid, content_bg)
 
         # Color picker (ucXiTongXianShiColor1) at (492, 1) - P01参数面板{lang}.png
-        params_bg = self._localized('P01参数面板.png')
+        params_bg = Assets.get_localized('P01参数面板.png', settings.lang)
         self._set_panel_background(setting.color_panel, params_bg)
 
     def set_language(self, lang: str):
-        """
-        Switch all localized backgrounds to a new language.
+        """Switch all localized backgrounds to a new language.
 
-        Matches Windows FormCZTV.set_panel_images() pattern.
+        Persists to settings, then re-applies all localized backgrounds.
 
         Args:
             lang: Language suffix ('en', 'tc', 'd', 'e', 'f', 'p', 'r', 'x', '' for Chinese)
         """
-        self._lang = lang
+        settings.lang = lang
 
         # Re-apply main background
-        self._set_panel_background(self.form_container, self._localized(Assets.FORM_CZTV_BG))
+        self._set_panel_background(self.form_container, Assets.get_localized(Assets.FORM_CZTV_BG, settings.lang))
 
         # Re-apply theme panel backgrounds
-        self._set_panel_background(self.uc_theme_local, self._localized(Assets.THEME_LOCAL_BG))
-        self._set_panel_background(self.uc_theme_web, self._localized(Assets.THEME_WEB_BG))
-        self._set_panel_background(self.uc_theme_mask, self._localized(Assets.THEME_MASK_BG))
+        self._set_panel_background(self.uc_theme_local, Assets.get_localized(Assets.THEME_LOCAL_BG, settings.lang))
+        self._set_panel_background(self.uc_theme_web, Assets.get_localized(Assets.THEME_WEB_BG, settings.lang))
+        self._set_panel_background(self.uc_theme_mask, Assets.get_localized(Assets.THEME_MASK_BG, settings.lang))
 
         # Re-apply settings sub-panel backgrounds
         self._apply_settings_backgrounds()
 
-        # Sync about panel
-        self.uc_about.set_language(lang)
+        # Sync about panel (updates button checked states + background)
+        self.uc_about.sync_language()
 
-        # Sync LED panel
-        self.uc_led_control.set_language(lang)
-        # LED panel language is updated via set_language (handles both standard and HR10)
+        # Sync LED panel background
+        self.uc_led_control.apply_localized_background()
 
     def _init_theme_directories(self):
         """Initialize theme browser directories."""
@@ -848,7 +813,7 @@ class TRCCMainWindowMVC(QMainWindow):
 
         def worker():
             try:
-                from ..device_factory import DeviceProtocolFactory
+                from ..adapters.device.factory import DeviceProtocolFactory
                 protocol = DeviceProtocolFactory.get_protocol(device)
                 result = protocol.handshake()
                 resolution = getattr(result, 'resolution', None) if result else None
@@ -1779,7 +1744,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if style_info:
             self.uc_led_control.initialize(
                 led_style, style_info.segment_count, style_info.zone_count,
-                self._lang, model=model,
+                model=model,
             )
         # Sync saved sensor source to UI
         source = self._led_controller.led.state.temp_source
@@ -1914,7 +1879,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if not self._led_controller:
             return
         try:
-            from ..system_info import get_all_metrics
+            from ..adapters.system.info import get_all_metrics
             metrics = get_all_metrics()
         except Exception:
             return
@@ -1936,7 +1901,7 @@ class TRCCMainWindowMVC(QMainWindow):
         # LF11 disk (style 10)
         if style == 10:
             try:
-                from ..system_info import get_disk_stats, get_disk_temperature
+                from ..adapters.system.info import get_disk_stats, get_disk_temperature
                 disk = get_disk_stats()
                 temp = get_disk_temperature()
                 if temp is not None:
@@ -1994,7 +1959,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if not self.uc_led_control.is_hr10:
             return
         try:
-            from ..system_info import get_disk_stats, get_disk_temperature
+            from ..adapters.system.info import get_disk_stats, get_disk_temperature
             metrics = get_disk_stats()
             temp = get_disk_temperature()
             if temp is not None:
@@ -2049,7 +2014,7 @@ class TRCCMainWindowMVC(QMainWindow):
         json_path = theme_dir / 'config.json'
         if json_path.exists():
             try:
-                from ..dc_parser import load_config_json
+                from ..adapters.infra.dc_parser import load_config_json
                 result = load_config_json(str(json_path))
                 if result is not None:
                     overlay_config = result[0]  # (overlay_config, display_options)
@@ -2062,7 +2027,7 @@ class TRCCMainWindowMVC(QMainWindow):
             if not dc_path.exists():
                 return
             try:
-                from ..dc_config import DcConfig
+                from ..adapters.infra.dc_config import DcConfig
                 dc = DcConfig(dc_path)
                 overlay_config = dc.to_overlay_config()
             except Exception:

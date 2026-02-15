@@ -23,8 +23,8 @@ from typing import Optional
 
 import psutil
 
+from trcc.adapters.infra.data_repository import SysUtils
 from trcc.core.models import SensorInfo
-from trcc.data_repository import SysUtils
 
 try:
     import pynvml  # pyright: ignore[reportMissingImports]

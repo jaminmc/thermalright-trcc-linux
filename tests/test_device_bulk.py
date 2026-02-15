@@ -19,13 +19,13 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from trcc.core.models import HandshakeResult
-from trcc.device_bulk import (
+from trcc.adapters.device.bulk import (
     _HANDSHAKE_PAYLOAD,
     _HANDSHAKE_READ_SIZE,
     _HANDSHAKE_TIMEOUT_MS,
     BulkDevice,
 )
+from trcc.core.models import HandshakeResult
 
 
 def _make_handshake_response(pm: int = 100, sub: int = 0, length: int = 1024) -> bytes:
@@ -499,7 +499,7 @@ class TestBulkProtocol(unittest.TestCase):
 
     def test_create_via_factory(self):
         """Factory routes protocol='bulk' to BulkProtocol."""
-        from trcc.device_factory import BulkProtocol, DeviceProtocolFactory
+        from trcc.adapters.device.factory import BulkProtocol, DeviceProtocolFactory
 
         device_info = MagicMock()
         device_info.protocol = 'bulk'
@@ -514,7 +514,7 @@ class TestBulkProtocol(unittest.TestCase):
         proto.close()
 
     def test_protocol_info(self):
-        from trcc.device_factory import BulkProtocol
+        from trcc.adapters.device.factory import BulkProtocol
 
         proto = BulkProtocol(0x87AD, 0x70DB)
         info = proto.get_info()
@@ -524,7 +524,7 @@ class TestBulkProtocol(unittest.TestCase):
         proto.close()
 
     def test_is_not_led(self):
-        from trcc.device_factory import BulkProtocol
+        from trcc.adapters.device.factory import BulkProtocol
 
         proto = BulkProtocol(0x87AD, 0x70DB)
         self.assertFalse(proto.is_led)
@@ -535,7 +535,7 @@ class TestBulkDeviceDetection(unittest.TestCase):
     """Test that 87AD:70DB is detected as bulk protocol."""
 
     def test_in_bulk_devices_registry(self):
-        from trcc.device_detector import _BULK_DEVICES
+        from trcc.adapters.device.detector import _BULK_DEVICES
 
         self.assertIn((0x87AD, 0x70DB), _BULK_DEVICES)
         info = _BULK_DEVICES[(0x87AD, 0x70DB)]
@@ -544,24 +544,24 @@ class TestBulkDeviceDetection(unittest.TestCase):
         self.assertEqual(info.device_type, 4)
 
     def test_not_in_scsi_devices(self):
-        from trcc.device_detector import KNOWN_DEVICES
+        from trcc.adapters.device.detector import KNOWN_DEVICES
 
         self.assertNotIn((0x87AD, 0x70DB), KNOWN_DEVICES)
 
     def test_not_in_led_devices(self):
-        from trcc.device_detector import _LED_DEVICES
+        from trcc.adapters.device.detector import _LED_DEVICES
 
         self.assertNotIn((0x87AD, 0x70DB), _LED_DEVICES)
 
     def test_in_all_devices(self):
-        from trcc.device_detector import _get_all_devices
+        from trcc.adapters.device.detector import _get_all_devices
 
         all_devs = _get_all_devices()
         self.assertIn((0x87AD, 0x70DB), all_devs)
 
     def test_find_lcd_devices_bulk(self):
         """find_lcd_devices returns bulk device with correct protocol."""
-        from trcc.device_detector import DetectedDevice
+        from trcc.adapters.device.detector import DetectedDevice
 
         fake_dev = DetectedDevice(
             vid=0x87AD, pid=0x70DB,
@@ -575,8 +575,8 @@ class TestBulkDeviceDetection(unittest.TestCase):
             device_type=4,
         )
 
-        with patch("trcc.device_detector.detect_devices", return_value=[fake_dev]):
-            from trcc.device_scsi import find_lcd_devices
+        with patch("trcc.adapters.device.detector.detect_devices", return_value=[fake_dev]):
+            from trcc.adapters.device.scsi import find_lcd_devices
             devices = find_lcd_devices()
 
         self.assertEqual(len(devices), 1)

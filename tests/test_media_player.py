@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
-from trcc.media_player import (
+from trcc.adapters.infra.media_player import (
     ThemeZtDecoder,
     VideoDecoder,
     _check_ffmpeg,
@@ -59,19 +59,19 @@ class TestBackwardCompatAliases(unittest.TestCase):
     """Old names still resolve to new classes."""
 
     def test_video_player_alias(self):
-        from trcc.media_player import VideoPlayer
+        from trcc.adapters.infra.media_player import VideoPlayer
         self.assertIs(VideoPlayer, VideoDecoder)
 
     def test_theme_zt_player_alias(self):
-        from trcc.media_player import ThemeZtPlayer
+        from trcc.adapters.infra.media_player import ThemeZtPlayer
         self.assertIs(ThemeZtPlayer, ThemeZtDecoder)
 
     def test_gif_animator_alias(self):
-        from trcc.media_player import GIFAnimator
+        from trcc.adapters.infra.media_player import GIFAnimator
         self.assertIs(GIFAnimator, VideoDecoder)
 
     def test_gif_theme_loader_alias(self):
-        from trcc.media_player import GIFThemeLoader
+        from trcc.adapters.infra.media_player import GIFThemeLoader
         self.assertIs(GIFThemeLoader, VideoDecoder)
 
 
@@ -99,7 +99,7 @@ class TestVideoDecoderProperties(unittest.TestCase):
 class TestVideoDecoderInit(unittest.TestCase):
     """VideoDecoder __init__ error paths."""
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', False)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', False)
     def test_raises_without_ffmpeg(self):
         with self.assertRaises(RuntimeError):
             VideoDecoder('/fake/video.mp4')
@@ -108,7 +108,7 @@ class TestVideoDecoderInit(unittest.TestCase):
 class TestVideoDecoderDecode(unittest.TestCase):
     """Cover VideoDecoder.__init__ -> _decode with mocked subprocess."""
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
     def test_decode_success(self, mock_run):
         """FFmpeg pipe returns raw RGB frames -> frames loaded."""
@@ -126,7 +126,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         self.assertEqual(decoder.fps, 16)
         decoder.close()
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
     def test_decode_partial_frame_ignored(self, mock_run):
         """Incomplete trailing frame data is dropped."""
@@ -141,7 +141,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         self.assertEqual(decoder.frame_count, 1)
         decoder.close()
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
     def test_decode_ffmpeg_failure(self, mock_run):
         """FFmpeg returns non-zero -> RuntimeError."""
@@ -149,7 +149,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             VideoDecoder('/fake/vid.mp4')
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
     def test_decode_ffmpeg_timeout(self, mock_run):
         """FFmpeg times out -> propagates TimeoutExpired."""
@@ -158,7 +158,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         with self.assertRaises(sp.TimeoutExpired):
             VideoDecoder('/fake/vid.mp4')
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
     def test_decode_empty_output(self, mock_run):
         """FFmpeg returns success but no output -> 0 frames."""
@@ -174,13 +174,13 @@ class TestVideoDecoderDecode(unittest.TestCase):
 class TestExtractFrames(unittest.TestCase):
     """Cover VideoDecoder.extract_frames static method."""
 
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', False)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', False)
     def test_no_ffmpeg_returns_zero(self):
         result = VideoDecoder.extract_frames('/fake.mp4', '/tmp/out')
         self.assertEqual(result, 0)
 
     @patch('subprocess.run')
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     def test_success_counts_frames(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -194,7 +194,7 @@ class TestExtractFrames(unittest.TestCase):
             self.assertEqual(result, 5)
 
     @patch('subprocess.run')
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     def test_with_max_frames(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -206,7 +206,7 @@ class TestExtractFrames(unittest.TestCase):
             self.assertIn('10', cmd)
 
     @patch('subprocess.run')
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     def test_ffmpeg_error_returns_zero(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stderr=b'error')
 
@@ -216,7 +216,7 @@ class TestExtractFrames(unittest.TestCase):
             self.assertEqual(result, 0)
 
     @patch('subprocess.run', side_effect=Exception("ffmpeg crashed"))
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     def test_ffmpeg_exception_returns_zero(self, _):
         with tempfile.TemporaryDirectory() as outdir:
             result = VideoDecoder.extract_frames(
@@ -224,7 +224,7 @@ class TestExtractFrames(unittest.TestCase):
             self.assertEqual(result, 0)
 
     @patch('subprocess.run')
-    @patch('trcc.media_player.FFMPEG_AVAILABLE', True)
+    @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     def test_ffmpeg_timeout_returns_zero(self, mock_run):
         import subprocess as sp
         mock_run.side_effect = sp.TimeoutExpired('ffmpeg', 600)
@@ -254,7 +254,7 @@ class TestCheckFfmpeg(unittest.TestCase):
 class TestFfmpegAvailableConstant(unittest.TestCase):
 
     def test_ffmpeg_available_is_bool(self):
-        from trcc.media_player import FFMPEG_AVAILABLE
+        from trcc.adapters.infra.media_player import FFMPEG_AVAILABLE
         self.assertIsInstance(FFMPEG_AVAILABLE, bool)
 
 

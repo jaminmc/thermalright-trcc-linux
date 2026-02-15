@@ -216,7 +216,7 @@ def _check_udev_rules() -> bool:
         with open(path) as f:
             content = f.read()
 
-        from trcc.device_detector import DeviceDetector
+        from trcc.adapters.device.detector import DeviceDetector
 
         all_devices = DeviceDetector._get_all_registries()
         all_vids = {f"{vid:04x}" for vid, _ in all_devices}

@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from trcc.system_config import (
+from trcc.adapters.system.config import (
     CATEGORY_COLORS,
     CATEGORY_IMAGES,
     PanelConfig,
@@ -169,7 +169,7 @@ class TestAutoMap(unittest.TestCase):
             'cpu_freq': 'psutil:cpu_freq',
             'cpu_power': 'hwmon:power:power1',
         }
-        with patch('trcc.system_sensors.map_defaults', return_value=mock_defaults):
+        with patch('trcc.adapters.system.sensors.map_defaults', return_value=mock_defaults):
             cfg.auto_map(enumerator=None)
 
         self.assertEqual(cfg.panels[0].sensors[0].sensor_id, 'hwmon:coretemp:temp1')
@@ -186,7 +186,7 @@ class TestAutoMap(unittest.TestCase):
             ]),
         ]
         mock_defaults = {'cpu_temp': 'hwmon:coretemp:temp1', 'cpu_percent': 'auto'}
-        with patch('trcc.system_sensors.map_defaults', return_value=mock_defaults):
+        with patch('trcc.adapters.system.sensors.map_defaults', return_value=mock_defaults):
             cfg.auto_map(enumerator=None)
 
         # First sensor preserved (already had an ID)

@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, mock_open, patch
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from trcc.device_detector import (
+from trcc.adapters.device.detector import (
     KNOWN_DEVICES,
     DetectedDevice,
     DeviceDetector,
@@ -125,7 +125,7 @@ class TestKnownDevices(unittest.TestCase):
 class TestRunCommand(unittest.TestCase):
     """Test run_command subprocess wrapper."""
 
-    @patch('trcc.device_detector.subprocess.run')
+    @patch('trcc.adapters.device.detector.subprocess.run')
     def test_successful_command(self, mock_run):
         """Test successful command execution."""
         mock_run.return_value = MagicMock(
@@ -135,7 +135,7 @@ class TestRunCommand(unittest.TestCase):
         result = run_command(['echo', 'test'])
         self.assertEqual(result, "command output")
 
-    @patch('trcc.device_detector.subprocess.run')
+    @patch('trcc.adapters.device.detector.subprocess.run')
     def test_failed_command_returns_empty(self, mock_run):
         """Test failed command returns empty string."""
         mock_run.return_value = MagicMock(
@@ -145,7 +145,7 @@ class TestRunCommand(unittest.TestCase):
         result = run_command(['false'])
         self.assertEqual(result, "")
 
-    @patch('trcc.device_detector.subprocess.run')
+    @patch('trcc.adapters.device.detector.subprocess.run')
     def test_timeout_returns_empty(self, mock_run):
         """Test command timeout returns empty string."""
         import subprocess
@@ -153,7 +153,7 @@ class TestRunCommand(unittest.TestCase):
         result = run_command(['sleep', '100'])
         self.assertEqual(result, "")
 
-    @patch('trcc.device_detector.subprocess.run')
+    @patch('trcc.adapters.device.detector.subprocess.run')
     def test_file_not_found_returns_empty(self, mock_run):
         """Test missing command returns empty string."""
         mock_run.side_effect = FileNotFoundError()
@@ -161,7 +161,7 @@ class TestRunCommand(unittest.TestCase):
         self.assertEqual(result, "")
 
 
-_CLS = 'trcc.device_detector.DeviceDetector'
+_CLS = 'trcc.adapters.device.detector.DeviceDetector'
 
 
 class TestFindUsbDevices(unittest.TestCase):
@@ -237,7 +237,7 @@ class TestFindUsbDevices(unittest.TestCase):
 class TestFindScsiDeviceByUsbPath(unittest.TestCase):
     """Test find_scsi_device_by_usb_path function."""
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('os.path.exists')
     @patch('builtins.open', new_callable=mock_open, read_data='USBLCD  ')
     def test_find_via_sysfs(self, mock_file, mock_exists, _):
@@ -273,7 +273,7 @@ class TestFindScsiDeviceByUsbPath(unittest.TestCase):
 class TestFindScsiUsblcdDevices(unittest.TestCase):
     """Test find_scsi_usblcd_devices function."""
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=[])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=[])
     @patch('os.path.exists')
     def test_no_sg_devices(self, mock_exists, _):
         """Test when no sg devices exist."""
@@ -281,7 +281,7 @@ class TestFindScsiUsblcdDevices(unittest.TestCase):
         devices = find_scsi_usblcd_devices()
         self.assertEqual(devices, [])
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('builtins.open')
     @patch('os.path.exists')
     def test_usblcd_device_found(self, mock_exists, mock_open_fn, _):
@@ -574,7 +574,7 @@ class TestDeviceModelMapping(unittest.TestCase):
 
 class TestScsiMethodFallbacks(unittest.TestCase):
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch(f'{_CLS}.run_command', return_value=None)
     @patch('os.path.exists')
     @patch('builtins.open')
@@ -585,7 +585,7 @@ class TestScsiMethodFallbacks(unittest.TestCase):
         result = find_scsi_device_by_usb_path('1-2')
         self.assertIsNone(result)
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch(f'{_CLS}.run_command', return_value=None)
     @patch('os.path.exists', return_value=True)
     @patch('builtins.open', side_effect=IOError("permission"))
@@ -594,7 +594,7 @@ class TestScsiMethodFallbacks(unittest.TestCase):
         result = find_scsi_device_by_usb_path('1-2')
         self.assertIsNone(result)
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=[])
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=[])
     @patch(f'{_CLS}.run_command')
     @patch('os.path.exists', return_value=False)
     def test_method3_lsscsi_t(self, _, mock_run, __):
@@ -763,9 +763,9 @@ class TestMainCLI(unittest.TestCase):
 class TestFindScsiUsblcdVidPid(unittest.TestCase):
     """Cover USB VID/PID lookup in sysfs (lines 210-221) and IOError (234-235)."""
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
-    @patch('trcc.device_detector.os.path.exists')
-    @patch('trcc.device_detector.os.path.realpath', return_value='/sys/devices/pci/usb/scsi/sg0')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.device.detector.os.path.exists')
+    @patch('trcc.adapters.device.detector.os.path.realpath', return_value='/sys/devices/pci/usb/scsi/sg0')
     @patch('builtins.open', create=True)
     def test_vid_pid_found_in_known_devices(self, mock_open_fn, mock_realpath, mock_exists, _):
         """sysfs vendor=USBLCD, idVendor/idProduct match KNOWN_DEVICES."""
@@ -799,8 +799,8 @@ class TestFindScsiUsblcdVidPid(unittest.TestCase):
         found = [d for d in devices if d.scsi_device == '/dev/sg0']
         self.assertTrue(len(found) > 0)
 
-    @patch('trcc.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
-    @patch('trcc.device_detector.os.path.exists')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.device.detector.os.path.exists')
     @patch('builtins.open', side_effect=IOError("fail"))
     def test_ioerror_skips_device(self, mock_open_fn, mock_exists, _):
         """IOError reading vendor/model -> continue (lines 234-235)."""
@@ -813,8 +813,8 @@ class TestUsbResetUnbindBind(unittest.TestCase):
     """Cover unbind/bind Method 2 (lines 318+)."""
 
     @patch('time.sleep')
-    @patch('trcc.device_detector.os.readlink', return_value='/sys/bus/usb/drivers/usb')
-    @patch('trcc.device_detector.os.path.exists')
+    @patch('trcc.adapters.device.detector.os.readlink', return_value='/sys/bus/usb/drivers/usb')
+    @patch('trcc.adapters.device.detector.os.path.exists')
     @patch('builtins.open', create=True)
     def test_unbind_bind_success(self, mock_open_fn, mock_exists, mock_readlink, mock_sleep):
         def exists_side(path):

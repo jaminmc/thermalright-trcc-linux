@@ -1,8 +1,10 @@
-"""
-Asset loader for PyQt6 GUI components.
+"""Asset loader for PySide6 GUI components.
 
-Loads background images and icons from assets/gui/ directory.
-Images are extracted from Windows TRCC resources using tools/extract_resx_images.py
+Centralizes all asset resolution — auto-appends .png for base names,
+handles localized variants, and provides pixmap loading.
+
+All GUI assets live in assets/gui/ and are extracted from Windows TRCC
+resources using tools/extract_resx_images.py.
 """
 from __future__ import annotations
 
@@ -16,64 +18,32 @@ from PySide6.QtGui import QPixmap
 log = logging.getLogger(__name__)
 
 # Asset directory (relative to this file)
-ASSETS_DIR = Path(__file__).parent.parent / 'assets' / 'gui'
+_ASSETS_DIR = Path(__file__).parent.parent / 'assets' / 'gui'
 
 
-@lru_cache(maxsize=128)
-def get_asset_path(name: str) -> Path:
+@lru_cache(maxsize=256)
+def _resolve(name: str) -> Path:
+    """Resolve asset name to filesystem path, auto-appending .png if needed.
+
+    Data layer stores base names without extension (e.g. "DAX120_DIGITAL").
+    All GUI assets are .png — this bridges that gap in one place.
     """
-    Get full path to an asset file.
+    path = _ASSETS_DIR / name
+    if path.exists():
+        return path
+    if '.' not in name:
+        png = _ASSETS_DIR / f"{name}.png"
+        if png.exists():
+            return png
+    return path  # return original (non-existent) for consistent error handling
 
-    Args:
-        name: Asset filename (e.g., 'P0CZTV.png')
-
-    Returns:
-        Full path to the asset file
-    """
-    return ASSETS_DIR / name
-
-
-@lru_cache(maxsize=64)
-def load_pixmap(name: str, scale_width: int | None = None, scale_height: int | None = None) -> QPixmap:
-    """
-    Load a pixmap from assets directory.
-
-    Args:
-        name: Asset filename
-        scale_width: Optional width to scale to
-        scale_height: Optional height to scale to
-
-    Returns:
-        QPixmap (empty if file not found)
-    """
-    path = get_asset_path(name)
-    if not path.exists():
-        log.warning("Asset not found: %s", name)
-        return QPixmap()
-
-    pixmap = QPixmap(str(path))
-
-    if scale_width and scale_height:
-        pixmap = pixmap.scaled(
-            scale_width, scale_height,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-
-    return pixmap
-
-
-def asset_exists(name: str) -> bool:
-    """Check if an asset file exists."""
-    return get_asset_path(name).exists()
-
-
-# ============================================================================
-# Asset name constants matching Windows resource names
-# ============================================================================
 
 class Assets:
-    """Windows resource names mapped to asset filenames."""
+    """Centralized asset resolution for all GUI components.
+
+    Handles .png auto-appending, pixmap loading, existence checks,
+    and localized asset variants. Single entry point — no free functions.
+    """
 
     # Form1 background (full window with sidebar + gold bar + sensor grid)
     FORM1_BG = 'A0无设备.png'
@@ -158,43 +128,82 @@ class Assets:
     SYSINFO_BG = 'A0数据列表.png'
 
     @classmethod
+    def path(cls, name: str) -> Path:
+        """Resolve asset name to full path (.png auto-appended if needed)."""
+        return _resolve(name)
+
+    @classmethod
     def get(cls, name: str) -> str | None:
         """Return asset path as string if it exists, else None."""
-        path = get_asset_path(name)
-        return str(path) if path.exists() else None
+        p = _resolve(name)
+        return str(p) if p.exists() else None
+
+    @classmethod
+    def exists(cls, name: str) -> bool:
+        """Check if an asset file exists (.png auto-appended if needed)."""
+        return _resolve(name).exists()
+
+    @classmethod
+    @lru_cache(maxsize=128)
+    def load_pixmap(cls, name: str,
+                    width: int | None = None,
+                    height: int | None = None) -> QPixmap:
+        """Load a QPixmap from assets directory.
+
+        Args:
+            name: Asset filename or base name (.png auto-appended).
+            width: Optional scale width.
+            height: Optional scale height.
+
+        Returns:
+            QPixmap (empty if file not found).
+        """
+        p = _resolve(name)
+        if not p.exists():
+            log.warning("Asset not found: %s", name)
+            return QPixmap()
+
+        pixmap = QPixmap(str(p))
+        if width and height:
+            pixmap = pixmap.scaled(
+                width, height,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        return pixmap
 
     @classmethod
     def get_preview_for_resolution(cls, width: int, height: int) -> str:
-        """Get preview frame asset name for resolution."""
+        """Get preview frame asset name for a resolution."""
         name = f'P预览{width}X{height}.png'
-        if asset_exists(name):
+        if cls.exists(name):
             return name
-        # Try alternate naming
         name_alt = f'P预览{width}x{height}.png'
-        if asset_exists(name_alt):
+        if cls.exists(name_alt):
             return name_alt
-        # Fall back to 320x320
         return cls.PREVIEW_320X320
 
     @classmethod
     def get_localized(cls, base_name: str, lang: str = 'en') -> str:
-        """
-        Get localized asset name.
+        """Get localized asset name with language suffix.
 
         Args:
-            base_name: Base asset name (e.g., 'P0CZTV.png')
-            lang: Language code ('en', 'tc', 'd', 'f', etc.)
+            base_name: Base asset name (e.g., 'P0CZTV' or 'P0CZTV.png').
+            lang: Language code ('en', 'tc', 'd', 'f', etc.).
 
         Returns:
-            Localized asset name if exists, else base name
+            Localized asset name if exists, else base name.
         """
         if lang == 'cn' or lang == '':
             return base_name
 
-        # Try language suffix
-        name_parts = base_name.rsplit('.', 1)
-        localized = f"{name_parts[0]}{lang}.{name_parts[1]}"
+        # Split extension if present, insert lang suffix before it
+        if '.' in base_name:
+            stem, ext = base_name.rsplit('.', 1)
+            localized = f"{stem}{lang}.{ext}"
+        else:
+            localized = f"{base_name}{lang}"
 
-        if asset_exists(localized):
+        if cls.exists(localized):
             return localized
         return base_name

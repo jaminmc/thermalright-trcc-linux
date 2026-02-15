@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from trcc.device_led_segment import (
+from trcc.adapters.device.led_segment import (
     DISPLAYS,
     AK120Display,
     AX120Display,
@@ -557,7 +557,7 @@ class TestLC2Display:
         for idx in range(54, 61):
             assert mask[idx] is True
 
-    @patch('trcc.device_led_segment.datetime')
+    @patch('trcc.adapters.device.led_segment.datetime')
     def test_24h_format(self, mock_dt):
         mock_dt.now.return_value = datetime(2024, 2, 14, 15, 30)
         mask = self.d.compute_mask({}, 0, "C", is_24h=True)
@@ -565,7 +565,7 @@ class TestLC2Display:
         on_tens = sum(1 for led in self.d.DIGITS[0] if mask[led])
         assert on_tens > 0
 
-    @patch('trcc.device_led_segment.datetime')
+    @patch('trcc.adapters.device.led_segment.datetime')
     def test_12h_format(self, mock_dt):
         mock_dt.now.return_value = datetime(2024, 2, 14, 15, 30)
         mask = self.d.compute_mask({}, 0, "C", is_24h=False)
@@ -573,7 +573,7 @@ class TestLC2Display:
         for led in self.d.DIGITS[0]:
             assert mask[led] is False  # hour tens = 0 → blank
 
-    @patch('trcc.device_led_segment.datetime')
+    @patch('trcc.adapters.device.led_segment.datetime')
     def test_midnight_12h(self, mock_dt):
         mock_dt.now.return_value = datetime(2024, 2, 14, 0, 0)
         mask = self.d.compute_mask({}, 0, "C", is_24h=False)
@@ -581,7 +581,7 @@ class TestLC2Display:
         on_tens = sum(1 for led in self.d.DIGITS[0] if mask[led])
         assert on_tens > 0  # '1' has segments
 
-    @patch('trcc.device_led_segment.datetime')
+    @patch('trcc.adapters.device.led_segment.datetime')
     def test_day_partial_bc(self, mock_dt):
         """Day ones digit uses partial (B,C segments only)."""
         mock_dt.now.return_value = datetime(2024, 2, 14, 12, 0)

@@ -9,9 +9,8 @@ subprocess calls at their correct paths.
 import unittest
 from unittest.mock import MagicMock, PropertyMock, mock_open, patch
 
-from trcc.core.models import DATE_FORMATS, TIME_FORMATS, WEEKDAYS
-from trcc.data_repository import SysUtils
-from trcc.system_info import (
+from trcc.adapters.infra.data_repository import SysUtils
+from trcc.adapters.system.info import (
     SystemInfo,
     find_hwmon_by_name,
     format_metric,
@@ -31,6 +30,7 @@ from trcc.system_info import (
     get_memory_usage,
     get_network_stats,
 )
+from trcc.core.models import DATE_FORMATS, TIME_FORMATS, WEEKDAYS
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -76,7 +76,7 @@ class TestReadSysfs(unittest.TestCase):
 class TestFindHwmon(unittest.TestCase):
 
     @patch('trcc.services.system.os.path.exists', return_value=True)
-    @patch('trcc.data_repository.SysUtils.read_sysfs')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs')
     def test_finds_matching_hwmon(self, mock_read, mock_exists):
         def side_effect(path):
             if 'hwmon2/name' in path:
@@ -96,7 +96,7 @@ class TestFindHwmon(unittest.TestCase):
 class TestFindHwmonNoMatch(unittest.TestCase):
 
     @patch('trcc.services.system.os.path.exists', return_value=True)
-    @patch('trcc.data_repository.SysUtils.read_sysfs', return_value='nct6775')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='nct6775')
     def test_returns_none_when_no_match(self, *_):
         result = find_hwmon_by_name('nonexistent_driver_xyz')
         self.assertIsNone(result)
@@ -152,7 +152,7 @@ class TestGetCpuUsage(unittest.TestCase):
     def test_fallback_loadavg(self):
         """Fallback to /proc/loadavg when enumerator returns None."""
         si = _make_si(defaults={}, readings={})
-        with patch('trcc.data_repository.SysUtils.read_sysfs',
+        with patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs',
                    return_value='2.50 1.00 0.50 1/234 5678'):
             usage = si.cpu_usage
             self.assertIsNotNone(usage)
@@ -160,7 +160,7 @@ class TestGetCpuUsage(unittest.TestCase):
 
     def test_fallback_loadavg_exception_returns_none(self):
         si = _make_si(defaults={}, readings={})
-        with patch('trcc.data_repository.SysUtils.read_sysfs', return_value=None):
+        with patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value=None):
             self.assertIsNone(si.cpu_usage)
 
     def test_backward_compat_alias(self):
@@ -394,7 +394,7 @@ class TestGetMemoryClock(unittest.TestCase):
         clock = si.memory_clock
         self.assertAlmostEqual(clock, 4800.0)
 
-    @patch('trcc.data_repository.SysUtils.read_sysfs', return_value='Type: DDR5\nFrequency: 5600 MHz\n')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='Type: DDR5\nFrequency: 5600 MHz\n')
     @patch('trcc.services.system.os.listdir', return_value=['mc0'])
     @patch('trcc.services.system.os.path.exists', return_value=True)
     @patch('trcc.services.system.subprocess.run', side_effect=FileNotFoundError)
@@ -784,7 +784,7 @@ class TestGetAllMetrics(unittest.TestCase):
         si = _make_si(defaults={}, readings={})
         # Patch all fallbacks to return None
         with patch('trcc.services.system.subprocess.run', side_effect=FileNotFoundError), \
-             patch('trcc.data_repository.SysUtils.read_sysfs', return_value=None), \
+             patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value=None), \
              patch('builtins.open', side_effect=FileNotFoundError):
             m = si.all_metrics
             self.assertIn('date', m)
@@ -872,7 +872,7 @@ class TestCpuUsageFallbacks(unittest.TestCase):
     def test_loadavg_fallback(self):
         """Fallback to /proc/loadavg."""
         si = _make_si(defaults={}, readings={})
-        with patch('trcc.data_repository.SysUtils.read_sysfs',
+        with patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs',
                    return_value='2.50 1.00 0.50 1/234 5678'):
             usage = si.cpu_usage
             self.assertIsNotNone(usage)
@@ -880,7 +880,7 @@ class TestCpuUsageFallbacks(unittest.TestCase):
 
     def test_both_fail_returns_none(self):
         si = _make_si(defaults={}, readings={})
-        with patch('trcc.data_repository.SysUtils.read_sysfs', return_value=None):
+        with patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value=None):
             self.assertIsNone(si.cpu_usage)
 
 
@@ -947,7 +947,7 @@ class TestMemoryClockFallbacks(unittest.TestCase):
         clock = si.memory_clock
         self.assertAlmostEqual(clock, 4800.0)
 
-    @patch('trcc.data_repository.SysUtils.read_sysfs', return_value='Type: DDR5\nFrequency: 5600 MHz\n')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='Type: DDR5\nFrequency: 5600 MHz\n')
     @patch('trcc.services.system.os.listdir', return_value=['mc0'])
     @patch('trcc.services.system.os.path.exists', return_value=True)
     @patch('trcc.services.system.subprocess.run', side_effect=FileNotFoundError)
@@ -1058,7 +1058,7 @@ class TestSystemInfoClass(unittest.TestCase):
 
     def test_singleton_exists(self):
         """Module-level _instance is a SystemInfo."""
-        import trcc.system_info as mod
+        import trcc.adapters.system.info as mod
         self.assertIsInstance(mod._instance, SystemInfo)
 
 
@@ -1077,7 +1077,7 @@ class TestMemoryClock(unittest.TestCase):
 
     @patch('trcc.services.system.os.path.exists', return_value=True)
     @patch('trcc.services.system.os.listdir', return_value=['mc0'])
-    @patch('trcc.data_repository.SysUtils.read_sysfs', return_value='rank0: 4800 MHz')
+    @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='rank0: 4800 MHz')
     @patch('trcc.services.system.subprocess.run', side_effect=FileNotFoundError)
     def test_edac_fallback(self, *_):
         si = _make_si()

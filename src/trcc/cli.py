@@ -416,7 +416,7 @@ def _cmd_report() -> int:
 @app.command("doctor")
 def _cmd_doctor() -> int:
     """Check dependencies, libraries, and permissions."""
-    from trcc.doctor import run_doctor
+    from trcc.adapters.infra.doctor import run_doctor
     return run_doctor()
 
 
@@ -573,7 +573,7 @@ class DeviceCommands:
         try:
             if driver.implementation:
                 w, h = driver.implementation.resolution
-                from trcc.data_repository import DataManager
+                from trcc.adapters.infra.data_repository import DataManager
                 DataManager.ensure_all(w, h)
         except Exception:
             pass  # Non-fatal — themes are optional for CLI commands
@@ -581,8 +581,8 @@ class DeviceCommands:
     @staticmethod
     def _get_driver(device=None):
         """Create an LCDDriver, resolving selected device and extracting archives."""
+        from trcc.adapters.device.lcd import LCDDriver
         from trcc.conf import Settings
-        from trcc.device_lcd import LCDDriver
         if device is None:
             device = Settings.get_selected_device()
         driver = LCDDriver(device_path=device)
@@ -600,7 +600,7 @@ class DeviceCommands:
         # LED devices: probe via led_device cache/handshake
         if dev.implementation == 'hid_led':
             try:
-                from trcc.device_led import probe_led_model
+                from trcc.adapters.device.led import probe_led_model
                 info = probe_led_model(dev.vid, dev.pid, usb_path=dev.usb_path)
                 if info and info.model_name:
                     result['model'] = info.model_name
@@ -612,8 +612,8 @@ class DeviceCommands:
         # HID LCD devices: probe via hid_device handshake
         elif dev.implementation in ('hid_type2', 'hid_type3'):
             try:
-                from trcc.device_factory import DeviceProtocolFactory
-                from trcc.device_hid import HidHandshakeInfo
+                from trcc.adapters.device.factory import DeviceProtocolFactory
+                from trcc.adapters.device.hid import HidHandshakeInfo
                 device_info = {
                     'vid': dev.vid, 'pid': dev.pid,
                     'protocol': dev.protocol, 'device_type': dev.device_type,
@@ -633,7 +633,7 @@ class DeviceCommands:
         # Bulk USB devices: probe via BulkProtocol
         elif dev.implementation == 'bulk_usblcdnew':
             try:
-                from trcc.device_factory import BulkProtocol
+                from trcc.adapters.device.factory import BulkProtocol
                 bp = BulkProtocol(dev.vid, dev.pid)
                 hs = bp.handshake()
                 if hs and hs.resolution:
@@ -684,8 +684,8 @@ class DeviceCommands:
     def detect(show_all=False):
         """Detect LCD device."""
         try:
+            from trcc.adapters.device.detector import check_udev_rules, detect_devices
             from trcc.conf import Settings
-            from trcc.device_detector import check_udev_rules, detect_devices
 
             devices = detect_devices()
             if not devices:
@@ -727,8 +727,8 @@ class DeviceCommands:
     def select(number):
         """Select a device by number."""
         try:
+            from trcc.adapters.device.detector import detect_devices
             from trcc.conf import Settings
-            from trcc.device_detector import detect_devices
 
             devices = detect_devices()
             if not devices:
@@ -1096,8 +1096,8 @@ class DisplayCommands:
         try:
             from pathlib import Path
 
+            from trcc.adapters.system.info import get_all_metrics
             from trcc.services import ImageService, OverlayService
-            from trcc.system_info import get_all_metrics
 
             if not os.path.exists(dc_path):
                 print(f"Error: Path not found: {dc_path}")
@@ -1269,8 +1269,8 @@ class ThemeCommands:
     def list_themes(cloud=False, category=None):
         """List available themes for the current device resolution."""
         try:
+            from trcc.adapters.infra.data_repository import DataManager
             from trcc.conf import settings
-            from trcc.data_repository import DataManager
             from trcc.services import ThemeService
 
             w, h = settings.width, settings.height
@@ -1313,8 +1313,8 @@ class ThemeCommands:
         try:
             from PIL import Image
 
+            from trcc.adapters.infra.data_repository import DataManager
             from trcc.conf import Settings, settings
-            from trcc.data_repository import DataManager
             from trcc.services import ImageService, ThemeService
 
             svc = DeviceCommands._get_service(device)
@@ -1384,7 +1384,7 @@ class ThemeCommands:
 
             from PIL import Image
 
-            from trcc.data_repository import USER_DATA_DIR
+            from trcc.adapters.infra.data_repository import USER_DATA_DIR
             from trcc.services import ThemeService
 
             svc = DeviceCommands._get_service(device)
@@ -1403,7 +1403,7 @@ class ThemeCommands:
 
             bg = None
             if theme_path:
-                from trcc.data_repository import ThemeDir as TDir
+                from trcc.adapters.infra.data_repository import ThemeDir as TDir
                 td = TDir(theme_path)
                 if td.bg.exists():
                     bg = Image.open(td.bg).convert('RGB')
@@ -1433,8 +1433,8 @@ class ThemeCommands:
         try:
             from pathlib import Path
 
+            from trcc.adapters.infra.data_repository import DataManager
             from trcc.conf import settings
-            from trcc.data_repository import DataManager
             from trcc.services import ThemeService
 
             w, h = settings.width, settings.height
@@ -1474,7 +1474,7 @@ class ThemeCommands:
         try:
             from pathlib import Path
 
-            from trcc.data_repository import USER_DATA_DIR
+            from trcc.adapters.infra.data_repository import USER_DATA_DIR
             from trcc.services import ThemeService
 
             svc = DeviceCommands._get_service(device)
@@ -1508,7 +1508,7 @@ class LEDCommands:
     @staticmethod
     def _get_led_service():
         """Detect LED device and create initialized LEDService."""
-        from trcc.device_detector import detect_devices
+        from trcc.adapters.device.detector import detect_devices
         from trcc.services import LEDService
 
         devices = detect_devices()
@@ -1518,7 +1518,7 @@ class LEDCommands:
             return None, None
 
         led_svc = LEDService()
-        from trcc.device_led import probe_led_model
+        from trcc.adapters.device.led import probe_led_model
         info = probe_led_model(led_dev.vid, led_dev.pid,
                                usb_path=led_dev.usb_path)
         if info and info.style:
@@ -1702,12 +1702,12 @@ class DiagCommands:
     @staticmethod
     def _hid_debug_lcd(dev) -> None:
         """HID handshake diagnostic for LCD devices (Type 2/3)."""
-        from trcc.core.models import FBL_TO_RESOLUTION, fbl_to_resolution, pm_to_fbl
-        from trcc.device_factory import HidProtocol
-        from trcc.device_hid import (
+        from trcc.adapters.device.factory import HidProtocol
+        from trcc.adapters.device.hid import (
             HidHandshakeInfo,
             get_button_image,
         )
+        from trcc.core.models import FBL_TO_RESOLUTION, fbl_to_resolution, pm_to_fbl
 
         protocol = HidProtocol(
             vid=dev.vid, pid=dev.pid,
@@ -1760,8 +1760,8 @@ class DiagCommands:
     @staticmethod
     def _hid_debug_led(dev) -> None:
         """HID handshake diagnostic for LED devices (Type 1)."""
-        from trcc.device_factory import LedProtocol
-        from trcc.device_led import LedHandshakeInfo, PmRegistry
+        from trcc.adapters.device.factory import LedProtocol
+        from trcc.adapters.device.led import LedHandshakeInfo, PmRegistry
 
         protocol = LedProtocol(vid=dev.vid, pid=dev.pid)
         info = protocol.handshake()
@@ -1810,7 +1810,7 @@ class DiagCommands:
         Routes LED devices (Type 1) through LedProtocol, LCD devices through HidProtocol.
         """
         try:
-            from trcc.device_detector import detect_devices
+            from trcc.adapters.device.detector import detect_devices
 
             print("HID Debug — Handshake Diagnostic")
             print("=" * 60)
@@ -1863,8 +1863,8 @@ class DiagCommands:
         try:
             import time
 
-            from trcc.device_factory import LedProtocol
-            from trcc.device_led import (
+            from trcc.adapters.device.factory import LedProtocol
+            from trcc.adapters.device.led import (
                 LED_PID,
                 LED_VID,
                 LedHandshakeInfo,
@@ -1931,7 +1931,7 @@ class DiagCommands:
     def hr10_tempd(brightness=100, drive="9100", unit="C", verbose=0):
         """Run the HR10 NVMe temperature display daemon."""
         try:
-            from trcc.device_led_hr10 import run_hr10_daemon
+            from trcc.adapters.device.led_hr10 import run_hr10_daemon
             return run_hr10_daemon(
                 brightness=brightness,
                 model_substr=drive,
@@ -1956,7 +1956,7 @@ class SystemCommands:
     def show_info():
         """Show system metrics."""
         try:
-            from trcc.system_info import format_metric, get_all_metrics
+            from trcc.adapters.system.info import format_metric, get_all_metrics
 
             metrics = get_all_metrics()
 
@@ -1988,7 +1988,7 @@ class SystemCommands:
         (no /dev/sgX created). The :u quirk forces usb-storage bulk-only transport.
         """
         try:
-            from trcc.device_detector import (
+            from trcc.adapters.device.detector import (
                 _BULK_DEVICES,
                 _HID_LCD_DEVICES,
                 _LED_DEVICES,
@@ -2228,7 +2228,7 @@ StartupWMClass=trcc-linux
     @staticmethod
     def report():
         """Generate a full diagnostic report for bug reports."""
-        from trcc.debug_report import DebugReport
+        from trcc.adapters.infra.debug_report import DebugReport
 
         rpt = DebugReport()
         rpt.collect()
@@ -2239,8 +2239,8 @@ StartupWMClass=trcc-linux
     def download_themes(pack=None, show_list=False, force=False, show_info=False):
         """Download theme packs (like spacy download)."""
         try:
-            from trcc.theme_downloader import download_pack, list_available
-            from trcc.theme_downloader import show_info as pack_info
+            from trcc.adapters.infra.theme_downloader import download_pack, list_available
+            from trcc.adapters.infra.theme_downloader import show_info as pack_info
 
             if show_list or pack is None:
                 list_available()

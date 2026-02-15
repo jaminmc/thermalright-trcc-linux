@@ -11,8 +11,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from ..adapters.infra.data_repository import ThemeDir
 from ..core.models import ThemeData, ThemeInfo, ThemeType
-from ..data_repository import ThemeDir
 
 log = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ class ThemeService:
     @staticmethod
     def setup_dirs(width: int, height: int) -> None:
         """Extract all .7z archives for a resolution if needed."""
-        from ..data_repository import DataManager
+        from ..adapters.infra.data_repository import DataManager
 
         DataManager.ensure_all(width, height)
 
@@ -333,7 +333,7 @@ class ThemeService:
     def export_tr(theme_path: Path, export_path: Path) -> tuple[bool, str]:
         """Export theme as .tr file."""
         try:
-            from ..dc_writer import export_theme
+            from ..adapters.infra.dc_writer import export_theme
 
             export_theme(str(theme_path), str(export_path))
             return True, f"Exported: {export_path.name}"
@@ -352,7 +352,7 @@ class ThemeService:
         On success, second element is a ThemeInfo that can be loaded.
         """
         try:
-            from ..dc_writer import import_theme
+            from ..adapters.infra.dc_writer import import_theme
 
             w, h = lcd_size
             name = import_path.stem
@@ -411,7 +411,7 @@ class ThemeService:
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
         if json_path and json_path.exists():
             try:
-                from ..dc_parser import load_config_json
+                from ..adapters.infra.dc_parser import load_config_json
 
                 result = load_config_json(str(json_path))
                 if result is not None:
@@ -423,7 +423,7 @@ class ThemeService:
         if not dc_path or not dc_path.exists():
             return {}
         try:
-            from ..dc_config import DcConfig
+            from ..adapters.infra.dc_config import DcConfig
 
             dc = DcConfig(dc_path)
             return dc.display_options
@@ -450,7 +450,7 @@ class ThemeService:
             return None
 
         try:
-            from ..dc_config import DcConfig
+            from ..adapters.infra.dc_config import DcConfig
 
             dc = DcConfig(dc_path)
             if dc.mask_enabled:

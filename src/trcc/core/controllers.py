@@ -678,7 +678,7 @@ class LEDController:
             self._svc._update_hr10_mask()
 
         # Activate segment display for all digit-display styles (1-11)
-        from ..device_led_segment import get_display
+        from ..adapters.device.led_segment import get_display
         self._svc._seg_display = get_display(style_id)
         self._svc._segment_mode = self._svc._seg_display is not None
         if self._svc._segment_mode:

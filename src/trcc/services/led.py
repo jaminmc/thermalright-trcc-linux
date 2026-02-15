@@ -58,7 +58,7 @@ class LEDService:
 
         Replaces the view-layer iteration over LED_STYLES.
         """
-        from ..device_led import LED_STYLES
+        from ..adapters.device.led import LED_STYLES
         for style_id, style in LED_STYLES.items():
             if style.model_name == model_name:
                 return style_id
@@ -67,7 +67,7 @@ class LEDService:
     @staticmethod
     def get_style_info(style_id: int) -> Any:
         """Get LedDeviceStyle for a style_id."""
-        from ..device_led import LED_STYLES
+        from ..adapters.device.led import LED_STYLES
         return LED_STYLES.get(style_id)
 
     # ── State mutators ──────────────────────────────────────────────
@@ -138,7 +138,7 @@ class LEDService:
 
     def configure_for_style(self, style_id: int) -> None:
         """Configure state for a specific LED device style."""
-        from ..device_led import LED_STYLES
+        from ..adapters.device.led import LED_STYLES
         style = LED_STYLES.get(style_id)
         if style:
             self.state.style = style.style_id
@@ -266,7 +266,7 @@ class LEDService:
 
     def _tick_rainbow_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """CHMS_Timer: 768-entry RGB table with per-segment offset."""
-        from ..device_led import ColorEngine
+        from ..adapters.device.led import ColorEngine
         table = ColorEngine.get_table()
         timer = self.state.rgb_timer
         table_len = len(table)
@@ -282,7 +282,7 @@ class LEDService:
 
     def _tick_temp_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """WDLD_Timer: color from temperature thresholds."""
-        from ..device_led import ColorEngine
+        from ..adapters.device.led import ColorEngine
 
         source = self.state.temp_source
         temp = self._metrics.get(f"{source}_temp", 0)
@@ -291,7 +291,7 @@ class LEDService:
 
     def _tick_load_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """FZLD_Timer: color from CPU/GPU load thresholds."""
-        from ..device_led import ColorEngine
+        from ..adapters.device.led import ColorEngine
 
         source = self.state.load_source
         key = "cpu_percent" if source == "cpu" else "gpu_usage"
@@ -310,7 +310,7 @@ class LEDService:
     def _update_hr10_mask(self) -> None:
         if not self._hr10_mode:
             return
-        from ..device_led_hr10 import Hr10Display
+        from ..adapters.device.led_hr10 import Hr10Display
         self._hr10_mask = Hr10Display.get_digit_mask(
             self._hr10_display_text, self._hr10_indicators
         )
@@ -377,7 +377,7 @@ class LEDService:
             ]
             is_on = None
         elif self._hr10_mode and self._hr10_mask:
-            from ..device_led_hr10 import LED_COUNT
+            from ..adapters.device.led_hr10 import LED_COUNT
             base_color = colors[0] if colors else (0, 0, 0)
             send_colors = [
                 base_color if self._hr10_mask[i] else (0, 0, 0)
@@ -417,7 +417,7 @@ class LEDService:
         self._hr10_mode = (led_style == 13)
 
         # Activate segment display for all digit-display styles (1-11)
-        from ..device_led_segment import get_display
+        from ..adapters.device.led_segment import get_display
         self._seg_display = get_display(led_style)
         self._segment_mode = self._seg_display is not None
 
@@ -429,7 +429,7 @@ class LEDService:
             self._update_segment_mask()
 
         try:
-            from ..device_factory import DeviceProtocolFactory
+            from ..adapters.device.factory import DeviceProtocolFactory
             protocol = DeviceProtocolFactory.get_protocol(device_info)
             self.set_protocol(protocol)
         except Exception as e:
@@ -438,7 +438,7 @@ class LEDService:
 
         self.load_config()
 
-        from ..device_led import LED_STYLES
+        from ..adapters.device.led import LED_STYLES
         style = LED_STYLES.get(led_style)
         name = style.model_name if style else f"Style {led_style}"
         led_count = style.led_count if style else 0

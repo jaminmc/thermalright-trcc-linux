@@ -19,7 +19,7 @@ from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from .assets import load_pixmap
+from .assets import Assets
 
 # =========================================================================
 # LED position arrays — exact coordinates from UCScreenLED.cs
@@ -610,7 +610,7 @@ class UCScreenLED(QWidget):
         if not deco:
             return
         for asset_name, _x, _y in deco.images:
-            pm = load_pixmap(f"{asset_name}.png")
+            pm = Assets.load_pixmap(asset_name)
             if pm and not pm.isNull():
                 self._deco_pixmaps[asset_name] = pm
 
