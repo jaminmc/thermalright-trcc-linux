@@ -346,7 +346,7 @@ Hexagonal architecture (Ports & Adapters). Services are the core hexagon; CLI, G
 
 ```
 src/trcc/
-├── cli.py                       # Typer CLI adapter (38 commands, 6 command classes)
+├── cli.py                       # Typer CLI adapter (39 commands, 6 command classes)
 ├── api.py                       # FastAPI REST adapter (optional [api] extra)
 ├── conf.py                      # Settings singleton + persistence helpers
 ├── __version__.py               # Version info

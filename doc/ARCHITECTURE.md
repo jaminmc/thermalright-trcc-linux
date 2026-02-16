@@ -4,7 +4,7 @@
 
 The project follows hexagonal architecture. The **services layer** is the core hexagon containing all business logic (pure Python, no framework deps). Four driving adapters consume the services:
 
-- **CLI** (`cli.py`) — Typer, 38 commands across 6 command classes
+- **CLI** (`cli.py`) — Typer, 39 commands across 6 command classes
 - **GUI** (`qt_components/`) — PySide6, controllers in `core/` call services
 - **API** (`api.py`) — FastAPI REST adapter (optional `[api]` extra)
 - **Setup GUI** (`install/gui.py`) — Standalone PySide6 setup wizard
@@ -13,7 +13,7 @@ The project follows hexagonal architecture. The **services layer** is the core h
 
 ```
 src/trcc/
-├── cli.py                       # Typer CLI adapter (38 commands, 6 command classes)
+├── cli.py                       # Typer CLI adapter (39 commands, 6 command classes)
 ├── api.py                       # FastAPI REST adapter (optional [api] extra)
 ├── conf.py                      # Settings singleton + persistence helpers
 ├── __version__.py               # Version info
