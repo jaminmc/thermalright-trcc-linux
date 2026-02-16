@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "4.1.1"
+__version__ = "4.2.0"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -131,3 +131,10 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 # 4.1.1  - Fix pyright error in setup wizard GUI (QLayoutItem.widget() optional
 #          narrowing). Update all docs for v4.1.0: adapters/ layout, setup wizard
 #          commands, current test count (2290), file references. 2290 tests.
+# 4.2.0  - SELinux support: new `trcc setup-selinux` command installs USB policy
+#          module (trcc_usb.te) for Bazzite/Silverblue/Fedora SELinux systems.
+#          SELinux step in setup wizard (CLI + GUI). Fix bulk EBUSY on SELinux:
+#          detect silent detach_kernel_driver() blocking, skip set_configuration()
+#          if device already configured, clear error message. Distro-specific
+#          install hints for checkmodule/semodule_package. Fix CI workflows
+#          triggering on stable branch. 2290 tests.
