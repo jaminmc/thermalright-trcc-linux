@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "4.2.3"
+__version__ = "4.2.4"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -150,3 +150,8 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          corruption: add wire remap table for PM=49 (93 LEDs). C# SendHidVal
 #          reorders LEDs from logical to hardware wire positions — our code was
 #          missing this remap, sending colors to wrong physical LEDs. 2308 tests.
+# 4.2.4  - Fix device resolution discovery: remove hardcoded 320x320 default.
+#          All protocols (SCSI, HID, Bulk) now start at (0,0) and discover
+#          resolution via handshake. Fixes HID devices like Assassin Spirit
+#          120 Vision ARGB (PM=36, 240x240) getting wrong-sized frames.
+#          CLI commands also handshake before sending. 2308 tests.

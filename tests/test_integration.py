@@ -107,10 +107,13 @@ class TestCLISendPipeline(unittest.TestCase):
     def test_cli_send_image(self, mock_detect, mock_get_protocol):
         """trcc send image.png end-to-end via DeviceService."""
         from trcc.cli import send_image
+        from trcc.core.models import HandshakeResult
 
         mock_detect.return_value = [_make_device()]
         mock_protocol = MagicMock()
         mock_protocol.send_image.return_value = True
+        mock_protocol.handshake.return_value = HandshakeResult(
+            resolution=(320, 320))
         mock_get_protocol.return_value = mock_protocol
 
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
@@ -136,10 +139,13 @@ class TestCLISendPipeline(unittest.TestCase):
     def test_cli_send_color(self, mock_detect, mock_get_protocol):
         """trcc color ff0000 end-to-end via DeviceService."""
         from trcc.cli import send_color
+        from trcc.core.models import HandshakeResult
 
         mock_detect.return_value = [_make_device()]
         mock_protocol = MagicMock()
         mock_protocol.send_image.return_value = True
+        mock_protocol.handshake.return_value = HandshakeResult(
+            resolution=(320, 320))
         mock_get_protocol.return_value = mock_protocol
 
         result = send_color("ff0000", device="/dev/sg0")
@@ -169,12 +175,15 @@ class TestCLIResumePipeline(unittest.TestCase):
                                      mock_get_protocol):
         """resume() sends last theme with brightness and rotation applied."""
         from trcc.cli import resume
+        from trcc.core.models import HandshakeResult
 
         mock_detect.return_value = [_make_device()]
         mock_key.return_value = "0:87cd_70db"
 
         mock_protocol = MagicMock()
         mock_protocol.send_image.return_value = True
+        mock_protocol.handshake.return_value = HandshakeResult(
+            resolution=(320, 320))
         mock_get_protocol.return_value = mock_protocol
 
         with tempfile.TemporaryDirectory() as td:

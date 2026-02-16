@@ -563,13 +563,13 @@ class DeviceCommands:
 
     @staticmethod
     def _get_service(device_path: Optional[str] = None):
-        """Create a DeviceService, detect devices, and select by path.
+        """Create a DeviceService, detect devices, select, and handshake.
 
         Args:
             device_path: SCSI path (/dev/sgX) or None to use saved selection.
 
         Returns:
-            DeviceService with a selected device.
+            DeviceService with a selected device (resolution discovered).
         """
         from trcc.services import DeviceService
 
@@ -591,6 +591,19 @@ class DeviceCommands:
                 match = next((d for d in svc.devices if d.path == saved), None)
                 if match:
                     svc.select(match)
+
+        # Discover resolution via handshake if not yet known
+        dev = svc.selected
+        if dev and dev.resolution == (0, 0):
+            try:
+                from trcc.adapters.device.factory import DeviceProtocolFactory
+                protocol = DeviceProtocolFactory.get_protocol(dev)
+                result = protocol.handshake()
+                res = getattr(result, 'resolution', None) if result else None
+                if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
+                    dev.resolution = res
+            except Exception:
+                pass  # Handshake may fail if device not ready
 
         return svc
 
@@ -1227,6 +1240,18 @@ class DisplayCommands:
             for dev in devices:
                 if dev.protocol != "scsi":
                     continue
+
+                # Discover resolution via handshake
+                if dev.resolution == (0, 0):
+                    try:
+                        from trcc.adapters.device.factory import DeviceProtocolFactory
+                        proto = DeviceProtocolFactory.get_protocol(dev)
+                        result = proto.handshake()
+                        res = getattr(result, 'resolution', None) if result else None
+                        if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
+                            dev.resolution = res
+                    except Exception:
+                        continue
 
                 key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
                 cfg = Settings.get_device_config(key)

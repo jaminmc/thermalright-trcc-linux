@@ -156,7 +156,7 @@ class DeviceInfo:
     """
     name: str
     path: str  # /dev/sgX
-    resolution: Tuple[int, int] = (320, 320)
+    resolution: Tuple[int, int] = (0, 0)  # Discovered via handshake
 
     # Device properties (from detection)
     vendor: Optional[str] = None

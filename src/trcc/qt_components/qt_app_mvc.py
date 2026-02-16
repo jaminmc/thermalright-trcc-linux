@@ -791,18 +791,11 @@ class TRCCMainWindowMVC(QMainWindow):
             device.device_index, device.vid, device.pid)
         self.uc_preview.set_status(f"Device: {device.path}")
 
-        # HID/Bulk devices start with resolution (0,0) — need handshake to discover it.
-        # Detection only scans USB; the handshake requires opening the transport.
+        # Resolution (0,0) = not yet discovered — handshake to find it.
         w, h = device.resolution
-        if (w, h) == (0, 0) and device.protocol in ('hid', 'bulk'):
+        if (w, h) == (0, 0):
             self.uc_preview.set_status("Connecting to device...")
             self._start_handshake(device)
-            return
-
-        if (w, h) == (0, 0):
-            log.warning("Device resolution (0,0) — handshake not supported for protocol %s",
-                        device.protocol)
-            self.uc_preview.set_status("Handshake failed — replug device and restart")
             return
 
         self._apply_device_config(device, w, h)
@@ -1020,7 +1013,7 @@ class TRCCMainWindowMVC(QMainWindow):
         device = DeviceInfo(
             name=device_info.get('name', 'LCD'),
             path=device_info.get('path', ''),
-            resolution=device_info.get('resolution', (320, 320)),
+            resolution=device_info.get('resolution', (0, 0)),
             model=device_info.get('model'),
             vid=device_info.get('vid', 0),
             pid=device_info.get('pid', 0),
@@ -2069,7 +2062,7 @@ class TRCCMainWindowMVC(QMainWindow):
                 device = DeviceInfo(
                     name=d.get('name', 'LCD'),
                     path=d.get('path', ''),
-                    resolution=d.get('resolution', (320, 320)),
+                    resolution=d.get('resolution', (0, 0)),
                     vendor=d.get('vendor'),
                     product=d.get('product'),
                     model=d.get('model'),

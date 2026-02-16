@@ -164,7 +164,7 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
         img = ImageService.apply_brightness(img, brightness)
 
     # Resize to device resolution
-    w, h = dev.resolution or (320, 320)
+    w, h = dev.resolution if dev.resolution != (0, 0) else (320, 320)
     img = ImageService.resize(img, w, h)
 
     # Convert and send

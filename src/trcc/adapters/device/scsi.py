@@ -218,9 +218,8 @@ def find_lcd_devices() -> List[Dict]:
             if not dev.scsi_device:
                 continue
 
-            # Default resolution — actual resolution detected on handshake
-            # via _init_device() -> poll byte[0] -> fbl_to_resolution().
-            resolution = (320, 320)
+            # Resolution discovered via handshake (_init_device → poll → fbl_to_resolution)
+            resolution = (0, 0)
 
             # SCSI poll byte[0] = resolution code = PM (matches USBLCD.exe).
             # Use it to resolve variant-specific button image.

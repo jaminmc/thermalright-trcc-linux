@@ -344,7 +344,7 @@ class TestFindLCDDevices(unittest.TestCase):
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]['name'], 'Thermalright LCD')
         self.assertEqual(devices[0]['path'], '/dev/sg0')
-        self.assertEqual(devices[0]['resolution'], (320, 320))
+        self.assertEqual(devices[0]['resolution'], (0, 0))
         self.assertEqual(devices[0]['device_index'], 0)
 
     @patch('trcc.adapters.device.detector.detect_devices')
@@ -358,7 +358,7 @@ class TestFindLCDDevices(unittest.TestCase):
 
     @patch('trcc.adapters.device.lcd.LCDDriver', side_effect=Exception('driver fail'))
     @patch('trcc.adapters.device.detector.detect_devices')
-    def test_driver_error_uses_default_resolution(self, mock_detect, _):
+    def test_driver_error_uses_unresolved_resolution(self, mock_detect, _):
         dev = MagicMock()
         dev.scsi_device = '/dev/sg0'
         dev.vendor_name = 'Test'
@@ -372,7 +372,7 @@ class TestFindLCDDevices(unittest.TestCase):
         mock_detect.return_value = [dev]
 
         devices = find_lcd_devices()
-        self.assertEqual(devices[0]['resolution'], (320, 320))
+        self.assertEqual(devices[0]['resolution'], (0, 0))
 
 
 # -- send_image_to_device --
