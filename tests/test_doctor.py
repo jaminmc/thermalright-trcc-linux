@@ -116,6 +116,31 @@ class TestInstallHint(unittest.TestCase):
         hint = _install_hint('nonexistent', 'dnf')
         self.assertEqual(hint, 'install nonexistent')
 
+    def test_checkmodule_dnf(self):
+        hint = _install_hint('checkmodule', 'dnf')
+        self.assertIn('dnf install', hint)
+        self.assertIn('checkpolicy', hint)
+
+    def test_checkmodule_apt(self):
+        hint = _install_hint('checkmodule', 'apt')
+        self.assertIn('apt install', hint)
+        self.assertIn('checkpolicy', hint)
+
+    def test_checkmodule_rpm_ostree(self):
+        hint = _install_hint('checkmodule', 'rpm-ostree')
+        self.assertIn('rpm-ostree install', hint)
+        self.assertIn('checkpolicy', hint)
+
+    def test_semodule_package_apt(self):
+        hint = _install_hint('semodule_package', 'apt')
+        self.assertIn('apt install', hint)
+        self.assertIn('semodule-utils', hint)
+
+    def test_semodule_package_dnf(self):
+        hint = _install_hint('semodule_package', 'dnf')
+        self.assertIn('dnf install', hint)
+        self.assertIn('policycoreutils', hint)
+
 
 # ── Check helpers ────────────────────────────────────────────────────────────
 

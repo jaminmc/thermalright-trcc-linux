@@ -75,6 +75,15 @@ _INSTALL_MAP: dict[str, dict[str, str]] = {
     'libxcb-cursor': {
         'apt': 'libxcb-cursor0',
     },
+    'checkmodule': {
+        'dnf': 'checkpolicy', 'apt': 'checkpolicy', 'pacman': 'checkpolicy',
+        'zypper': 'checkpolicy', 'rpm-ostree': 'checkpolicy',
+    },
+    'semodule_package': {
+        'dnf': 'policycoreutils', 'apt': 'semodule-utils',
+        'pacman': 'semodule-utils', 'zypper': 'policycoreutils',
+        'rpm-ostree': 'policycoreutils',
+    },
 }
 
 # sudo prefix per package manager

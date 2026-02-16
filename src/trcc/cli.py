@@ -2159,16 +2159,17 @@ class SystemCommands:
             print("semodule not found — cannot manage SELinux policies.")
             return 1
 
-        # Check for checkmodule
-        if not shutil.which('checkmodule'):
-            pm = None
-            try:
-                from trcc.adapters.infra.doctor import _detect_pkg_manager
-                pm = _detect_pkg_manager()
-            except Exception:
-                pass
-            pkg = 'policycoreutils-devel' if pm in ('dnf', 'rpm-ostree') else 'checkpolicy'
-            print(f"checkmodule not found — install {pkg} first.")
+        # Check for checkmodule and semodule_package
+        from trcc.adapters.infra.doctor import _detect_pkg_manager, _install_hint
+        pm = _detect_pkg_manager()
+
+        missing: list[str] = []
+        for tool in ('checkmodule', 'semodule_package'):
+            if not shutil.which(tool):
+                missing.append(tool)
+        if missing:
+            for tool in missing:
+                print(f"  {tool} not found — {_install_hint(tool, pm)}")
             return 1
 
         # Find .te source (shipped in package data)
