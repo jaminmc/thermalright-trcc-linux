@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.0.4"
+__version__ = "5.0.5"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -207,3 +207,11 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          mode flags matching C# FormCZTV.ImageTo565() mode 3. Without the
 #          magic, firmware rejects frames — causing USB disconnect (#16) or
 #          stuck-on-logo (#28). 2353 tests.
+# 5.0.5  - Fix FBL 50 resolution: was (240, 320) portrait, should be
+#          (320, 240) landscape — C# default directionB=0 creates Bitmap(320,240).
+#          Fixes black bars on Mjolnir Vision 360 (#22). Renderer ABC refactor:
+#          Strategy pattern for overlay compositing (PilRenderer adapter).
+#          Overlay caching: text+mask layer cached, re-rendered only on input
+#          change (~1/sec). Fix RGBA transparency bug in overlay layer.
+#          Cloud theme fix: QTimer bound method wrapper, slideshow timer guards.
+#          2395 tests.

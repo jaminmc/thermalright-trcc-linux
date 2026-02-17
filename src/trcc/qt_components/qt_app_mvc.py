@@ -500,7 +500,9 @@ class TRCCMainWindowMVC(QMainWindow):
         self.controller = create_controller(self._data_dir)
 
         # Timers (view owns timers, controller owns logic)
-        self._animation_timer = self._make_timer(self.controller.video_tick)
+        def _video_tick_wrapper():
+            self.controller.video_tick()
+        self._animation_timer = self._make_timer(_video_tick_wrapper)
         self._metrics_timer = self._make_timer(self._on_metrics_tick)
         self._device_timer = self._make_timer(self._on_device_poll)
         self._flash_timer = self._make_timer(self._on_flash_timeout, single_shot=True)
@@ -1482,6 +1484,8 @@ class TRCCMainWindowMVC(QMainWindow):
         Cloud videos are backgrounds — overlay (mask + metrics) persists.
         Don't stop metrics; they keep rendering on top of video frames.
         """
+        # Stop slideshow — cloud video must not be overwritten by carousel
+        self._slideshow_timer.stop()
         # Reset background/screencast modes (cloud theme overrides)
         self._background_active = False
         self._screencast.stop()
@@ -1986,6 +1990,10 @@ class TRCCMainWindowMVC(QMainWindow):
 
     def _on_slideshow_tick(self):
         """Auto-rotate to next theme in slideshow (Windows Timer_event lunbo)."""
+        # Don't override a playing cloud video with slideshow themes
+        if self.controller.is_video_playing():
+            return
+
         themes = self.uc_theme_local.get_slideshow_themes()
         if not themes:
             self._slideshow_timer.stop()

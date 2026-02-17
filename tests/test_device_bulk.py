@@ -285,15 +285,15 @@ class TestBulkDeviceHandshake(unittest.TestCase):
         self.assertEqual(bd.width, 480)
         self.assertEqual(bd.height, 480)
 
-    def test_handshake_pm5_mjolnir_240x320(self):
-        """PM=5 (Mjolnir Vision) → FBL=50 → 240x320."""
+    def test_handshake_pm5_mjolnir_320x240(self):
+        """PM=5 (Mjolnir Vision) → FBL=50 → 320x240."""
         bd = self._setup_device()
         resp = _make_handshake_response(pm=5)
         bd._ep_in.read.return_value = resp
 
         result = bd.handshake()
 
-        self.assertEqual(result.resolution, (240, 320))
+        self.assertEqual(result.resolution, (320, 240))
         self.assertEqual(bd.pm, 5)
         self.assertTrue(bd.use_jpeg)
 

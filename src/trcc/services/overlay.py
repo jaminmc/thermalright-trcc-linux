@@ -1,8 +1,8 @@
 """Overlay rendering service — config, mask, metrics → composited image.
 
-Pure Python (PIL), no Qt dependencies.
+Pure Python, no Qt dependencies.
 Orchestrates background, mask compositing, text overlays, and dynamic scaling.
-Font resolution delegated to FontResolver infrastructure.
+Rendering delegated to Renderer ABC (Strategy pattern) — PIL or QPainter.
 """
 from __future__ import annotations
 
@@ -10,10 +10,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw
-
-from ..adapters.infra.font_resolver import FontResolver
 from ..core.models import HardwareMetrics
+from .renderer import Renderer
 from .system import SystemService
 
 log = logging.getLogger(__name__)
@@ -29,12 +27,20 @@ class OverlayService:
     - Time/date with multiple format options
     - Hardware metrics (CPU, GPU, etc.)
     - Dynamic font/coordinate scaling across resolutions
+    - Overlay caching: re-render text+mask only when inputs change
     """
 
     # Base resolution for scaling (most common device)
     BASE_RESOLUTION = 320
 
-    def __init__(self, width: int = 320, height: int = 320) -> None:
+    def __init__(self, width: int = 320, height: int = 320,
+                 renderer: Renderer | None = None) -> None:
+        # Rendering backend (Strategy pattern)
+        if renderer is None:
+            from ..adapters.render.pil import PilRenderer
+            renderer = PilRenderer()
+        self._renderer: Renderer = renderer
+
         # Rendering state (public — tests + callers access these directly)
         self.width = width
         self.height = height
@@ -43,7 +49,6 @@ class OverlayService:
         self.theme_mask: Any = None
         self.theme_mask_position: tuple[int, int] = (0, 0)
         self.theme_mask_visible: bool = True  # Windows: isDrawMbImage
-        self._fonts = FontResolver()
         self.flash_skip_index: int = -1  # Windows shanPingCount
 
         # Format settings (matching Windows TRCC UCXiTongXianShiSub.cs)
@@ -63,14 +68,22 @@ class OverlayService:
         self._metrics: HardwareMetrics = HardwareMetrics()
         self._dc_data: dict[str, Any] | None = None
 
+        # Overlay cache: transparent layer with text + mask, re-rendered
+        # only when inputs change (~1/sec).  Per-frame cost drops from
+        # full text render to single alpha composite.
+        self._overlay_cache: Any | None = None
+        self._cache_key: tuple | None = None
+        self._overlay_has_content: bool = False  # True if mask/text was drawn
+
     # ── Resolution ───────────────────────────────────────────────────
 
     def set_resolution(self, w: int, h: int) -> None:
         """Update LCD resolution. Clears font cache and background."""
         self.width = w
         self.height = h
-        self._fonts.clear_cache()
+        self._renderer.clear_font_cache()
         self.background = None
+        self._invalidate_cache()
 
     # ── Enable / disable ─────────────────────────────────────────────
 
@@ -101,8 +114,8 @@ class OverlayService:
         if image.size == (self.width, self.height):
             self.background = image
         else:
-            self.background = image.copy().resize(
-                (self.width, self.height), Image.Resampling.LANCZOS
+            self.background = self._renderer.resize(
+                self._renderer.copy_surface(image), self.width, self.height
             )
 
     # ── Config ───────────────────────────────────────────────────────
@@ -110,6 +123,7 @@ class OverlayService:
     def set_config(self, config: dict) -> None:
         """Set overlay config dict directly."""
         self.config = config
+        self._invalidate_cache()
 
     def set_config_resolution(self, w: int, h: int) -> None:
         """Set the resolution the current config was designed for.
@@ -118,11 +132,13 @@ class OverlayService:
         designed for one resolution on a device with a different resolution.
         """
         self._config_resolution = (w, h)
+        self._invalidate_cache()
 
     def set_scale_enabled(self, enabled: bool) -> None:
         """Enable or disable dynamic font/coordinate scaling."""
         self._scale_enabled = enabled
-        self._fonts.clear_cache()
+        self._renderer.clear_font_cache()
+        self._invalidate_cache()
 
     def _get_scale_factor(self) -> float:
         """Calculate scale factor from config resolution to display resolution.
@@ -200,6 +216,7 @@ class OverlayService:
         if image is None:
             self.theme_mask = None
             self.theme_mask_position = (0, 0)
+            self._invalidate_cache()
             return
 
         if image.mode != 'RGBA':
@@ -214,6 +231,8 @@ class OverlayService:
         else:
             self.theme_mask_position = (0, 0)
 
+        self._invalidate_cache()
+
     def get_mask(self) -> tuple[Any, tuple[int, int] | None]:
         """Get current theme mask image and position."""
         return self.theme_mask, self.theme_mask_position
@@ -221,12 +240,14 @@ class OverlayService:
     def set_mask_visible(self, visible: bool) -> None:
         """Toggle mask visibility without destroying it (Windows SetDrawMengBan)."""
         self.theme_mask_visible = visible
+        self._invalidate_cache()
 
     # ── Temp unit ────────────────────────────────────────────────────
 
     def set_temp_unit(self, unit: int) -> None:
         """Set temperature display unit (0=Celsius, 1=Fahrenheit)."""
         self.temp_unit = unit
+        self._invalidate_cache()
 
     # ── Metrics ──────────────────────────────────────────────────────
 
@@ -234,25 +255,62 @@ class OverlayService:
         """Update system metrics for hardware overlay elements."""
         self._metrics = metrics
 
-    # ── Font resolution (delegated to FontResolver) ─────────────────
+    # ── Font resolution (delegated to Renderer) ──────────────────────
 
     @property
     def font_cache(self) -> dict:
-        """Font cache (delegates to FontResolver)."""
-        return self._fonts.cache
+        """Font cache (delegates to Renderer)."""
+        fonts = getattr(self._renderer, '_fonts', None)
+        return fonts.cache if fonts else {}
 
     @font_cache.setter
     def font_cache(self, value: dict) -> None:
-        self._fonts.cache = value
+        fonts = getattr(self._renderer, '_fonts', None)
+        if fonts:
+            fonts.cache = value
 
     def get_font(self, size: int, bold: bool = False,
                  font_name: str | None = None) -> Any:
         """Get font by name with fallback chain."""
-        return self._fonts.get(size, bold, font_name)
+        return self._renderer.get_font(size, bold, font_name)
 
     def _resolve_font_path(self, font_name: str, bold: bool = False) -> str | None:
         """Resolve font family name to file path."""
-        return self._fonts.resolve_path(font_name, bold)
+        fonts = getattr(self._renderer, '_fonts', None)
+        return fonts.resolve_path(font_name, bold) if fonts else None
+
+    # ── Overlay cache ────────────────────────────────────────────────
+
+    def _invalidate_cache(self) -> None:
+        """Force overlay re-render on next frame."""
+        self._overlay_cache = None
+        self._cache_key = None
+
+    def _build_cache_key(self, metrics: HardwareMetrics) -> tuple:
+        """Build cache key from all inputs that affect overlay appearance."""
+        return (
+            id(self.config),
+            id(self.theme_mask),
+            self.theme_mask_visible,
+            self.theme_mask_position,
+            self.time_format,
+            self.date_format,
+            self.temp_unit,
+            self.flash_skip_index,
+            self._get_scale_factor(),
+            self._metrics_hash(metrics),
+        )
+
+    def _metrics_hash(self, metrics: HardwareMetrics) -> int:
+        """Hash only the metric values referenced by current config."""
+        if not self.config or not isinstance(self.config, dict):
+            return 0
+        vals: list[Any] = []
+        for cfg in self.config.values():
+            if isinstance(cfg, dict) and 'metric' in cfg:
+                val = getattr(metrics, cfg['metric'], None)
+                vals.append(val)
+        return hash(tuple(vals))
 
     # ── Render ───────────────────────────────────────────────────────
 
@@ -276,12 +334,14 @@ class OverlayService:
         return self._render_overlay(m)
 
     def _render_overlay(self, metrics: HardwareMetrics | None = None) -> Any:
-        """Core PIL compositing — background + mask + text overlays.
+        """Compositing pipeline — background + cached overlay layer.
 
-        Optimized for video playback — returns background directly when
-        there's nothing to overlay (no mask, no config).
+        The overlay layer (mask + text) is cached and only re-rendered when
+        inputs change (~1/sec for metrics).  Per-frame cost is a single
+        alpha composite instead of full text rendering.
         """
         metrics = metrics or HardwareMetrics()
+        r = self._renderer
 
         # Fast path: no overlays, just return background as-is
         has_overlays = (
@@ -291,43 +351,64 @@ class OverlayService:
         if not has_overlays and self.background:
             return self.background
 
-        # Create base image
-        if self.background is None:
-            img = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
-        else:
-            img = self.background.copy()
-            if img.mode != 'RGBA':
-                img = img.convert('RGBA')
+        # Check cache
+        cache_key = self._build_cache_key(metrics)
+        if cache_key != self._cache_key or self._overlay_cache is None:
+            # Cache miss — render overlay layer to transparent surface
+            self._overlay_cache = self._render_overlay_layer(metrics, r)
+            self._cache_key = cache_key
 
-        # Apply theme mask (Windows: isDrawMbImage check)
+        # Fast path: overlay layer has no visible content (no mask, no text)
+        if not self._overlay_has_content and self.background:
+            return self.background
+
+        return self._composite_onto_background(r)
+
+    def _composite_onto_background(self, r: Renderer) -> Any:
+        """Composite cached overlay layer onto current background."""
+        if self.background is None:
+            base = r.create_surface(self.width, self.height)
+        else:
+            base = r.convert_to_rgba(r.copy_surface(
+                r.from_pil(self.background)))
+
+        base = r.composite(base, self._overlay_cache, (0, 0))
+
+        return r.to_pil(r.convert_to_rgb(base))
+
+    def _render_overlay_layer(self, metrics: HardwareMetrics,
+                              r: Renderer) -> Any:
+        """Render mask + text to a transparent overlay surface.
+
+        This is the expensive operation — called only on cache miss.
+        Sets _overlay_has_content so callers can skip composite when empty.
+        """
+        self._overlay_has_content = False
+        overlay = r.create_surface(self.width, self.height)
+
+        # Apply theme mask
         if self.theme_mask and self.theme_mask_visible:
             scale = self._get_scale_factor()
+            mask_pil = self.theme_mask
+            self._overlay_has_content = True
             if abs(scale - 1.0) > 0.01:
-                mask_w = int(self.theme_mask.width * scale)
-                mask_h = int(self.theme_mask.height * scale)
-                scaled_mask = self.theme_mask.resize(
-                    (mask_w, mask_h), Image.Resampling.LANCZOS)
+                mask_w = int(mask_pil.width * scale)
+                mask_h = int(mask_pil.height * scale)
+                mask_surface = r.resize(r.from_pil(mask_pil), mask_w, mask_h)
                 pos_x = int(self.theme_mask_position[0] * scale)
                 pos_y = int(self.theme_mask_position[1] * scale)
-                img.paste(scaled_mask, (pos_x, pos_y), scaled_mask)
+                overlay = r.composite(overlay, mask_surface, (pos_x, pos_y))
             else:
-                img.paste(self.theme_mask, self.theme_mask_position, self.theme_mask)
-
-        # Convert to RGB before drawing text (matches Windows GenerateImage).
-        # Drawing on RGBA causes PIL to replace alpha at anti-aliased edges;
-        # compositing RGBA onto black creates dark fringes.
-        if img.mode == 'RGBA':
-            img = img.convert('RGB')
+                overlay = r.composite(
+                    overlay, r.from_pil(mask_pil), self.theme_mask_position)
 
         # Draw text overlays
-        draw = ImageDraw.Draw(img)
-
         if not self.config or not isinstance(self.config, dict):
-            return img
+            return overlay
 
         scale = self._get_scale_factor()
 
-        for elem_idx, (key, cfg) in enumerate(self.config.items()):
+        for elem_idx, (_key, cfg) in enumerate(self.config.items()):
             if not isinstance(cfg, dict) or not cfg.get('enabled', True):
                 continue
             if elem_idx == self.flash_skip_index:
@@ -362,10 +443,11 @@ class OverlayService:
 
             bold = font_cfg.get('style') == 'bold' if isinstance(font_cfg, dict) else False
             font_name = font_cfg.get('name') if isinstance(font_cfg, dict) else None
-            font = self.get_font(font_size, bold=bold, font_name=font_name)
-            draw.text((x, y), text, fill=color, font=font, anchor='mm')
+            font = r.get_font(font_size, bold=bold, font_name=font_name)
+            r.draw_text(overlay, x, y, text, color, font, anchor='mm')
+            self._overlay_has_content = True
 
-        return img
+        return overlay
 
     # ── DC data (lossless round-trip) ────────────────────────────────
 
@@ -388,3 +470,4 @@ class OverlayService:
         self.theme_mask = None
         self.theme_mask_position = (0, 0)
         self.theme_mask_visible = True
+        self._invalidate_cache()

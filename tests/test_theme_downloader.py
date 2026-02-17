@@ -225,9 +225,9 @@ class TestDownloadPack(unittest.TestCase):
     @patch.object(ThemeDownloader, '_theme_count', return_value=5)
     @patch.object(ThemeDownloader, '_is_installed', return_value=False)
     def test_non_square_resolution(self, _inst, _count, mock_ensure):
-        result = download_pack('themes-240x320')
+        result = download_pack('themes-320x240')
         self.assertEqual(result, 0)
-        mock_ensure.assert_called_once_with(240, 320)
+        mock_ensure.assert_called_once_with(320, 240)
 
 
 # ── remove_pack ──────────────────────────────────────────────────────────

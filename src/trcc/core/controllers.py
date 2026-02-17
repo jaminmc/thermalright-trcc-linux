@@ -529,10 +529,6 @@ class LCDDeviceController:
 
         self._fire_preview(result['preview'])
 
-        if result.get('progress'):
-            # Progress is forwarded by VideoController callbacks
-            pass
-
         send_img = result.get('send_image')
         if send_img:
             self.devices.send_pil_async(
@@ -571,8 +567,9 @@ class LCDDeviceController:
         self._display.current_image = frame
 
     def _on_device_selected(self, device: DeviceInfo):
-        if device.resolution != (self.lcd_width, self.lcd_height):
-            self.set_resolution(*device.resolution)
+        w, h = device.resolution
+        if (w, h) != (0, 0) and (w, h) != (self.lcd_width, self.lcd_height):
+            self.set_resolution(w, h)
         self._fire_status(f"Device: {device.path}")
 
     # ── Private helpers (fire callbacks, send to LCD) ─────────────────

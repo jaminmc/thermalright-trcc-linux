@@ -203,7 +203,8 @@ class ImageLabel(QLabel):
                 (self._width, self._height), resampling
             )
 
-        self.setPixmap(pil_to_pixmap(pil_image))
+        pixmap = pil_to_pixmap(pil_image)
+        self.setPixmap(pixmap)
 
     def mousePressEvent(self, event):
         """Handle mouse click — start drag."""
