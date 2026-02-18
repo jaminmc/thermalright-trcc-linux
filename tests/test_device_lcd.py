@@ -185,6 +185,17 @@ class TestLCDDriverGetInfo(unittest.TestCase):
 class TestLCDDriverScsiIO(unittest.TestCase):
     """Test _scsi_read and _scsi_write (module-level functions in scsi_device)."""
 
+    def setUp(self):
+        import trcc.adapters.device.scsi as scsi_mod
+        # Force subprocess fallback — these tests verify the sg_raw path
+        scsi_mod._sg_io_available = False
+        scsi_mod._device_fds.clear()
+
+    def tearDown(self):
+        import trcc.adapters.device.scsi as scsi_mod
+        scsi_mod._sg_io_available = None
+        scsi_mod._device_fds.clear()
+
     @patch('trcc.adapters.infra.data_repository.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
     def test_scsi_read_success(self, mock_run, _):

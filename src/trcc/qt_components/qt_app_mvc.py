@@ -546,21 +546,29 @@ class TRCCMainWindowMVC(QMainWindow):
         self._tray.show()
 
     def _setup_sleep_monitor(self):
-        """Listen for system suspend/resume via dbus (C# OnPowerModeChanged)."""
+        """Listen for system suspend/resume via QDBus (C# OnPowerModeChanged).
+
+        Uses Qt's native QDBusConnection instead of dbus-python + GLib main
+        loop.  The old dbus-python approach called DBusGMainLoop() which
+        integrates the GLib event loop into the Qt event loop — a well-known
+        source of excessive CPU wakeups (~10-15% idle overhead).
+        """
         try:
-            import dbus  # pyright: ignore[reportMissingImports]
-            from dbus.mainloop.glib import DBusGMainLoop  # pyright: ignore[reportMissingImports]
-            DBusGMainLoop(set_as_default=True)
-            bus = dbus.SystemBus()
-            bus.add_signal_receiver(
+            from PySide6.QtDBus import QDBusConnection  # pyright: ignore[reportMissingImports]
+            bus = QDBusConnection.systemBus()
+            if not bus.isConnected():
+                log.debug("Sleep monitor: QDBus system bus not connected")
+                return
+            bus.connect(  # pyright: ignore[reportCallIssue]
+                'org.freedesktop.login1',           # service
+                '/org/freedesktop/login1',           # path
+                'org.freedesktop.login1.Manager',    # interface
+                'PrepareForSleep',                   # signal
                 self._on_sleep_signal,
-                signal_name='PrepareForSleep',
-                dbus_interface='org.freedesktop.login1.Manager',
-                bus_name='org.freedesktop.login1',
             )
-            log.info("Sleep monitor: dbus PrepareForSleep listener active")
+            log.info("Sleep monitor: QDBus PrepareForSleep listener active")
         except Exception:
-            log.debug("Sleep monitor: dbus not available, skipping")
+            log.debug("Sleep monitor: QDBus not available, skipping")
 
     def _on_sleep_signal(self, sleeping: bool):
         """Handle suspend (sleeping=True) / resume (sleeping=False)."""
@@ -1253,7 +1261,7 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.overlay.enable(enabled)
             if enabled:
                 self.uc_info_module.setVisible(True)
-                self.uc_info_module.start_updates()
+                self.uc_info_module.start_updates(3000)
                 self.start_metrics()
             else:
                 self.uc_info_module.setVisible(False)
@@ -1717,7 +1725,7 @@ class TRCCMainWindowMVC(QMainWindow):
         """Toggle overlay display and info module visibility."""
         self.uc_info_module.setVisible(enabled)
         if enabled:
-            self.uc_info_module.start_updates()
+            self.uc_info_module.start_updates(3000)
             self.start_metrics()
         else:
             self.uc_info_module.stop_updates()
@@ -2039,7 +2047,11 @@ class TRCCMainWindowMVC(QMainWindow):
     # =========================================================================
 
     def _on_device_poll(self):
-        """Poll for LCD and LED device connections."""
+        """Poll for LCD and LED device connections.
+
+        Adaptive interval: 15s when a device is connected (hot-unplug detect),
+        5s when searching for a device (faster initial connect).
+        """
         try:
             devices = find_lcd_devices()
 
@@ -2055,6 +2067,13 @@ class TRCCMainWindowMVC(QMainWindow):
                 else:
                     self.controller.devices.select_device(device)
                     self.uc_preview.set_status(f"Device: {device.path}")
+
+            # Adaptive poll: slow when connected, fast when searching
+            has_device = bool(
+                self.controller.devices.get_selected() or self._led.active)
+            interval = 15000 if has_device else 5000
+            if self._device_timer.interval() != interval:
+                self._device_timer.start(interval)
         except Exception as e:
             log.error("Device poll error: %s", e)
 
@@ -2136,8 +2155,9 @@ class TRCCMainWindowMVC(QMainWindow):
             (self.controller.current_image and self.controller.overlay.is_enabled())
             or self._background_active
         )
-        if should_render:
-            self._render_and_send(skip_if_video=True)
+        if not should_render:
+            return
+        self._render_and_send(skip_if_video=True)
 
     def start_metrics(self):
         """Start live metrics collection for overlay display."""

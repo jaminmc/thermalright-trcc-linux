@@ -206,6 +206,21 @@ class ImageLabel(QLabel):
         pixmap = pil_to_pixmap(pil_image)
         self.setPixmap(pixmap)
 
+    def set_rgb565(self, data: bytes, width: int, height: int,
+                   byte_order: str = '>'):
+        """Set image from pre-converted RGB565 bytes.
+
+        Skips PIL→RGB888→QImage conversion — creates QPixmap directly from
+        the same RGB565 bytes sent to the LCD device.
+        """
+        pixmap = rgb565_to_pixmap(data, width, height, byte_order)
+        if (width, height) != (self._width, self._height):
+            pixmap = pixmap.scaled(
+                self._width, self._height,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+        self.setPixmap(pixmap)
+
     def mousePressEvent(self, event):
         """Handle mouse click — start drag."""
         self.clicked.emit()
@@ -286,6 +301,29 @@ def pil_to_pixmap(pil_image):
         pil_image.width * 3,
         QImage.Format.Format_RGB888
     )
+    return QPixmap.fromImage(qimage)
+
+
+def rgb565_to_pixmap(data: bytes, width: int, height: int,
+                     byte_order: str = '>') -> QPixmap:
+    """Create QPixmap from RGB565 bytes.
+
+    Qt Format_RGB16 expects native byte order (little-endian on x86).
+    Device byte order is swapped to native if needed.
+    """
+    import sys
+
+    import numpy as np
+
+    if byte_order == '>' and sys.byteorder == 'little':
+        buf = np.frombuffer(data, dtype='>u2').astype('<u2').tobytes()
+    elif byte_order == '<' and sys.byteorder == 'big':
+        buf = np.frombuffer(data, dtype='<u2').astype('>u2').tobytes()
+    else:
+        buf = bytes(data)
+
+    qimage = QImage(buf, width, height, width * 2,
+                    QImage.Format.Format_RGB16)
     return QPixmap.fromImage(qimage)
 
 

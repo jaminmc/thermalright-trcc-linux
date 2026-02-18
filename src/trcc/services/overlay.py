@@ -75,6 +75,11 @@ class OverlayService:
         self._cache_key: tuple | None = None
         self._overlay_has_content: bool = False  # True if mask/text was drawn
 
+        # Composite cache: final background+overlay result, reused when
+        # both overlay layer AND background are unchanged between ticks.
+        self._composite_result: Any | None = None
+        self._composite_bg_id: int | None = None
+
     # ── Resolution ───────────────────────────────────────────────────
 
     def set_resolution(self, w: int, h: int) -> None:
@@ -285,6 +290,16 @@ class OverlayService:
         """Force overlay re-render on next frame."""
         self._overlay_cache = None
         self._cache_key = None
+        self._composite_result = None
+        self._composite_bg_id = None
+
+    def would_change(self, metrics: HardwareMetrics) -> bool:
+        """Check if rendering with these metrics would produce a new frame.
+
+        Lightweight check — computes cache key without actually rendering.
+        Used by metrics timer to skip render+send when nothing changed.
+        """
+        return self._build_cache_key(metrics) != self._cache_key
 
     def _build_cache_key(self, metrics: HardwareMetrics) -> tuple:
         """Build cache key from all inputs that affect overlay appearance."""
@@ -302,14 +317,41 @@ class OverlayService:
         )
 
     def _metrics_hash(self, metrics: HardwareMetrics) -> int:
-        """Hash only the metric values referenced by current config."""
+        """Hash only the metric values referenced by current config.
+
+        Uses display-precision rounding to avoid re-renders from tiny
+        sensor fluctuations (45.1°C vs 45.2°C both display as "45°C").
+
+        Time/date/weekday elements call datetime.now() during render
+        (ignoring the metrics DTO), so we include current time directly
+        in the hash to ensure the cache invalidates on minute boundaries.
+        """
         if not self.config or not isinstance(self.config, dict):
             return 0
         vals: list[Any] = []
+        has_time = False
+        has_date = False
         for cfg in self.config.values():
-            if isinstance(cfg, dict) and 'metric' in cfg:
-                val = getattr(metrics, cfg['metric'], None)
+            if not isinstance(cfg, dict) or 'metric' not in cfg:
+                continue
+            metric_name = cfg['metric']
+            if metric_name == 'time':
+                has_time = True
+            elif metric_name in ('date', 'weekday'):
+                has_date = True
+            else:
+                val = getattr(metrics, metric_name, None)
+                if isinstance(val, float):
+                    val = round(val)
                 vals.append(val)
+        # Time/date use datetime.now() in render — include in hash
+        if has_time or has_date:
+            from datetime import datetime
+            now = datetime.now()
+            if has_time:
+                vals.append((now.hour, now.minute))
+            if has_date:
+                vals.append((now.year, now.month, now.day, now.weekday()))
         return hash(tuple(vals))
 
     # ── Render ───────────────────────────────────────────────────────
@@ -336,9 +378,11 @@ class OverlayService:
     def _render_overlay(self, metrics: HardwareMetrics | None = None) -> Any:
         """Compositing pipeline — background + cached overlay layer.
 
-        The overlay layer (mask + text) is cached and only re-rendered when
-        inputs change (~1/sec for metrics).  Per-frame cost is a single
-        alpha composite instead of full text rendering.
+        Two cache layers for minimal per-tick cost:
+        1. Overlay layer cache (text + mask) — re-rendered only when
+           config/metrics change.
+        2. Composite cache (background + overlay) — reused when both
+           overlay AND background are unchanged (static theme at idle).
         """
         metrics = metrics or HardwareMetrics()
         r = self._renderer
@@ -351,18 +395,29 @@ class OverlayService:
         if not has_overlays and self.background:
             return self.background
 
-        # Check cache
+        # Check overlay layer cache
         cache_key = self._build_cache_key(metrics)
-        if cache_key != self._cache_key or self._overlay_cache is None:
-            # Cache miss — render overlay layer to transparent surface
+        overlay_changed = cache_key != self._cache_key or self._overlay_cache is None
+        if overlay_changed:
             self._overlay_cache = self._render_overlay_layer(metrics, r)
             self._cache_key = cache_key
+            self._composite_result = None  # Invalidate composite
 
         # Fast path: overlay layer has no visible content (no mask, no text)
         if not self._overlay_has_content and self.background:
             return self.background
 
-        return self._composite_onto_background(r)
+        # Check composite cache — skip copy+paste when nothing changed
+        bg_id = id(self.background)
+        if (self._composite_result is not None
+                and not overlay_changed
+                and bg_id == self._composite_bg_id):
+            return self._composite_result
+
+        result = self._composite_onto_background(r)
+        self._composite_result = result
+        self._composite_bg_id = bg_id
+        return result
 
     def _composite_onto_background(self, r: Renderer) -> Any:
         """Composite cached overlay layer onto current background.

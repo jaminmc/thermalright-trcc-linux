@@ -57,6 +57,7 @@ class DebugReport:
         self._devices()
         self._device_permissions()
         self._handshakes()
+        self._process_usage()
         self._config()
 
     @property
@@ -242,6 +243,31 @@ class DebugReport:
                 except Exception as e:
                     sec.lines.append(f"    FAILED: {e}")
 
+        except Exception as e:
+            sec.lines.append(f"  Error: {e}")
+
+    def _process_usage(self) -> None:
+        sec = self._add("Process usage")
+        try:
+            result = subprocess.run(
+                ["ps", "-eo", "pid,pcpu,pmem,rss,comm", "--no-headers"],
+                capture_output=True, text=True, timeout=5,
+            )
+            trcc_procs = [
+                line.strip() for line in result.stdout.splitlines()
+                if "trcc" in line.split()[-1]
+            ]
+            if not trcc_procs:
+                sec.lines.append("  (no trcc process running)")
+                return
+            sec.lines.append("  PID    %CPU  %MEM   RSS(MB)  CMD")
+            for proc in trcc_procs:
+                parts = proc.split(None, 4)
+                if len(parts) >= 5:
+                    pid, cpu, mem, rss, cmd = parts
+                    rss_mb = f"{int(rss) / 1024:.0f}"
+                    sec.lines.append(
+                        f"  {pid:>6}  {cpu:>5}  {mem:>4}  {rss_mb:>7}  {cmd}")
         except Exception as e:
             sec.lines.append(f"  Error: {e}")
 

@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.1.1"
+__version__ = "5.1.2"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -266,3 +266,8 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          extract LEDEffectEngine from LEDService (Strategy pattern), move
 #          HW info to adapters/system/hardware.py, shared test conftest.py.
 #          Net -3100 lines. 2286 tests.
+# 5.1.2  - Fix SCSI SG_IO ioctl (was silently broken — ctypes bytearray bug
+#          caused every write to fork sg_raw subprocess). Pre-allocate ctypes
+#          buffers per chunk size. Cache shutil.which('sg_raw'). Cache
+#          psutil.cpu_freq (10s TTL). Slow sensor poll 2s→4s. CPU usage
+#          drops ~21%→15% (animated theme), ~7% (static). 2286 tests.

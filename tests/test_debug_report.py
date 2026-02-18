@@ -285,8 +285,9 @@ class TestFullCollect(unittest.TestCase):
         self.assertIn("Device permissions", text)
         self.assertIn("Handshakes", text)
         self.assertIn("Config", text)
-        # 9 sections total
-        self.assertEqual(len(rpt.sections), 9)
+        self.assertIn("Process usage", text)
+        # 10 sections total
+        self.assertEqual(len(rpt.sections), 10)
 
 
 if __name__ == "__main__":

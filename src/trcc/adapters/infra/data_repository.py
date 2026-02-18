@@ -84,10 +84,16 @@ class SysUtils:
             return []
         return [e for e in sorted(os.listdir(sysfs)) if e.startswith('sg')]
 
+    _sg_raw_path: str | None = None
+    _sg_raw_checked: bool = False
+
     @staticmethod
     def require_sg_raw() -> None:
         """Verify sg_raw is available; raise FileNotFoundError with install help if not."""
-        if not shutil.which('sg_raw'):
+        if not SysUtils._sg_raw_checked:
+            SysUtils._sg_raw_path = shutil.which('sg_raw')
+            SysUtils._sg_raw_checked = True
+        if not SysUtils._sg_raw_path:
             raise FileNotFoundError(SysUtils._SG_RAW_INSTALL_HELP)
 
     @staticmethod

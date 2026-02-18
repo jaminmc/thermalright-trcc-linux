@@ -177,7 +177,7 @@ class SensorEnumerator:
                     self._cached_readings = readings
             except Exception:
                 log.debug("Sensor poll error", exc_info=True)
-            self._poll_stop.wait(2.0)  # ~2s between reads (C# polls ~1s)
+            self._poll_stop.wait(4.0)  # ~4s between reads (overlay ticks at 1s)
 
     def _read_all_sync(self) -> dict[str, float]:
         """Read current values for ALL discovered sensors (blocking)."""
@@ -493,6 +493,10 @@ class SensorEnumerator:
                 except ValueError:
                     pass
 
+    _cpu_freq_cache: float = 0.0
+    _cpu_freq_time: float = 0.0
+    _CPU_FREQ_TTL: float = 10.0  # cpu_freq barely changes; cache 10s
+
     def _read_psutil(self, readings: dict[str, float]):
         """Read psutil-based sensors."""
 
@@ -501,9 +505,16 @@ class SensorEnumerator:
         except Exception:
             pass
         try:
-            freq = psutil.cpu_freq()
-            if freq:
-                readings['psutil:cpu_freq'] = freq.current
+            now = time.monotonic()
+            if now - self._cpu_freq_time >= self._CPU_FREQ_TTL:
+                freq = psutil.cpu_freq()
+                if freq:
+                    self._cpu_freq_cache = freq.current
+                else:
+                    self._cpu_freq_cache = 0.0
+                self._cpu_freq_time = now
+            if self._cpu_freq_cache > 0:
+                readings['psutil:cpu_freq'] = self._cpu_freq_cache
         except Exception:
             pass
         try:
