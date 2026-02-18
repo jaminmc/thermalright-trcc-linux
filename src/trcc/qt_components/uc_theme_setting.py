@@ -535,7 +535,7 @@ class ColorPickerPanel(QFrame):
 
     color_changed = Signal(int, int, int)
     position_changed = Signal(int, int)
-    font_changed = Signal(str, int)
+    font_changed = Signal(str, int, int)  # name, size, style (0=Regular, 1=Bold)
     eyedropper_requested = Signal()  # launch eyedropper color picker
 
     def __init__(self, parent=None):
@@ -581,6 +581,7 @@ class ColorPickerPanel(QFrame):
         self.font_btn.clicked.connect(self._pick_font)
         self._current_font_name = "Microsoft YaHei"
         self._current_font_size = 36
+        self._current_font_style = 0  # 0=Regular, 1=Bold
 
         # Font size spinbox (separate adjuster)
         self.font_size_spin = QSpinBox(self)
@@ -717,20 +718,25 @@ class ColorPickerPanel(QFrame):
         if ok:
             self._current_font_name = font.family()
             self._current_font_size = font.pointSize()
+            # C# Font.Style: 0=Regular, 1=Bold, 2=Italic, 3=BoldItalic
+            self._current_font_style = 1 if font.bold() else 0
             self.font_btn.setText(font.family())
             self.font_size_spin.blockSignals(True)
             self.font_size_spin.setValue(font.pointSize())
             self.font_size_spin.blockSignals(False)
-            self.font_changed.emit(font.family(), font.pointSize())
+            self.font_changed.emit(font.family(), font.pointSize(),
+                                   self._current_font_style)
 
     def _on_font_size_changed(self, size: int):
         """Handle font size spinbox change independently."""
         self._current_font_size = size
-        self.font_changed.emit(self._current_font_name, size)
+        self.font_changed.emit(self._current_font_name, size,
+                               self._current_font_style)
 
-    def set_font_display(self, font_name, font_size):
+    def set_font_display(self, font_name, font_size, font_style=0):
         self._current_font_name = font_name
         self._current_font_size = font_size
+        self._current_font_style = font_style
         self.font_btn.setText(font_name)
         self.font_size_spin.blockSignals(True)
         self.font_size_spin.setValue(font_size)
@@ -1407,7 +1413,8 @@ class UCThemeSetting(BasePanel):
         self.right_stack.setCurrentWidget(self.color_panel)
         self.color_panel.set_position(config.x, config.y)
         self.color_panel.set_color_hex(config.color)
-        self.color_panel.set_font_display(config.font_name, config.font_size)
+        self.color_panel.set_font_display(config.font_name, config.font_size,
+                                              config.font_style)
         self.data_table.set_mode(config.mode, config.mode_sub)
         if config.mode == OverlayMode.CUSTOM:
             self.data_table.text_input.setText(config.text)
@@ -1459,8 +1466,9 @@ class UCThemeSetting(BasePanel):
     def _on_position_changed(self, x, y):
         self._update_selected(x=x, y=y)
 
-    def _on_font_changed(self, font_name, font_size):
-        self._update_selected(font_name=font_name, font_size=font_size)
+    def _on_font_changed(self, font_name, font_size, font_style):
+        self._update_selected(font_name=font_name, font_size=font_size,
+                              font_style=font_style)
 
     def _on_format_changed(self, mode, mode_sub):
         self._update_selected(require_mode=mode, mode_sub=mode_sub)
