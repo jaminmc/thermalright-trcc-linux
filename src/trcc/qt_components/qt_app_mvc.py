@@ -1310,14 +1310,7 @@ class TRCCMainWindowMVC(QMainWindow):
                 self.uc_info_module.stop_updates()
                 self.stop_metrics()
         else:
-            log.debug("No overlay config for device")
-            # No overlay config — disable overlay
-            self.uc_theme_setting.set_overlay_enabled(False)
-            self.controller.overlay.enable(False)
-            self.uc_info_module.setVisible(False)
-            self.uc_info_module.stop_updates()
-            self.stop_metrics()
-            self.uc_theme_setting.overlay_grid.clear_all()
+            log.debug("No saved overlay config — keeping theme defaults")
 
     def _on_send_complete(self, success: bool):
         """Handle LCD send completion."""
