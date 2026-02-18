@@ -480,7 +480,7 @@ LED_STYLES: dict[int, LedDeviceStyle] = {
     9: LedDeviceStyle(9, 61, 31, 1, "LC2", "DLC2", "D0LC2"),
     10: LedDeviceStyle(10, 38, 17, 1, "LF11", "DLF11", "D0LF11"),
     11: LedDeviceStyle(11, 93, 72, 2, "LF15", "DLF15", "D0LF15"),
-    12: LedDeviceStyle(12, 62, 62, 1, "LF13", "DLF13", "D0rgblf13"),
+    12: LedDeviceStyle(12, 62, 62, 1, "LF13", "DLF13", "D0LF13"),
     # HR10 2280 Pro Digital — NVMe SSD heatsink with ARGB digital display.
     13: LedDeviceStyle(13, 31, 14, 1, "HR10_2280_PRO_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
 }

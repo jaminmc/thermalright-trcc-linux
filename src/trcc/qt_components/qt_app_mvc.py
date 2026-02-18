@@ -117,7 +117,6 @@ class LEDHandler:
                 led_style, style_info.segment_count, style_info.zone_count,
                 model=model,
             )
-        self._panel.set_sensor_source(self._controller.led.state.temp_source)
         self._panel.set_memory_ratio(self._controller.led.state.memory_ratio)
 
         seg_unit = "F" if settings.temp_unit == 1 else "C"
@@ -184,9 +183,6 @@ class LEDHandler:
             lambda is_24h: ctrl.led.set_clock_format(is_24h))
         panel.week_start_changed.connect(
             lambda is_sun: ctrl.led.set_week_start(is_sun))
-
-        panel.sensor_source_changed.connect(
-            lambda src: ctrl.led.set_sensor_source(src))
 
         panel.display_metric_changed.connect(self._on_hr10_metric_changed)
         panel.temp_unit_changed.connect(self._on_temp_unit_changed)

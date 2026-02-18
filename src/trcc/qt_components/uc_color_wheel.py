@@ -10,8 +10,9 @@ Original implementation by Lcstyle (GitHub PR #9).
 """
 
 import math
+from typing import Optional
 
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -19,12 +20,18 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import QWidget
+
+from .assets import Assets
 
 
 class UCColorWheel(QWidget):
     """Circular hue ring with click/drag selection.
+
+    Uses C# D3旋钮 image as the ring visual (falls back to QPainter
+    conical gradient if asset is missing).
 
     Attributes:
         hue_changed: Emitted when the user selects a hue (0-360).
@@ -32,9 +39,9 @@ class UCColorWheel(QWidget):
 
     hue_changed = Signal(int)
 
-    # Ring geometry (relative to widget center)
-    OUTER_RADIUS = 97
-    INNER_RADIUS = 72
+    # Ring geometry (relative to widget center) — matches D3旋钮 (216x216)
+    OUTER_RADIUS = 105
+    INNER_RADIUS = 78
     SELECTOR_RADIUS = 8
 
     def __init__(self, parent=None):
@@ -42,6 +49,9 @@ class UCColorWheel(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._hue = 0
         self._dragging = False
+        # Load C# color wheel asset
+        path = Assets.get('D3旋钮')
+        self._ring_pixmap: Optional[QPixmap] = QPixmap(path) if path else None
 
     # ----------------------------------------------------------------
     # Public API
@@ -62,36 +72,45 @@ class UCColorWheel(QWidget):
 
         cx = self.width() / 2.0
         cy = self.height() / 2.0
+
+        if self._ring_pixmap and not self._ring_pixmap.isNull():
+            # Draw C# D3旋钮 image scaled to widget
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            painter.drawPixmap(
+                QRectF(0, 0, self.width(), self.height()),
+                self._ring_pixmap,
+                QRectF(self._ring_pixmap.rect()),
+            )
+        else:
+            # Fallback: draw conical gradient ring
+            outer = self.OUTER_RADIUS
+            inner = self.INNER_RADIUS
+            gradient = QConicalGradient(cx, cy, 0)
+            for i in range(13):
+                stop = i / 12.0
+                gradient.setColorAt(
+                    stop, QColor.fromHsv(int(stop * 360) % 360, 255, 255))
+            ring = QPainterPath()
+            ring.addEllipse(QPointF(cx, cy), outer, outer)
+            hole = QPainterPath()
+            hole.addEllipse(QPointF(cx, cy), inner, inner)
+            ring = ring.subtracted(hole)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(gradient))
+            painter.drawPath(ring)
+
+        # --- Selector indicator on the ring midpoint ---
         outer = self.OUTER_RADIUS
         inner = self.INNER_RADIUS
-
-        # --- Conical gradient (12 stops at 30° intervals) ---
-        gradient = QConicalGradient(cx, cy, 0)
-        for i in range(13):
-            stop = i / 12.0
-            gradient.setColorAt(stop, QColor.fromHsv(int(stop * 360) % 360, 255, 255))
-
-        # --- Ring via path subtraction ---
-        ring = QPainterPath()
-        ring.addEllipse(QPointF(cx, cy), outer, outer)
-        hole = QPainterPath()
-        hole.addEllipse(QPointF(cx, cy), inner, inner)
-        ring = ring.subtracted(hole)
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(gradient))
-        painter.drawPath(ring)
-
-        # --- Selector indicator ---
-        angle_rad = math.radians(self._hue)
         mid_r = (outer + inner) / 2.0
+        angle_rad = math.radians(self._hue)
         sx = cx + mid_r * math.cos(angle_rad)
         sy = cy - mid_r * math.sin(angle_rad)
 
-        # White outline circle
         painter.setPen(QPen(QColor(255, 255, 255), 2))
         painter.setBrush(QBrush(QColor.fromHsv(self._hue, 255, 255)))
-        painter.drawEllipse(QPointF(sx, sy), self.SELECTOR_RADIUS, self.SELECTOR_RADIUS)
+        painter.drawEllipse(
+            QPointF(sx, sy), self.SELECTOR_RADIUS, self.SELECTOR_RADIUS)
 
         painter.end()
 

@@ -37,71 +37,67 @@ from .uc_screen_led import UCScreenLED
 from .uc_seven_segment import UCSevenSegment
 
 # =========================================================================
-# Layout constants (from FormLED.cs / FormLED.resx)
+# Layout constants (from FormLED.cs InitializeComponent, ClientSize 1274x800)
+#
+# C# uses FlatStyle.Flat + BorderSize=0 + BorderColor=transparent on ALL
+# buttons.  The background PNG IS the UI; Qt widgets are transparent
+# hitboxes placed at exact pixel coordinates on top.
 # =========================================================================
 
-# Panel occupies full form area: (180, 0, 1274, 800) relative to main window
 PANEL_WIDTH = 1274
 PANEL_HEIGHT = 800
 
-# UCScreenLED preview (standard devices) — 460x460 matches CS UCScreenLED
-PREVIEW_X, PREVIEW_Y = 16, 80
+# UCScreenLED preview — C#: ucScreenLED1 at (36, 128) 460x460
+PREVIEW_X, PREVIEW_Y = 36, 128
 PREVIEW_W, PREVIEW_H = 460, 460
 
-# 7-segment preview position (HR10 — shorter, same left area)
+# 7-segment preview (HR10)
 SEG_PREVIEW_X, SEG_PREVIEW_Y = 30, 100
 SEG_PREVIEW_W, SEG_PREVIEW_H = 500, 400
 
-# Mode buttons (6 buttons, arranged horizontally)
+# Mode buttons — C#: buttonDSCL..FZLD at (590..1105, 227) each 93x62
 MODE_Y = 227
 MODE_X_START = 590
 MODE_W, MODE_H = 93, 62
 MODE_SPACING = 10
 
-# --- Standard layout (no color wheel) ---
-# RGB sliders
-RGB_X = 590
-RGB_Y_START = 340
-RGB_SLIDER_W = 400
-RGB_SLIDER_H = 24
-RGB_SPACING = 35
-RGB_LABEL_W = 30
-RGB_SPINBOX_W = 55
+# Color wheel — C#: ucColorA1 at (617, 335) 216x216, shown for ALL styles
+# Background image: D3旋钮 (216x216 rainbow ring)
+WHEEL_X, WHEEL_Y = 617, 335
+WHEEL_W, WHEEL_H = 216, 216
 
-# Preset color buttons (8 buttons)
-PRESET_Y = 470
-PRESET_X_START = 590
-PRESET_SIZE = 30
-PRESET_SPACING = 8
+# RGB controls — C#: textBoxR/G/B at (926, 333/363/393) 47x19
+#                     ucScrollAR/G/B at (976, 333/363/393) 190x20
+# The background image provides R/G/B letter labels; no Qt labels needed.
+RGB_SPINBOX_X = 926
+RGB_Y_START = 333
+RGB_SLIDER_X = 976
+RGB_SLIDER_W = 190
+RGB_SLIDER_H = 20
+RGB_SPACING = 30
+RGB_SPINBOX_W = 47
 
-# Brightness slider
-BRIGHT_X = 590
-BRIGHT_Y = 530
-BRIGHT_W = 400
+# Preset color buttons — C#: buttonC1-C8, exact X positions from InitializeComponent
+PRESET_X_POSITIONS = [901, 935, 970, 1004, 1039, 1073, 1108, 1142]
+PRESET_Y = 444
+PRESET_SIZE = 24
+# C# image assets: D3红/橙/黄/绿/湖/蓝/紫/白
+PRESET_ASSETS = ['D3红', 'D3橙', 'D3黄', 'D3绿', 'D3湖', 'D3蓝', 'D3紫', 'D3白']
 
-# On/Off button
-ONOFF_X = 1050
-ONOFF_Y = 530
-ONOFF_W, ONOFF_H = 80, 30
+# Brightness slider — C#: ucScrollA at (976, 537) 190x20
+BRIGHT_X = 976
+BRIGHT_Y = 537
+BRIGHT_W = 190
 
-# --- HR10 layout (with color wheel — controls shift right) ---
-HR10_WHEEL_X, HR10_WHEEL_Y = 565, 295
-HR10_WHEEL_W, HR10_WHEEL_H = 300, 280
+# °C/°F buttons — C#: buttonC at (699, 144) 14x14, buttonF at (759, 144)
+TEMP_BTN_Y = 144
+TEMP_BTN_C_X = 699
+TEMP_BTN_F_X = 759
+TEMP_BTN_SIZE = 14
 
-HR10_RGB_X = 880
-HR10_RGB_Y_START = 320
-HR10_RGB_SLIDER_W = 300
-
-HR10_PRESET_Y = 470
-HR10_PRESET_X_START = 880
-
-HR10_BRIGHT_X = 590
-HR10_BRIGHT_Y = 600
-HR10_BRIGHT_W = 560
-
-# Temperature color legend (HR10 modes 4-5)
+# Temperature color legend (modes 5-6: temp/load reactive)
 TEMP_LEGEND_X = 590
-TEMP_LEGEND_Y = 570
+TEMP_LEGEND_Y = 480
 TEMP_LEGEND_W = 560
 TEMP_LEGEND_H = 18
 
@@ -122,16 +118,43 @@ DISPLAY_SEL_SPACING = 8
 CIRCULATE_X = 590
 CIRCULATE_Y = 670
 
-# Zone buttons (bottom, multi-zone only)
-ZONE_Y = 620
-ZONE_X_START = 590
-ZONE_W, ZONE_H = 130, 40
-ZONE_SPACING = 10
+# Zone buttons — C#: button1-4 at (590/748/902/1058, 707) 140x50
+# FormLEDInit repositions button5/6 and buttonN1-4 to button1.Top (=707)
+# for ALL styles, so every variant ends up at Y=707.
+ZONE_Y = 707
+ZONE_X_POSITIONS = [590, 748, 902, 1058]
+ZONE_W, ZONE_H = 140, 50
+
+# Zone button C# image assets — 3 variants depending on style.
+# button1-4 (D4模式1-4): styles 1, 2
+# button5-6 (D4模式5-6): styles 3, 5, 6, 11
+# buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
+ZONE_ASSETS_BTN14 = [('D4模式1', 'D4模式1a'), ('D4模式2', 'D4模式2a'),
+                     ('D4模式3', 'D4模式3a'), ('D4模式4', 'D4模式4a')]
+ZONE_ASSETS_BTN56 = [('D4模式5', 'D4模式5a'), ('D4模式6', 'D4模式6a')]
+ZONE_ASSETS_BTNN = [('D4按钮1', 'D4按钮1a'), ('D4按钮2', 'D4按钮2a'),
+                    ('D4按钮3', 'D4按钮3a'), ('D4按钮4', 'D4按钮4a')]
+_ZONE_STYLE_TO_ASSETS: dict = {
+    1: ZONE_ASSETS_BTN14, 2: ZONE_ASSETS_BTN14,
+    3: ZONE_ASSETS_BTN56, 5: ZONE_ASSETS_BTN56,
+    6: ZONE_ASSETS_BTN56, 11: ZONE_ASSETS_BTN56,
+    4: ZONE_ASSETS_BTNN, 7: ZONE_ASSETS_BTNN,
+    8: ZONE_ASSETS_BTNN, 10: ZONE_ASSETS_BTNN,
+}
+
+# Power/close button — C#: buttonPower at (1212, 24) 40x40
+POWER_X, POWER_Y = 1212, 24
+POWER_W, POWER_H = 40, 40
 
 # Status label
 STATUS_X = 590
-STATUS_Y = 700
+STATUS_Y = 770
 STATUS_W = 600
+
+# --- HR10-specific overrides ---
+HR10_BRIGHT_X = 590
+HR10_BRIGHT_Y = 600
+HR10_BRIGHT_W = 560
 
 # Mode button labels (English)
 MODE_LABELS = [
@@ -169,19 +192,41 @@ CIRCULATE_MAX_S = 10
 CIRCULATE_DEFAULT_S = 5
 
 # Shared stylesheet fragments (used by multiple widgets in this module)
-_STYLE_INFO_BG = (
-    "background-color: rgba(20, 20, 20, 200); "
-    "border: 1px solid #444; border-radius: 6px;"
-)
-_STYLE_INFO_NAME = "color: #aaa; font-size: 11px;"
-_STYLE_INFO_VALUE = "color: white; font-size: 11px; font-weight: bold;"
 _STYLE_MUTED_LABEL = "color: #aaa; font-size: 12px;"
-_STYLE_CHECKABLE_BTN = (
-    "QPushButton { background: #444; color: #aaa; border: 1px solid #666; "
-    "border-radius: 4px; font-size: 11px; }"
-    "QPushButton:checked { background: #2196F3; color: white; "
-    "border: 1px solid #42A5F5; }"
+
+# Flat transparent button — matches C# FlatStyle.Flat + BorderSize=0.
+# Background PNG has the button visual; Qt widget is an invisible hitbox.
+_STYLE_FLAT_BTN = (
+    "QPushButton { background: transparent; border: none; color: transparent; }"
+    "QPushButton:hover { background: rgba(255, 255, 255, 20); }"
+    "QPushButton:pressed { background: rgba(255, 255, 255, 40); }"
 )
+_STYLE_FLAT_CHECKABLE_BTN = (
+    "QPushButton { background: transparent; border: none; color: transparent; }"
+    "QPushButton:checked { background: rgba(33, 150, 243, 60); }"
+    "QPushButton:hover { background: rgba(255, 255, 255, 20); }"
+)
+_STYLE_CHECKABLE_BTN = (
+    "QPushButton { background: transparent; color: #aaa; border: none; "
+    "font-size: 11px; }"
+    "QPushButton:checked { background: rgba(33, 150, 243, 60); color: white; }"
+    "QPushButton:hover { background: rgba(255, 255, 255, 20); }"
+)
+
+
+def _checkbox_image_style() -> str:
+    """Build stylesheet for P点选框/P点选框A radio-style buttons (°C/°F, 24H/12H, etc.)."""
+    normal = Assets.get('P点选框')
+    active = Assets.get('P点选框A')
+    if normal and active:
+        return (
+            f"QPushButton {{ border: none; "
+            f"background-image: url({normal}); "
+            f"background-repeat: no-repeat; }}"
+            f"QPushButton:checked {{ "
+            f"background-image: url({active}); }}"
+        )
+    return _STYLE_FLAT_CHECKABLE_BTN
 
 
 class UCInfoImage(QWidget):
@@ -285,8 +330,6 @@ class UCLedControl(QWidget):
     week_start_changed = Signal(bool)        # True = Sunday
     # Temperature unit signal
     temp_unit_changed = Signal(str)          # "C" or "F"
-    # Sensor source signal (for temp/load linked modes)
-    sensor_source_changed = Signal(str)      # "cpu" or "gpu"
     # Disk selector (LF11 style 10)
     disk_index_changed = Signal(int)         # disk index (0-based)
     # DDR multiplier (LC1 style 4)
@@ -331,6 +374,9 @@ class UCLedControl(QWidget):
         palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
         self.setPalette(palette)
 
+        # Shared P点选框 checkbox style (used by °C/°F, 24H/12H, Sun/Mon buttons)
+        _cb_style = _checkbox_image_style()
+
         # -- LED Preview (standard: circles) --
         self._preview = UCScreenLED(self)
         self._preview.move(PREVIEW_X, PREVIEW_Y)
@@ -342,13 +388,14 @@ class UCLedControl(QWidget):
         self._seg_display.set_value("---", "\u00b0C")
         self._seg_display.setVisible(False)
 
-        # -- Title label --
+        # -- Title label (hidden when background is loaded — bg has device name) --
         self._title = QLabel("RGB LED Control", self)
         self._title.setGeometry(PREVIEW_X, 20, PREVIEW_W, 40)
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title.setStyleSheet(
             "color: white; font-size: 20px; font-weight: bold;"
         )
+        self._title.setVisible(False)
 
         # -- Mode buttons --
         self._mode_buttons: List[QPushButton] = []
@@ -382,116 +429,86 @@ class UCLedControl(QWidget):
         if self._mode_buttons:
             self._mode_buttons[0].setChecked(True)
 
-        # -- Sensor source selector (modes 4-5: Temp Link / Load Link) --
-        self._source_label = QLabel("Source:", self)
-        self._source_label.setGeometry(MODE_X_START, 300, 55, 24)
-        self._source_label.setStyleSheet(_STYLE_MUTED_LABEL)
-        self._source_label.setVisible(False)
-
-        self._btn_cpu = QPushButton("CPU", self)
-        self._btn_cpu.setGeometry(MODE_X_START + 58, 298, 55, 26)
-        self._btn_cpu.setCheckable(True)
-        self._btn_cpu.setChecked(True)
-        self._btn_cpu.setStyleSheet(_STYLE_CHECKABLE_BTN)
-        self._btn_cpu.setToolTip("Link to CPU sensor")
-        self._btn_cpu.clicked.connect(lambda: self._set_sensor_source("cpu"))
-        self._btn_cpu.setVisible(False)
-
-        self._btn_gpu = QPushButton("GPU", self)
-        self._btn_gpu.setGeometry(MODE_X_START + 118, 298, 55, 26)
-        self._btn_gpu.setCheckable(True)
-        self._btn_gpu.setStyleSheet(_STYLE_CHECKABLE_BTN)
-        self._btn_gpu.setToolTip("Link to GPU sensor")
-        self._btn_gpu.clicked.connect(lambda: self._set_sensor_source("gpu"))
-        self._btn_gpu.setVisible(False)
-
-        self._sensor_source = "cpu"
-
-        # -- Color Wheel (shown for HR10, hidden for others) --
+        # -- Color Wheel (C# ucColorA1 — shown for ALL styles) --
         self._color_wheel = UCColorWheel(self)
-        self._color_wheel.setGeometry(HR10_WHEEL_X, HR10_WHEEL_Y,
-                                      HR10_WHEEL_W, HR10_WHEEL_H)
+        self._color_wheel.setGeometry(WHEEL_X, WHEEL_Y, WHEEL_W, WHEEL_H)
         self._color_wheel.hue_changed.connect(self._on_hue_changed)
-        self._color_wheel.setVisible(False)
 
-        # -- RGB Controls --
+        # -- RGB Controls (C# ucScrollAR/G/B + textBoxR/G/B) --
+        # Background PNG provides R/G/B letter labels — no Qt labels needed.
         self._rgb_sliders: List[QSlider] = []
         self._rgb_spinboxes: List[QSpinBox] = []
-        self._rgb_labels: List[QLabel] = []
-        rgb_label_texts = ["R", "G", "B"]
+        self._rgb_labels: List[QLabel] = []  # kept empty for compat
         rgb_colors = ["#ff4444", "#44ff44", "#4444ff"]
 
-        for i, (lbl, color) in enumerate(zip(rgb_label_texts, rgb_colors)):
+        for i, color in enumerate(rgb_colors):
             y = RGB_Y_START + i * RGB_SPACING
 
-            # Label
-            label = QLabel(lbl, self)
-            label.setGeometry(RGB_X, y, RGB_LABEL_W, RGB_SLIDER_H)
-            label.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: bold;")
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._rgb_labels.append(label)
-
-            # Slider
-            slider = QSlider(Qt.Orientation.Horizontal, self)
-            slider.setGeometry(
-                RGB_X + RGB_LABEL_W + 5, y,
-                RGB_SLIDER_W - RGB_LABEL_W - RGB_SPINBOX_W - 15,
-                RGB_SLIDER_H
-            )
-            slider.setRange(0, 255)
-            slider.setValue(255 if i == 0 else 0)
-            slider.setStyleSheet(
-                f"QSlider::groove:horizontal {{ background: #333; height: 8px; border-radius: 4px; }}"
-                f"QSlider::handle:horizontal {{ background: {color}; width: 16px; "
-                f"margin: -4px 0; border-radius: 8px; }}"
-                f"QSlider::sub-page:horizontal {{ background: {color}; border-radius: 4px; }}"
-            )
-            slider.valueChanged.connect(self._on_rgb_changed)
-            self._rgb_sliders.append(slider)
-
-            # Spinbox
+            # Spinbox (left of slider — C# textBoxR/G/B)
             spinbox = QSpinBox(self)
-            spinbox.setGeometry(
-                RGB_X + RGB_SLIDER_W - RGB_SPINBOX_W, y,
-                RGB_SPINBOX_W, RGB_SLIDER_H
-            )
+            spinbox.setGeometry(RGB_SPINBOX_X, y, RGB_SPINBOX_W, RGB_SLIDER_H)
             spinbox.setRange(0, 255)
             spinbox.setValue(255 if i == 0 else 0)
             spinbox.setStyleSheet(
-                "color: white; background: #333; border: 1px solid #555; "
-                "border-radius: 3px;"
+                "color: white; background: rgba(40, 40, 40, 180); "
+                "border: none; font-size: 11px;"
             )
             spinbox.valueChanged.connect(
                 lambda val, idx=i: self._on_spinbox_changed(idx, val)
             )
             self._rgb_spinboxes.append(spinbox)
 
-        # -- Color preview swatch --
-        self._color_swatch = QFrame(self)
-        self._color_swatch.setGeometry(
-            RGB_X + RGB_SLIDER_W + 15, RGB_Y_START,
-            40, RGB_SPACING * 3 - 10
-        )
-        self._update_color_swatch()
+            # Slider (right of spinbox — C# ucScrollAR/G/B)
+            slider = QSlider(Qt.Orientation.Horizontal, self)
+            slider.setGeometry(RGB_SLIDER_X, y, RGB_SLIDER_W, RGB_SLIDER_H)
+            slider.setRange(0, 255)
+            slider.setValue(255 if i == 0 else 0)
+            slider.setStyleSheet(
+                f"QSlider::groove:horizontal {{ background: transparent; "
+                f"height: 8px; }}"
+                f"QSlider::handle:horizontal {{ background: {color}; "
+                f"width: 14px; margin: -3px 0; border-radius: 7px; }}"
+                f"QSlider::sub-page:horizontal {{ background: {color}; "
+                f"border-radius: 4px; opacity: 0.7; }}"
+            )
+            slider.valueChanged.connect(self._on_rgb_changed)
+            self._rgb_sliders.append(slider)
 
-        # -- Preset color buttons --
+        # -- Color preview swatch (hidden — color wheel serves this role) --
+        self._color_swatch = QFrame(self)
+        self._color_swatch.setGeometry(0, 0, 1, 1)
+        self._color_swatch.setVisible(False)
+
+        # -- Preset color buttons (C# buttonC1-C8 with D3* image assets) --
         self._preset_buttons: List[QPushButton] = []
         for i, (r, g, b) in enumerate(PRESET_COLORS):
             btn = QPushButton(self)
-            x = PRESET_X_START + i * (PRESET_SIZE + PRESET_SPACING)
+            x = PRESET_X_POSITIONS[i]
             btn.setGeometry(x, PRESET_Y, PRESET_SIZE, PRESET_SIZE)
-            btn.setStyleSheet(
-                f"QPushButton {{ "
-                f"background-color: rgb({r},{g},{b}); "
-                f"border: 2px solid #555; border-radius: {PRESET_SIZE // 2}px; }}"
-                f"QPushButton:hover {{ border: 2px solid white; }}"
-            )
+            asset_path = Assets.get(PRESET_ASSETS[i])
+            if asset_path:
+                btn.setStyleSheet(
+                    f"QPushButton {{ border: none; "
+                    f"background-image: url({asset_path}); "
+                    f"background-repeat: no-repeat; }}"
+                    f"QPushButton:hover {{ border: 1px solid white; "
+                    f"border-radius: {PRESET_SIZE // 2}px; }}"
+                )
+            else:
+                btn.setStyleSheet(
+                    f"QPushButton {{ "
+                    f"background-color: rgb({r},{g},{b}); "
+                    f"border: 1px solid #555; "
+                    f"border-radius: {PRESET_SIZE // 2}px; }}"
+                    f"QPushButton:hover {{ border: 2px solid white; }}"
+                )
+            btn.setFlat(True)
             btn.clicked.connect(
                 lambda checked, cr=r, cg=g, cb=b: self._set_color(cr, cg, cb)
             )
             self._preset_buttons.append(btn)
 
-        # -- Temperature color legend (HR10 modes 4-5, hidden by default) --
+        # -- Temperature color legend (modes 5-6, hidden by default) --
         self._temp_legend = QLabel(self)
         self._temp_legend.setGeometry(
             TEMP_LEGEND_X, TEMP_LEGEND_Y, TEMP_LEGEND_W, TEMP_LEGEND_H
@@ -516,53 +533,63 @@ class UCLedControl(QWidget):
         )
         self._temp_legend_labels.setVisible(False)
 
-        # -- Brightness --
-        self._bright_label = QLabel("Brightness", self)
-        self._bright_label.setGeometry(BRIGHT_X, BRIGHT_Y - 20, 100, 18)
-        self._bright_label.setStyleSheet("color: #aaa; font-size: 12px;")
+        # -- Brightness (C# ucScrollA at (976, 537) — bg has label/icon) --
+        self._bright_label = QLabel(self)
+        self._bright_label.setVisible(False)  # Background has brightness icon
 
         self._brightness_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._brightness_slider.setGeometry(BRIGHT_X, BRIGHT_Y, BRIGHT_W, 24)
+        self._brightness_slider.setGeometry(BRIGHT_X, BRIGHT_Y, BRIGHT_W, 20)
         self._brightness_slider.setRange(0, 100)
         self._brightness_slider.setValue(100)
         self._brightness_slider.setStyleSheet(
-            "QSlider::groove:horizontal { background: #333; height: 8px; border-radius: 4px; }"
-            "QSlider::handle:horizontal { background: #fff; width: 16px; "
-            "margin: -4px 0; border-radius: 8px; }"
-            "QSlider::sub-page:horizontal { background: #aaa; border-radius: 4px; }"
+            "QSlider::groove:horizontal { background: transparent; "
+            "height: 8px; }"
+            "QSlider::handle:horizontal { background: #fff; width: 14px; "
+            "margin: -3px 0; border-radius: 7px; }"
+            "QSlider::sub-page:horizontal { background: rgba(170, 170, 170, "
+            "180); border-radius: 4px; }"
         )
         self._brightness_slider.setToolTip("LED brightness")
         self._brightness_slider.valueChanged.connect(self.brightness_changed.emit)
 
         self._brightness_label = QLabel("100%", self)
-        self._brightness_label.setGeometry(BRIGHT_X + BRIGHT_W + 10, BRIGHT_Y, 50, 24)
-        self._brightness_label.setStyleSheet("color: white; font-size: 13px;")
+        self._brightness_label.setGeometry(
+            BRIGHT_X + BRIGHT_W + 5, BRIGHT_Y, 40, 20)
+        self._brightness_label.setStyleSheet(
+            "color: white; font-size: 11px; background: transparent;")
         self._brightness_slider.valueChanged.connect(
             lambda v: self._brightness_label.setText(f"{v}%")
         )
 
-        # -- On/Off toggle --
-        self._onoff_btn = QPushButton("ON", self)
-        self._onoff_btn.setGeometry(ONOFF_X, ONOFF_Y, ONOFF_W, ONOFF_H)
+        # -- Power/close button (C# buttonPower at (1212, 24) 40x40) --
+        # Uses Alogout默認 (normal) / Alogout选中 (hover/pressed)
+        self._onoff_btn = QPushButton(self)
+        self._onoff_btn.setGeometry(POWER_X, POWER_Y, POWER_W, POWER_H)
         self._onoff_btn.setCheckable(True)
         self._onoff_btn.setChecked(True)
-        self._onoff_btn.setStyleSheet(
-            "QPushButton { background: #4CAF50; color: white; border: none; "
-            "border-radius: 4px; font-weight: bold; }"
-            "QPushButton:checked { background: #4CAF50; }"
-            "QPushButton:!checked { background: #666; }"
-        )
+        self._onoff_btn.setFlat(True)
+        _pwr_normal = Assets.get('Alogout默认')
+        _pwr_active = Assets.get('Alogout选中')
+        if _pwr_normal and _pwr_active:
+            self._onoff_btn.setStyleSheet(
+                f"QPushButton {{ border: none; "
+                f"background-image: url({_pwr_normal}); "
+                f"background-repeat: no-repeat; }}"
+                f"QPushButton:checked {{ "
+                f"background-image: url({_pwr_active}); }}"
+            )
+        else:
+            self._onoff_btn.setStyleSheet(_STYLE_FLAT_CHECKABLE_BTN)
         self._onoff_btn.setToolTip("Turn LED on / off")
         self._onoff_btn.clicked.connect(self._on_toggle_clicked)
 
-        # -- Test mode checkbox (C# checkBox1) --
-        self._test_cb = QCheckBox("Test", self)
-        self._test_cb.setGeometry(ONOFF_X + ONOFF_W + 10, ONOFF_Y + 5, 60, 20)
+        # -- Test mode checkbox (C# checkBox1 at (36, 78)) --
+        self._test_cb = QCheckBox("", self)
+        self._test_cb.setGeometry(36, 78, 20, 20)
         self._test_cb.setStyleSheet(
-            "QCheckBox { color: #aaa; font-size: 11px; }"
             "QCheckBox::indicator { width: 14px; height: 14px; }"
             "QCheckBox::indicator:unchecked { border: 1px solid #666; "
-            "background: #333; }"
+            "background: transparent; }"
             "QCheckBox::indicator:checked { border: 1px solid #FF9800; "
             "background: #FF9800; }"
         )
@@ -571,20 +598,16 @@ class UCLedControl(QWidget):
             lambda on: self.test_mode_changed.emit(on))
         self._test_cb.setVisible(False)  # C# checkBox1.Visible = false
 
-        # -- Zone buttons (hidden by default, shown for multi-zone devices) --
+        # -- Zone buttons (C# button1-4/5-6/N1-4 — images swapped per style) --
         self._zone_buttons: List[QPushButton] = []
         for i in range(4):
-            btn = QPushButton(f"Zone {i + 1}", self)
-            x = ZONE_X_START + i * (ZONE_W + ZONE_SPACING)
+            btn = QPushButton(self)
+            x = ZONE_X_POSITIONS[i] if i < len(ZONE_X_POSITIONS) else 590
             btn.setGeometry(x, ZONE_Y, ZONE_W, ZONE_H)
             btn.setCheckable(True)
+            btn.setFlat(True)
             btn.setToolTip(f"Select zone {i + 1}")
-            btn.setStyleSheet(
-                "QPushButton { background: #444; color: white; "
-                "border: 1px solid #666; border-radius: 4px; }"
-                "QPushButton:checked { background: #2196F3; "
-                "border: 1px solid #42A5F5; }"
-            )
+            btn.setStyleSheet(_STYLE_FLAT_CHECKABLE_BTN)
             btn.clicked.connect(
                 lambda checked, idx=i: self._on_zone_clicked(idx)
             )
@@ -729,46 +752,48 @@ class UCLedControl(QWidget):
         # LC2 clock widgets (style 9 — hidden by default)
         # ============================================================
 
-        self._lc2_label = QLabel("Clock Format:", self)
-        self._lc2_label.setGeometry(590, 620, 100, 20)
-        self._lc2_label.setStyleSheet(_STYLE_MUTED_LABEL)
+        # LC2 clock buttons — C#: 14x14 P点选框 checkboxes at exact positions.
+        # Background PNG has "24H"/"12H"/"Sun"/"Mon" labels baked in.
+        self._lc2_label = QLabel(self)  # hidden — bg has labels
         self._lc2_label.setVisible(False)
 
-        self._btn_24h = QPushButton("24H", self)
-        self._btn_24h.setGeometry(700, 618, 55, 26)
+        self._btn_24h = QPushButton(self)
+        self._btn_24h.setGeometry(592, 711, 14, 14)
         self._btn_24h.setCheckable(True)
         self._btn_24h.setChecked(True)
-        self._btn_24h.setStyleSheet(self._mode_button_style(False))
+        self._btn_24h.setFlat(True)
+        self._btn_24h.setStyleSheet(_cb_style)
         self._btn_24h.setToolTip("24-hour format")
         self._btn_24h.clicked.connect(lambda: self._set_clock_format(True))
         self._btn_24h.setVisible(False)
 
-        self._btn_12h = QPushButton("12H", self)
-        self._btn_12h.setGeometry(760, 618, 55, 26)
+        self._btn_12h = QPushButton(self)
+        self._btn_12h.setGeometry(592, 729, 14, 14)
         self._btn_12h.setCheckable(True)
-        self._btn_12h.setStyleSheet(self._mode_button_style(False))
+        self._btn_12h.setFlat(True)
+        self._btn_12h.setStyleSheet(_cb_style)
         self._btn_12h.setToolTip("12-hour format")
         self._btn_12h.clicked.connect(lambda: self._set_clock_format(False))
         self._btn_12h.setVisible(False)
 
-        self._week_label = QLabel("Week Start:", self)
-        self._week_label.setGeometry(840, 620, 80, 20)
-        self._week_label.setStyleSheet(_STYLE_MUTED_LABEL)
+        self._week_label = QLabel(self)  # hidden — bg has labels
         self._week_label.setVisible(False)
 
-        self._btn_sun = QPushButton("Sun", self)
-        self._btn_sun.setGeometry(930, 618, 55, 26)
+        self._btn_sun = QPushButton(self)
+        self._btn_sun.setGeometry(741, 729, 14, 14)
         self._btn_sun.setCheckable(True)
-        self._btn_sun.setStyleSheet(self._mode_button_style(False))
+        self._btn_sun.setFlat(True)
+        self._btn_sun.setStyleSheet(_cb_style)
         self._btn_sun.setToolTip("Week starts on Sunday")
         self._btn_sun.clicked.connect(lambda: self._set_week_start(True))
         self._btn_sun.setVisible(False)
 
-        self._btn_mon = QPushButton("Mon", self)
-        self._btn_mon.setGeometry(990, 618, 55, 26)
+        self._btn_mon = QPushButton(self)
+        self._btn_mon.setGeometry(741, 711, 14, 14)
         self._btn_mon.setCheckable(True)
         self._btn_mon.setChecked(True)
-        self._btn_mon.setStyleSheet(self._mode_button_style(False))
+        self._btn_mon.setFlat(True)
+        self._btn_mon.setStyleSheet(_cb_style)
         self._btn_mon.setToolTip("Week starts on Monday")
         self._btn_mon.clicked.connect(lambda: self._set_week_start(False))
         self._btn_mon.setVisible(False)
@@ -800,115 +825,126 @@ class UCLedControl(QWidget):
             widget.setVisible(False)
             self._info_images[key] = widget
 
-        # °C/°F toggle buttons (near sensor widgets)
-        self._btn_celsius = QPushButton("\u00b0C", self)
-        self._btn_celsius.setGeometry(16, 770, 40, 24)
+        # °C/°F toggle buttons — C#: buttonC at (699, 144) 14x14, buttonF at (759, 144)
+        # Uses P点选框 (unchecked) / P点选框A (checked) images like C#.
+        self._btn_celsius = QPushButton(self)
+        self._btn_celsius.setGeometry(
+            TEMP_BTN_C_X, TEMP_BTN_Y, TEMP_BTN_SIZE, TEMP_BTN_SIZE)
         self._btn_celsius.setCheckable(True)
         self._btn_celsius.setChecked(True)
-        self._btn_celsius.setStyleSheet(_STYLE_CHECKABLE_BTN)
+        self._btn_celsius.setFlat(True)
+        self._btn_celsius.setStyleSheet(_cb_style)
         self._btn_celsius.setToolTip("Celsius")
         self._btn_celsius.clicked.connect(lambda: self._set_temp_unit_btn(False))
         self._btn_celsius.setVisible(False)
 
-        self._btn_fahrenheit = QPushButton("\u00b0F", self)
-        self._btn_fahrenheit.setGeometry(60, 770, 40, 24)
+        self._btn_fahrenheit = QPushButton(self)
+        self._btn_fahrenheit.setGeometry(
+            TEMP_BTN_F_X, TEMP_BTN_Y, TEMP_BTN_SIZE, TEMP_BTN_SIZE)
         self._btn_fahrenheit.setCheckable(True)
-        self._btn_fahrenheit.setStyleSheet(_STYLE_CHECKABLE_BTN)
+        self._btn_fahrenheit.setFlat(True)
+        self._btn_fahrenheit.setStyleSheet(_cb_style)
         self._btn_fahrenheit.setToolTip("Fahrenheit")
         self._btn_fahrenheit.clicked.connect(lambda: self._set_temp_unit_btn(True))
         self._btn_fahrenheit.setVisible(False)
 
         # ============================================================
-        # LC1 memory info panel (style 4 — hidden by default)
+        # LC1 memory info panel (style 4 — C# UCLEDMemoryInfo)
+        # Panel at (13, 656) 506x132, transparent bg (bg PNG has labels)
         # ============================================================
+        _mem_lbl_style = (
+            "color: rgb(180, 150, 83); font-size: 13px;"
+            " background: transparent;")
 
-        mem_defs = [
-            ("Mem Temp:", "mem_temp", "-- \u00b0C"),
-            ("Mem Clock:", "mem_clock", "-- MHz"),
-            ("Mem Used:", "mem_used", "-- %"),
+        self._mem_bg = QFrame(self)
+        self._mem_bg.setGeometry(13, 656, 506, 132)
+        self._mem_bg.setStyleSheet("background: transparent; border: none;")
+        self._mem_bg.setVisible(False)
+
+        # C# label positions: internal (x, y) → absolute (13+x, 656+y)
+        # label1=temp  label2=clock(MHz)  label2_1=clock(MT/s)
+        # label3=used(GB)  label4=ratio(X)
+        # label5-10=timings (tCAS/tRCD/tRP/tRAS/tRC/tRFC)
+        self._mem_labels: Dict[str, QLabel] = {}
+        _mem_layout = [
+            ("mem_temp",    136, 15, 166, 23),
+            ("mem_clock",   136, 35, 166, 23),
+            ("mem_mts",     311, 35, 128, 23),
+            ("mem_used",    136, 54, 166, 23),
+            ("mem_ratio",   136, 74, 166, 23),
+            ("mem_tcas",    169, 94,  38, 23),
+            ("mem_trcd",    228, 94,  38, 23),
+            ("mem_trp",     283, 94,  38, 23),
+            ("mem_tras",    346, 94,  38, 23),
+            ("mem_trc",     401, 94,  38, 23),
+            ("mem_trfc",    464, 94,  38, 23),
         ]
-        self._mem_bg, self._mem_labels, self._mem_name_labels = (
-            self._create_info_panel(
-                (30, 630, 500, 90), mem_defs,
-                lambda i, _: (45, 656 + i * 24, 150, 656 + i * 24),
-            )
-        )
-        # Identity label (populated once at init)
-        self._mem_identity = QLabel("", self)
-        self._mem_identity.setGeometry(45, 630, 340, 30)
-        self._mem_identity.setStyleSheet(
-            "QLabel { color: #AAA; font-size: 9px; background: transparent; }")
-        self._mem_identity.setWordWrap(True)
-        self._mem_identity.setVisible(False)
+        for key, ix, iy, w, h in _mem_layout:
+            lbl = QLabel("NC", self)
+            lbl.setGeometry(13 + ix, 656 + iy, w, h)
+            lbl.setStyleSheet(_mem_lbl_style)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter)
+            lbl.setVisible(False)
+            self._mem_labels[key] = lbl
         self._mem_slots: list[dict] = []
 
-        # DDR multiplier combo (C# ucComboBoxB / memoryRatio)
-        self._ddr_label = QLabel("DDR:", self)
-        self._ddr_label.setGeometry(395, 636, 35, 18)
-        self._ddr_label.setStyleSheet(
-            "QLabel { color: #888; font-size: 11px; }")
-        self._ddr_label.setVisible(False)
-
+        # DDR multiplier combo (C# ucComboBoxB at internal 430,35)
         self._ddr_combo = QComboBox(self)
-        self._ddr_combo.setGeometry(430, 634, 58, 22)
+        self._ddr_combo.setGeometry(13 + 430, 656 + 35, 58, 20)
         self._ddr_combo.addItem("\u00d71", 1)
         self._ddr_combo.addItem("\u00d72", 2)
         self._ddr_combo.addItem("\u00d74", 4)
         self._ddr_combo.setCurrentIndex(1)  # Default: ×2 (DDR)
         self._ddr_combo.setStyleSheet(
-            "QComboBox { background: #333; color: white; "
+            "QComboBox { background: #333; color: rgb(180, 150, 83); "
             "border: 1px solid #555; font-size: 11px; }"
             "QComboBox::drop-down { border: none; }"
             "QComboBox QAbstractItemView { background: #333; "
-            "color: white; selection-background-color: #555; }")
-        self._ddr_combo.setToolTip("DDR memory speed multiplier")
+            "color: rgb(180, 150, 83); selection-background-color: #555; }")
         self._ddr_combo.currentIndexChanged.connect(self._on_ddr_changed)
         self._ddr_combo.setVisible(False)
-        self._memory_ratio = 2  # Track current ratio for display
+        self._memory_ratio = 2
 
         # ============================================================
-        # LF11 disk info panel (style 10 — hidden by default)
+        # LF11 disk info panel (style 10 — C# UCLEDHarddiskInfo)
+        # Panel at (13, 656) 506x132, transparent bg (bg PNG has labels)
         # ============================================================
 
-        disk_defs = [
-            ("Disk Temp:", "lf11_disk_temp", "-- \u00b0C"),
-            ("Disk Usage:", "lf11_disk_usage", "-- %"),
-            ("Read Rate:", "lf11_disk_read", "-- MB/s"),
-            ("Write Rate:", "lf11_disk_write", "-- MB/s"),
+        self._disk_bg = QFrame(self)
+        self._disk_bg.setGeometry(13, 656, 506, 132)
+        self._disk_bg.setStyleSheet("background: transparent; border: none;")
+        self._disk_bg.setVisible(False)
+
+        # C# label positions: internal (x, y) → absolute (13+x, 656+y)
+        # label1=temp  label2=health%  label3=read  label4=write
+        self._disk_labels: Dict[str, QLabel] = {}
+        _disk_layout = [
+            ("lf11_disk_temp",  170, 21, 166, 23),
+            ("lf11_disk_usage", 170, 43, 166, 23),
+            ("lf11_disk_read",  170, 66, 166, 23),
+            ("lf11_disk_write", 170, 88, 166, 23),
         ]
-        self._disk_bg, self._disk_labels, self._disk_name_labels = (
-            self._create_info_panel(
-                (30, 630, 500, 90), disk_defs,
-                lambda i, _: (
-                    45 + (i // 2) * 250, 656 + (i % 2) * 28,
-                    45 + (i // 2) * 250 + 105, 656 + (i % 2) * 28,
-                ),
-            )
-        )
-        # Identity label (populated once at init)
-        self._disk_identity = QLabel("", self)
-        self._disk_identity.setGeometry(45, 636, 340, 18)
-        self._disk_identity.setStyleSheet(_STYLE_INFO_NAME)
-        self._disk_identity.setVisible(False)
+        for key, ix, iy, w, h in _disk_layout:
+            lbl = QLabel("NC", self)
+            lbl.setGeometry(13 + ix, 656 + iy, w, h)
+            lbl.setStyleSheet(_mem_lbl_style)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter)
+            lbl.setVisible(False)
+            self._disk_labels[key] = lbl
+        self._disk_slots: list[dict] = []
 
-        # Disk selector combo box (C# ucComboBoxC / hardDiskCount)
-        self._disk_selector_label = QLabel("Disk:", self)
-        self._disk_selector_label.setGeometry(395, 636, 35, 18)
-        self._disk_selector_label.setStyleSheet(
-            "QLabel { color: #888; font-size: 11px; }")
-        self._disk_selector_label.setVisible(False)
-
+        # Disk selector combo (C# ucComboBoxC at internal 304,21)
         self._disk_selector = QComboBox(self)
-        self._disk_selector.setGeometry(430, 634, 90, 22)
+        self._disk_selector.setGeometry(13 + 304, 656 + 21, 180, 24)
         self._disk_selector.setStyleSheet(
-            "QComboBox { background: #333; color: white; "
+            "QComboBox { background: #333; color: rgb(180, 150, 83); "
             "border: 1px solid #555; font-size: 11px; }"
             "QComboBox::drop-down { border: none; }"
             "QComboBox QAbstractItemView { background: #333; "
-            "color: white; selection-background-color: #555; }")
-        self._disk_selector.setToolTip("Select which disk to monitor")
+            "color: rgb(180, 150, 83); selection-background-color: #555; }")
         self._disk_selector.currentIndexChanged.connect(self._on_disk_selected)
-        self._disk_slots: list[dict] = []
         self._disk_selector.setVisible(False)
 
         # -- Status label --
@@ -934,31 +970,29 @@ class UCLedControl(QWidget):
         self._style_id = style_id
         self._zone_count = zone_count
         self._model = model
-        self._is_hr10 = (style_id == 13)
+        self._is_hr10 = False  # HR10 renders as standard LED panel
 
         # Toggle preview widgets
-        self._preview.setVisible(not self._is_hr10)
-        self._seg_display.setVisible(self._is_hr10)
+        self._preview.setVisible(True)
+        self._seg_display.setVisible(False)
 
-        if not self._is_hr10:
-            self._preview.set_style(style_id, segment_count)
+        self._preview.set_style(style_id, segment_count)
 
         # Load device preview background (PM-specific or style default)
         from ..adapters.device.led import LED_STYLES, PmRegistry
         style = LED_STYLES.get(style_id)
         if style:
-            if not self._is_hr10:
-                # Resolve preview: check PmRegistry for model-specific image,
-                # fall back to style default (Windows: FormLEDInit per-NO)
-                preview_name = style.preview_image
-                if model:
-                    for pm, entry in PmRegistry._REGISTRY.items():
-                        if entry.model_name == model and entry.preview_image:
-                            preview_name = entry.preview_image
-                            break
-                preview_pixmap = Assets.get(preview_name)
-                if preview_pixmap:
-                    self._preview.set_overlay(QPixmap(preview_pixmap))
+            # Resolve preview: check PmRegistry for model-specific image,
+            # fall back to style default (Windows: FormLEDInit per-NO)
+            preview_name = style.preview_image
+            if model:
+                for pm, entry in PmRegistry._REGISTRY.items():
+                    if entry.model_name == model and entry.preview_image:
+                        preview_name = entry.preview_image
+                        break
+            preview_pixmap = Assets.get(preview_name)
+            if preview_pixmap:
+                self._preview.set_overlay(QPixmap(preview_pixmap))
 
             # Set panel background (localized with fallback)
             from ..conf import settings
@@ -974,7 +1008,8 @@ class UCLedControl(QWidget):
         # Show/hide HR10-specific controls
         self._set_hr10_visibility(self._is_hr10)
 
-        # Show/hide zone buttons + carousel controls
+        # Apply zone button images for this style, then show/hide
+        self._apply_zone_images(style_id)
         for i, btn in enumerate(self._zone_buttons):
             btn.setVisible(i < zone_count and zone_count > 1)
         self._carousel_btn.setVisible(zone_count > 1)
@@ -989,7 +1024,8 @@ class UCLedControl(QWidget):
         is_lc2 = (style_id == 9)
         is_lc1 = (style_id == 4)
         is_lf11 = (style_id == 10)
-        show_sensors = style_id in (1, 2, 3, 5, 6, 7, 8, 11)
+        # C# shows ucInfoImage1-6 for ALL styles except LC1 (4) and LF11 (10)
+        show_sensors = style_id not in (4, 10)
 
         self._set_lc2_visibility(is_lc2)
         self._set_sensor_visibility(show_sensors)
@@ -1001,15 +1037,6 @@ class UCLedControl(QWidget):
             self._populate_memory_identity()
         elif is_lf11:
             self._populate_disk_identity()
-
-        # Initialize HR10 display
-        if self._is_hr10:
-            r = self._rgb_sliders[0].value()
-            g = self._rgb_sliders[1].value()
-            b = self._rgb_sliders[2].value()
-            self._seg_display.set_color(r, g, b)
-            if self._display_buttons:
-                self._display_buttons[0].setChecked(True)
 
     def set_led_colors(self, colors: List[Tuple[int, int, int]]) -> None:
         """Update LED preview from controller tick."""
@@ -1034,16 +1061,6 @@ class UCLedControl(QWidget):
             bg_name = Assets.get_localized(style.background_base, settings.lang)
             if Assets.get(bg_name):
                 set_background_pixmap(self, bg_name)
-
-    def set_sensor_source(self, source: str) -> None:
-        """Set sensor source from saved config (without emitting signal).
-
-        Args:
-            source: "cpu" or "gpu".
-        """
-        self._sensor_source = source
-        self._btn_cpu.setChecked(source == "cpu")
-        self._btn_gpu.setChecked(source == "gpu")
 
     def set_temp_unit(self, unit_int: int) -> None:
         """Set temperature unit from app settings.
@@ -1097,67 +1114,62 @@ class UCLedControl(QWidget):
     # Layout management
     # ================================================================
 
+    def _apply_zone_images(self, style_id: int) -> None:
+        """Swap zone button images to match the C# button variant for this style.
+
+        C# has 3 separate sets of zone buttons with different images:
+        - button1-4 (D4模式1-4): styles 1, 2
+        - button5-6 (D4模式5-6): styles 3, 5, 6, 11
+        - buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
+        """
+        assets = _ZONE_STYLE_TO_ASSETS.get(style_id)
+        if not assets:
+            return
+        for i, btn in enumerate(self._zone_buttons):
+            if i < len(assets):
+                normal_name, active_name = assets[i]
+                normal_path = Assets.get(normal_name)
+                active_path = Assets.get(active_name)
+                if normal_path and active_path:
+                    btn.setStyleSheet(
+                        f"QPushButton {{ border: none; "
+                        f"background-image: url({normal_path}); "
+                        f"background-repeat: no-repeat; }}"
+                        f"QPushButton:checked {{ "
+                        f"background-image: url({active_path}); }}"
+                    )
+                else:
+                    btn.setStyleSheet(_STYLE_FLAT_CHECKABLE_BTN)
+
     def _apply_layout(self):
-        """Reposition RGB/preset/brightness controls based on style."""
+        """Reposition controls.  All backgrounds include a color wheel area,
+        so the layout is unified: wheel left, RGB/presets/brightness right.
+        Only HR10-specific widgets (drive metrics, display selection) differ.
+        """
         if self._is_hr10:
-            # Color wheel visible — shift controls right
-            rgb_x = HR10_RGB_X
-            slider_w = HR10_RGB_SLIDER_W
-            preset_x = HR10_PRESET_X_START
             bright_x = HR10_BRIGHT_X
             bright_y = HR10_BRIGHT_Y
             bright_w = HR10_BRIGHT_W
-            status_y = 760
         else:
-            rgb_x = RGB_X
-            slider_w = RGB_SLIDER_W
-            preset_x = PRESET_X_START
             bright_x = BRIGHT_X
             bright_y = BRIGHT_Y
             bright_w = BRIGHT_W
-            status_y = STATUS_Y
 
-        rgb_y = HR10_RGB_Y_START if self._is_hr10 else RGB_Y_START
+        # RGB controls — positions set in _setup_ui at C# coordinates;
+        # no repositioning needed (unified layout).
 
-        for i in range(3):
-            y = rgb_y + i * RGB_SPACING
-            self._rgb_labels[i].setGeometry(rgb_x, y, RGB_LABEL_W, RGB_SLIDER_H)
-            self._rgb_sliders[i].setGeometry(
-                rgb_x + RGB_LABEL_W + 5, y,
-                slider_w - RGB_LABEL_W - RGB_SPINBOX_W - 15,
-                RGB_SLIDER_H
-            )
-            self._rgb_spinboxes[i].setGeometry(
-                rgb_x + slider_w - RGB_SPINBOX_W, y,
-                RGB_SPINBOX_W, RGB_SLIDER_H
-            )
-
-        self._color_swatch.setGeometry(
-            rgb_x + slider_w + 15, rgb_y, 40, RGB_SPACING * 3 - 10
-        )
-
-        for i, btn in enumerate(self._preset_buttons):
-            x = preset_x + i * (PRESET_SIZE + PRESET_SPACING)
-            preset_y = HR10_PRESET_Y if self._is_hr10 else PRESET_Y
-            btn.setGeometry(x, preset_y, PRESET_SIZE, PRESET_SIZE)
-
-        self._bright_label.setGeometry(bright_x, bright_y - 20, 100, 18)
-        self._brightness_slider.setGeometry(bright_x, bright_y, bright_w, 24)
+        # Brightness
+        self._brightness_slider.setGeometry(bright_x, bright_y, bright_w, 20)
         self._brightness_label.setGeometry(
-            bright_x + bright_w + 10, bright_y, 50, 24
-        )
+            bright_x + bright_w + 5, bright_y, 40, 20)
 
-        if not self._is_hr10:
-            self._onoff_btn.setGeometry(ONOFF_X, ONOFF_Y, ONOFF_W, ONOFF_H)
-            self._onoff_btn.setVisible(True)
-        else:
-            self._onoff_btn.setVisible(False)
+        # ON button visible for non-HR10 (HR10 has no separate on/off)
+        self._onoff_btn.setVisible(not self._is_hr10)
 
-        self._status.setGeometry(STATUS_X, status_y, STATUS_W, 24)
+        self._status.setGeometry(STATUS_X, STATUS_Y, STATUS_W, 24)
 
     def _set_hr10_visibility(self, visible: bool):
         """Show/hide all HR10-specific widgets."""
-        self._color_wheel.setVisible(visible)
         self._seg_display.setVisible(visible)
         self._metrics_bg.setVisible(visible)
         self._nvme_label.setVisible(visible)
@@ -1191,18 +1203,20 @@ class UCLedControl(QWidget):
             self._update_mode_visibility()
         else:
             self._preview.set_led_mode(index)
-        # Show sensor source selector for temp/load linked modes
-        self._set_source_visibility(index in (4, 5))
         self.mode_changed.emit(index)
 
     def _update_mode_visibility(self):
-        """Toggle control visibility based on selected mode (HR10)."""
+        """Toggle control visibility based on selected mode (HR10).
+
+        For HR10, modes 0-1 (static/breathing) use the color wheel + RGB
+        controls.  Modes 2-5 hide them and may show the temp legend.
+        For non-HR10, all controls stay visible (C# behaviour).
+        """
         mode = self._current_mode
         show_color = mode in (0, 1)
         show_temp_legend = mode in (4, 5)
 
         self._color_wheel.setVisible(show_color)
-        self._color_swatch.setVisible(show_color)
         self._temp_legend.setVisible(show_temp_legend)
         self._temp_legend_labels.setVisible(show_temp_legend)
 
@@ -1210,8 +1224,6 @@ class UCLedControl(QWidget):
             slider.setVisible(show_color)
         for spinbox in self._rgb_spinboxes:
             spinbox.setVisible(show_color)
-        for lbl in self._rgb_labels:
-            lbl.setVisible(show_color)
         for btn in self._preset_buttons:
             btn.setVisible(show_color)
 
@@ -1225,14 +1237,12 @@ class UCLedControl(QWidget):
         r = self._rgb_sliders[0].value()
         g = self._rgb_sliders[1].value()
         b = self._rgb_sliders[2].value()
-        # Sync spinboxes without triggering their signals
         for i, val in enumerate([r, g, b]):
             self._rgb_spinboxes[i].blockSignals(True)
             self._rgb_spinboxes[i].setValue(val)
             self._rgb_spinboxes[i].blockSignals(False)
-        self._update_color_swatch()
+        self._sync_wheel_from_rgb(r, g, b)
         if self._is_hr10:
-            self._sync_wheel_from_rgb(r, g, b)
             self._seg_display.set_color(r, g, b)
         self.color_changed.emit(r, g, b)
 
@@ -1244,9 +1254,8 @@ class UCLedControl(QWidget):
         r = self._rgb_spinboxes[0].value()
         g = self._rgb_spinboxes[1].value()
         b = self._rgb_spinboxes[2].value()
-        self._update_color_swatch()
+        self._sync_wheel_from_rgb(r, g, b)
         if self._is_hr10:
-            self._sync_wheel_from_rgb(r, g, b)
             self._seg_display.set_color(r, g, b)
         self.color_changed.emit(r, g, b)
 
@@ -1259,9 +1268,8 @@ class UCLedControl(QWidget):
             self._rgb_spinboxes[i].blockSignals(True)
             self._rgb_spinboxes[i].setValue(val)
             self._rgb_spinboxes[i].blockSignals(False)
-        self._update_color_swatch()
+        self._sync_wheel_from_rgb(r, g, b)
         if self._is_hr10:
-            self._sync_wheel_from_rgb(r, g, b)
             self._seg_display.set_color(r, g, b)
         self.color_changed.emit(r, g, b)
 
@@ -1281,14 +1289,7 @@ class UCLedControl(QWidget):
         self.global_toggled.emit(on)
 
     def _update_color_swatch(self):
-        """Update the color preview swatch."""
-        r = self._rgb_sliders[0].value()
-        g = self._rgb_sliders[1].value()
-        b = self._rgb_sliders[2].value()
-        self._color_swatch.setStyleSheet(
-            f"background-color: rgb({r},{g},{b}); border: 2px solid #555; "
-            f"border-radius: 5px;"
-        )
+        """No-op — color swatch removed (color wheel shows selected hue)."""
 
     # -- HR10 display selection --
 
@@ -1428,62 +1429,12 @@ class UCLedControl(QWidget):
         self._btn_mon.setChecked(not is_sunday)
         self.week_start_changed.emit(is_sunday)
 
-    def _set_sensor_source(self, source: str):
-        """Handle CPU/GPU source toggle."""
-        self._sensor_source = source
-        self._btn_cpu.setChecked(source == "cpu")
-        self._btn_gpu.setChecked(source == "gpu")
-        self.sensor_source_changed.emit(source)
-
-    def _set_source_visibility(self, visible: bool):
-        """Show/hide sensor source selector."""
-        self._source_label.setVisible(visible)
-        self._btn_cpu.setVisible(visible)
-        self._btn_gpu.setVisible(visible)
-
     def _set_temp_unit_btn(self, is_fahrenheit: bool):
         """Handle °C/°F toggle button click."""
         self._btn_celsius.setChecked(not is_fahrenheit)
         self._btn_fahrenheit.setChecked(is_fahrenheit)
         self._temp_unit = "\u00b0F" if is_fahrenheit else "\u00b0C"
         self.temp_unit_changed.emit("F" if is_fahrenheit else "C")
-
-    # -- Info panel factory --
-
-    def _create_info_panel(self, bg_rect, defs, layout_fn):
-        """Create a labeled info panel (used for mem/disk panels).
-
-        Args:
-            bg_rect: (x, y, w, h) for background QFrame.
-            defs: List of (label_text, key, default_value) tuples.
-            layout_fn: (index, total) -> (name_x, name_y, val_x, val_y)
-
-        Returns:
-            (bg_frame, value_labels_dict, name_labels_list)
-        """
-        bg = QFrame(self)
-        bg.setGeometry(*bg_rect)
-        bg.setStyleSheet(_STYLE_INFO_BG)
-        bg.setVisible(False)
-
-        val_labels: Dict[str, QLabel] = {}
-        name_labels: List[QLabel] = []
-        for i, (label_text, key, default) in enumerate(defs):
-            name_x, name_y, val_x, val_y = layout_fn(i, len(defs))
-
-            name_lbl = QLabel(label_text, self)
-            name_lbl.setGeometry(name_x, name_y, 100, 20)
-            name_lbl.setStyleSheet(_STYLE_INFO_NAME)
-            name_lbl.setVisible(False)
-            name_labels.append(name_lbl)
-
-            val_lbl = QLabel(default, self)
-            val_lbl.setGeometry(val_x, val_y, 120, 20)
-            val_lbl.setStyleSheet(_STYLE_INFO_VALUE)
-            val_lbl.setVisible(False)
-            val_labels[key] = val_lbl
-
-        return bg, val_labels, name_labels
 
     # -- Visibility helpers --
 
@@ -1503,30 +1454,18 @@ class UCLedControl(QWidget):
         self._btn_celsius.setVisible(visible)
         self._btn_fahrenheit.setVisible(visible)
 
-    def _set_info_panel_visibility(self, bg, val_labels, name_labels,
-                                   visible: bool):
-        """Show/hide a labeled info panel created by _create_info_panel."""
-        bg.setVisible(visible)
-        for lbl in name_labels:
-            lbl.setVisible(visible)
-        for lbl in val_labels.values():
-            lbl.setVisible(visible)
-
     def _set_mem_visibility(self, visible: bool):
-        """Show/hide LC1 memory info labels."""
-        self._set_info_panel_visibility(
-            self._mem_bg, self._mem_labels, self._mem_name_labels, visible)
-        self._mem_identity.setVisible(visible)
-        self._ddr_label.setVisible(visible)
+        """Show/hide LC1 memory info panel (C# ucledMemoryInfo1)."""
+        self._mem_bg.setVisible(visible)
+        for lbl in self._mem_labels.values():
+            lbl.setVisible(visible)
         self._ddr_combo.setVisible(visible)
 
     def _set_disk_visibility(self, visible: bool):
-        """Show/hide LF11 disk info labels."""
-        self._set_info_panel_visibility(
-            self._disk_bg, self._disk_labels, self._disk_name_labels,
-            visible)
-        self._disk_identity.setVisible(visible)
-        self._disk_selector_label.setVisible(visible)
+        """Show/hide LF11 disk info panel (C# ucledHarddiskInfo1)."""
+        self._disk_bg.setVisible(visible)
+        for lbl in self._disk_labels.values():
+            lbl.setVisible(visible)
         self._disk_selector.setVisible(visible)
 
     # -- Sensor/memory/disk update methods --
@@ -1552,35 +1491,46 @@ class UCLedControl(QWidget):
             metrics.gpu_usage, f"{metrics.gpu_usage:.0f}", "%")
 
     def update_memory_metrics(self, metrics: HardwareMetrics) -> None:
-        """Update memory info labels (LC1 style 4)."""
-        self._mem_labels['mem_temp'].setText(f"{metrics.mem_temp:.0f} \u00b0C")
-        effective_clock = metrics.mem_clock * self._memory_ratio
-        self._mem_labels['mem_clock'].setText(f"{effective_clock:.0f} MT/s")
-        self._mem_labels['mem_used'].setText(f"{metrics.mem_percent:.1f}%")
+        """Update memory info labels (LC1 style 4, C# UCLEDMemoryInfo)."""
+        unit = self._temp_unit
+        t = metrics.mem_temp
+        if unit == "\u00b0F":
+            t = t * 9 / 5 + 32
+        if t == 0:
+            self._mem_labels['mem_temp'].setText("NC")
+        else:
+            self._mem_labels['mem_temp'].setText(
+                f"{t:.0f}\u2103" if unit == "\u00b0C" else f"{t:.0f}\u2109")
+        mhz = metrics.mem_clock
+        self._mem_labels['mem_clock'].setText(
+            f"{mhz:.0f}MHz" if mhz else "NC")
+        effective = mhz * self._memory_ratio
+        self._mem_labels['mem_mts'].setText(
+            f"{effective:.0f}MT/S" if mhz else "NC")
+        # C# shows MemUsed/1000 in GB — derive from available + percent
+        if metrics.mem_percent > 0 and metrics.mem_available > 0:
+            total = metrics.mem_available / (1.0 - metrics.mem_percent / 100.0)
+            used_gb = (total - metrics.mem_available) / 1000.0
+            self._mem_labels['mem_used'].setText(f"{used_gb:.1f}GB")
+        else:
+            self._mem_labels['mem_used'].setText("NC")
+        ratio = self._memory_ratio
+        self._mem_labels['mem_ratio'].setText(f"{ratio}X")
 
     def _populate_memory_identity(self) -> None:
-        """Fetch and display DRAM identity info (C# UCLEDMemoryInfo)."""
+        """Populate memory timing labels from DRAM SPD info."""
         try:
             from ..services.system import SystemService
             self._mem_slots = SystemService.get_memory_info()
             if self._mem_slots:
-                self._show_memory_slot(self._mem_slots[0])
+                s = self._mem_slots[0]
+                for key in ('mem_tcas', 'mem_trcd', 'mem_trp',
+                            'mem_tras', 'mem_trc', 'mem_trfc'):
+                    field = key.replace('mem_t', 't').replace('mem_', '')
+                    val = s.get(field, '')
+                    self._mem_labels[key].setText(str(val) if val else "NC")
         except Exception:
             self._mem_slots = []
-
-    def _show_memory_slot(self, s: dict) -> None:
-        """Format and display a single DIMM slot's info."""
-        line1 = [s.get('manufacturer', ''), s.get('part_number', '')]
-        line2 = [s.get('type', ''), s.get('size', ''),
-                 s.get('speed', ''), s.get('form_factor', '')]
-        # Add rank and voltage if available
-        if s.get('rank') and s['rank'] != 'Unknown':
-            line2.append(f"Rank {s['rank']}")
-        if s.get('configured_voltage') and s['configured_voltage'] != 'Unknown':
-            line2.append(s['configured_voltage'])
-        top = ' '.join(p for p in line1 if p and p != 'Unknown')
-        bot = ' | '.join(p for p in line2 if p and p != 'Unknown')
-        self._mem_identity.setText(f"{top}\n{bot}" if top else bot)
 
     def _on_ddr_changed(self, index: int) -> None:
         """Handle DDR multiplier combo selection."""
@@ -1598,51 +1548,44 @@ class UCLedControl(QWidget):
         self._ddr_combo.blockSignals(False)
 
     def _populate_disk_identity(self) -> None:
-        """Fetch and display disk identity info (C# UCLEDHarddiskInfo).
-
-        Also populates the disk selector dropdown.
-        """
+        """Populate disk selector dropdown (C# ucComboBoxC)."""
         try:
             from ..services.system import SystemService
             self._disk_slots = SystemService.get_disk_info()
 
-            # Populate selector dropdown
             self._disk_selector.blockSignals(True)
             self._disk_selector.clear()
             for d in self._disk_slots:
-                label = d.get('name', d.get('model', '?'))
-                self._disk_selector.addItem(label)
+                name = d.get('name', d.get('model', '?'))
+                # C# shows name up to '(' character
+                if '(' in name:
+                    name = name[:name.index('(') - 1]
+                self._disk_selector.addItem(name)
             self._disk_selector.blockSignals(False)
-
-            if self._disk_slots:
-                self._show_disk_slot(self._disk_slots[0])
         except Exception:
             self._disk_slots = []
 
     def _on_disk_selected(self, idx: int) -> None:
-        """Handle disk selector change — update identity label and emit signal."""
-        if 0 <= idx < len(self._disk_slots):
-            self._show_disk_slot(self._disk_slots[idx])
+        """Handle disk selector change — emit signal."""
         self.disk_index_changed.emit(idx)
 
-    def _show_disk_slot(self, d: dict) -> None:
-        """Format and display a single disk's info."""
-        parts = [d.get('model', ''), d.get('size', ''), d.get('type', '')]
-        health = d.get('health')
-        if health:
-            parts.append(f"SMART: {health}")
-        self._disk_identity.setText(' | '.join(p for p in parts if p))
-
     def update_lf11_disk_metrics(self, metrics: HardwareMetrics) -> None:
-        """Update disk info labels (LF11 style 10)."""
-        self._disk_labels['lf11_disk_temp'].setText(
-            f"{metrics.disk_temp:.0f} \u00b0C")
+        """Update disk info labels (LF11 style 10, C# UCLEDHarddiskInfo)."""
+        unit = self._temp_unit
+        t = metrics.disk_temp
+        if unit == "\u00b0F":
+            t = t * 9 / 5 + 32
+        if t == 0:
+            self._disk_labels['lf11_disk_temp'].setText("NC")
+        else:
+            self._disk_labels['lf11_disk_temp'].setText(
+                f"{t:.0f}\u2103" if unit == "\u00b0C" else f"{t:.0f}\u2109")
         self._disk_labels['lf11_disk_usage'].setText(
             f"{metrics.disk_activity:.0f}%")
         self._disk_labels['lf11_disk_read'].setText(
-            f"{metrics.disk_read:.1f} MB/s")
+            f"{metrics.disk_read:.0f}MB/S")
         self._disk_labels['lf11_disk_write'].setText(
-            f"{metrics.disk_write:.1f} MB/s")
+            f"{metrics.disk_write:.0f}MB/S")
 
     # ================================================================
     # Styles
@@ -1650,28 +1593,25 @@ class UCLedControl(QWidget):
 
     @staticmethod
     def _mode_button_style(active: bool) -> str:
+        # Fallback when mode button images (D2灯光) don't load.
+        # Transparent background — the background PNG has button visuals.
         if active:
             return (
-                "QPushButton { background: #2196F3; color: white; "
-                "border: 2px solid #42A5F5; border-radius: 6px; "
-                "font-weight: bold; font-size: 11px; }"
+                "QPushButton { background: rgba(33, 150, 243, 60); "
+                "color: transparent; border: none; }"
             )
         return (
-            "QPushButton { background: #444; color: white; "
-            "border: 1px solid #666; border-radius: 6px; "
-            "font-size: 11px; }"
-            "QPushButton:checked { background: #2196F3; "
-            "border: 2px solid #42A5F5; font-weight: bold; }"
-            "QPushButton:hover { background: #555; }"
+            "QPushButton { background: transparent; color: transparent; "
+            "border: none; }"
+            "QPushButton:checked { background: rgba(33, 150, 243, 60); }"
+            "QPushButton:hover { background: rgba(255, 255, 255, 20); }"
         )
 
     @staticmethod
     def _display_button_style() -> str:
         return (
-            "QPushButton { background: #3a3a3a; color: #ccc; "
-            "border: 1px solid #555; border-radius: 6px; "
-            "font-size: 11px; padding: 6px; }"
-            "QPushButton:checked { background: #2a2a2a; color: #ff6b6b; "
-            "border: 2px solid #ff6b6b; font-weight: bold; }"
-            "QPushButton:hover { background: #4a4a4a; }"
+            "QPushButton { background: transparent; color: transparent; "
+            "border: none; }"
+            "QPushButton:checked { background: rgba(33, 150, 243, 60); }"
+            "QPushButton:hover { background: rgba(255, 255, 255, 20); }"
         )

@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.0.8"
+__version__ = "5.0.9"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -235,3 +235,12 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          non-square images 90° CW before encoding (LCD panel is physically
 #          portrait-mounted). Both fixes match C# FormCZTV.ImageTo565()
 #          exactly. Addresses #28 color/rotation reports. 2372 tests.
+# 5.0.9  - Match C# FormLED exactly: wire all image assets (D3 preset colors,
+#          D4 zone buttons, D3旋钮 color wheel, Alogout power button, P点选框
+#          checkboxes for °C/°F and LC2 clock), exact pixel positions from C#
+#          InitializeComponent. Fix GPU rotation for LED segment display (#19).
+#          Fix LF13 background (D0rgblf13→D0LF13 for localization). Fix sensor
+#          gauge visibility (show for LC2/LF13 matching C#). Rewrite memory/disk
+#          info panels to C# UCLEDMemoryInfo/UCLEDHarddiskInfo layout (transparent
+#          bg, golden text, exact label positions). Remove Linux-only Source:
+#          CPU/GPU toggle. HR10 renders as standard LED panel. 2372 tests.

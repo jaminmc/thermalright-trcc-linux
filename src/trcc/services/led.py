@@ -167,11 +167,6 @@ class LEDService:
         """Set CPU/GPU source for temp/load linked modes and segment cycling."""
         self.state.temp_source = source
         self.state.load_source = source
-        # Reset phase to first allowed phase when source changes
-        if self._segment_mode and self._seg_display:
-            self._seg_phase = self._first_allowed_phase()
-            self._seg_tick_count = 0
-            self._update_segment_mask()
 
     def set_seg_temp_unit(self, unit: str) -> None:
         """Set temperature unit for segment display ('C' or 'F')."""
@@ -240,7 +235,7 @@ class LEDService:
             self._seg_tick_count += 1
             if self._seg_tick_count >= self._seg_phase_ticks:
                 self._seg_tick_count = 0
-                self._seg_phase = self._next_allowed_phase()
+                self._seg_phase = self._next_phase()
             self._update_segment_mask()
 
         if self.state.zone_count > 1 and self.state.zones:
@@ -417,30 +412,10 @@ class LEDService:
 
     # ── Segment display (all styles 1-11) ────────────────────────
 
-    def _next_allowed_phase(self) -> int:
-        """Advance to next phase that matches the selected sensor source."""
+    def _next_phase(self) -> int:
+        """Advance to the next segment display phase (round-robin)."""
         total = self._seg_display.phase_count
-        for offset in range(1, total + 1):
-            candidate = (self._seg_phase + offset) % total
-            if self._phase_allowed(candidate):
-                return candidate
         return (self._seg_phase + 1) % total
-
-    def _first_allowed_phase(self) -> int:
-        """Find the first phase matching the selected sensor source."""
-        total = self._seg_display.phase_count
-        for phase in range(total):
-            if self._phase_allowed(phase):
-                return phase
-        return 0
-
-    def _phase_allowed(self, phase: int) -> bool:
-        """Check if a phase matches the current sensor source filter."""
-        source = self.state.temp_source
-        phase_src = self._seg_display.phase_source(phase)
-        if phase_src == "other":
-            return True
-        return phase_src == source
 
     def _update_segment_mask(self) -> None:
         """Recompute segment mask from current metrics + rotation phase.
