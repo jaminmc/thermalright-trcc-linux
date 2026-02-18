@@ -167,10 +167,12 @@ A big thanks to everyone who has contributed invaluable reports to this project:
 - **[michael-spinelli](https://github.com/michael-spinelli)** — Assassin Spirit 120 Vision ARGB HID testing
 - **[gizbo](https://github.com/gizbo)** — FROZEN WARFRAME SCSI color bug report
 - **[hexskrew](https://github.com/hexskrew)** — Assassin X 120R Digital ARGB HID testing
+- **[javisaman](https://github.com/javisaman)** — Phantom Spirit 120 Digital EVO LED testing & GPU phase validation
 - **[Rizzzolo](https://github.com/Rizzzolo)** — Phantom Spirit 120 Digital EVO hardware testing
 - **[apj202-ops](https://github.com/apj202-ops)** — Frozen Warframe SE HID testing
 - **[Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS)** — Frozen Warframe 360 HID testing
 - **[edoargo1996](https://github.com/edoargo1996)** — Frozen Warframe 360 HID testing
+- **[stephendesmond1-cmd](https://github.com/stephendesmond1-cmd)** — Frozen Warframe 360 HID Type 2 testing
 
 ## License
 
