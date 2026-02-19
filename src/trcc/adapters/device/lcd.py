@@ -150,8 +150,8 @@ class LCDDriver:
             raise RuntimeError("No implementation loaded")
 
         width, height = self.implementation.resolution
-        byte_order = ImageService.byte_order_for('scsi',
-                                                 self.implementation.resolution)
+        byte_order = ImageService.byte_order_for(
+            'scsi', self.implementation.resolution, self.implementation.fbl)
         pixel = ImageService.rgb_to_bytes(r, g, b, byte_order)
         return pixel * (width * height)
 
@@ -165,7 +165,7 @@ class LCDDriver:
             width, height = self.implementation.resolution
             img = Image.open(path).convert('RGB').resize((width, height))
             byte_order = ImageService.byte_order_for(
-                'scsi', self.implementation.resolution)
+                'scsi', self.implementation.resolution, self.implementation.fbl)
             data = bytearray()
             for y in range(height):
                 for x in range(width):

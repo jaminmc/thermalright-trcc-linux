@@ -117,11 +117,11 @@ class ImageService:
         pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
         return struct.pack(f'{byte_order}H', pixel)
 
-    # SCSI resolutions that use big-endian RGB565 (SPIMode=2).
-    # C#: myDeviceMode==1 && fbl==51 → myDeviceSPIMode=2.
-    # FBL 100/101/102 → 320x320 (is320x320), FBL 51 → 320x240 (SPIMode=2).
+    # SCSI resolutions that use big-endian RGB565 (is320x320 in C#).
+    # FBL 100/101/102 → 320x320 → big-endian.
+    # FBL 51 → 320x240 also big-endian (SPIMode=2), but handled via fbl param.
     # FBL 50 → 320x240 does NOT trigger SPIMode=2 (little-endian).
-    _SCSI_BIG_ENDIAN = {(320, 320), (320, 240)}
+    _SCSI_BIG_ENDIAN = {(320, 320)}
 
     # Square resolutions that skip the 90° device pre-rotation.
     # C# ImageTo565: (is240x240 || is320x320 || is480x480) → use directionB directly.
@@ -129,20 +129,22 @@ class ImageService:
     _SQUARE_NO_ROTATE = {(240, 240), (320, 320), (480, 480)}
 
     @staticmethod
-    def byte_order_for(protocol: str, resolution: tuple[int, int]) -> str:
+    def byte_order_for(protocol: str, resolution: tuple[int, int],
+                       fbl: int | None = None) -> str:
         """Determine RGB565 byte order for a device.
 
         C# ImageTo565 byte-order logic:
           - is320x320 (FBL 100/101/102) → big-endian
-          - myDeviceSPIMode==2 → big-endian (SCSI mode 1 + FBL 51,
-            or HID mode 3 + FBL 53 which also resolves to 320x320)
+          - myDeviceSPIMode==2 → big-endian (SCSI mode 1 + FBL 51)
           - else → little-endian
 
-        SCSI: big-endian for 320x320 and 320x240, little-endian otherwise.
-        HID/Bulk: big-endian only for 320x320 (is320x320 check), little-endian
-        otherwise.  HID Type 2 at 320x240 does NOT set myDeviceSPIMode=2.
+        SCSI: big-endian for 320x320 (FBL 100/101/102) and FBL 51 (320x240
+        SPIMode=2).  FBL 50 → 320x240 does NOT trigger SPIMode=2 → little-endian.
+        HID/Bulk: big-endian only for 320x320 (is320x320 in C#).
         """
         if protocol == 'scsi':
+            if fbl == 51:  # SPIMode=2: 320x240 big-endian
+                return '>'
             return '>' if resolution in ImageService._SCSI_BIG_ENDIAN else '<'
         # HID/Bulk: only 320x320 uses big-endian (is320x320 in C#)
         return '>' if resolution == (320, 320) else '<'

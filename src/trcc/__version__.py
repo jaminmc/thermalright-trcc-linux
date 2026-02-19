@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.2.3"
+__version__ = "5.3.0"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -293,3 +293,9 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          to RGB565 with hardcoded 240x320 header — firmware silently ignored
 #          frames. Now both paths extract fbl from handshake result. Reported
 #          by @Zeltergiest in #35. 2288 tests.
+# 5.3.0  - Full end-to-end data flow audit: fix API always using RGB565
+#          (now delegates to send_pil for JPEG/RGB565 routing, pre-rotation,
+#          byte order), fix SCSI FBL 50 byte order (320x240 little-endian,
+#          not big-endian — only FBL 51 triggers SPIMode=2), propagate FBL
+#          to all byte_order_for() callers (device.py, display.py, lcd.py).
+#          API also propagates fbl_code from handshake. 2291 tests.

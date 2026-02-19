@@ -539,7 +539,7 @@ class DisplayService:
 
         # C# ImageTo565: non-square displays rotate +90° CW before encoding.
         img = ImageService.apply_device_rotation(img, resolution)
-        byte_order = ImageService.byte_order_for(protocol, resolution)
+        byte_order = ImageService.byte_order_for(protocol, resolution, fbl)
         data = ImageService.to_rgb565(img, byte_order)
         log.debug("_encode_for_device: %dx%d mode=%s order=%s → RGB565 %d bytes",
                   img.width, img.height, img.mode, byte_order, len(data))

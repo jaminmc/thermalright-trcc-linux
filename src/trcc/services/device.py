@@ -178,7 +178,7 @@ class DeviceService:
 
         # C# ImageTo565: non-square displays rotate +90° CW before encoding.
         image = ImageService.apply_device_rotation(image, resolution)
-        byte_order = ImageService.byte_order_for(protocol, resolution)
+        byte_order = ImageService.byte_order_for(protocol, resolution, fbl)
         return self.send_image(image, width, height, byte_order)
 
     def send_rgb565_async(self, data: bytes, width: int, height: int) -> None:

@@ -135,7 +135,7 @@ class TestSendImage(unittest.TestCase):
         _device_svc._devices = [self.dev]
         _device_svc._selected = None
 
-    @patch.object(_device_svc, 'send_rgb565', return_value=True)
+    @patch.object(_device_svc, 'send_pil', return_value=True)
     def test_send_image_success(self, mock_send):
         img = Image.new('RGB', (100, 100), (255, 0, 0))
         buf = io.BytesIO()
@@ -150,7 +150,7 @@ class TestSendImage(unittest.TestCase):
         self.assertTrue(resp.json()["sent"])
         mock_send.assert_called_once()
 
-    @patch.object(_device_svc, 'send_rgb565', return_value=False)
+    @patch.object(_device_svc, 'send_pil', return_value=False)
     def test_send_image_failure(self, mock_send):
         img = Image.new('RGB', (100, 100), (0, 0, 255))
         buf = io.BytesIO()
@@ -192,7 +192,7 @@ class TestSendImage(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
-    @patch.object(_device_svc, 'send_rgb565', return_value=True)
+    @patch.object(_device_svc, 'send_pil', return_value=True)
     def test_send_with_rotation(self, mock_send):
         img = Image.new('RGB', (100, 100), (0, 255, 0))
         buf = io.BytesIO()
@@ -204,6 +204,38 @@ class TestSendImage(unittest.TestCase):
             files={"image": ("test.png", buf, "image/png")},
         )
         self.assertEqual(resp.status_code, 200)
+
+
+    @patch.object(_device_svc, 'send_pil', return_value=True)
+    def test_send_propagates_fbl_from_handshake(self, mock_send):
+        """Handshake fbl_code propagates to DeviceInfo for JPEG mode detection."""
+        dev = DeviceInfo(name="HID", path="hid:0416:5302", vid=0x0416, pid=0x5302,
+                         protocol="hid", resolution=(0, 0))
+        _device_svc._devices = [dev]
+
+        mock_result = MagicMock()
+        mock_result.resolution = (1280, 480)
+        mock_result.fbl = 128
+        mock_result.model_id = 128
+
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory') as mock_factory:
+            mock_protocol = MagicMock()
+            mock_protocol.handshake.return_value = mock_result
+            mock_factory.get_protocol.return_value = mock_protocol
+
+            img = Image.new('RGB', (100, 100), (255, 0, 0))
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            buf.seek(0)
+
+            resp = self.client.post(
+                "/devices/0/send",
+                files={"image": ("test.png", buf, "image/png")},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(dev.fbl_code, 128)
+            self.assertEqual(dev.resolution, (1280, 480))
+            mock_send.assert_called_once()
 
 
 class TestThemesEndpoint(unittest.TestCase):
