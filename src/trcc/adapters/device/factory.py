@@ -313,6 +313,7 @@ class HidProtocol(DeviceProtocol):
     def _do_handshake(self) -> Optional[HandshakeResult]:
         """Open HID transport and perform type-specific handshake."""
         self._ensure_transport()
+        assert self._transport is not None
 
         from .hid import HidDeviceType2, HidDeviceType3
         if self._device_type == 2:
@@ -340,6 +341,7 @@ class HidProtocol(DeviceProtocol):
         def _do_send() -> bool:
             from .hid import HidDeviceManager
             self._ensure_transport()
+            assert self._transport is not None
             return HidDeviceManager.send_image(
                 self._transport, image_data, self._device_type
             )
@@ -427,6 +429,7 @@ class LedProtocol(DeviceProtocol):
         """
         def _do_send() -> bool:
             self._ensure_transport()
+            assert self._transport is not None
 
             if self._sender is None:
                 from .led import LedHidSender
@@ -458,6 +461,7 @@ class LedProtocol(DeviceProtocol):
             return self._handshake_result
 
         self._ensure_transport()
+        assert self._transport is not None
 
         if self._sender is None:
             from .led import LedHidSender
