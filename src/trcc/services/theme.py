@@ -13,8 +13,16 @@ from typing import Any
 
 from ..adapters.infra.data_repository import ThemeDir
 from ..core.models import ThemeData, ThemeInfo, ThemeType
+from .image import ImageService
 
 log = logging.getLogger(__name__)
+
+
+def _copy_flat_files(src: Path, dest: Path) -> None:
+    """Copy all files (not subdirs) from src to dest."""
+    for f in src.iterdir():
+        if f.is_file():
+            shutil.copy2(str(f), str(dest / f.name))
 
 
 class ThemeService:
@@ -392,27 +400,17 @@ class ThemeService:
         if dest.exists():
             shutil.rmtree(dest)
         dest.mkdir(parents=True, exist_ok=True)
-        for f in src.iterdir():
-            if f.is_file():
-                shutil.copy2(str(f), str(dest / f.name))
+        _copy_flat_files(src, dest)
 
     @staticmethod
     def _open_image(path: Path, w: int, h: int) -> Any:
         """Open and resize an image to LCD dimensions."""
-        from PIL import Image
-
-        img = Image.open(path)
-        img = img.resize((w, h), Image.Resampling.LANCZOS)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        return img
+        return ImageService.open_and_resize(path, w, h)
 
     @staticmethod
     def _black_image(w: int, h: int) -> Any:
         """Create a black background image."""
-        from PIL import Image
-
-        return Image.new('RGB', (w, h), (0, 0, 0))
+        return ImageService.solid_color(0, 0, 0, w, h)
 
     @staticmethod
     def _load_dc_display_options(dc_path: Path, w: int, h: int) -> dict:

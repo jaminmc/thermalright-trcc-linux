@@ -20,7 +20,7 @@ from .device import DeviceService
 from .image import ImageService
 from .media import MediaService
 from .overlay import OverlayService
-from .theme import ThemeService
+from .theme import ThemeService, _copy_flat_files
 
 log = logging.getLogger(__name__)
 
@@ -277,10 +277,7 @@ class DisplayService:
             return None
 
         self._mask_source_dir = mask_dir
-
-        for f in mask_dir.iterdir():
-            if f.is_file():
-                shutil.copy2(str(f), str(self.working_dir / f.name))
+        _copy_flat_files(mask_dir, self.working_dir)
 
         wd = ThemeDir(self.working_dir)
         self.overlay.load_from_dc(wd.dc)
@@ -305,12 +302,7 @@ class DisplayService:
     def _load_static_image(self, path: Path) -> None:
         """Load and resize a static image to LCD dimensions."""
         try:
-            from PIL import Image
-            img = Image.open(path)
-            img = img.resize(self.lcd_size, Image.Resampling.LANCZOS)
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
-            self.current_image = img
+            self.current_image = ImageService.open_and_resize(path, *self.lcd_size)
         except Exception as e:
             log.error("Failed to load image: %s", e)
 
@@ -324,11 +316,7 @@ class DisplayService:
 
     def _create_black_background(self) -> None:
         """Create black background for mask-only themes."""
-        try:
-            from PIL import Image
-            self.current_image = Image.new('RGB', self.lcd_size, (0, 0, 0))
-        except Exception as e:
-            log.error("Failed to create background: %s", e)
+        self.current_image = ImageService.solid_color(0, 0, 0, *self.lcd_size)
 
     # ── Mask loading ──────────────────────────────────────────────────
 
@@ -375,9 +363,7 @@ class DisplayService:
     def _copy_to_working_dir(self, source: Path) -> None:
         """Copy theme files to working dir."""
         self._clear_working_dir()
-        for f in source.iterdir():
-            if f.is_file():
-                shutil.copy2(str(f), str(self.working_dir / f.name))
+        _copy_flat_files(source, self.working_dir)
 
     # ── Rendering ─────────────────────────────────────────────────────
 

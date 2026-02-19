@@ -23,6 +23,15 @@ from trcc.core.models import HandshakeResult, fbl_to_resolution, pm_to_fbl
 
 log = logging.getLogger(__name__)
 
+
+def _find_vendor_interface(cfg):
+    """Prefer vendor-specific interface (bInterfaceClass=255), fallback to (0,0)."""
+    for candidate in cfg:
+        if candidate.bInterfaceClass == 255:  # type: ignore[union-attr]
+            return candidate
+    return cfg[(0, 0)]  # type: ignore[index]
+
+
 # Handshake payload: 64 bytes from USBLCDNew ThreadSendDeviceData
 _HANDSHAKE_PAYLOAD = bytes([
     0x12, 0x34, 0x56, 0x78, 0, 0, 0, 0, 0, 0,
@@ -150,14 +159,7 @@ class BulkDevice(FrameDevice):
                 dev.set_configuration()  # type: ignore[union-attr]
             cfg = dev.get_active_configuration()  # type: ignore[union-attr]
 
-        # Prefer vendor-specific interface (bInterfaceClass=255)
-        intf = None
-        for candidate in cfg:
-            if candidate.bInterfaceClass == 255:  # type: ignore[union-attr]
-                intf = candidate
-                break
-        if intf is None:
-            intf = cfg[(0, 0)]  # type: ignore[index]
+        intf = _find_vendor_interface(cfg)
 
         try:
             usb.util.claim_interface(dev, intf.bInterfaceNumber)  # type: ignore[union-attr]
@@ -189,13 +191,7 @@ class BulkDevice(FrameDevice):
                     pass
             # Re-acquire configuration and interface after reset
             cfg = dev.get_active_configuration()  # type: ignore[union-attr]
-            intf = None
-            for candidate in cfg:
-                if candidate.bInterfaceClass == 255:  # type: ignore[union-attr]
-                    intf = candidate
-                    break
-            if intf is None:
-                intf = cfg[(0, 0)]  # type: ignore[index]
+            intf = _find_vendor_interface(cfg)
             usb.util.claim_interface(dev, intf.bInterfaceNumber)  # type: ignore[union-attr]
 
         self._ep_out = usb.util.find_descriptor(

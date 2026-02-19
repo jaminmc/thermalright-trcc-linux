@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.3.1"
+__version__ = "5.3.2"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -305,3 +305,9 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          matching C# (LC2 and LF13 are zone-less). Fresh GAPS.md rewrite
 #          from 4-agent cross-reference audit of all doc/audit files vs code.
 #          2291 tests.
+# 5.3.2  - DRY refactor: extract shared helpers from duplicate code patterns.
+#          factory.py: _guarded_send() (4 send methods), _ensure_transport() +
+#          _close_transport() (HID/LED), _build_usb_protocol_info() (3 get_info).
+#          services: ImageService.open_and_resize(), _copy_flat_files() helper,
+#          black image → ImageService.solid_color(). bulk.py: _find_vendor_interface().
+#          7 patterns deduped across 5 files, net -22 lines. 2291 tests.

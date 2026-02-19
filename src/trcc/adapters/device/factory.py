@@ -191,6 +191,42 @@ class DeviceProtocol(ABC):
         if self.on_state_changed:
             self.on_state_changed(key, value)
 
+    def _guarded_send(self, label: str, fn: Callable[[], bool]) -> bool:
+        """Execute a send operation with error handling and observer notification."""
+        try:
+            success = fn()
+            self._notify_send_complete(success)
+            return success
+        except Exception as e:
+            self._notify_error(f"{label} send failed: {e}")
+            self._notify_send_complete(False)
+            return False
+
+    @staticmethod
+    def _build_usb_protocol_info(
+        protocol: str, device_type: int, protocol_display: str,
+        device_type_display: str, transport_open: bool,
+        *, pyusb_only: bool = False,
+    ) -> 'ProtocolInfo':
+        """Build ProtocolInfo for USB-transport protocols (HID, LED, Bulk)."""
+        backends = DeviceProtocolFactory._get_hid_backends()
+        if pyusb_only:
+            active = "pyusb" if backends["pyusb"] else "none"
+        elif backends["pyusb"]:
+            active = "pyusb"
+        elif backends["hidapi"]:
+            active = "hidapi"
+        else:
+            active = "none"
+        backends["sg_raw"] = False
+        return ProtocolInfo(
+            protocol=protocol, device_type=device_type,
+            protocol_display=protocol_display,
+            device_type_display=device_type_display,
+            active_backend=active, backends=backends,
+            transport_open=transport_open,
+        )
+
 
 # =========================================================================
 # ScsiProtocol — SCSI/sg_raw implementation
@@ -213,16 +249,12 @@ class ScsiProtocol(DeviceProtocol):
         return dev.handshake()
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
-        try:
-            from .scsi import send_image_to_device
-            log.debug("SCSI send: %d bytes to %s (%dx%d)", len(image_data), self._path, width, height)
-            success = send_image_to_device(self._path, image_data, width, height)
-            self._notify_send_complete(success)
-            return success
-        except Exception as e:
-            self._notify_error(f"SCSI send failed ({self._path}): {e}")
-            self._notify_send_complete(False)
-            return False
+        from .scsi import send_image_to_device
+        log.debug("SCSI send: %d bytes to %s (%dx%d)", len(image_data), self._path, width, height)
+        return self._guarded_send(
+            f"SCSI ({self._path})",
+            lambda: send_image_to_device(self._path, image_data, width, height),
+        )
 
     def close(self) -> None:
         pass  # SCSI uses subprocess per call, nothing to release
@@ -270,13 +302,17 @@ class HidProtocol(DeviceProtocol):
         self._device_type = device_type
         self._transport = None
 
-    def _do_handshake(self) -> Optional[HandshakeResult]:
-        """Open HID transport and perform type-specific handshake."""
+    def _ensure_transport(self) -> None:
+        """Lazily open USB transport on first use."""
         if self._transport is None:
             log.debug("Opening HID transport: %04X:%04X (type %d)", self._vid, self._pid, self._device_type)
             self._transport = self._create_transport()
             self._transport.open()
             self._notify_state_changed("transport_open", True)
+
+    def _do_handshake(self) -> Optional[HandshakeResult]:
+        """Open HID transport and perform type-specific handshake."""
+        self._ensure_transport()
 
         from .hid import HidDeviceType2, HidDeviceType3
         if self._device_type == 2:
@@ -301,23 +337,16 @@ class HidProtocol(DeviceProtocol):
         return f"HID {self._vid:04X}:{self._pid:04X} type {self._device_type}"
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
-        try:
+        def _do_send() -> bool:
             from .hid import HidDeviceManager
-            if self._transport is None:
-                self._transport = self._create_transport()
-                self._transport.open()
-                self._notify_state_changed("transport_open", True)
-            success = HidDeviceManager.send_image(
+            self._ensure_transport()
+            return HidDeviceManager.send_image(
                 self._transport, image_data, self._device_type
             )
-            self._notify_send_complete(success)
-            return success
-        except Exception as e:
-            self._notify_error(f"HID send failed: {e}")
-            self._notify_send_complete(False)
-            return False
+        return self._guarded_send("HID", _do_send)
 
-    def close(self) -> None:
+    def _close_transport(self) -> None:
+        """Close USB transport and notify observers."""
         if self._transport is not None:
             try:
                 self._transport.close()
@@ -326,26 +355,14 @@ class HidProtocol(DeviceProtocol):
             self._transport = None
             self._notify_state_changed("transport_open", False)
 
+    def close(self) -> None:
+        self._close_transport()
+
     def get_info(self) -> 'ProtocolInfo':
-        backends = DeviceProtocolFactory._get_hid_backends()
-        if backends["pyusb"]:
-            active = "pyusb"
-        elif backends["hidapi"]:
-            active = "hidapi"
-        else:
-            active = "none"
-        backends["sg_raw"] = False
-        return ProtocolInfo(
-            protocol="hid",
-            device_type=self._device_type,
-            protocol_display="HID (USB bulk)",
-            device_type_display=DEVICE_TYPE_NAMES.get(
-                self._device_type, f"Type {self._device_type}"
-            ),
-            active_backend=active,
-            backends=backends,
-            transport_open=self._transport is not None
-                           and getattr(self._transport, 'is_open', False),
+        return self._build_usb_protocol_info(
+            "hid", self._device_type, "HID (USB bulk)",
+            DEVICE_TYPE_NAMES.get(self._device_type, f"Type {self._device_type}"),
+            self._transport is not None and getattr(self._transport, 'is_open', False),
         )
 
     def _create_transport(self):
@@ -408,11 +425,8 @@ class LedProtocol(DeviceProtocol):
         Returns:
             True if the send succeeded.
         """
-        try:
-            if self._transport is None:
-                self._transport = self._create_transport()
-                self._transport.open()
-                self._notify_state_changed("transport_open", True)
+        def _do_send() -> bool:
+            self._ensure_transport()
 
             if self._sender is None:
                 from .led import LedHidSender
@@ -423,29 +437,27 @@ class LedProtocol(DeviceProtocol):
             # Remap logical LED order → physical wire order (per-style).
             hr = self._handshake_result
             style = getattr(hr, 'style', None) if hr else None
-            if style:
-                led_colors = remap_led_colors(led_colors, style.style_id)
+            remapped = remap_led_colors(led_colors, style.style_id) if style else led_colors
 
             packet = LedPacketBuilder.build_led_packet(
-                led_colors, is_on, global_on, brightness
+                remapped, is_on, global_on, brightness
             )
-            success = self._sender.send_led_data(packet)
-            self._notify_send_complete(success)
-            return success
-        except Exception as e:
-            self._notify_error(f"LED send failed: {e}")
-            self._notify_send_complete(False)
-            return False
+            return self._sender.send_led_data(packet)
+        return self._guarded_send("LED", _do_send)
+
+    def _ensure_transport(self) -> None:
+        """Lazily open USB transport on first use."""
+        if self._transport is None:
+            self._transport = self._create_transport()
+            self._transport.open()
+            self._notify_state_changed("transport_open", True)
 
     def _do_handshake(self) -> Optional[HandshakeResult]:
         """LED handshake — cached after first call (firmware ignores re-handshakes)."""
         if self._handshake_result is not None:
             return self._handshake_result
 
-        if self._transport is None:
-            self._transport = self._create_transport()
-            self._transport.open()
-            self._notify_state_changed("transport_open", True)
+        self._ensure_transport()
 
         if self._sender is None:
             from .led import LedHidSender
@@ -459,34 +471,24 @@ class LedProtocol(DeviceProtocol):
     def _handshake_label(self) -> str:
         return f"LED {self._vid:04X}:{self._pid:04X}"
 
-    def close(self) -> None:
+    def _close_transport(self) -> None:
+        """Close USB transport and notify observers."""
         if self._transport is not None:
             try:
                 self._transport.close()
             except Exception:
                 pass
             self._transport = None
-            self._sender = None
             self._notify_state_changed("transport_open", False)
 
+    def close(self) -> None:
+        self._close_transport()
+        self._sender = None
+
     def get_info(self) -> 'ProtocolInfo':
-        backends = DeviceProtocolFactory._get_hid_backends()
-        if backends["pyusb"]:
-            active = "pyusb"
-        elif backends["hidapi"]:
-            active = "hidapi"
-        else:
-            active = "none"
-        backends["sg_raw"] = False
-        return ProtocolInfo(
-            protocol="led",
-            device_type=1,
-            protocol_display="LED (HID 64-byte)",
-            device_type_display="RGB LED Controller",
-            active_backend=active,
-            backends=backends,
-            transport_open=self._transport is not None
-                           and getattr(self._transport, 'is_open', False),
+        return self._build_usb_protocol_info(
+            "led", 1, "LED (HID 64-byte)", "RGB LED Controller",
+            self._transport is not None and getattr(self._transport, 'is_open', False),
         )
 
     def _create_transport(self):
@@ -551,16 +553,11 @@ class BulkProtocol(DeviceProtocol):
         return f"Bulk {self._vid:04X}:{self._pid:04X}"
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
-        try:
+        def _do_send() -> bool:
             self._ensure_device()
             assert self._device is not None
-            success = self._device.send_frame(image_data)
-            self._notify_send_complete(success)
-            return success
-        except Exception as e:
-            self._notify_error(f"Bulk send failed: {e}")
-            self._notify_send_complete(False)
-            return False
+            return self._device.send_frame(image_data)
+        return self._guarded_send("Bulk", _do_send)
 
     def close(self) -> None:
         if self._device is not None:
@@ -571,17 +568,9 @@ class BulkProtocol(DeviceProtocol):
             self._device = None
 
     def get_info(self) -> 'ProtocolInfo':
-        backends = DeviceProtocolFactory._get_hid_backends()
-        active = "pyusb" if backends["pyusb"] else "none"
-        backends["sg_raw"] = False
-        return ProtocolInfo(
-            protocol="bulk",
-            device_type=4,
-            protocol_display="USB Bulk (USBLCDNew)",
-            device_type_display="Raw USB Bulk LCD",
-            active_backend=active,
-            backends=backends,
-            transport_open=self._device is not None,
+        return self._build_usb_protocol_info(
+            "bulk", 4, "USB Bulk (USBLCDNew)", "Raw USB Bulk LCD",
+            self._device is not None, pyusb_only=True,
         )
 
     @property

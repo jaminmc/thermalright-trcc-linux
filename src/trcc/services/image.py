@@ -112,6 +112,15 @@ class ImageService:
         return img.resize((w, h), PILImage.Resampling.LANCZOS)
 
     @staticmethod
+    def open_and_resize(path: Any, w: int, h: int) -> Any:
+        """Open image file, resize to target dimensions, ensure RGB mode."""
+        img = PILImage.open(path)
+        img = img.resize((w, h), PILImage.Resampling.LANCZOS)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        return img
+
+    @staticmethod
     def rgb_to_bytes(r: int, g: int, b: int, byte_order: str = '>') -> bytes:
         """Convert single RGB pixel to RGB565 bytes."""
         pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
