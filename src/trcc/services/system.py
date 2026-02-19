@@ -405,9 +405,10 @@ class SystemService:
     @staticmethod
     def _fallback_mem_clock() -> Optional[float]:
         """Memory clock via dmidecode / lshw / EDAC."""
+        from trcc.adapters.system.hardware import _privileged_cmd
         try:
             result = subprocess.run(
-                ['dmidecode', '-t', 'memory'],
+                _privileged_cmd('dmidecode', ['-t', 'memory']),
                 capture_output=True, text=True, timeout=5,
             )
             if result.returncode == 0:

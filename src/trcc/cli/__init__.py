@@ -434,6 +434,12 @@ def _cmd_setup_selinux() -> int:
     return _system.setup_selinux()
 
 
+@app.command("setup-polkit")
+def _cmd_setup_polkit() -> int:
+    """Install polkit policy for passwordless dmidecode/smartctl."""
+    return _system.setup_polkit()
+
+
 @app.command("install-desktop")
 def _cmd_install_desktop() -> int:
     """Install application menu entry and icon."""
@@ -627,6 +633,7 @@ class SystemCommands:
     show_info = staticmethod(_system.show_info)
     setup_udev = staticmethod(_system.setup_udev)
     setup_selinux = staticmethod(_system.setup_selinux)
+    setup_polkit = staticmethod(_system.setup_polkit)
     install_desktop = staticmethod(_system.install_desktop)
     uninstall = staticmethod(_system.uninstall)
     report = staticmethod(_system.report)

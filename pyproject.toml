@@ -109,6 +109,7 @@ artifacts = [
     "**/assets/**/*.TTC",
     "**/assets/**/*.desktop",
     "**/assets/**/*.service",
+    "**/assets/**/*.policy",
     "**/assets/**/*.svg",
 ]
 

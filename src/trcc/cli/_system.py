@@ -329,6 +329,35 @@ def install_desktop():
     return 0
 
 
+@_cli_handler
+def setup_polkit():
+    """Install polkit policy for passwordless dmidecode/smartctl access.
+
+    Copies the shipped policy XML to /usr/share/polkit-1/actions/ so that
+    active desktop sessions can run dmidecode and smartctl without a
+    password prompt. Requires root.
+    """
+    import shutil
+
+    if os.geteuid() != 0:
+        return _sudo_reexec("setup-polkit")
+
+    # Package root: __file__ is trcc/cli/_system.py — parent.parent = trcc/
+    pkg_root = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    policy_src = pkg_root / "assets" / "com.github.lexonight1.trcc.policy"
+
+    if not policy_src.exists():
+        print(f"Policy file not found: {policy_src}")
+        return 1
+
+    policy_dst = Path("/usr/share/polkit-1/actions/com.github.lexonight1.trcc.policy")
+    policy_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(policy_src, policy_dst)
+    print(f"Installed {policy_dst}")
+    print("Active sessions can now run dmidecode/smartctl without a password.")
+    return 0
+
+
 def uninstall(*, yes: bool = False):
     """Remove all TRCC config, udev rules, autostart, and desktop files."""
     import shutil
@@ -344,6 +373,7 @@ def uninstall(*, yes: bool = False):
     root_files = [
         "/etc/udev/rules.d/99-trcc-lcd.rules",
         "/etc/modprobe.d/trcc-lcd.conf",
+        "/usr/share/polkit-1/actions/com.github.lexonight1.trcc.policy",
     ]
 
     # User files/dirs to remove
@@ -458,6 +488,7 @@ def run_setup(auto_yes: bool = False) -> int:
     from trcc.adapters.infra.doctor import (
         check_desktop_entry,
         check_gpu,
+        check_polkit,
         check_selinux,
         check_system_deps,
         check_udev,
@@ -469,8 +500,8 @@ def run_setup(auto_yes: bool = False) -> int:
 
     actions: list[str] = []
 
-    # -- Step 1/5: System dependencies --
-    print("  Step 1/5: System dependencies")
+    # -- Step 1/6: System dependencies --
+    print("  Step 1/6: System dependencies")
     deps = check_system_deps(info.pkg_manager)
     missing_required: list[str] = []
     missing_optional: list[str] = []
@@ -508,8 +539,8 @@ def run_setup(auto_yes: bool = False) -> int:
 
     print()
 
-    # -- Step 2/5: GPU detection --
-    print("  Step 2/5: GPU detection")
+    # -- Step 2/6: GPU detection --
+    print("  Step 2/6: GPU detection")
     gpus = check_gpu()
     if not gpus:
         print("    [--]  No discrete GPU detected")
@@ -532,8 +563,8 @@ def run_setup(auto_yes: bool = False) -> int:
                     print(f"    [!!] pip failed (exit {result.returncode})")
     print()
 
-    # -- Step 3/5: USB device permissions --
-    print("  Step 3/5: USB device permissions")
+    # -- Step 3/6: USB device permissions --
+    print("  Step 3/6: USB device permissions")
     udev = check_udev()
     if udev.ok:
         print(f"    [OK]  {udev.message}")
@@ -549,10 +580,10 @@ def run_setup(auto_yes: bool = False) -> int:
                 print("    [!!] udev setup failed")
     print()
 
-    # -- Step 4/5: SELinux policy --
+    # -- Step 4/6: SELinux policy --
     se = check_selinux()
     if se.enforcing:
-        print("  Step 4/5: SELinux policy")
+        print("  Step 4/6: SELinux policy")
         if se.ok:
             print(f"    [OK]  {se.message}")
         else:
@@ -567,8 +598,25 @@ def run_setup(auto_yes: bool = False) -> int:
                     print("    [!!] SELinux setup failed")
         print()
 
-    # -- Step 5/5: Desktop integration --
-    print("  Step 5/5: Desktop integration")
+    # -- Step 5/6: Polkit policy (dmidecode/smartctl) --
+    print("  Step 5/6: Hardware info access")
+    pk = check_polkit()
+    if pk.ok:
+        print(f"    [OK]  {pk.message}")
+    else:
+        print(f"    [--]  {pk.message}")
+        if _confirm(
+            "Install polkit policy for hardware info? (requires sudo)", auto_yes,
+        ):
+            rc = setup_polkit()
+            if rc == 0:
+                actions.append("Installed polkit policy")
+            else:
+                print("    [!!] polkit setup failed")
+    print()
+
+    # -- Step 6/6: Desktop integration --
+    print("  Step 6/6: Desktop integration")
     if check_desktop_entry():
         print("    [OK]  Application menu entry installed")
     else:

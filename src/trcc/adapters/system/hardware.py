@@ -5,6 +5,8 @@ Used by LED memory/disk info panels (C# UCLEDMemoryInfo, UCLEDHarddiskInfo).
 """
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from typing import Optional
 
@@ -16,12 +18,28 @@ _DMI_MEMORY_FIELDS = {
     'minimum_voltage', 'maximum_voltage', 'memory_technology',
 }
 
+_POLKIT_POLICY = '/usr/share/polkit-1/actions/com.github.lexonight1.trcc.policy'
+
+
+def _privileged_cmd(binary: str, args: list[str]) -> list[str]:
+    """Build command with pkexec elevation when polkit policy is installed.
+
+    If running as root already, call the binary directly.
+    If polkit policy exists, use pkexec for passwordless elevation.
+    Otherwise, call directly (will fail silently if root is needed).
+    """
+    if os.geteuid() == 0:
+        return [binary] + args
+    if os.path.isfile(_POLKIT_POLICY) and shutil.which('pkexec'):
+        return ['pkexec', binary] + args
+    return [binary] + args
+
 
 def get_memory_info() -> list[dict[str, str]]:
     """Get DRAM slot info (C# UCLEDMemoryInfo fields).
 
-    Returns one dict per populated DIMM slot. Requires dmidecode (root)
-    for full info; falls back to psutil for basic totals.
+    Returns one dict per populated DIMM slot. Uses pkexec for dmidecode
+    when polkit policy is installed; falls back to psutil for basic totals.
 
     Fields from dmidecode Type 17: manufacturer, part_number, type (DDR4/5),
     speed, configured_memory_speed, size, form_factor (DIMM/SODIMM),
@@ -30,7 +48,7 @@ def get_memory_info() -> list[dict[str, str]]:
     slots: list[dict[str, str]] = []
     try:
         result = subprocess.run(
-            ['dmidecode', '-t', 'memory'],
+            _privileged_cmd('dmidecode', ['-t', 'memory']),
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0:
@@ -90,7 +108,7 @@ def get_disk_info() -> list[dict[str, str]]:
                     'size': dev.get('size', 'Unknown'),
                     'type': disk_type,
                 }
-                # Try SMART health (requires root or udev rule)
+                # Try SMART health (uses pkexec if polkit policy installed)
                 health = _get_smart_health(dev['name'])
                 if health:
                     disk['health'] = health
@@ -104,7 +122,7 @@ def _get_smart_health(dev_name: str) -> Optional[str]:
     """Get SMART health status via smartctl. Returns 'PASSED'/'FAILED' or None."""
     try:
         result = subprocess.run(
-            ['smartctl', '-H', f'/dev/{dev_name}'],
+            _privileged_cmd('smartctl', ['-H', f'/dev/{dev_name}']),
             capture_output=True, text=True, timeout=5,
         )
         for line in result.stdout.splitlines():

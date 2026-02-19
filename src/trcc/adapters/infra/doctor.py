@@ -643,6 +643,21 @@ def _selinux_usb_access_allowed() -> bool:
         return False
 
 
+@dataclass
+class PolkitResult:
+    """Result of polkit policy check."""
+    ok: bool
+    message: str
+
+
+def check_polkit() -> PolkitResult:
+    """Check if TRCC polkit policy is installed for passwordless dmidecode/smartctl."""
+    policy_path = '/usr/share/polkit-1/actions/com.github.lexonight1.trcc.policy'
+    if os.path.isfile(policy_path):
+        return PolkitResult(ok=True, message='polkit policy installed')
+    return PolkitResult(ok=False, message='polkit policy not installed (dmidecode needs sudo)')
+
+
 def check_desktop_entry() -> bool:
     """Check if .desktop file is installed."""
     from pathlib import Path
@@ -722,6 +737,15 @@ def run_doctor() -> int:
             print(f"  {_MISS}  {se.message}")
             print("         run: sudo trcc setup-selinux")
             all_ok = False
+
+    # Polkit policy
+    print()
+    pk = check_polkit()
+    if pk.ok:
+        print(f"  {_OK}  {pk.message}")
+    else:
+        print(f"  {_OPT}  {pk.message}")
+        print("         run: trcc setup (or sudo trcc setup-polkit)")
 
     # Summary
     print()
