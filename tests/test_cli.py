@@ -1539,6 +1539,56 @@ class TestGetService(unittest.TestCase):
             _get_service(device_path='/dev/sg99')
         svc.select.assert_called_once_with(dev)
 
+    def test_handshake_sets_fbl_code_hid(self):
+        """HID handshake propagates fbl_code to device."""
+        dev = _make_device_info(
+            path='hid:0416:5302', protocol='hid', resolution=(0, 0),
+            device_type=2, implementation='hid_type2',
+        )
+        svc = MagicMock()
+        svc.devices = [dev]
+        svc.selected = dev
+        svc.detect.return_value = [dev]
+
+        mock_result = MagicMock()
+        mock_result.resolution = (1280, 480)
+        mock_result.fbl = 128
+        mock_result.model_id = 128
+
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.return_value = mock_result
+
+        with patch('trcc.services.DeviceService', return_value=svc), \
+             patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            _get_service()
+
+        self.assertEqual(dev.resolution, (1280, 480))
+        self.assertEqual(dev.fbl_code, 128)
+
+    def test_handshake_sets_fbl_code_scsi(self):
+        """SCSI handshake propagates model_id as fbl_code."""
+        dev = _make_device_info(path='/dev/sg0', resolution=(0, 0))
+        svc = MagicMock()
+        svc.devices = [dev]
+        svc.selected = dev
+        svc.detect.return_value = [dev]
+
+        mock_result = MagicMock(spec=[])  # no .fbl attribute
+        mock_result.resolution = (320, 240)
+        mock_result.model_id = 50
+
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.return_value = mock_result
+
+        with patch('trcc.services.DeviceService', return_value=svc), \
+             patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            _get_service()
+
+        self.assertEqual(dev.resolution, (320, 240))
+        self.assertEqual(dev.fbl_code, 50)
+
 
 # ---------------------------------------------------------------------------
 # Brightness / Rotation

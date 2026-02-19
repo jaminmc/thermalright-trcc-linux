@@ -36,16 +36,21 @@ def _get_service(device_path: Optional[str] = None):
             if match:
                 svc.select(match)
 
-    # Discover resolution via handshake if not yet known
+    # Discover resolution + FBL via handshake if not yet known
     dev = svc.selected
     if dev and dev.resolution == (0, 0):
         try:
             from trcc.adapters.device.factory import DeviceProtocolFactory
             protocol = DeviceProtocolFactory.get_protocol(dev)
             result = protocol.handshake()
-            res = getattr(result, 'resolution', None) if result else None
-            if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
-                dev.resolution = res
+            if result:
+                res = getattr(result, 'resolution', None)
+                if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
+                    dev.resolution = res
+                # Propagate FBL code for JPEG mode detection
+                fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
+                if fbl:
+                    dev.fbl_code = fbl
         except Exception:
             pass  # Handshake may fail if device not ready
 

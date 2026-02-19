@@ -1,6 +1,6 @@
 """TRCC Linux version information."""
 
-__version__ = "5.2.2"
+__version__ = "5.2.3"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
@@ -287,3 +287,9 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #          to trcc hid-debug: sends solid red frame + reports encoding, header,
 #          packet size, transfer result. Add SCSI raw poll bytes to trcc report
 #          (was missing vs HID/LED/Bulk). Addresses #36. 2286 tests.
+# 5.2.3  - Fix fbl_code not propagated from handshake: CLI _get_service()
+#          and GUI _start_handshake() copied resolution but dropped FBL code,
+#          so JPEG-mode HID devices (FBLs 54, 114, 128, 192, 224) fell through
+#          to RGB565 with hardcoded 240x320 header — firmware silently ignored
+#          frames. Now both paths extract fbl from handshake result. Reported
+#          by @Zeltergiest in #35. 2288 tests.

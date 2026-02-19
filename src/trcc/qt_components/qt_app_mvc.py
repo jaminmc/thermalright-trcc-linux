@@ -1158,23 +1158,35 @@ class TRCCMainWindowMVC(QMainWindow):
                 from ..adapters.device.factory import DeviceProtocolFactory
                 protocol = DeviceProtocolFactory.get_protocol(device)
                 result = protocol.handshake()
-                resolution = getattr(result, 'resolution', None) if result else None
-                self._handshake_done.emit(device, resolution)
+                if result:
+                    resolution = getattr(result, 'resolution', None)
+                    fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
+                    self._handshake_done.emit(device, (resolution, fbl))
+                else:
+                    self._handshake_done.emit(device, None)
             except Exception as e:
                 log.warning("Background handshake failed: %s", e)
                 self._handshake_done.emit(device, None)
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_handshake_done(self, device: DeviceInfo, resolution: tuple | None):
+    def _on_handshake_done(self, device: DeviceInfo, handshake_data: tuple | None):
         """Handle handshake result on the main thread."""
+        if not handshake_data:
+            log.warning("Handshake failed for %s — no response", device.path)
+            self.uc_preview.set_status("Handshake failed — replug device and restart")
+            return
+
+        resolution, fbl = handshake_data
         if not resolution or resolution == (0, 0):
             log.warning("Handshake failed for %s — no resolution", device.path)
             self.uc_preview.set_status("Handshake failed — replug device and restart")
             return
 
-        log.info("Handshake OK: %s → %s", device.path, resolution)
+        log.info("Handshake OK: %s → %s (FBL=%s)", device.path, resolution, fbl)
         device.resolution = resolution
+        if fbl:
+            device.fbl_code = fbl
         self._apply_device_config(device, *resolution)
 
     def _apply_device_config(self, device: DeviceInfo, w: int, h: int):
