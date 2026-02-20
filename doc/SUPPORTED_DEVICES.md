@@ -12,46 +12,37 @@ These devices have been tested on real hardware and confirmed working with TRCC 
 | FROZEN MAGIC PRO | SCSI (87CD:70DB) | 320x320 | Developer |
 | FROZEN VISION V2 | SCSI (87CD:70DB) | 320x320 | Developer |
 | FROZEN WARFRAME | SCSI (0402:3922) | 320x320 | Developer |
-| FROZEN WARFRAME SE | SCSI (0402:3922) | 320x320 | Developer |
+| FROZEN WARFRAME SE | HID (0416:5302) | 320x240 | [apj202-ops](https://github.com/apj202-ops) |
+| FROZEN WARFRAME 360 | HID (0416:5302) | — | [Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS), [stephendesmond1-cmd](https://github.com/stephendesmond1-cmd) |
 | LC1, LC2, LC3, LC5 | SCSI (0416:5406) | 320x320 | Developer |
-| GrandVision 360 AIO | Bulk (87AD:70DB) | 480x480 | [bipobuilt](https://github.com/bipobuilt) |
+| GrandVision 360 AIO | Bulk (87AD:70DB) | 480x480 | [bipobuilt](https://github.com/bipobuilt), [cadeon](https://github.com/cadeon) |
 | Mjolnir Vision 360 | Bulk (87AD:70DB) | 480x480 | [Pikarz](https://github.com/Pikarz) |
-| Trofeo Vision LCD | HID (0416:5302) | 1280x480 | [PantherX12max](https://github.com/PantherX12max) |
+| Wonder Vision Pro 360 | Bulk (87AD:70DB) | — | [Civilgrain](https://github.com/Civilgrain) |
+| Trofeo Vision LCD | HID (0416:5302) | 1280x480 | [PantherX12max](https://github.com/PantherX12max), [N8ghtz](https://github.com/N8ghtz) |
+| Assassin Spirit 120 Vision ARGB | HID (0416:5302) | 240x240 | [michael-spinelli](https://github.com/michael-spinelli), [acioannina-wq](https://github.com/acioannina-wq) |
 
 ### LED + Segment Display (RGB Fan Control, Temperature Readout)
 
 | Product | Connection | Tested By |
 |---------|-----------|-----------|
-| HR10 2280 PRO Digital | HID (0416:8001) | [Lcstyle](https://github.com/Lcstyle) |
 | AX120 Digital | HID (0416:8001) | [shadowepaxeor-glitch](https://github.com/shadowepaxeor-glitch), [hexskrew](https://github.com/hexskrew) |
+| Assassin X 120R Digital ARGB | HID (0416:8001) | [hexskrew](https://github.com/hexskrew) |
 | Peerless Assassin 120 Digital ARGB White | HID (0416:8001) | [Xentrino](https://github.com/Xentrino) |
-| Phantom Spirit 120 Digital EVO | HID (0416:8001) | [javisaman](https://github.com/javisaman) |
+| Phantom Spirit 120 Digital EVO | HID (0416:8001) | [javisaman](https://github.com/javisaman), [Rizzzolo](https://github.com/Rizzzolo) |
 
 ---
 
-## In Progress (Tester-Reported, Fixes Pending)
+## Open Issues (Awaiting Reporter Confirmation)
 
-These devices have been reported by testers and are being actively debugged.
-
-### HID LCD Devices
+These devices have reported issues that have been addressed in recent releases. Awaiting testers to confirm on latest version.
 
 | Product | Connection | Issue | Status |
 |---------|-----------|-------|--------|
-| Frozen Warframe 360 | HID (0416:5302) | [#28](https://github.com/Lexonight1/thermalright-trcc-linux/issues/28) | Color + rotation fix in v5.0.8, awaiting confirmation |
-| Assassin Spirit 120 Vision ARGB | HID (0416:5302) | [#16](https://github.com/Lexonight1/thermalright-trcc-linux/issues/16) | Same fix as #28 (v5.0.8), awaiting confirmation |
-| Assassin Spirit 120 Vision | HID (0416:5302) | [#32](https://github.com/Lexonight1/thermalright-trcc-linux/issues/32) | Udev setup needed, awaiting response |
-
-### SCSI Devices
-
-| Product | Connection | Issue | Status |
-|---------|-----------|-------|--------|
-| FROZEN WARFRAME 240 | SCSI (0402:3922) | [#17](https://github.com/Lexonight1/thermalright-trcc-linux/issues/17) | FBL=100 mismatch (320x320 vs 320x240 panel), investigating |
-
-### LED Devices
-
-| Product | Connection | Issue | Status |
-|---------|-----------|-------|--------|
-| PA120 Digital | HID (0416:8001) | [#15](https://github.com/Lexonight1/thermalright-trcc-linux/issues/15) | Display turns off after 10s, investigating |
+| FROZEN WARFRAME 240 | SCSI (0402:3922) | [#17](https://github.com/Lexonight1/thermalright-trcc-linux/issues/17) | Resolution + chunk size fix in v6.0.1, awaiting confirmation |
+| Frozen Warframe SE | HID (0416:5302) | [#24](https://github.com/Lexonight1/thermalright-trcc-linux/issues/24) | FBL resolution fix in v6.0.6, awaiting confirmation |
+| Mjolnir Vision 360 | Bulk (87AD:70DB) | [#22](https://github.com/Lexonight1/thermalright-trcc-linux/issues/22) | GIF persistence after reboot — video fix in v6.0.2, awaiting confirmation |
+| Trofeo Vision | HID (0416:5302) | [#34](https://github.com/Lexonight1/thermalright-trcc-linux/issues/34) | Video bg persistence fix in v6.0.2, awaiting confirmation |
+| PA120 Digital | HID (0416:8001) | [#15](https://github.com/Lexonight1/thermalright-trcc-linux/issues/15) | LED segment fixes in v5.0.7+, nudged to v6.0.1 |
 
 ---
 

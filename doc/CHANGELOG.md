@@ -1,5 +1,47 @@
 # Changelog
 
+## v6.0.6
+
+### FBL Resolution Table Completion
+- **Fixed**: Triple/overlapping images on Frozen Warframe SE (PM=58, FBL=58) — FBL 58 was missing from `FBL_TO_RESOLUTION` table, defaulting to 320x320 instead of 320x240. Wrong resolution cascaded into: no pre-rotation (square displays skip it), big-endian byte order (320x320 triggers it for HID), and 33% too much pixel data sent. Addresses #24.
+- **Added**: FBL 53 → (320, 240) with big-endian byte order (HID Type 3 SPIMode=2) — completes FBL table to full C# parity (16 entries)
+- 2349 tests across 34 files
+
+## v6.0.5
+
+### LED Circulate Rotation & Color Fix
+- **Fixed**: LED circulate not rotating zones — `zone_sync_zones` was never initialized in `configure_for_style()`, stayed empty, so zone toggles during circulate silently failed
+- **Fixed**: Color/mode not applied during circulate — C# uses global `rgbR1`/`myLedMode` for non-2/7 styles (zones only drive segment data rotation, not LED color), but `tick()` was reading per-zone color
+- **Fixed**: Color/mode routing to always set global state (C# always sets `rgbR1`/`G1`/`B1` + per-zone)
+- 2349 tests across 34 files
+
+## v6.0.4
+
+### LED Circulate Zone Buttons
+- **Fixed**: Zone buttons now toggle zones in/out when circulate is active (C# radio-select sets clicked zone, user adds more by clicking buttons)
+- **Fixed**: Interval input fires on every keystroke (`textChanged`, not `editingFinished`), default 2 seconds matching C#
+- **Fixed**: Accurate seconds-to-ticks formula (`round(s*1000/150ms)`)
+- **Fixed**: Zone uncheck guard (can't disable last zone)
+- **Fixed**: Select All not propagating mode changes to all zones (PA120/LF10)
+- **Fixed**: `zone_sync_interval` default (36→13 ticks = 2 seconds)
+- 2349 tests across 34 files
+
+## v6.0.3
+
+### LF13 & PA120 Segment Fixes
+- **Fixed**: LF13 (style 12) LED preview — DLF13 overlay had opaque black center covering the LED color fill, made center transparent so colors show through
+- **Fixed**: LF13 mode numbering — rainbow image shown for Temp Linked (mode 4) instead of Rainbow (mode 3) due to C# 1-based vs our 0-based mode indexing
+- **Fixed**: PA120 segment display indices — off-by-one from C# (indicators at 2-8 instead of 0-9, digits starting at 9 instead of 10). GPU indicators SSD1/HSD1/BFB1 were aliased to CPU indices — now have own positions. Zone coverage 81→84/84.
+- **Improved**: LED test harness — real LEDService for segment rendering, zone-aware signal wiring matching LEDHandler
+- 2349 tests across 34 files
+
+## v6.0.2
+
+### Video Persistence & CLI Error Handling
+- **Fixed**: Video background not persisting after reboot — `ThemeService.save()` stored video path pointing to temp dir (`/tmp/trcc_work_*/Theme.zt`), now copies video into theme directory as `Theme.zt` so it survives reboots. Addresses #34.
+- **Improved**: CLI graceful errors — catch typos and usage errors (missing args, bad types, unknown commands) with clean one-liner + "Did you mean?" suggestions instead of Python tracebacks
+- 2349 tests across 34 files
+
 ## v6.0.1
 
 ### CLI Dispatchers & Metrics Observer

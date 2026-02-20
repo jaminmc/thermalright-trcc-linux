@@ -1,6 +1,6 @@
 # Device Testing Guide
 
-All 4 protocols (SCSI, HID, LED, Bulk) are implemented with **2291 automated tests**. Several HID/LED devices have been validated by testers. If you have a device not listed below, please help test.
+All 4 protocols (SCSI, HID, LED, Bulk) are implemented with **2349 automated tests**. Several HID/LED devices have been validated by testers. If you have a device not listed below, please help test.
 
 ## Supported HID Devices
 

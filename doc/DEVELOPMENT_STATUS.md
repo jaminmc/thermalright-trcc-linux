@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.0.3 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 6.0.0
+**Current version:** 6.0.6
 **Branch:** `main`
-**Tests:** 2306 across 34 files
+**Tests:** 2349 across 34 files
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable
@@ -22,7 +22,7 @@ All features are tested and working on the `main` branch:
 - **REST API** — optional FastAPI adapter for headless/remote control (`trcc serve`)
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **96% test coverage** — 2306 tests across 34 test files
+- **96% test coverage** — 2349 tests across 34 test files
 
 ### Supported Devices
 
@@ -30,9 +30,8 @@ All features are tested and working on the `main` branch:
 | USB ID | Devices |
 |--------|---------|
 | `87CD:70DB` | FROZEN HORIZON PRO, FROZEN MAGIC PRO, FROZEN VISION V2, CORE VISION, ELITE VISION, AK120, AX120, PA120 DIGITAL, Wonder Vision |
-| `87AD:70DB` | GrandVision 360 AIO, Mjolnir Vision 360 |
 | `0416:5406` | LC1, LC2, LC3, LC5 (AIO pump heads) |
-| `0402:3922` | FROZEN WARFRAME, FROZEN WARFRAME SE |
+| `0402:3922` | FROZEN WARFRAME, FROZEN WARFRAME 360, FROZEN WARFRAME SE |
 
 **HID LCD devices** — auto-detected:
 | USB ID | Devices |
@@ -56,7 +55,7 @@ All features are tested and working on the `main` branch:
 | # | Item | Status |
 |---|------|--------|
 | 1 | Full GUI port of Windows TRCC 2.0.3 | Done |
-| 2 | Test coverage 96%+ | Done (2306 tests) |
+| 2 | Test coverage 96%+ | Done (2349 tests) |
 | 3 | CI/CD (GitHub Actions) | Done |
 | 4 | Type checking (pyright basic) | Done |
 | 5 | Cross-distro compatibility | Done |
