@@ -150,18 +150,20 @@ class ImageService:
 
         C# ImageTo565 byte-order logic:
           - is320x320 (FBL 100/101/102) → big-endian
-          - myDeviceSPIMode==2 → big-endian (SCSI mode 1 + FBL 51)
+          - myDeviceSPIMode==2 → big-endian (SCSI FBL 51, HID Type 3 FBL 53)
           - else → little-endian
 
         SCSI: big-endian for 320x320 (FBL 100/101/102) and FBL 51 (320x240
         SPIMode=2).  FBL 50 → 320x240 does NOT trigger SPIMode=2 → little-endian.
-        HID/Bulk: big-endian only for 320x320 (is320x320 in C#).
+        HID/Bulk: big-endian for 320x320 (is320x320) and FBL 53 (SPIMode=2).
         """
         if protocol == 'scsi':
             if fbl == 51:  # SPIMode=2: 320x240 big-endian
                 return '>'
             return '>' if resolution in ImageService._SCSI_BIG_ENDIAN else '<'
-        # HID/Bulk: only 320x320 uses big-endian (is320x320 in C#)
+        # HID/Bulk: 320x320 or FBL 53 (Type 3 SPIMode=2) → big-endian
+        if fbl == 53:
+            return '>'
         return '>' if resolution == (320, 320) else '<'
 
     @staticmethod
