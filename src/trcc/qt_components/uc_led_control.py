@@ -1185,6 +1185,33 @@ class UCLedControl(QWidget):
 
     # -- Sensor/memory/disk update methods --
 
+    def update_metrics(self, metrics: HardwareMetrics) -> None:
+        """Observer callback — dispatch metrics to visible sub-widgets.
+
+        Single entry point: caller doesn't need to know which style
+        uses which update method. Panel owns the routing.
+        """
+        if self._style_id not in (4, 10):
+            self.update_sensor_metrics(metrics)
+        if self._style_id == 4:
+            self.update_memory_metrics(metrics)
+        elif self._style_id == 10:
+            self.update_lf11_disk_metrics(metrics)
+        elif self._style_id == 9:
+            self._update_clock()
+
+    def _update_clock(self) -> None:
+        """LC2 clock display — reads own timer state, no external args."""
+        import datetime
+        now = datetime.datetime.now()
+        hour = now.hour
+        if not self._is_timer_24h and hour > 12:
+            hour -= 12
+        dow = now.weekday()
+        if self._is_week_sunday:
+            dow = (dow + 1) % 7
+        self._preview.set_timer(now.month, now.day, hour, now.minute, dow)
+
     def update_sensor_metrics(self, metrics: HardwareMetrics) -> None:
         """Update UCInfoImage sensor gauges."""
         unit = self._temp_unit

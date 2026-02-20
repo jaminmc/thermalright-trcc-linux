@@ -244,29 +244,8 @@ class LEDHandler:
             metrics = get_all_metrics()
         except Exception:
             return
-
         self._controller.update_metrics(metrics)
-        panel = self._panel
-        style = self._style_id
-
-        if style in (1, 2, 3, 5, 6, 7, 8, 11):
-            panel.update_sensor_metrics(metrics)
-        if style == 4:
-            panel.update_memory_metrics(metrics)
-        if style == 10:
-            panel.update_lf11_disk_metrics(metrics)
-        if style == 9:
-            import datetime
-            now = datetime.datetime.now()
-            state = self._controller.state
-            hour = now.hour
-            if not state.is_timer_24h and hour > 12:
-                hour -= 12
-            dow = now.weekday()
-            if state.is_week_sunday:
-                dow = (dow + 1) % 7
-            self._panel._preview.set_timer(
-                now.month, now.day, hour, now.minute, dow)
+        self._panel.update_metrics(metrics)
 
     # ── LED colors ──────────────────────────────────────────────────
 

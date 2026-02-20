@@ -4,7 +4,7 @@
 
 The project follows hexagonal architecture. The **services layer** is the core hexagon containing all business logic (pure Python, no framework deps). Four driving adapters consume the services:
 
-- **CLI** (`cli/` package) — Typer, 39 commands across 6 submodules
+- **CLI** (`cli/` package) — Typer, 39 commands across 6 submodules. `LEDDispatcher` + `DisplayDispatcher` classes are the single authority for programmatic LED/LCD operations — return result dicts, never print. CLI functions are thin presentation wrappers. GUI and API can import dispatchers directly.
 - **GUI** (`qt_components/`) — PySide6, controllers in `core/` call services
 - **API** (`api.py`) — FastAPI REST adapter (optional `[api]` extra)
 - **Setup GUI** (`install/gui.py`) — Standalone PySide6 setup wizard
@@ -98,6 +98,17 @@ src/trcc/
 
 Controllers in `core/` are Facades — `LCDDeviceController` orchestrates 4 services (theme, device, overlay, media), `LEDDeviceController` wraps `LEDService`. Views subscribe via callbacks. All business logic lives in `services/`, making it possible to swap frontends (CLI, GUI, API all use the same services). Law of Demeter: GUI→Facade→Services only.
 
+### Metrics Observer
+
+`UCLedControl.update_metrics(metrics)` is the single entry point for hardware metrics. The panel dispatches internally based on `style_id`:
+
+- Styles 1-3, 5-8, 11-12: `update_sensor_metrics()` (CPU/GPU temp, load, fan)
+- Style 4: `update_memory_metrics()` (RAM/VRAM usage)
+- Style 10: `update_lf11_disk_metrics()` (disk usage, SMART)
+- Style 9: `_update_clock()` (LC2 date/time — reads own timer state, no external args)
+
+Callers (`qt_app_mvc._poll_sensors()`, test harnesses) just pass metrics — zero routing knowledge needed. This is the Observer pattern: provider emits, subscriber dispatches.
+
 ### Per-Device Configuration
 
 Each connected LCD is identified by `"{index}:{vid:04x}_{pid:04x}"` (e.g. `"0:87cd_70db"`). Settings are stored in `~/.config/trcc/config.json` under a `"devices"` key. Each device independently persists:
@@ -126,9 +137,14 @@ The `DeviceProtocolFactory` in `device_factory.py` routes devices to the correct
 
 - **SCSI devices** → `ScsiProtocol` (sg_raw) — LCD displays
 - **HID LCD devices** → `HidProtocol` (PyUSB/HIDAPI) — LCD displays via HID
+- **Bulk USB devices** → `BulkProtocol` (PyUSB) — LCD displays via raw USB bulk
 - **HID LED devices** → `LedProtocol` (PyUSB/HIDAPI) — RGB LED controllers
 
-The GUI auto-routes LED devices to `UCLedControl` (LED panel) instead of the LCD form. `LEDDeviceController` manages LED effects with a 30ms animation timer, matching Windows FormLED. The unified LED panel handles all device styles (1-12).
+The GUI auto-routes LED devices to `UCLedControl` (LED panel) instead of the LCD form. `LEDDeviceController` manages LED effects with a 150ms animation timer, matching Windows FormLED. The unified LED panel handles all device styles (1-12).
+
+### CLI Dispatchers
+
+`LEDDispatcher` and `DisplayDispatcher` in `cli/` are the programmatic API for LED and LCD operations. They return structured result dicts (`{"success": bool, "message": str, ...}`) and never print — callers decide how to present results. CLI functions are thin wrappers that print + exit. GUI and API can import dispatchers directly for the same operations without parsing CLI output.
 
 ### Shared UI Base Classes
 

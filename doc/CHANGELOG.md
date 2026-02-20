@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.0.1
+
+### CLI Dispatchers & Metrics Observer
+- **New**: `LEDDispatcher` + `DisplayDispatcher` classes — single authority for programmatic LED/LCD operations. Return result dicts (never print). CLI functions are thin presentation wrappers. GUI and API can import dispatchers directly.
+- **New**: `--preview` / `-p` flag on all LCD and LED CLI commands — renders ANSI true-color art in terminal for headless/SSH users (`ImageService.to_ansi()`, `LEDService.zones_to_ansi()`)
+- **New**: `UCLedControl.update_metrics()` — Observer pattern. Panel subscribes to metrics and dispatches to style-specific update methods internally. `qt_app_mvc._poll_sensors()` reduced from 15-line if/elif chain to 2 lines.
+- **New**: LED visual test harness (`tests/test_led_panel_visual.py`) — standalone Qt app for testing all 12 LED device styles with live metrics, device buttons, index overlay, and full signal wiring
+- **Fixed**: Color wheel mirror (flip canvas horizontally to match C# gradient)
+- **Fixed**: SCSI 320x240 chunk size (`0x10000` → `0xE100` matching C# USBLCD.exe Mode 1/2)
+- **Refactored**: CLI shared utilities — `_parse_hex()`, `_MODE_MAP` class constant, `@_cli_handler` decorator consistency
+- 2349 tests across 34 files
+
 ## v6.0.0
 
 ### GoF Refactoring — 5-Phase OOP Overhaul

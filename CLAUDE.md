@@ -7,7 +7,7 @@
 - **Services** (`services/`): Core hexagon — all business logic, pure Python, no framework deps
 - **Controllers** (`core/controllers.py`): Facades — `LCDDeviceController` (LCD themes/video/overlay/device) + `LEDDeviceController` (LED effects/segment). Delegate to services, fire callbacks. No business logic.
 - **Views** (`qt_components/`): PySide6 GUI adapter
-- **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 6 submodules)
+- **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 6 submodules). `LEDDispatcher` + `DisplayDispatcher` classes — single authority for programmatic LED/LCD operations, return result dicts (never print). CLI functions are thin presentation wrappers.
 - **API** (`api.py`): FastAPI REST adapter
 - **Config** (`conf.py`): Application settings singleton — resolution, language, temp unit, device prefs. Single source of truth for all mutable app state.
 - **Entry**: `cli/` → `qt_app_mvc.py` (main window) → controller.initialize()
@@ -38,7 +38,7 @@
 - **Iterator**: Provides a way to access the elements of an aggregate object sequentially without exposing its underlying representation
 - **Mediator**: Defines an object that encapsulates how a set of objects interact, promoting loose coupling by keeping objects from referring to each other explicitly
 - **Memento**: Captures and externalizes an object's internal state without violating encapsulation, allowing the object to be restored to this state later
-- **Observer**: Defines a one-to-many dependency between objects so that when one object changes state, all its dependents are notified and updated automatically. Used: PySide6 signals broadcast updates from core to views without coupling
+- **Observer**: Defines a one-to-many dependency between objects so that when one object changes state, all its dependents are notified and updated automatically. Used: PySide6 signals broadcast updates from core to views without coupling. `UCLedControl.update_metrics()` — panel subscribes to metrics, dispatches internally based on style_id (caller doesn't route)
 - **State**: Allows an object to alter its behavior when its internal state changes, making it appear as though the object changed its class
 - **Strategy**: Defines a family of algorithms, encapsulates each one, and makes them interchangeable, allowing the algorithm to vary independently from the clients that use it. Used: swap display/export behaviors without modifying core service logic
 - **Template Method**: Defines the skeleton of an algorithm in an operation, deferring some steps to subclasses, allowing subclasses to redefine certain steps of an algorithm without changing its structure
@@ -113,7 +113,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 2306 tests across 34 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 2349 tests across 34 files
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -230,7 +230,7 @@ When adding GUI assets:
 - **Delegate pattern**: Settings tab communicates via `invoke_delegate(CMD_*, data)` to main window
 - **`_update_selected(**fields)`**: Single entry point for all element property changes (color, position, font, format, text)
 
-## GoF Refactoring (COMPLETE — v6.0.0, 2306 tests passing)
+## GoF Refactoring (COMPLETE — v6.0.0, 2306 tests passing, extended in v6.0.1)
 
 ### All Phases
 - **Phase 1: Segment Display Collapse** — `led_segment.py` 1109→687 lines (-422, 38%). Properties→class attrs, 4 encode methods→unified `_encode_digits()` + `_encode_7seg()`, LF12 delegates to LF8. Flyweight + Strategy.
@@ -239,6 +239,12 @@ When adding GUI assets:
 - **Phase 4: UsbProtocol Base** — `factory.py` 874→846 lines (-28). Extracted shared transport lifecycle (open/close/ensure) from HidProtocol + LedProtocol into `UsbProtocol` base class. Template Method.
 - **Phase 5: LED Config Serialization** — `services/led.py` save/load driven by `_PERSIST_FIELDS` dict + `_ALIASES` dict. Single source of truth for which fields persist. Memento pattern.
 - **Total**: 24 files changed, -1203 net lines.
+
+### v6.0.1 Extensions
+- **CLI Dispatchers**: `LEDDispatcher` + `DisplayDispatcher` — Command pattern. Single authority for LED/LCD operations. Return result dicts, never print. CLI functions are thin wrappers.
+- **Metrics Observer**: `UCLedControl.update_metrics()` — panel dispatches to style-specific update methods internally. `qt_app_mvc._poll_sensors()` reduced from 15 lines to 2. Observer pattern.
+- **ANSI Preview**: `--preview` flag on all LCD/LED CLI commands renders true-color terminal art. `ImageService.to_ansi()` for stills, `to_ansi_cursor_home()` for video.
+- **LED Visual Test Harness**: `tests/test_led_panel_visual.py` — standalone Qt app for testing all 12 LED styles with live metrics, device buttons, index overlay, and signal wiring.
 
 ### Future Work
 - qt_app_mvc.py Handler extraction (ThemeHandler, OverlayHandler, MediaHandler, DeviceHandler)
