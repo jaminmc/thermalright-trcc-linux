@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-GPL--3.0-green.svg)](LICENSE)
 [![Buy Me a Beer](https://img.shields.io/badge/Buy_Me_a_Beer-🍺-FF5F5F?style=flat)](https://buymeacoffee.com/Lexonight1)
 
-> If this helped you, chuck a beer at me with the **[Buy Me a Beer](https://buymeacoffee.com/Lexonight1)** button above.
+> If this helped you, could you **[buy me a nice frosty cold one](https://buymeacoffee.com/Lexonight1)**?
 
 Native Linux port of the Thermalright LCD Control Center (Windows TRCC 2.0.3). Control and customize the LCD displays and LED segment displays on Thermalright CPU coolers, AIO pump heads, and fan hubs — entirely from Linux.
 
