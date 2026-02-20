@@ -242,6 +242,7 @@ class LEDService:
         from ..adapters.device.led import LED_STYLES
         from ..adapters.device.led_segment import get_display
 
+        self._led_style = style_id
         style = LED_STYLES.get(style_id)
         if style:
             self.state.style = style.style_id
