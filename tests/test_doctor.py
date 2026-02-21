@@ -10,6 +10,7 @@ from trcc.adapters.infra.doctor import (
     _check_binary,
     _check_library,
     _check_python_module,
+    _check_rapl_permissions,
     _check_udev_rules,
     _detect_pkg_manager,
     _install_hint,
@@ -219,6 +220,7 @@ class TestCheckUdevRules(unittest.TestCase):
 class TestRunDoctor(unittest.TestCase):
     """Test run_doctor() return codes."""
 
+    @patch('trcc.adapters.infra.doctor._check_rapl_permissions', return_value=True)
     @patch('trcc.adapters.infra.doctor.check_selinux',
            return_value=SelinuxResult(ok=True, message='not installed'))
     @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=True)
@@ -231,6 +233,7 @@ class TestRunDoctor(unittest.TestCase):
     def test_all_ok_returns_0(self, *_):
         self.assertEqual(run_doctor(), 0)
 
+    @patch('trcc.adapters.infra.doctor._check_rapl_permissions', return_value=True)
     @patch('trcc.adapters.infra.doctor.check_selinux',
            return_value=SelinuxResult(ok=True, message='not installed'))
     @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=False)
@@ -242,6 +245,46 @@ class TestRunDoctor(unittest.TestCase):
            return_value={'PRETTY_NAME': 'Ubuntu 24.04'})
     def test_missing_udev_returns_1(self, *_):
         self.assertEqual(run_doctor(), 1)
+
+
+# ── RAPL permissions ─────────────────────────────────────────────────────────
+
+
+class TestCheckRaplPermissions(unittest.TestCase):
+    """Test _check_rapl_permissions() diagnostics."""
+
+    @patch('os.path.isdir', return_value=False)
+    def test_no_powercap_returns_true(self, _):
+        """No powercap subsystem — not applicable, returns True."""
+        self.assertTrue(_check_rapl_permissions())
+
+    @patch('os.access', return_value=True)
+    @patch('os.path.isdir', return_value=True)
+    @patch('pathlib.Path.glob')
+    def test_rapl_readable(self, mock_glob, mock_isdir, mock_access):
+        """RAPL energy files readable — returns True."""
+        from pathlib import Path
+        mock_energy = Mock(spec=Path)
+        mock_energy.__str__ = lambda s: '/sys/class/powercap/intel-rapl:0/energy_uj'
+        mock_glob.return_value = [mock_energy]
+        self.assertTrue(_check_rapl_permissions())
+
+    @patch('os.access', return_value=False)
+    @patch('os.path.isdir', return_value=True)
+    @patch('pathlib.Path.glob')
+    def test_rapl_not_readable(self, mock_glob, mock_isdir, mock_access):
+        """RAPL energy files not readable — returns False."""
+        from pathlib import Path
+        mock_energy = Mock(spec=Path)
+        mock_energy.__str__ = lambda s: '/sys/class/powercap/intel-rapl:0/energy_uj'
+        mock_glob.return_value = [mock_energy]
+        self.assertFalse(_check_rapl_permissions())
+
+    @patch('os.path.isdir', return_value=True)
+    @patch('pathlib.Path.glob', return_value=[])
+    def test_no_rapl_domains(self, mock_glob, _):
+        """powercap exists but no intel-rapl domains — returns True."""
+        self.assertTrue(_check_rapl_permissions())
 
 
 # ── CLI dispatch ─────────────────────────────────────────────────────────────

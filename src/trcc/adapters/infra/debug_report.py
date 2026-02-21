@@ -19,6 +19,7 @@ import os
 import platform
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class DebugReport:
         self._lsusb()
         self._udev_rules()
         self._selinux()
+        self._rapl_permissions()
         self._dependencies()
         self._devices()
         self._device_permissions()
@@ -152,6 +154,23 @@ class DebugReport:
             sec.lines.append("  not installed")
         except Exception as e:
             sec.lines.append(f"  getenforce failed: {e}")
+
+    def _rapl_permissions(self) -> None:
+        sec = self._add("RAPL power sensors")
+        rapl_base = Path("/sys/class/powercap")
+        if not rapl_base.exists():
+            sec.lines.append("  not available (no powercap subsystem)")
+            return
+        energy_files = sorted(rapl_base.glob("intel-rapl:*/energy_uj"))
+        if not energy_files:
+            sec.lines.append("  not available (no RAPL domains)")
+            return
+        for f in energy_files:
+            domain = f.parent.name
+            readable = os.access(str(f), os.R_OK)
+            mode = oct(f.stat().st_mode)[-3:]
+            status = "readable" if readable else "NO ACCESS"
+            sec.lines.append(f"  {domain}: mode={mode}  {status}")
 
     def _dependencies(self) -> None:
         from .doctor import get_module_version

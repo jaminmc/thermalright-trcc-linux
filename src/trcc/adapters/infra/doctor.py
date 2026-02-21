@@ -373,6 +373,26 @@ def _check_udev_rules() -> bool:
         return True
 
 
+def _check_rapl_permissions() -> bool:
+    """Check if RAPL power sensors are readable by non-root users."""
+    rapl_base = '/sys/class/powercap'
+    if not os.path.isdir(rapl_base):
+        return True  # No powercap subsystem — not applicable
+
+    from pathlib import Path
+    energy_files = sorted(Path(rapl_base).glob('intel-rapl:*/energy_uj'))
+    if not energy_files:
+        return True  # No RAPL domains — not applicable
+
+    unreadable = [f for f in energy_files if not os.access(str(f), os.R_OK)]
+    if unreadable:
+        print(f"  {_OPT}  RAPL power sensors not readable — run: trcc setup-udev")
+        return False
+
+    print(f"  {_OK}  RAPL power sensors ({len(energy_files)} domain(s))")
+    return True
+
+
 # ── Structured check results (for setup wizard GUI) ──────────────────────────
 
 @dataclass
@@ -644,6 +664,41 @@ def _selinux_usb_access_allowed() -> bool:
 
 
 @dataclass
+class RaplResult:
+    """Result of RAPL power sensor check."""
+    ok: bool
+    message: str
+    applicable: bool = True   # False if no powercap subsystem
+    domain_count: int = 0
+
+
+def check_rapl() -> RaplResult:
+    """Check if RAPL power sensors are readable by non-root users."""
+    from pathlib import Path
+
+    rapl_base = Path('/sys/class/powercap')
+    if not rapl_base.exists():
+        return RaplResult(ok=True, message='No powercap subsystem', applicable=False)
+
+    energy_files = sorted(rapl_base.glob('intel-rapl:*/energy_uj'))
+    if not energy_files:
+        return RaplResult(ok=True, message='No RAPL domains found', applicable=False)
+
+    unreadable = [f for f in energy_files if not os.access(str(f), os.R_OK)]
+    if unreadable:
+        return RaplResult(
+            ok=False,
+            message=f'RAPL power sensors not readable ({len(unreadable)} domain(s))',
+            domain_count=len(energy_files),
+        )
+    return RaplResult(
+        ok=True,
+        message=f'RAPL power sensors readable ({len(energy_files)} domain(s))',
+        domain_count=len(energy_files),
+    )
+
+
+@dataclass
 class PolkitResult:
     """Result of polkit policy check."""
     ok: bool
@@ -737,6 +792,10 @@ def run_doctor() -> int:
             print(f"  {_MISS}  {se.message}")
             print("         run: sudo trcc setup-selinux")
             all_ok = False
+
+    # RAPL power sensors
+    print()
+    _check_rapl_permissions()
 
     # Polkit policy
     print()

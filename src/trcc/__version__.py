@@ -1,9 +1,16 @@
 """TRCC Linux version information."""
 
-__version__ = "6.1.5"
+__version__ = "6.1.6"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
+# 6.1.6 - Add RAPL power sensor permissions: trcc setup-udev now writes a
+#         tmpfiles.d rule and chmods /sys/class/powercap/intel-rapl:*/energy_uj
+#         to 0444, enabling non-root CPU package power readings on kernels 5.10+
+#         (Platypus mitigation restricted powercap sysfs to root). trcc doctor
+#         checks RAPL readability. trcc setup shows RAPL status and offers to
+#         fix permissions even when udev rules are already installed. trcc report
+#         includes RAPL domain status. 2399 tests.
 # 6.1.5 - Fix portrait cloud directory switching: non-square displays (1280x480,
 #         1600x720, 1920x462, 640x480, etc.) now load cloud backgrounds and
 #         masks from portrait-oriented directories (e.g., 4801280/ instead of

@@ -830,17 +830,19 @@ class TestShowInfoMetrics(unittest.TestCase):
 
 class TestSetupUdevNonDry(unittest.TestCase):
 
+    @patch('trcc.cli._system._setup_rapl_permissions')
     @patch('trcc.cli._system.subprocess.run')
     @patch('os.path.exists', return_value=True)
     @patch('os.geteuid', return_value=0)
     @patch('builtins.open', new_callable=unittest.mock.mock_open)
-    def test_root_writes_files(self, mock_open, mock_euid, mock_exists, mock_subproc):
+    def test_root_writes_files(self, mock_open, mock_euid, mock_exists, mock_subproc, mock_rapl):
         result = setup_udev(dry_run=False)
         self.assertEqual(result, 0)
         # Should write udev rules and modprobe config
         self.assertGreaterEqual(mock_open.call_count, 2)
         mock_subproc.assert_any_call(["udevadm", "control", "--reload-rules"], check=False)
         mock_subproc.assert_any_call(["udevadm", "trigger"], check=False)
+        mock_rapl.assert_called_once()
 
     @patch('trcc.cli._system._sudo_reexec', return_value=1)
     @patch('os.geteuid', return_value=1000)
@@ -849,14 +851,59 @@ class TestSetupUdevNonDry(unittest.TestCase):
         mock_reexec.assert_called_once_with("setup-udev")
         self.assertEqual(result, 1)
 
+    @patch('trcc.cli._system._setup_rapl_permissions')
     @patch('trcc.cli._system.subprocess.run')
     @patch('os.path.exists', return_value=False)
     @patch('os.geteuid', return_value=0)
     @patch('builtins.open', new_callable=unittest.mock.mock_open)
-    def test_root_no_sysfs_quirks(self, mock_open, mock_euid, mock_exists, mock_subproc):
+    def test_root_no_sysfs_quirks(self, mock_open, mock_euid, mock_exists, mock_subproc, mock_rapl):
         """No quirks_sysfs file -> skip writing quirks."""
         result = setup_udev(dry_run=False)
         self.assertEqual(result, 0)
+
+
+class TestSetupRaplPermissions(unittest.TestCase):
+    """Test _setup_rapl_permissions() helper."""
+
+    def test_no_powercap_dir(self):
+        """No powercap subsystem — returns silently."""
+        from trcc.cli._system import _setup_rapl_permissions
+        with patch('trcc.cli._system.Path') as MockPath:
+            MockPath.return_value.exists.return_value = False
+            _setup_rapl_permissions()  # should not raise
+
+    def test_no_rapl_domains(self):
+        """powercap exists but no intel-rapl domains — returns silently."""
+        from trcc.cli._system import _setup_rapl_permissions
+        with patch('trcc.cli._system.Path') as MockPath:
+            mock_base = MockPath.return_value
+            mock_base.exists.return_value = True
+            mock_base.glob.return_value = []
+            _setup_rapl_permissions()  # should not raise
+
+    @patch('trcc.cli._system.subprocess.run')
+    @patch('builtins.open', new_callable=unittest.mock.mock_open)
+    def test_writes_tmpfiles_and_chmods(self, mock_open, mock_subproc):
+        """With RAPL domains, writes tmpfiles.d rule and chmods files."""
+        from trcc.cli._system import _setup_rapl_permissions
+        mock_energy = MagicMock()
+        mock_energy.chmod = MagicMock()
+        mock_energy.__str__ = lambda s: '/sys/class/powercap/intel-rapl:0/energy_uj'
+
+        with patch('trcc.cli._system.Path') as MockPath:
+            mock_base = MockPath.return_value
+            mock_base.exists.return_value = True
+            mock_base.glob.return_value = [mock_energy]
+            _setup_rapl_permissions()
+
+        # Should write tmpfiles.d config
+        mock_open.assert_called_once_with('/etc/tmpfiles.d/trcc-rapl.conf', 'w')
+        written = mock_open().write.call_args[0][0]
+        self.assertIn('rapl', written.lower())
+        self.assertIn('0444', written)
+
+        # Should chmod the energy file
+        mock_energy.chmod.assert_called_once_with(0o444)
 
 
 # -- download_themes edge paths ----------------------------------------------
