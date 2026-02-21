@@ -1,5 +1,38 @@
 # Changelog
 
+## v6.1.4
+
+### LED GUI Settings & Theme Restore Fix
+- **Fixed**: LED GUI settings not syncing on startup — `load_config()` correctly restored LED state from `config.json` (effects worked), but `panel.initialize()` reset all controls to defaults. Added `_sync_ui_from_state()` to push loaded state into UI controls after initialization.
+- **Fixed**: `--last-one` theme restore overwriting saved preference — auto-fallback (first available theme when saved path missing) was persisting to config via `_select_theme_from_path()`, silently overwriting the user's saved theme. Now fallback loads for display only (`persist=False`).
+- Note: v6.1.3 was the original release; v6.1.4 is a re-release because PyPI rejects reuse of version+filename after a tag was moved.
+- Addresses #15
+- 2394 tests across 34 files
+
+## v6.1.2
+
+### AK120 & LC1 LED Wire Remap Fix
+- **Fixed**: AK120 (style 3) LED wire remap — all 64 entries wrong, indices up to 68 (beyond valid range 0-63). Same root cause as v6.1.1: remap tables built using constructor default `UCScreenLED` indices instead of style-specific `ReSetUCScreenLED3()` overrides.
+- **Fixed**: LC1 (style 4) LED wire remap — 29 of 31 entries wrong, indices up to 37 (beyond valid range 0-30). Same root cause, `ReSetUCScreenLED4()` overrides not applied.
+- **Improved**: Tightened remap range guard test (`test_all_remap_indices_in_range`) — checks `idx < style.led_count` to catch this class of bug automatically.
+- 2394 tests across 34 files
+
+## v6.1.1
+
+### PA120 LED Wire Remap Fix
+- **Fixed**: PA120 (style 2) LED wire remap — was built using default `UCScreenLED` class indices (Cpu1=2, Cpu2=3, SSD=6, HSD=7, BFB=8, digits start at 9) instead of PA120-specific `ReSetUCScreenLED2()` indices (Cpu1=0, Cpu2=1, SSD=4, HSD=5, BFB=6, digits start at 10). Every indicator and first 3 digit segments mapped to wrong wire positions — cut-off numbers and missing % signs on physical display.
+- Addresses #15
+- 2393 tests across 34 files
+
+## v6.1.0
+
+### REST API Full CLI Parity
+- **New**: Refactored `api.py` → `api/` package (7 modules): `__init__`, `models`, `devices`, `display`, `led`, `themes`, `system`
+- **New**: 28 new endpoints (35 total): display (8), LED (14), themes (4), system (3), devices (6)
+- **New**: 16 Pydantic request/response models for type-safe API contracts
+- **Architecture**: Reuses `DisplayDispatcher` + `LEDDispatcher` from CLI — zero duplicated business logic. Device select auto-initializes the right dispatcher. 409 Conflict if no device selected when calling display/LED endpoints.
+- 67 API tests (44 new), 2393 tests across 34 files
+
 ## v6.0.6
 
 ### FBL Resolution Table Completion

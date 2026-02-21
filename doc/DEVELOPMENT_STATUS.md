@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.0.3 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 6.0.6
+**Current version:** 6.1.4
 **Branch:** `main`
-**Tests:** 2349 across 34 files
+**Tests:** 2394 across 34 files
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable
@@ -19,10 +19,10 @@ All features are tested and working on the `main` branch:
 - **Autostart** — launches minimized to system tray on login, sends last-used theme
 - **Setup wizard** — CLI (`trcc setup`) and GUI (`trcc setup-gui`) with bootstrap script (`setup.sh`)
 - **CLI** — 39 Typer commands with full service parity (theme, LED, display, overlay, screencast, video, diagnostics, setup)
-- **REST API** — optional FastAPI adapter for headless/remote control (`trcc serve`)
+- **REST API** — 35 endpoints with full CLI parity (`trcc serve`), Pydantic models, reuses CLI dispatchers
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **96% test coverage** — 2349 tests across 34 test files
+- **96% test coverage** — 2394 tests across 34 test files
 
 ### Supported Devices
 
@@ -55,7 +55,7 @@ All features are tested and working on the `main` branch:
 | # | Item | Status |
 |---|------|--------|
 | 1 | Full GUI port of Windows TRCC 2.0.3 | Done |
-| 2 | Test coverage 96%+ | Done (2349 tests) |
+| 2 | Test coverage 96%+ | Done (2394 tests) |
 | 3 | CI/CD (GitHub Actions) | Done |
 | 4 | Type checking (pyright basic) | Done |
 | 5 | Cross-distro compatibility | Done |
@@ -76,7 +76,9 @@ All features are tested and working on the `main` branch:
 | 20 | SELinux support | Done — `trcc setup-selinux` + policy module + wizard integration |
 | 21 | Windows C# feature parity audit | Done — 45/49 ported, 4 hidden/unreleased |
 | 22 | GoF refactoring (5-phase OOP overhaul) | Done — -1203 lines, Facade/Flyweight/Strategy/Template Method/Memento |
-| 23 | Type annotation hardening (pyright strict) | Planned |
+| 23 | REST API full CLI parity | Done — 35 endpoints, 16 Pydantic models, reuses CLI dispatchers |
+| 24 | Full wire remap audit (12 LED styles) | Done — styles 2/3/4 fixed, 9 verified correct |
+| 25 | Type annotation hardening (pyright strict) | Planned |
 
 ## Reporting Issues
 

@@ -246,6 +246,11 @@ When adding GUI assets:
 - **ANSI Preview**: `--preview` flag on all LCD/LED CLI commands renders true-color terminal art. `ImageService.to_ansi()` for stills, `to_ansi_cursor_home()` for video.
 - **LED Visual Test Harness**: `tests/test_led_panel_visual.py` — standalone Qt app for testing all 12 LED styles with live metrics, device buttons, index overlay, and signal wiring.
 
+### v6.1.3–v6.1.4: LED GUI Settings & Theme Restore Fix
+- **LED GUI settings not syncing on startup**: `load_config()` correctly restored LED state, but `panel.initialize()` reset controls to defaults. Added `_sync_ui_from_state()` to push loaded state into UI after initialization.
+- **`--last-one` theme restore overwriting saved preference**: Auto-fallback was persisting to config, silently overwriting the user's saved theme. Now uses `persist=False` for fallback loads.
+- v6.1.4 is a re-release of v6.1.3 (PyPI rejects reuse of version+filename after tag move).
+
 ### v6.1.1–v6.1.2: Wire Remap Audit
 - **Full ReSetUCScreenLED audit**: All 12 styles checked against C# `ReSetUCScreenLED*()` overrides. Styles 2 (PA120), 3 (AK120), 4 (LC1) had default constructor indices instead of style-specific overrides. 9 other styles verified correct.
 - **Guard test**: `test_all_remap_indices_in_range` checks `idx < style.led_count` — catches this class of bug automatically.
@@ -345,7 +350,7 @@ Current FBL table (16 entries, full C# parity):
 5. **State not propagated** — handshake discovers resolution/FBL but the value never reaches the encoding layer. Multiple fixes for "fbl not propagated from handshake."
 6. **Linux-specific USB issues** — kernel driver detach, SELinux blocking, polkit for udev rules, UsrMerge symlink differences, XFCE session not "active" in logind.
 
-### Version Evolution (v1.0 → v6.1.2)
+### Version Evolution (v1.0 → v6.1.4)
 - **v1.x** (17 releases) — Basic GUI, SCSI protocol, theme loading, bug-fixing spree
 - **v2.0** — Module rename/restructure, HR10 LED backend, PM/FBL unification
 - **v3.0** — Hexagonal architecture, services layer, CLI (Typer), REST API, 2081→2166 tests
