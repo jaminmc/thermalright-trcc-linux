@@ -10,7 +10,11 @@ __version_info__ = tuple(int(x) for x in __version__.split("."))
 #         showed defaults after panel.initialize() reset them. Added
 #         _sync_ui_from_state() to push loaded state into UI controls after
 #         initialization. Handles both zone devices (zone 0 state) and
-#         single-zone devices (global state). Addresses #15. 2394 tests.
+#         single-zone devices (global state). Fix --last-one theme restore:
+#         auto-fallback (first available theme when saved path missing) was
+#         persisting to config, overwriting the user's saved theme preference.
+#         Now fallback loads for display only (persist=False). Addresses #15.
+#         2394 tests.
 # 6.1.2 - Fix AK120 (style 3) and LC1 (style 4) LED wire remap tables: same
 #         root cause as v6.1.1 — remap tables built using constructor default
 #         UCScreenLED indices instead of style-specific ReSetUCScreenLED3/4()

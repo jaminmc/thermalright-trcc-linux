@@ -1221,6 +1221,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if saved_theme:
             theme_path = Path(saved_theme)
             if theme_path.exists():
+                log.info("Restoring saved theme: %s", theme_path)
                 if theme_path.suffix in ('.mp4', '.avi', '.mkv', '.webm'):
                     preview = theme_path.parent / f"{theme_path.stem}.png"
                     theme = ThemeInfo.from_video(
@@ -1229,15 +1230,17 @@ class TRCCMainWindowMVC(QMainWindow):
                 else:
                     self._select_theme_from_path(theme_path)
                 theme_loaded = True
+            else:
+                log.warning("Saved theme path not found: %s", saved_theme)
 
         if not theme_loaded:
-            # Auto-load first local theme so config is always populated
-            # (ensures --last-one works after first GUI session)
+            # Auto-load first local theme for display (don't persist —
+            # fallback must not overwrite the user's saved theme preference)
             theme_base = settings.theme_dir
             if theme_base and theme_base.exists():
                 for item in sorted(theme_base.path.iterdir()):
                     if item.is_dir() and (item / '00.png').exists():
-                        self._select_theme_from_path(item)
+                        self._select_theme_from_path(item, persist=False)
                         break
 
         # Restore per-device carousel
@@ -1405,7 +1408,7 @@ class TRCCMainWindowMVC(QMainWindow):
                 return
             self.controller.select_device(device)
 
-    def _select_theme_from_path(self, path: Path):
+    def _select_theme_from_path(self, path: Path, persist: bool = True):
         """Load a local/mask theme by directory path.
 
         Shared by local theme clicks and mask clicks — both have the same
@@ -1414,6 +1417,10 @@ class TRCCMainWindowMVC(QMainWindow):
 
         C# Theme_Click_Event → ReadSystemConfiguration: fully overrides
         myBjxs, myMode, myUIMode from config1.dc. We reset all mode toggles.
+
+        Args:
+            persist: Save theme_path to config. False for auto-fallback
+                     to avoid overwriting the user's saved preference.
         """
         if not path.exists():
             return
@@ -1429,7 +1436,7 @@ class TRCCMainWindowMVC(QMainWindow):
         theme = ThemeInfo.from_directory(path)
         self.controller.select_theme(theme)
         self._load_theme_overlay_config(path)
-        if self._active_device_key:
+        if persist and self._active_device_key:
             Settings.save_device_setting(self._active_device_key, 'theme_path', str(path))
 
     def _on_local_theme_clicked(self, theme_info):
