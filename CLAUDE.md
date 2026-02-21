@@ -113,7 +113,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 2393 tests across 34 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 2394 tests across 34 files
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -246,6 +246,11 @@ When adding GUI assets:
 - **ANSI Preview**: `--preview` flag on all LCD/LED CLI commands renders true-color terminal art. `ImageService.to_ansi()` for stills, `to_ansi_cursor_home()` for video.
 - **LED Visual Test Harness**: `tests/test_led_panel_visual.py` — standalone Qt app for testing all 12 LED styles with live metrics, device buttons, index overlay, and signal wiring.
 
+### v6.1.1–v6.1.2: Wire Remap Audit
+- **Full ReSetUCScreenLED audit**: All 12 styles checked against C# `ReSetUCScreenLED*()` overrides. Styles 2 (PA120), 3 (AK120), 4 (LC1) had default constructor indices instead of style-specific overrides. 9 other styles verified correct.
+- **Guard test**: `test_all_remap_indices_in_range` checks `idx < style.led_count` — catches this class of bug automatically.
+- **Root cause pattern**: C# `UCScreenLED` constructor assigns Cpu1=2, SSD=6, etc. but `ReSetUCScreenLED{N}()` overrides per style. Remap tables must use the overridden indices.
+
 ### Future Work
 - qt_app_mvc.py Handler extraction (ThemeHandler, OverlayHandler, MediaHandler, DeviceHandler)
 - Test consolidation (parametrize, merge tiny classes)
@@ -328,7 +333,7 @@ Current FBL table (16 entries, full C# parity):
 1. **Hexagonal architecture** — CLI, GUI, and API all adapt to the same core services. Adding the API took hours, not weeks. Device protocols slot in as new adapter subclasses.
 2. **C# as ground truth** — every bug we fixed was traced back to "our code doesn't match C#". The decompiled source eliminated guesswork.
 3. **Data-driven design** — FBL tables, wire remap tables, LED style configs, segment display layouts are all data. Logic operates on data. New devices = new data, not new logic.
-4. **Test suite (2393 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
+4. **Test suite (2394 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
 5. **`trcc report` diagnostic** — users paste one command output and we get VID:PID, PM, FBL, resolution, raw handshake bytes, permissions, SELinux status. Eliminates back-and-forth.
 6. **GoF patterns applied pragmatically** — Facade (controllers), Flyweight+Strategy (segment displays), Template Method (protocol handshakes), Memento (LED config), Observer (metrics), Command (dispatchers). Each pattern solved a real problem, not applied for theory.
 
@@ -340,13 +345,14 @@ Current FBL table (16 entries, full C# parity):
 5. **State not propagated** — handshake discovers resolution/FBL but the value never reaches the encoding layer. Multiple fixes for "fbl not propagated from handshake."
 6. **Linux-specific USB issues** — kernel driver detach, SELinux blocking, polkit for udev rules, UsrMerge symlink differences, XFCE session not "active" in logind.
 
-### Version Evolution (v1.0 → v6.0.6)
+### Version Evolution (v1.0 → v6.1.2)
 - **v1.x** (17 releases) — Basic GUI, SCSI protocol, theme loading, bug-fixing spree
 - **v2.0** — Module rename/restructure, HR10 LED backend, PM/FBL unification
 - **v3.0** — Hexagonal architecture, services layer, CLI (Typer), REST API, 2081→2166 tests
 - **v4.0** — Adapters restructure, domain data consolidation, setup wizard, SELinux support
 - **v5.0** — Full C# feature parity audit (35 items), video fit-mode, all LED wire remaps, JPEG encoding for large displays
 - **v6.0** — GoF refactoring (-1203 lines), CLI dispatchers, metrics observer, LED test harness, circulate fix, FBL table completion
+- **v6.1** — REST API full CLI parity (35 endpoints), full wire remap audit (3 styles fixed), 2394 tests
 
 ### Applying This to TR-VISION HOME
 The next project controls Thermalright water-cooling LED screens. What carries forward:
