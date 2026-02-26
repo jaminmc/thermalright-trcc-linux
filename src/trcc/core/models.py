@@ -188,6 +188,7 @@ class DeviceInfo:
     device_type: int = 1  # 1=SCSI, 2=HID Type 2 ("H"), 3=HID Type 3 ("ALi")
     implementation: str = "generic"  # e.g. "thermalright_lcd_v1", "hid_type2", "hid_led"
     led_style_id: Optional[int] = None  # LED style from probe (avoids name-based lookup)
+    use_jpeg: bool = True  # Bulk PM=32 uses RGB565; all others use JPEG
 
     # State
     connected: bool = True

@@ -1071,7 +1071,7 @@ class TestReferenceThemeSaveLoad(unittest.TestCase):
         self.assertIn('background', config)
         self.assertIn('mask', config)
         self.assertIn('dc', config)
-        self.assertEqual(config['background'], str(source_dir / '00.png'))
+        self.assertEqual(config['background'], str(theme_path / '00.png'))
 
     def test_save_theme_video_background(self):
         self.ctrl._display.current_image = _make_test_image()
@@ -1130,6 +1130,21 @@ class TestReferenceThemeSaveLoad(unittest.TestCase):
             config = json.load(f)
         self.assertIsNone(config['mask'])
         self.assertNotIn('mask_position', config)
+
+    def test_save_theme_no_source_still_has_background(self):
+        """Background path must reference saved 00.png even without a source theme."""
+        self.ctrl._display.current_image = _make_test_image()
+        self.ctrl._display.current_theme_path = None  # No source theme
+
+        ok, msg = self.ctrl.save_theme('NoSource', Path(self.tmp))
+        self.assertTrue(ok)
+        theme_path = Path(self.tmp) / 'theme320320' / 'Custom_NoSource'
+        with open(str(theme_path / 'config.json')) as f:
+            config = json.load(f)
+        # Must NOT be null — this was the bug causing black backgrounds
+        self.assertIsNotNone(config['background'])
+        self.assertEqual(config['background'], str(theme_path / '00.png'))
+        self.assertTrue((theme_path / '00.png').exists())
 
     def test_save_theme_updates_current_path(self):
         self.ctrl._display.current_image = _make_test_image()

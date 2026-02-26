@@ -1,9 +1,19 @@
 """TRCC Linux version information."""
 
-__version__ = "6.1.6"
+__version__ = "6.1.7"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
+# 6.1.7 - Fix Bulk PM=32 (Frozen Warframe Pro) distorted colors: encoding path
+#         assumed all Bulk devices use JPEG, but PM=32 uses RGB565 (cmd=3). Added
+#         use_jpeg flag to DeviceInfo, propagated from BulkDevice after handshake.
+#         Fix custom theme black background after reboot: ThemeService.save()
+#         stored null background reference when no source theme existed — on
+#         restore, background was never loaded. Now always references saved 00.png.
+#         Fix HiDPI GUI scaling: disable Qt6 auto high-DPI scaling
+#         (QT_ENABLE_HIGHDPI_SCALING=0) — our pixel-positioned image-based GUI
+#         was doubled on HiDPI displays, showing only a quarter of the window.
+#         Addresses #43, #42. 2408 tests.
 # 6.1.6 - Add RAPL power sensor permissions: trcc setup-udev now writes a
 #         tmpfiles.d rule and chmods /sys/class/powercap/intel-rapl:*/energy_uj
 #         to 0444, enabling non-root CPU package power readings on kernels 5.10+

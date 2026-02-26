@@ -51,6 +51,10 @@ def _get_service(device_path: Optional[str] = None):
                 fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
                 if fbl:
                     dev.fbl_code = fbl
+                # Bulk PM=32 uses RGB565, not JPEG
+                bulk_dev = getattr(protocol, '_device', None)
+                if bulk_dev is not None:
+                    dev.use_jpeg = getattr(bulk_dev, 'use_jpeg', True)
         except Exception:
             pass  # Handshake may fail if device not ready
 

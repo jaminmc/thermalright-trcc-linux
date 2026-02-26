@@ -306,7 +306,7 @@ class ThemeService:
 
             # Determine background source path (copy video into theme dir
             # so it survives reboots — source may be in a temp directory)
-            background_path = None
+            background_path: str | None = None
             if video_path:
                 video_src = Path(video_path)
                 if video_src.exists():
@@ -314,10 +314,9 @@ class ThemeService:
                     if video_src.resolve() != dest.resolve():
                         shutil.copy2(str(video_src), str(dest))
                     background_path = str(dest)
-            elif current_theme_path:
-                orig_bg = ThemeDir(current_theme_path).bg
-                if orig_bg.exists():
-                    background_path = str(orig_bg)
+            else:
+                # Reference the saved 00.png — always exists at this point
+                background_path = str(td.bg)
 
             # Determine mask source path
             mask_path_str = None

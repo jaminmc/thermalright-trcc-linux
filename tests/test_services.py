@@ -568,6 +568,24 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
         call_data = mock_send.call_args[0][0]
         self.assertTrue(call_data[:2] == b'\xff\xd8')  # JPEG data
 
+    def test_bulk_pm32_sends_rgb565(self):
+        """Bulk PM=32 (use_jpeg=False) → ImageService.to_rgb565() path."""
+        from trcc.core.models import DeviceInfo
+        svc = DeviceService()
+        dev = DeviceInfo(name='bulk', path='bulk:87ad:70db', protocol='bulk',
+                         resolution=(320, 320), use_jpeg=False)
+        svc.select(dev)
+
+        with patch.object(svc, 'send_rgb565', return_value=True) as mock_send:
+            img = Image.new('RGB', (320, 320), (255, 0, 0))
+            result = svc.send_pil(img, 320, 320)
+
+        self.assertTrue(result)
+        call_data = mock_send.call_args[0][0]
+        # RGB565: 320*320*2 = 204800 bytes, not JPEG
+        self.assertEqual(len(call_data), 320 * 320 * 2)
+        self.assertNotEqual(call_data[:2], b'\xff\xd8')  # NOT JPEG
+
     def test_scsi_sends_rgb565(self):
         """SCSI protocol → ImageService.to_rgb565() path (not JPEG)."""
         from trcc.core.models import DeviceInfo

@@ -162,7 +162,8 @@ class DeviceService:
     def send_pil(self, image: Any, width: int, height: int) -> bool:
         """Encode PIL Image for device and send.
 
-        Bulk and HID JPEG-mode devices use JPEG (C# ImageToJpg — no rotation).
+        Bulk (most use JPEG, PM=32 uses RGB565) and HID JPEG-mode devices
+        use JPEG (C# ImageToJpg — no rotation).
         SCSI/HID (standard) use RGB565 (C# ImageTo565 — non-square pre-rotation).
         """
         from .image import ImageService
@@ -172,7 +173,9 @@ class DeviceService:
         resolution = device.resolution if device else (320, 320)
         fbl = device.fbl_code if device else None
 
-        if protocol == 'bulk' or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
+        # Bulk PM=32 uses RGB565, not JPEG
+        use_jpeg = device.use_jpeg if device else True
+        if (protocol == 'bulk' and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
             jpeg = ImageService.to_jpeg(image)
             return self.send_rgb565(jpeg, width, height)
 

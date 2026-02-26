@@ -504,7 +504,7 @@ class DisplayService:
         """Encode image for LCD device.
 
         C# protocol encoding depends on device type:
-        - Bulk: JPEG (ImageToJpg), no rotation
+        - Bulk: JPEG (ImageToJpg) for most PMs; PM=32 uses RGB565 (cmd=3)
         - HID Type 2 with JPEG_MODE_FBLS: JPEG (ImageToJpg), no rotation
         - SCSI / HID (standard): RGB565 (ImageTo565), non-square pre-rotation
 
@@ -516,8 +516,9 @@ class DisplayService:
         resolution = device.resolution if device else (320, 320)
         fbl = device.fbl_code if device else None
 
-        # Bulk and HID JPEG-mode devices use JPEG encoding (no rotation)
-        if protocol == 'bulk' or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
+        # Bulk (most use JPEG, PM=32 uses RGB565) and HID JPEG-mode devices
+        use_jpeg = device.use_jpeg if device else True
+        if (protocol == 'bulk' and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
             data = ImageService.to_jpeg(img)
             log.debug("_encode_for_device: %dx%d → JPEG %d bytes (protocol=%s, fbl=%s)",
                       img.width, img.height, len(data), protocol, fbl)

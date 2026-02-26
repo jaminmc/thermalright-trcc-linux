@@ -1164,7 +1164,10 @@ class TRCCMainWindowMVC(QMainWindow):
                 if result:
                     resolution = getattr(result, 'resolution', None)
                     fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
-                    self._handshake_done.emit(device, (resolution, fbl))
+                    # Bulk PM=32 uses RGB565, not JPEG
+                    bulk_dev = getattr(protocol, '_device', None)
+                    use_jpeg = getattr(bulk_dev, 'use_jpeg', True)
+                    self._handshake_done.emit(device, (resolution, fbl, use_jpeg))
                 else:
                     self._handshake_done.emit(device, None)
             except Exception as e:
@@ -1180,7 +1183,7 @@ class TRCCMainWindowMVC(QMainWindow):
             self.uc_preview.set_status("Handshake failed — replug device and restart")
             return
 
-        resolution, fbl = handshake_data
+        resolution, fbl, *rest = handshake_data
         if not resolution or resolution == (0, 0):
             log.warning("Handshake failed for %s — no resolution", device.path)
             self.uc_preview.set_status("Handshake failed — replug device and restart")
@@ -1190,6 +1193,8 @@ class TRCCMainWindowMVC(QMainWindow):
         device.resolution = resolution
         if fbl:
             device.fbl_code = fbl
+        if rest:
+            device.use_jpeg = rest[0]
         self._apply_device_config(device, *resolution)
 
     def _apply_device_config(self, device: DeviceInfo, w: int, h: int):
@@ -2310,6 +2315,11 @@ def run_mvc_app(data_dir: Path | None = None, decorated: bool = False,
         return 0
 
     os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.services=false")
+    # Disable Qt6 auto high-DPI scaling — our GUI uses absolute pixel
+    # positioning with image backgrounds (like the C# Windows app).
+    # Without this, HiDPI displays (e.g. 2x scale) double all coordinates,
+    # clipping the 1454x800 window to show only a quarter.
+    os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "0")
     QApplication.setDesktopFileName("trcc-linux")
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)

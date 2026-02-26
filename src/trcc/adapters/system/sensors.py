@@ -681,11 +681,31 @@ class SensorEnumerator:
         mapping['net_total_up'] = 'computed:net_total_up'
         mapping['net_total_down'] = 'computed:net_total_down'
 
-        # Fans — assign first N fans found
+        # Fans — match by hwmon label keywords, fall back to positional
         fan_sensors = [s for s in sensors if s.category == 'fan' and s.source == 'hwmon']
-        fan_keys = ['fan_cpu', 'fan_gpu', 'fan_ssd', 'fan_sys2']
-        for i, key in enumerate(fan_keys):
-            mapping[key] = fan_sensors[i].id if i < len(fan_sensors) else ''
+        _fan_slots = [
+            ('fan_cpu', ('cpu',)),
+            ('fan_gpu', ('gpu',)),
+            ('fan_ssd', ('ssd', 'nvme', 'm.2')),
+            ('fan_sys2', ('sys', 'chassis', 'case', 'pump')),
+        ]
+        fan_mapped: dict[str, str] = {}
+        unmatched_fans: list[SensorInfo] = []
+        for sensor in fan_sensors:
+            name_lower = sensor.name.lower()
+            matched = False
+            for key, keywords in _fan_slots:
+                if key not in fan_mapped and any(kw in name_lower for kw in keywords):
+                    fan_mapped[key] = sensor.id
+                    matched = True
+                    break
+            if not matched:
+                unmatched_fans.append(sensor)
+        # Fill remaining empty slots positionally
+        empty_keys = [k for k, _ in _fan_slots if k not in fan_mapped]
+        for sensor, key in zip(unmatched_fans, empty_keys):
+            fan_mapped[key] = sensor.id
+        mapping.update(fan_mapped)
 
         # Remove empty mappings and cache
         SensorEnumerator._default_map = {k: v for k, v in mapping.items() if v}

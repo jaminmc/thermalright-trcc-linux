@@ -113,7 +113,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 2399 tests across 34 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 2408 tests across 38 files
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -252,7 +252,7 @@ When adding GUI assets:
 - **Fix**: Added `Settings.resolve_cloud_dirs(rotation)` — swaps width/height for web_dir and masks_dir when rotation is 90°/270° on non-square displays. Wired into both `_on_rotation_change()` and `_apply_device_config()`.
 - **C# reference**: `GetWebBackgroundImageDirectory()` (FormCZTV.cs:3749) and `GetFileListMBDir()` (FormCZTV.cs:4255) both check `directionB` for portrait switching. Local themes (`ThemeML`) stay landscape — only cloud dirs switch.
 - **No portrait local theme pack exists** — Windows doesn't ship `Theme4801280` either. Only cloud backgrounds/masks have portrait variants.
-- Addresses #1. 5 new tests (2399 total).
+- Addresses #1. 5 new tests (2408 total).
 
 ### v6.1.3–v6.1.4: LED GUI Settings & Theme Restore Fix
 - **LED GUI settings not syncing on startup**: `load_config()` correctly restored LED state, but `panel.initialize()` reset controls to defaults. Added `_sync_ui_from_state()` to push loaded state into UI after initialization.
@@ -346,7 +346,7 @@ Current FBL table (16 entries, full C# parity):
 1. **Hexagonal architecture** — CLI, GUI, and API all adapt to the same core services. Adding the API took hours, not weeks. Device protocols slot in as new adapter subclasses.
 2. **C# as ground truth** — every bug we fixed was traced back to "our code doesn't match C#". The decompiled source eliminated guesswork.
 3. **Data-driven design** — FBL tables, wire remap tables, LED style configs, segment display layouts are all data. Logic operates on data. New devices = new data, not new logic.
-4. **Test suite (2399 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
+4. **Test suite (2408 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
 5. **`trcc report` diagnostic** — users paste one command output and we get VID:PID, PM, FBL, resolution, raw handshake bytes, permissions, SELinux status. Eliminates back-and-forth.
 6. **GoF patterns applied pragmatically** — Facade (controllers), Flyweight+Strategy (segment displays), Template Method (protocol handshakes), Memento (LED config), Observer (metrics), Command (dispatchers). Each pattern solved a real problem, not applied for theory.
 
@@ -365,7 +365,7 @@ Current FBL table (16 entries, full C# parity):
 - **v4.0** — Adapters restructure, domain data consolidation, setup wizard, SELinux support
 - **v5.0** — Full C# feature parity audit (35 items), video fit-mode, all LED wire remaps, JPEG encoding for large displays
 - **v6.0** — GoF refactoring (-1203 lines), CLI dispatchers, metrics observer, LED test harness, circulate fix, FBL table completion
-- **v6.1** — REST API full CLI parity (35 endpoints), full wire remap audit (3 styles fixed), portrait cloud dir switching, 2399 tests
+- **v6.1** — REST API full CLI parity (35 endpoints), full wire remap audit (3 styles fixed), portrait cloud dir switching, 2408 tests
 
 ### Applying This to TR-VISION HOME
 The next project controls Thermalright water-cooling LED screens. What carries forward:
