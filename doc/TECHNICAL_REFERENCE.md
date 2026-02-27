@@ -404,7 +404,8 @@ src/trcc/
 │   │   ├── bulk.py              # Raw USB bulk protocol
 │   │   ├── lcd.py               # SCSI RGB565 frame send
 │   │   ├── detector.py          # USB device scan + registries
-│   │   └── factory.py           # Protocol factory (SCSI/HID/LED/Bulk routing)
+│   │   ├── ly.py                # LY USB bulk handler (0416:5408/5409)
+│   │   └── factory.py           # Protocol factory (SCSI/HID/LED/Bulk/LY routing)
 │   ├── system/                  # System integration
 │   │   ├── sensors.py           # Hardware sensor discovery + collection
 │   │   ├── info.py              # Dashboard panel config

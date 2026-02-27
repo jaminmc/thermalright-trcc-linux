@@ -11,7 +11,7 @@
 
 Native Linux port of the Thermalright LCD Control Center (Windows TRCC 2.0.3). Control and customize the LCD displays and LED segment displays on Thermalright CPU coolers, AIO pump heads, and fan hubs — entirely from Linux.
 
-> **This project wouldn't exist without our testers.** I only own one device. Every supported device in this list works because someone plugged it in, ran `trcc report`, and told me what broke. 20 testers across 6 countries helped us go from "SCSI only" to full C# feature parity with 4 USB protocols, 16 FBL resolutions, and 12 LED styles. Open source at its best — see [Contributors](#contributors) below.
+> **This project wouldn't exist without our testers.** I only own one device. Every supported device in this list works because someone plugged it in, ran `trcc report`, and told me what broke. 20 testers across 6 countries helped us go from "SCSI only" to full C# feature parity with 5 USB protocols, 16 FBL resolutions, and 12 LED styles. Open source at its best — see [Contributors](#contributors) below.
 
 > Unofficial community project, not affiliated with Thermalright. Built with [Claude](https://claude.ai) (AI) for protocol reverse engineering and code generation, guided by human architecture decisions and logical assessment. If something doesn't work on your distro, please **update to the latest version first** — ![latest](https://img.shields.io/pypi/v/trcc-linux?label=latest&color=blue) (`pip install --upgrade trcc-linux`) — your issue may already be fixed. If it persists, [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues).
 

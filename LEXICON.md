@@ -9,6 +9,7 @@ Shared terminology so everyone uses the same names.
 | **HID** | USB Human Interface Device protocol — handshake, resolution detection |
 | **LED** | RGB LED control protocol via HID (effects, colors, zones) |
 | **Bulk** | Raw USB vendor-specific bulk transfer protocol (GrandVision/Mjolnir Vision) |
+| **LY** | USB bulk protocol for LY-type LCDs (0416:5408/5409), chunked 512-byte frames |
 | **PM** | Product Model byte from HID handshake — identifies device variant |
 | **FBL** | Firmware Byte Layout — maps PM to screen resolution |
 | **PID** | USB Product ID (e.g., `0x5302`, `0x8001`) |

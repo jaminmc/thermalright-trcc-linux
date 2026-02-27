@@ -11,7 +11,7 @@ TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.0
 
 All features are tested and working on the `main` branch:
 
-- **4 protocol backends** — SCSI, HID, LED, Bulk (raw USB)
+- **5 protocol backends** — SCSI, HID, LED, Bulk (raw USB), LY (bulk)
 - **Full GUI** — local/cloud/mask themes, overlays, video playback, carousel, image cropper, video trimmer
 - **System info overlays** — 77+ sensors (CPU, GPU, RAM, disk, network, fans)
 - **LED RGB control** — 6 effect modes (Static, Breathing, Colorful, Rainbow, Temp-linked, Load-linked), sensor-linked colors, 12 device styles

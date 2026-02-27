@@ -102,6 +102,8 @@ All devices connect through one of these USB VID:PIDs:
 | 0416:5302 | HID Type 2 | Full LCD | Vision/Warframe (newer HW) |
 | 0418:5303 | HID Type 3 | Full LCD | TARAN ARMS |
 | 0418:5304 | HID Type 3 | Full LCD | TARAN ARMS |
+| 0416:5408 | LY Bulk | Full LCD | Peerless Vision |
+| 0416:5409 | LY1 Bulk | Full LCD | |
 | 0416:8001 | HID | LED + segment / Full LCD | Digital series + many Vision products |
 
 The exact product model is identified after a USB handshake. The device responds with PM (product model) and SUB bytes that tell the app which product it is and whether to show the LCD or LED control panel.

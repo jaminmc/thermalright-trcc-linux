@@ -1,6 +1,6 @@
 # Device Testing Guide
 
-All 4 protocols (SCSI, HID, LED, Bulk) are implemented with **2394 automated tests**. Several HID/LED devices have been validated by testers. If you have a device not listed below, please help test.
+All 5 protocols (SCSI, HID, LED, Bulk, LY) are implemented with **2439 automated tests**. Several HID/LED devices have been validated by testers. If you have a device not listed below, please help test.
 
 ## Supported HID Devices
 
@@ -12,6 +12,8 @@ Run `lsusb` and look for your VID:PID:
 | `0418:5303` | ALi Corp. LCD Display | HID Type 3 (LCD) | TARAN ARMS |
 | `0418:5304` | ALi Corp. LCD Display | HID Type 3 (LCD) | TARAN ARMS |
 | `0416:8001` | Winbond Electronics Corp. LED Controller | HID LED (RGB) | AX120 DIGITAL, PA120 DIGITAL, HR10 2280 PRO DIGITAL, Phantom Spirit 120 Digital EVO, Assassin X 120R Digital ARGB |
+| `0416:5408` | Winbond Electronics Corp. USBDISPLAY | LY Bulk (LCD) | Peerless Vision |
+| `0416:5409` | Winbond Electronics Corp. USBDISPLAY | LY1 Bulk (LCD) | |
 
 ## Quick Start
 
@@ -158,13 +160,14 @@ Even a "it doesn't work" report is helpful — the `trcc report` output tells us
 
 ## How It Works
 
-TRCC Linux supports 4 USB protocol types:
+TRCC Linux supports 5 USB protocol types:
 
 - **SCSI** (`87CD:70DB`, `0416:5406`, `0402:3922`) — USB Mass Storage, sends raw RGB565 pixels via `sg_raw`
 - **HID Type 2** (`0416:5302`) — USB HID, DA/DB/DC/DD magic bytes, RGB565 frames with 20-byte header (512-byte aligned)
 - **HID Type 3** (`0418:5303`, `0418:5304`) — USB HID, 0x65/0x66 prefix, fixed-size frames with ACK
 - **HID LED** (`0416:8001`) — USB HID, 64-byte reports for RGB LED color/effect control
 - **Bulk** (`87AD:70DB`) — Raw USB vendor-specific protocol via pyusb (GrandVision/Mjolnir Vision)
+- **LY** (`0416:5408`, `0416:5409`) — USB bulk protocol for LY-type LCDs (Peerless Vision), 512-byte chunked frames with 16-byte headers
 
 ### Resolution Detection
 

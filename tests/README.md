@@ -2,7 +2,7 @@
 
 ## Overview
 
-2408 tests across 38 test files covering all 4 protocols (SCSI, HID, LED, Bulk), services, adapters, CLI, API, GUI components, and integration.
+2439 tests across 39 test files covering all 5 protocols (SCSI, HID, LED, Bulk, LY), services, adapters, CLI, API, GUI components, and integration.
 
 ## Running Tests
 

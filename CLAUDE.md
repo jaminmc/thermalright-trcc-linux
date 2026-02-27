@@ -296,8 +296,8 @@ The Windows TRCC app was decompiled (ILSpy/dnSpy → `/home/ignorant/Downloads/T
 
 The C# code is the ground truth. When our code doesn't match C# behavior, our code is wrong.
 
-### Four USB Protocols Discovered
-All Thermalright display devices communicate over USB, but use 4 different protocols depending on the chipset:
+### Five USB Protocols Discovered
+All Thermalright display devices communicate over USB, but use 5 different protocols depending on the chipset:
 
 | Protocol | Transport | Key Discovery | Tricky Parts |
 |----------|-----------|---------------|-------------|
@@ -305,6 +305,7 @@ All Thermalright display devices communicate over USB, but use 4 different proto
 | **HID Type 2** | pyusb interrupt | DA DB DC DD magic header required | Two encoding modes: RGB565 (Mode 3) vs JPEG (Mode 2). Resolution from PM→FBL→table. Non-square displays need 90° CW pre-rotation |
 | **HID Type 3** | pyusb interrupt | Fixed 204816-byte frames, ALi chipset | Different handshake and ACK pattern |
 | **Bulk** | pyusb bulk | Vendor-specific USB class (not HID) | JPEG encoding only, kernel driver detach issues on SELinux |
+| **LY** | pyusb bulk | Chunked 512-byte frames (16-byte header + 496 data) | Two PID variants (LY=0x5408, LY1=0x5409) with different PM formulas and chunk padding |
 | **LED** | pyusb HID | 64-byte reports, wire remap tables | Each of 12 device styles has different LED count, segment layout, and wire ordering |
 
 ### Resolution Discovery Pipeline (Hardest Problem)
