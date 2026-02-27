@@ -69,6 +69,14 @@ pip install trcc-linux
 trcc setup        # interactive wizard — deps, udev, desktop entry
 ```
 
+On Arch-based distros (Arch, CachyOS, Manjaro, EndeavourOS, Garuda) use pipx instead:
+
+```bash
+sudo pacman -S python-pipx
+pipx install trcc-linux
+trcc setup
+```
+
 Then **unplug and replug the USB cable** and run `trcc gui`.
 
 ### One-line bootstrap
@@ -98,7 +106,7 @@ cd thermalright-trcc-linux
 sudo ./install.sh
 ```
 
-Detects your distro, installs system packages, Python deps, udev rules, and desktop shortcut. On PEP 668 distros (Ubuntu 24.04+, Fedora 41+) it auto-falls back to a virtual environment if `pip` refuses direct install.
+Detects your distro, installs system packages, Python deps, udev rules, and desktop shortcut. On PEP 668 distros (Arch, CachyOS, Ubuntu 24.04+, Fedora 41+) it auto-falls back to a virtual environment if `pip` refuses direct install.
 
 After it finishes: **unplug and replug the USB cable**, then run `trcc gui`.
 

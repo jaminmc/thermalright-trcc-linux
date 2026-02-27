@@ -478,7 +478,14 @@ sudo swupd bundle-add sysadmin-basic devpkg-pipewire
 pip install trcc-linux
 ```
 
-> **Note:** Some distributions require `--break-system-packages`:
+> **Arch-based distros** (Arch, CachyOS, Manjaro, EndeavourOS, Garuda) enforce PEP 668 — use pipx instead:
+> ```bash
+> sudo pacman -S python-pipx
+> pipx install trcc-linux
+> ```
+> Upgrades: `pipx upgrade trcc-linux`
+
+> **Other PEP 668 distros** (Fedora 38+, Ubuntu 23.04+, Debian 12+, openSUSE Tumbleweed, Void) — use `--break-system-packages` or a venv:
 > ```bash
 > pip install --break-system-packages trcc-linux
 > ```
@@ -490,8 +497,6 @@ pip install trcc-linux
 > pip install trcc-linux
 > # You'll need to run 'source ~/trcc-env/bin/activate' each time you open a new terminal
 > ```
-
-> **Distros that enforce this by default:** Fedora 38+, Ubuntu 23.04+, Debian 12+, Arch (with python 3.11+), openSUSE Tumbleweed, Void Linux
 
 ### Option B: Clone with Git (for development)
 
