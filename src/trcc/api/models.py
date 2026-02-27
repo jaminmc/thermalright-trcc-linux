@@ -20,6 +20,19 @@ class ThemeResponse(BaseModel):
     category: str
     is_animated: bool
     has_config: bool
+    preview_url: str = ""
+
+
+class WebThemeResponse(BaseModel):
+    id: str
+    category: str
+    preview_url: str
+    has_video: bool = False
+
+
+class MaskResponse(BaseModel):
+    name: str
+    preview_url: str
 
 
 # ── Display request models ─────────────────────────────────────────────

@@ -254,8 +254,11 @@ class TestThemesEndpoint(unittest.TestCase):
         self.assertEqual(resp.json(), [])
 
     @patch('trcc.api.themes.ThemeService.discover_local')
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution', return_value=MagicMock(__str__=lambda s: '/tmp/themes'))
+    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
     def test_list_themes_with_results(self, mock_dir, mock_discover):
+        mock_td = MagicMock(__str__=lambda s: '/tmp/themes')
+        mock_td.path = '/tmp/themes'
+        mock_dir.return_value = mock_td
         mock_theme = MagicMock()
         mock_theme.name = "Theme001"
         mock_theme.category = "a"
@@ -268,6 +271,7 @@ class TestThemesEndpoint(unittest.TestCase):
         data = resp.json()
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["name"], "Theme001")
+        self.assertIn("preview_url", data[0])
 
     def test_invalid_resolution_format(self):
         resp = self.client.get("/themes?resolution=invalid")
@@ -668,6 +672,78 @@ class TestSystemEndpoints(unittest.TestCase):
         resp = self.client.get("/system/report")
         self.assertEqual(resp.status_code, 200)
         self.assertIn("report", resp.json())
+
+
+# ── Web/mask theme endpoints ─────────────────────────────────────────
+
+class TestWebThemeEndpoints(unittest.TestCase):
+    """GET /themes/web and /themes/masks."""
+
+    def setUp(self):
+        configure_auth(None)
+        self.client = TestClient(app)
+
+    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/nonexistent')
+    def test_list_web_themes_empty_dir(self, mock_dir):
+        resp = self.client.get("/themes/web?resolution=320x320")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), [])
+
+    @patch('trcc.api.themes.os.listdir', return_value=['a001.png', 'b002.png', 'readme.txt'])
+    @patch('trcc.api.themes.os.path.isfile', return_value=False)
+    @patch('trcc.api.themes.os.path.isdir', return_value=True)
+    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    def test_list_web_themes_with_pngs(self, mock_dir, mock_isdir, mock_isfile, mock_listdir):
+        resp = self.client.get("/themes/web?resolution=320x320")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["id"], "a001")
+        self.assertEqual(data[0]["category"], "a")
+        self.assertEqual(data[0]["preview_url"], "/static/web/a001.png")
+        self.assertEqual(data[1]["id"], "b002")
+
+    def test_list_web_themes_invalid_resolution(self):
+        resp = self.client.get("/themes/web?resolution=bad")
+        self.assertEqual(resp.status_code, 400)
+
+    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir', return_value='/nonexistent')
+    def test_list_masks_empty_dir(self, mock_dir):
+        resp = self.client.get("/themes/masks?resolution=320x320")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), [])
+
+    def test_list_masks_invalid_resolution(self):
+        resp = self.client.get("/themes/masks?resolution=nope")
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestStaticMounts(unittest.TestCase):
+    """mount_static_dirs() mounts existing directories."""
+
+    def test_mount_static_dirs_creates_routes(self):
+        import tempfile
+        from pathlib import Path
+
+        from trcc.api import mount_static_dirs
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake theme directory structure
+            theme_dir = Path(tmpdir) / 'theme320320' / 'TestTheme'
+            theme_dir.mkdir(parents=True)
+            (theme_dir / 'Theme.png').write_bytes(b'fake')
+
+            with patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution') as mock_td, \
+                 patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/nonexistent'), \
+                 patch('trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir', return_value='/nonexistent'):
+                mock_td_obj = MagicMock()
+                mock_td_obj.path = str(Path(tmpdir) / 'theme320320')
+                mock_td.return_value = mock_td_obj
+                mount_static_dirs(320, 320)
+
+            # Verify at least the theme mount was created
+            from trcc.api import _mounted_routes
+            self.assertIn("/static/themes", _mounted_routes)
 
 
 if __name__ == '__main__':

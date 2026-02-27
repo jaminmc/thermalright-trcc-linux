@@ -82,6 +82,11 @@ def select_device(device_id: int) -> dict:
 
         api._display_dispatcher = DisplayDispatcher(device_svc=_device_svc)
 
+    # Mount static file directories for this device's resolution
+    w, h = dev.resolution or (0, 0)
+    if w and h:
+        api.mount_static_dirs(w, h)
+
     return {"selected": dev.name, "resolution": dev.resolution}
 
 
