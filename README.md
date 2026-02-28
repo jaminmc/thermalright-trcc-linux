@@ -39,12 +39,18 @@ Run `lsusb` to find your USB ID (`xxxx:xxxx` after `ID`), then match it below.
 |--------|---------|
 | `87CD:70DB` | FROZEN HORIZON PRO, FROZEN MAGIC PRO, FROZEN VISION V2, CORE VISION, ELITE VISION, AK120, AX120, PA120 DIGITAL, Wonder Vision |
 | `0416:5406` | LC1, LC2, LC3, LC5 (AIO pump heads) |
-| `0402:3922` | FROZEN WARFRAME, FROZEN WARFRAME 360, FROZEN WARFRAME SE |
+| `0402:3922` | FROZEN WARFRAME, FROZEN WARFRAME 360, FROZEN WARFRAME SE, ELITE VISION 360 |
 
 **Bulk USB devices** — raw USB protocol:
 | USB ID | Devices |
 |--------|---------|
 | `87AD:70DB` | GrandVision 360 AIO, Mjolnir Vision 360 |
+
+**LY USB devices** — chunked bulk protocol:
+| USB ID | Devices |
+|--------|---------|
+| `0416:5408` | Peerless Vision |
+| `0416:5409` | Peerless Vision (variant) |
 
 **HID LCD devices** — auto-detected, needs hardware testers:
 | USB ID | Devices |
@@ -189,6 +195,9 @@ A big thanks to everyone who has contributed invaluable reports to this project:
 - **[acioannina-wq](https://github.com/acioannina-wq)** — Assassin Spirit 120 Vision HID testing
 - **[Civilgrain](https://github.com/Civilgrain)** — Wonder Vision Pro 360 bulk protocol testing
 - **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** — Frozen Warframe Pro bulk protocol testing
+- **[Mr-Renegade](https://github.com/Mr-Renegade)** — Peerless Vision LY protocol testing & portrait rotation feedback
+- **[Reborn627](https://github.com/Reborn627)** — GrandVision 360 AIO HiDPI scaling & CachyOS testing
+- **[tensaiteki](https://github.com/tensaiteki)** — Elite Vision 360 SCSI detection on CachyOS (sg module bug)
 
 ## License
 
