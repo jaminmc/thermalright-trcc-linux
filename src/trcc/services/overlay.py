@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.models import HardwareMetrics
-from .renderer import Renderer
+from ..core.ports import Renderer
 from .system import SystemService
 
 log = logging.getLogger(__name__)

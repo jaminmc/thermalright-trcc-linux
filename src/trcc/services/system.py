@@ -14,7 +14,7 @@ import re
 import subprocess
 import threading
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from ..adapters.infra.data_repository import SysUtils
 from ..core.models import DATE_FORMATS, TIME_FORMATS, WEEKDAYS, HardwareMetrics
@@ -469,4 +469,27 @@ class SystemService:
         except Exception:
             pass
         return None
+
+
+# ── Module-level convenience API ─────────────────────────────────────────────
+# Lazy singleton + short aliases — replaces adapters/system/info.py shim.
+
+_instance: SystemService | None = None
+
+
+def _get_instance() -> SystemService:
+    global _instance
+    if _instance is None:
+        _instance = SystemService()
+    return _instance
+
+
+def get_all_metrics() -> HardwareMetrics:
+    """Get all hardware metrics (lazy singleton)."""
+    return _get_instance().all_metrics
+
+
+def format_metric(key: str, value: float, **kwargs: Any) -> str:
+    """Format a single metric value for display."""
+    return SystemService.format_metric(key, value, **kwargs)
 

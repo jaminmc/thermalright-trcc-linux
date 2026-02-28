@@ -70,7 +70,9 @@ def select_device(device_id: int) -> dict:
     _device_svc.select(dev)
 
     # Initialize dispatcher based on device type
-    if dev.protocol == 'led' or getattr(dev, 'implementation', '') == 'hid_led':
+    from trcc.core.models import PROTOCOL_TRAITS
+    traits = PROTOCOL_TRAITS.get(dev.protocol or 'scsi')
+    if (traits and traits.is_led) or getattr(dev, 'implementation', '') == 'hid_led':
         from trcc.cli._led import LEDDispatcher
 
         api._led_dispatcher = LEDDispatcher()

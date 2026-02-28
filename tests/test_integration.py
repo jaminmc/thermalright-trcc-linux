@@ -35,7 +35,7 @@ class TestDetectToSend(unittest.TestCase):
     @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
-    @patch("trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution", return_value=False)
+    @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)
     def test_detect_init_send(self, _, mock_detect, mock_run, mock_sg):
         """detect_devices → LCDDriver(path) → send_frame goes through all layers."""
         from trcc.adapters.device.lcd import LCDDriver
@@ -68,7 +68,7 @@ class TestDetectToSend(unittest.TestCase):
     @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
-    @patch("trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution", return_value=False)
+    @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)
     def test_send_image_pipeline(self, _, mock_detect, mock_run, mock_sg):
         """LCDDriver.load_image → send_frame end-to-end."""
         from trcc.adapters.device.lcd import LCDDriver
@@ -308,7 +308,7 @@ class TestMultiResolution(unittest.TestCase):
     @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
-    @patch("trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution", return_value=False)
+    @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)
     def test_480x480_frame_size(self, _, mock_detect, mock_run, mock_sg):
         """480x480 produces correct frame size and chunk count."""
         from trcc.adapters.device.lcd import LCDDriver
@@ -335,7 +335,7 @@ class TestMultiResolution(unittest.TestCase):
     @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
-    @patch("trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution", return_value=False)
+    @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)
     def test_240x240_frame_size(self, _, mock_detect, mock_run, mock_sg):
         """240x240 produces correct frame size and chunk count."""
         from trcc.adapters.device.lcd import LCDDriver

@@ -234,8 +234,8 @@ class DisplayDispatcher:
         """Render overlay from DC config. Optionally send to device or save."""
         from pathlib import Path
 
-        from trcc.adapters.system.info import get_all_metrics
         from trcc.services import ImageService, OverlayService
+        from trcc.services.system import get_all_metrics
 
         if not os.path.exists(dc_path):
             return {"success": False, "error": f"Path not found: {dc_path}"}

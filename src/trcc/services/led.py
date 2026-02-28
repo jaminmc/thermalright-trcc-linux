@@ -1,15 +1,17 @@
-"""LED effect engine, device communication, and config persistence.
+"""LED effect engine and device communication.
 
 Pure Python, no Qt dependencies.
 Absorbs business logic from LEDModel (effects), LEDController (protocol send),
 and LEDDeviceController (config, protocol factory).
+Config persistence delegated to led_config.py (SRP).
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from ..core.models import HardwareMetrics, LEDMode, LEDState, LEDZoneState
+from .led_config import load_led_config, save_led_config
 from .led_effects import LEDEffectEngine
 
 log = logging.getLogger(__name__)
@@ -17,31 +19,6 @@ log = logging.getLogger(__name__)
 # LED animation tick period (ms) — matches qt_app_mvc.py LEDHandler._timer.
 # C# Timer_event runs at ~167ms; our QTimer runs at 150ms.
 _LED_TICK_MS = 150
-
-# Config persistence field map: config_key → LEDState attribute.
-# One map drives both save_config() and load_config() — add a field here once.
-_PERSIST_FIELDS: Dict[str, str] = {
-    'mode': 'mode',
-    'color': 'color',
-    'brightness': 'brightness',
-    'global_on': 'global_on',
-    'segments_on': 'segment_on',
-    'temp_source': 'temp_source',
-    'load_source': 'load_source',
-    'is_timer_24h': 'is_timer_24h',
-    'is_week_sunday': 'is_week_sunday',
-    'disk_index': 'disk_index',
-    'memory_ratio': 'memory_ratio',
-    'zone_sync': 'zone_sync',
-    'zone_sync_interval': 'zone_sync_interval',
-}
-
-# Backward-compat aliases (v5.0.x config keys → current keys)
-_ALIASES: Dict[str, str] = {
-    'zone_carousel': 'zone_sync',
-    'zone_carousel_zones': 'zone_sync_zones',
-    'zone_carousel_interval': 'zone_sync_interval',
-}
 
 
 class LEDService:
@@ -469,84 +446,17 @@ class LEDService:
         led_count = style.led_count if style else 0
         return f"LED: {name} ({led_count} LEDs)"
 
-    # ── Config persistence ──────────────────────────────────────────
-
-    @staticmethod
-    def _serialize(val: Any) -> Any:
-        """Convert a state value for JSON-safe config storage."""
-        if isinstance(val, LEDMode):
-            return val.value
-        if isinstance(val, tuple):
-            return list(val)
-        return val
+    # ── Config persistence (delegates to led_config.py) ────────────
 
     def save_config(self) -> None:
         """Serialize LEDState to config file."""
-        if not self._device_key:
-            return
-        try:
-            from ..conf import Settings
-
-            ser = self._serialize
-            config: Dict[str, Any] = {
-                ck: ser(getattr(self.state, sa))
-                for ck, sa in _PERSIST_FIELDS.items()
-            }
-            config['zone_sync_zones'] = self.state.zone_sync_zones
-            config['zones'] = [
-                {'mode': z.mode.value, 'color': list(z.color),
-                 'brightness': z.brightness, 'on': z.on}
-                for z in self.state.zones
-            ]
-            Settings.save_device_setting(self._device_key, 'led_config', config)
-        except Exception as e:
-            log.error("Failed to save LED config: %s", e)
+        if self._device_key:
+            save_led_config(self.state, self._device_key)
 
     def load_config(self) -> None:
         """Deserialize LEDState from config file."""
-        if not self._device_key:
-            return
-        try:
-            from ..conf import Settings
-
-            dev_config = Settings.get_device_config(self._device_key)
-            led_config = dev_config.get('led_config', {})
-            if not led_config:
-                return
-
-            # Backward-compat aliases (v5.0.x: zone_carousel → zone_sync)
-            for old, new in _ALIASES.items():
-                if old in led_config and new not in led_config:
-                    led_config[new] = led_config[old]
-
-            # Scalar and simple-list fields
-            for ck, sa in _PERSIST_FIELDS.items():
-                if ck in led_config:
-                    val = led_config[ck]
-                    cur = getattr(self.state, sa)
-                    if isinstance(cur, LEDMode):
-                        val = LEDMode(val)
-                    elif isinstance(cur, tuple):
-                        val = tuple(val)
-                    setattr(self.state, sa, val)
-
-            # Zone sync zones: partial update (saved length may differ from current)
-            if 'zone_sync_zones' in led_config:
-                saved = led_config['zone_sync_zones']
-                for i in range(min(len(saved), len(self.state.zone_sync_zones))):
-                    self.state.zone_sync_zones[i] = saved[i]
-
-            # Per-zone states
-            if 'zones' in led_config and self.state.zones:
-                for i, zc in enumerate(led_config['zones']):
-                    if i < len(self.state.zones):
-                        z = self.state.zones[i]
-                        z.mode = LEDMode(zc.get('mode', 0))
-                        z.color = tuple(zc.get('color', (255, 0, 0)))
-                        z.brightness = zc.get('brightness', 100)
-                        z.on = zc.get('on', True)
-        except Exception as e:
-            log.error("Failed to load LED config: %s", e)
+        if self._device_key:
+            load_led_config(self.state, self._device_key)
 
     def cleanup(self) -> None:
         """Save config and release protocol."""

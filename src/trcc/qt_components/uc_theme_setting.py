@@ -32,13 +32,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..adapters.system.info import format_metric
 from ..core.models import (
     HARDWARE_METRICS,
     METRIC_TO_IDS,
     OverlayElementConfig,
     OverlayMode,
 )
+from ..services.system import format_metric
 from .assets import Assets
 from .base import BasePanel, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles

@@ -9,7 +9,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
-from ...services.renderer import Renderer
+from ...core.ports import Renderer
 from ..infra.font_resolver import FontResolver
 
 

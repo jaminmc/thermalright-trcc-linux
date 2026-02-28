@@ -7,7 +7,6 @@ _apply_brightness(), byte_order_for().
 from __future__ import annotations
 
 import io
-import struct
 from typing import Any
 
 import numpy as np
@@ -162,15 +161,12 @@ class ImageService:
 
     @staticmethod
     def rgb_to_bytes(r: int, g: int, b: int, byte_order: str = '>') -> bytes:
-        """Convert single RGB pixel to RGB565 bytes."""
-        pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-        return struct.pack(f'{byte_order}H', pixel)
+        """Convert single RGB pixel to RGB565 bytes.
 
-    # SCSI resolutions that use big-endian RGB565 (is320x320 in C#).
-    # FBL 100/101/102 → 320x320 → big-endian.
-    # FBL 51 → 320x240 also big-endian (SPIMode=2), but handled via fbl param.
-    # FBL 50 → 320x240 does NOT trigger SPIMode=2 (little-endian).
-    _SCSI_BIG_ENDIAN = {(320, 320)}
+        Delegates to core.encoding (canonical location).
+        """
+        from ..core.encoding import rgb_to_bytes
+        return rgb_to_bytes(r, g, b, byte_order)
 
     # Square resolutions that skip the 90° device pre-rotation.
     # C# ImageTo565: (is240x240 || is320x320 || is480x480) → use directionB directly.
@@ -182,23 +178,10 @@ class ImageService:
                        fbl: int | None = None) -> str:
         """Determine RGB565 byte order for a device.
 
-        C# ImageTo565 byte-order logic:
-          - is320x320 (FBL 100/101/102) → big-endian
-          - myDeviceSPIMode==2 → big-endian (SCSI FBL 51, HID Type 3 FBL 53)
-          - else → little-endian
-
-        SCSI: big-endian for 320x320 (FBL 100/101/102) and FBL 51 (320x240
-        SPIMode=2).  FBL 50 → 320x240 does NOT trigger SPIMode=2 → little-endian.
-        HID/Bulk: big-endian for 320x320 (is320x320) and FBL 53 (SPIMode=2).
+        Delegates to core.encoding (canonical location).
         """
-        if protocol == 'scsi':
-            if fbl == 51:  # SPIMode=2: 320x240 big-endian
-                return '>'
-            return '>' if resolution in ImageService._SCSI_BIG_ENDIAN else '<'
-        # HID/Bulk: 320x320 or FBL 53 (Type 3 SPIMode=2) → big-endian
-        if fbl == 53:
-            return '>'
-        return '>' if resolution == (320, 320) else '<'
+        from ..core.encoding import byte_order_for
+        return byte_order_for(protocol, resolution, fbl)
 
     @staticmethod
     def to_ansi(img: Any, cols: int = 60) -> str:
@@ -346,9 +329,10 @@ class ImageService:
         Strategy: Bulk/LY (JPEG-capable) and HID JPEG-mode FBLs use JPEG.
         All others use RGB565 with device pre-rotation and protocol byte order.
         """
-        from ..core.models import JPEG_MODE_FBLS
+        from ..core.models import JPEG_MODE_FBLS, PROTOCOL_TRAITS
 
-        if (protocol in ('bulk', 'ly') and use_jpeg) or (
+        traits = PROTOCOL_TRAITS.get(protocol)
+        if (traits and traits.supports_jpeg and use_jpeg) or (
                 protocol == 'hid' and fbl in JPEG_MODE_FBLS):
             return ImageService.to_jpeg(img)
 

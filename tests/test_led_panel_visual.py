@@ -46,7 +46,7 @@ _tick = 0
 def _get_metrics() -> HardwareMetrics:
     """Return real system metrics, or fake cycling ones with --fake."""
     if not _use_fake:
-        from trcc.adapters.system.info import get_all_metrics
+        from trcc.services.system import get_all_metrics
         return get_all_metrics()
 
     global _tick

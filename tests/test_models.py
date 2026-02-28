@@ -321,5 +321,63 @@ class TestParseHexColor:
         assert parse_hex_color(invalid) is None
 
 
+# =============================================================================
+# ProtocolTraits
+# =============================================================================
+
+
+class TestProtocolTraits:
+    """PROTOCOL_TRAITS registry — single source of truth for protocol behavior."""
+
+    def test_all_protocols_have_traits(self):
+        """Every known protocol has an entry in PROTOCOL_TRAITS."""
+        from trcc.core.models import PROTOCOL_TRAITS
+        for proto in ('scsi', 'hid', 'bulk', 'ly', 'led'):
+            assert proto in PROTOCOL_TRAITS, f"Missing traits for {proto}"
+
+    def test_scsi_traits(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        t = PROTOCOL_TRAITS['scsi']
+        assert t.udev_subsystems == ('scsi_generic',)
+        assert t.backend_key == 'sg_raw'
+        assert t.fallback_backend is None
+        assert t.requires_reboot is True
+        assert t.supports_jpeg is False
+        assert t.is_led is False
+
+    def test_hid_traits(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        t = PROTOCOL_TRAITS['hid']
+        assert t.udev_subsystems == ('hidraw', 'usb')
+        assert t.backend_key == 'pyusb'
+        assert t.fallback_backend == 'hidapi'
+        assert t.requires_reboot is False
+
+    def test_bulk_ly_support_jpeg(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        assert PROTOCOL_TRAITS['bulk'].supports_jpeg is True
+        assert PROTOCOL_TRAITS['ly'].supports_jpeg is True
+
+    def test_led_is_led(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        t = PROTOCOL_TRAITS['led']
+        assert t.is_led is True
+        assert t.supports_jpeg is False
+
+    def test_only_scsi_requires_reboot(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        for name, t in PROTOCOL_TRAITS.items():
+            if name == 'scsi':
+                assert t.requires_reboot is True
+            else:
+                assert t.requires_reboot is False, f"{name} should not require reboot"
+
+    def test_traits_are_frozen(self):
+        from trcc.core.models import PROTOCOL_TRAITS
+        t = PROTOCOL_TRAITS['scsi']
+        with pytest.raises(AttributeError):
+            t.requires_reboot = False  # type: ignore[misc]
+
+
 if __name__ == '__main__':
     unittest.main()

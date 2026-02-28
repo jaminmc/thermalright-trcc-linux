@@ -1387,6 +1387,51 @@ LED_DEVICE_TYPE_NAME: str = "RGB LED Controller"
 
 
 # =============================================================================
+# Protocol Traits — data-driven per-protocol behavioral properties
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class ProtocolTraits:
+    """Per-protocol behavioral data — eliminates scattered string checks.
+
+    Single source of truth for protocol-specific properties.  Consumed by
+    udev rule generation, factory backend selection, image encoding, and
+    device type classification.
+    """
+    udev_subsystems: Tuple[str, ...]     # subsystems for udev rules
+    backend_key: str                     # 'sg_raw' or 'pyusb'
+    fallback_backend: Optional[str]      # 'hidapi' for HID/LED, None for others
+    requires_reboot: bool                # SCSI needs reboot after udev quirk
+    supports_jpeg: bool                  # bulk/ly use JPEG encoding
+    is_led: bool                         # LED protocol (not LCD)
+
+
+PROTOCOL_TRAITS: Dict[str, ProtocolTraits] = {
+    'scsi': ProtocolTraits(
+        udev_subsystems=('scsi_generic',), backend_key='sg_raw',
+        fallback_backend=None, requires_reboot=True,
+        supports_jpeg=False, is_led=False),
+    'hid': ProtocolTraits(
+        udev_subsystems=('hidraw', 'usb'), backend_key='pyusb',
+        fallback_backend='hidapi', requires_reboot=False,
+        supports_jpeg=False, is_led=False),
+    'bulk': ProtocolTraits(
+        udev_subsystems=('usb',), backend_key='pyusb',
+        fallback_backend=None, requires_reboot=False,
+        supports_jpeg=True, is_led=False),
+    'ly': ProtocolTraits(
+        udev_subsystems=('usb',), backend_key='pyusb',
+        fallback_backend=None, requires_reboot=False,
+        supports_jpeg=True, is_led=False),
+    'led': ProtocolTraits(
+        udev_subsystems=('hidraw', 'usb'), backend_key='pyusb',
+        fallback_backend='hidapi', requires_reboot=False,
+        supports_jpeg=False, is_led=True),
+}
+
+
+# =============================================================================
 # Sensor Dashboard Category Display Mappings
 # =============================================================================
 

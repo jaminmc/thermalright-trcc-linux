@@ -1058,9 +1058,11 @@ class TestSystemInfoClass(unittest.TestCase):
         self.assertIn('%', SystemInfo.format_metric('cpu_percent', 50.0))
 
     def test_singleton_exists(self):
-        """Module-level _instance is a SystemInfo."""
-        import trcc.adapters.system.info as mod
-        self.assertIsInstance(mod._instance, SystemInfo)
+        """Module-level convenience API has lazy singleton."""
+        import trcc.services.system as mod
+        # Trigger lazy init
+        mod.get_all_metrics()
+        self.assertIsNotNone(mod._instance)
 
 
 # ── Memory clock EDAC edge ───────────────────────────────────────────────────

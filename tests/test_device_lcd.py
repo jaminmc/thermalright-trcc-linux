@@ -58,7 +58,7 @@ class TestLCDDriverHeaderCRC(unittest.TestCase):
 
 class TestLCDDriverInit(unittest.TestCase):
 
-    @patch('trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution', return_value=False)
+    @patch.object(LCDDriver, '_detect_resolution')
     @patch('trcc.adapters.device.lcd.detect_devices')
     def test_init_with_path_finds_device(self, mock_detect, _):
         dev = _mock_device(scsi='/dev/sg1')
@@ -69,7 +69,7 @@ class TestLCDDriverInit(unittest.TestCase):
         self.assertEqual(driver.device_info, dev)
         self.assertIsInstance(driver.implementation, LCDDeviceConfig)
 
-    @patch('trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution', return_value=False)
+    @patch.object(LCDDriver, '_detect_resolution')
     @patch('trcc.adapters.device.lcd.detect_devices', return_value=[])
     def test_init_with_path_falls_back_to_generic(self, mock_detect, _):
         driver = LCDDriver(device_path='/dev/sg5')
@@ -77,7 +77,7 @@ class TestLCDDriverInit(unittest.TestCase):
         self.assertIsNone(driver.device_info)
         self.assertEqual(driver.implementation.name, 'Generic LCD')
 
-    @patch('trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution', return_value=False)
+    @patch.object(LCDDriver, '_detect_resolution')
     @patch('trcc.adapters.device.lcd.detect_devices')
     def test_init_by_vid_pid(self, mock_detect, _):
         dev = _mock_device(vid=0x3633, pid=0x0002, scsi='/dev/sg0')
@@ -86,13 +86,13 @@ class TestLCDDriverInit(unittest.TestCase):
         driver = LCDDriver(vid=0x3633, pid=0x0002)
         self.assertEqual(driver.device_path, '/dev/sg0')
 
-    @patch('trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution', return_value=False)
+    @patch.object(LCDDriver, '_detect_resolution')
     @patch('trcc.adapters.device.lcd.detect_devices', return_value=[])
     def test_init_by_vid_pid_not_found_raises(self, mock_detect, _):
         with self.assertRaises(RuntimeError):
             LCDDriver(vid=0xDEAD, pid=0xBEEF)
 
-    @patch('trcc.adapters.device.lcd.DeviceService.detect_lcd_resolution', return_value=False)
+    @patch.object(LCDDriver, '_detect_resolution')
     @patch('trcc.adapters.device.lcd.get_default_device')
     def test_init_auto_detect(self, mock_default, _):
         dev = _mock_device()
@@ -119,7 +119,7 @@ class TestLCDDriverFrameOps(unittest.TestCase):
         driver.initialized = True
         return driver
 
-    @patch('trcc.adapters.device.lcd.ImageService.rgb_to_bytes', return_value=b'\xFF\x00')
+    @patch('trcc.adapters.device.lcd.rgb_to_bytes', return_value=b'\xFF\x00')
     def test_create_solid_color(self, _):
         driver = self._make_driver()
         data = driver.create_solid_color(255, 0, 0)

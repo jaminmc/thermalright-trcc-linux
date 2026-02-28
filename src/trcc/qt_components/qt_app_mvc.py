@@ -35,13 +35,13 @@ from PySide6.QtWidgets import (
 
 from ..adapters.device.scsi import find_lcd_devices
 from ..adapters.infra.dc_writer import CarouselConfig, read_carousel_config, write_carousel_config
-from ..adapters.system.info import get_all_metrics
 from ..adapters.system.sensors import SensorEnumerator
 from ..conf import Settings, settings
 
 # Import MVC core
 from ..core.controllers import LEDDeviceController, create_controller
 from ..core.models import SPLIT_MODE_RESOLUTIONS, DeviceInfo, PlaybackState, ThemeInfo
+from ..services.system import get_all_metrics
 
 # Import view components
 from .assets import Assets

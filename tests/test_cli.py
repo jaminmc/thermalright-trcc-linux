@@ -253,7 +253,7 @@ class TestShowInfo(unittest.TestCase):
         )
         mock_mod.format_metric.side_effect = lambda k, v: f"{v}"
 
-        with patch.dict('sys.modules', {'trcc.adapters.system.info': mock_mod}):
+        with patch.dict('sys.modules', {'trcc.services.system': mock_mod}):
             result = show_info()
         self.assertEqual(result, 0)
 
@@ -802,8 +802,8 @@ class TestSendColorEdge(unittest.TestCase):
 
 class TestShowInfoMetrics(unittest.TestCase):
 
-    @patch('trcc.adapters.system.info.format_metric', side_effect=lambda k, v: str(v))
-    @patch('trcc.adapters.system.info.get_all_metrics')
+    @patch('trcc.services.system.format_metric', side_effect=lambda k, v: str(v))
+    @patch('trcc.services.system.get_all_metrics')
     def test_shows_gpu_and_memory(self, mock_metrics, _):
         mock_metrics.return_value = HardwareMetrics(
             cpu_temp=65.0,
@@ -818,8 +818,8 @@ class TestShowInfoMetrics(unittest.TestCase):
         result = show_info()
         self.assertEqual(result, 0)
 
-    @patch('trcc.adapters.system.info.format_metric', side_effect=lambda k, v: str(v))
-    @patch('trcc.adapters.system.info.get_all_metrics')
+    @patch('trcc.services.system.format_metric', side_effect=lambda k, v: str(v))
+    @patch('trcc.services.system.get_all_metrics')
     def test_shows_partial_metrics(self, mock_metrics, _):
         """Handles missing keys gracefully."""
         mock_metrics.return_value = HardwareMetrics(cpu_temp=65.0)

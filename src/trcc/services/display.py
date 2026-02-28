@@ -1,4 +1,4 @@
-"""Display pipeline orchestrator — coordinates theme, overlay, media → LCD frame.
+"""Display pipeline orchestrator — coordinates theme, overlay, media -> LCD frame.
 
 Pure Python, no Qt dependencies.
 Controllers (PySide6, Typer CLI, FastAPI) are thin wrappers that call this
@@ -6,30 +6,31 @@ service and fire callbacks.
 """
 from __future__ import annotations
 
-import json
 import logging
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
-from ..adapters.infra.data_repository import RESOURCES_DIR, DataManager, ThemeDir
+from ..adapters.infra.data_repository import RESOURCES_DIR, DataManager
 from ..conf import settings
 from ..core.models import SPLIT_MODE_RESOLUTIONS, SPLIT_OVERLAY_MAP
 from .device import DeviceService
 from .image import ImageService
 from .media import MediaService
 from .overlay import OverlayService
-from .theme import ThemeService, _copy_flat_files
+from .theme_loader import ThemeLoader
+from .theme_persistence import ThemePersistence
 
 log = logging.getLogger(__name__)
 
 
 class DisplayService:
-    """Display pipeline: theme → overlay → brightness/rotation → LCD frame.
+    """Display pipeline: theme -> overlay -> brightness/rotation -> LCD frame.
 
     Orchestrates sub-services (DeviceService, OverlayService, MediaService).
-    Sub-services are injected, not owned.
+    Sub-services are injected, not owned. Theme loading and persistence
+    delegated to ThemeLoader and ThemePersistence (SRP).
     """
 
     def __init__(self,
@@ -41,6 +42,9 @@ class DisplayService:
         self.overlay = overlay
         self.media = media
 
+        # Theme loader (injected with same sub-services)
+        self._loader = ThemeLoader(overlay, media)
+
         # Working directory (Windows GifDirectory pattern)
         self.working_dir = Path(tempfile.mkdtemp(prefix='trcc_work_'))
 
@@ -51,7 +55,7 @@ class DisplayService:
         self.rotation = 0         # directionB: 0, 90, 180, 270
         self.brightness = 50      # percent (0-100)
         self.split_mode = 0       # myLddVal: 0=off, 1-3=Dynamic Island style
-        self._split_overlay_cache: dict[tuple[int, int], Any] = {}  # (style,rot)→PIL
+        self._split_overlay_cache: dict[tuple[int, int], Any] = {}  # (style,rot)->PIL
 
         # Theme directories
         self._local_dir: Path | None = None
@@ -59,7 +63,7 @@ class DisplayService:
         self._masks_dir: Path | None = None
         self._mask_source_dir: Path | None = None
 
-    # ── Properties ────────────────────────────────────────────────────
+    # -- Properties --------------------------------------------------------
 
     @property
     def lcd_width(self) -> int:
@@ -73,7 +77,7 @@ class DisplayService:
     def lcd_size(self) -> tuple[int, int]:
         return (settings.width, settings.height)
 
-    # ── Initialization ────────────────────────────────────────────────
+    # -- Initialization ----------------------------------------------------
 
     def initialize(self, data_dir: Path) -> None:
         """Initialize service with data directory."""
@@ -101,13 +105,13 @@ class DisplayService:
         if self.working_dir and self.working_dir.exists():
             shutil.rmtree(self.working_dir, ignore_errors=True)
 
-    # ── Resolution ────────────────────────────────────────────────────
+    # -- Resolution --------------------------------------------------------
 
     def set_resolution(self, width: int, height: int, persist: bool = True) -> None:
         """Set LCD resolution and update sub-services."""
         if width == self.lcd_width and height == self.lcd_height:
             return
-        log.info("Resolution changed: %dx%d → %dx%d",
+        log.info("Resolution changed: %dx%d -> %dx%d",
                  self.lcd_width, self.lcd_height, width, height)
         settings.set_resolution(width, height, persist=persist)
         self.media.set_target_size(width, height)
@@ -116,7 +120,7 @@ class DisplayService:
         if width and height:
             self._setup_dirs(width, height)
 
-    # ── Display adjustments ───────────────────────────────────────────
+    # -- Display adjustments -----------------------------------------------
 
     def set_rotation(self, degrees: int) -> Any | None:
         """Set display rotation. Returns rendered image or None."""
@@ -138,169 +142,55 @@ class DisplayService:
 
     @property
     def is_widescreen_split(self) -> bool:
-        """True if current resolution supports split mode (灵动岛)."""
+        """True if current resolution supports split mode."""
         return self.lcd_size in SPLIT_MODE_RESOLUTIONS
 
-    # ── Theme loading ─────────────────────────────────────────────────
+    # -- Theme loading (delegates to ThemeLoader) --------------------------
 
     def load_local_theme(self, theme) -> dict:
-        """Load a local theme with DC config, mask, and overlay.
+        """Load a local theme with DC config, mask, and overlay."""
+        result = self._loader.load_local_theme(
+            theme, self.lcd_size, self.working_dir)
 
-        Returns dict with keys:
-            'image': PIL Image (rendered preview) or None
-            'is_animated': bool
-            'status': str
-        """
-        log.info("Loading local theme: %s", theme.path)
-        self.media.stop()
+        # Wire up state from loader result
+        self._mask_source_dir = result.get('mask_source_dir')
+        self.current_theme_path = result.get('theme_path')
 
-        # Full reset
-        self.overlay.enabled = False
-        self.overlay.set_background(None)
-        self.overlay.set_mask(None)
-        self.overlay.set_config({})
-        self._mask_source_dir = None
-        self.current_image = None
-        self.current_theme_path = theme.path
-        assert theme.path is not None
+        # Set current_image from result or from video first frame
+        if result.get('image'):
+            self.current_image = result['image']
+        elif result.get('is_animated'):
+            first_frame = self.media.get_frame(0)
+            if first_frame:
+                self.current_image = first_frame
 
-        td = ThemeDir(theme.path)
-
-        # Reference-based theme (config.json exists)
-        if td.json.exists():
-            return self._load_reference_theme(theme, td)
-
-        # Copy-based theme (original behavior)
-        return self._load_copy_theme(theme, td)
-
-    def _load_reference_theme(self, theme, td: ThemeDir) -> dict:
-        """Load theme by path references (config.json)."""
-        display_opts = self.overlay.load_from_dc(td.dc)
-
-        if display_opts.get('overlay_enabled'):
-            self.overlay.enabled = True
-
-        # Load mask by reference
-        mask_ref = display_opts.get('mask_path')
-        if mask_ref:
-            mask_td = ThemeDir(mask_ref)
-            if mask_td.mask.exists():
-                self._mask_source_dir = mask_td.path
-                self._load_mask(mask_td.mask, None)
-                mask_pos = display_opts.get('mask_position')
-                if mask_pos:
-                    mask_img, _ = self.overlay.get_mask()
-                    self.overlay.set_mask(mask_img, mask_pos)
-
-        # Load background by reference
-        result = {'image': None, 'is_animated': False, 'status': f"Theme: {theme.name}"}
-        bg_ref = display_opts.get('background_path')
-        if bg_ref:
-            bg_path = Path(bg_ref)
-            # Fall back to 00.png in theme dir if saved path is stale
-            # (e.g. user reinstalled to different location)
-            if not bg_path.exists() and td.bg.exists():
-                bg_path = td.bg
-            if bg_path.exists():
-                if bg_path.suffix in ('.mp4', '.avi', '.mkv', '.webm', '.zt'):
-                    self._load_and_play_video(bg_path)
-                    result['is_animated'] = True
-                    result['image'] = self.current_image
-                else:
-                    self._load_static_image(bg_path)
-                    result['image'] = self._render_and_process()
-        elif td.bg.exists():
-            # No background_path in config but 00.png exists — load it
-            self._load_static_image(td.bg)
+        # Render with adjustments if we have a static image
+        if result.get('image') and not result.get('is_animated'):
             result['image'] = self._render_and_process()
 
         return result
 
-    def _load_copy_theme(self, theme, td: ThemeDir) -> dict:
-        """Load theme by copying to working dir (original behavior)."""
-        self._copy_to_working_dir(theme.path)
-
-        wd = ThemeDir(self.working_dir)
-        display_opts = self.overlay.load_from_dc(wd.dc)
-
-        result = {'image': None, 'is_animated': False, 'status': f"Theme: {theme.name}"}
-
-        # Load background / animation
-        anim_file = display_opts.get('animation_file')
-        if anim_file:
-            anim_path = self.working_dir / anim_file
-            if anim_path.exists():
-                self._load_and_play_video(anim_path)
-                result['is_animated'] = True
-            elif theme.is_animated and theme.animation_path:
-                self._load_and_play_video(theme.animation_path)
-                result['is_animated'] = True
-        elif theme.is_animated and theme.animation_path:
-            wd_copy = self.working_dir / Path(theme.animation_path).name
-            load_path = wd_copy if wd_copy.exists() else theme.animation_path
-            self._load_and_play_video(load_path)
-            result['is_animated'] = True
-        elif wd.zt.exists():
-            self._load_and_play_video(wd.zt)
-            result['is_animated'] = True
-        elif wd.bg.exists():
-            mp4_files = list(self.working_dir.glob('*.mp4'))
-            if mp4_files:
-                self._load_and_play_video(mp4_files[0])
-                result['is_animated'] = True
-            else:
-                self._load_static_image(wd.bg)
-        elif theme.is_mask_only:
-            self._create_black_background()
-
-        # Load mask from working dir
-        if wd.mask.exists():
-            self._mask_source_dir = theme.path
-            self._load_mask(wd.mask, wd.dc if wd.dc.exists() else None)
-
-        result['image'] = self._render_and_process()
-        return result
-
     def load_cloud_theme(self, theme) -> dict:
         """Load a cloud video theme as background."""
-        self.media.stop()
+        result = self._loader.load_cloud_theme(theme, self.working_dir)
 
-        if theme.animation_path:
-            video_path = Path(theme.animation_path)
-            if video_path.exists():
-                dest = self.working_dir / video_path.name
-                if not dest.exists():
-                    shutil.copy2(str(video_path), str(dest))
-            self._load_and_play_video(theme.animation_path)
-
-        return {
-            'image': self.current_image,
-            'is_animated': True,
-            'status': f"Cloud Theme: {theme.name}",
-        }
+        first_frame = self.media.get_frame(0)
+        if first_frame:
+            self.current_image = first_frame
+        result['image'] = self.current_image
+        return result
 
     def apply_mask(self, mask_dir: Path) -> Any | None:
         """Apply a mask overlay on top of current content."""
-        if not mask_dir or not mask_dir.exists():
-            return None
-
-        self._mask_source_dir = mask_dir
-        _copy_flat_files(mask_dir, self.working_dir)
-
-        wd = ThemeDir(self.working_dir)
-        self.overlay.load_from_dc(wd.dc)
-
-        if wd.mask.exists():
-            self._load_mask(wd.mask, wd.dc if wd.dc.exists() else None)
-
-        self.overlay.enabled = True
+        self._mask_source_dir = self._loader.apply_mask(
+            mask_dir, self.working_dir, self.lcd_size)
 
         if not self.current_image:
-            self._create_black_background()
+            self.current_image = ImageService.solid_color(0, 0, 0, *self.lcd_size)
 
         return self.render_overlay()
 
-    # ── Image loading ─────────────────────────────────────────────────
+    # -- Image loading (kept on DisplayService -- tied to state) -----------
 
     def load_image_file(self, path: Path) -> Any | None:
         """Load a static image file. Returns rendered image or None."""
@@ -314,66 +204,11 @@ class DisplayService:
         except Exception as e:
             log.error("Failed to load image: %s", e)
 
-    def _load_and_play_video(self, path: Path) -> None:
-        """Load video, set first frame as current image, start playback."""
-        self.media.load(path)
-        first_frame = self.media.get_frame(0)
-        if first_frame:
-            self.current_image = first_frame
-        self.media.play()
-
     def _create_black_background(self) -> None:
         """Create black background for mask-only themes."""
         self.current_image = ImageService.solid_color(0, 0, 0, *self.lcd_size)
 
-    # ── Mask loading ──────────────────────────────────────────────────
-
-    def _load_mask(self, mask_path: Path, dc_path: Path | None = None) -> None:
-        """Load mask image with position from DC config."""
-        try:
-            from PIL import Image
-            mask_img = Image.open(mask_path)
-            position = self._parse_mask_position(dc_path, mask_img)
-            self.overlay.set_mask(mask_img, position)
-        except Exception as e:
-            log.error("Failed to load mask: %s", e)
-
-    def _parse_mask_position(self, dc_path: Path | None, mask_img: Any) -> tuple[int, int] | None:
-        """Parse mask position from DC file, convert center to top-left coords."""
-        if mask_img.width >= self.lcd_width and mask_img.height >= self.lcd_height:
-            return (0, 0)
-
-        if not dc_path or not Path(dc_path).exists():
-            return None
-
-        try:
-            from ..adapters.infra.dc_config import DcConfig
-            dc = DcConfig(dc_path)
-            if dc.mask_enabled:
-                center_pos = dc.mask_settings.get('mask_position')
-                if center_pos:
-                    return (
-                        center_pos[0] - mask_img.width // 2,
-                        center_pos[1] - mask_img.height // 2,
-                    )
-        except Exception:
-            pass
-        return None
-
-    # ── Working directory ─────────────────────────────────────────────
-
-    def _clear_working_dir(self) -> None:
-        """Clear and recreate working directory."""
-        if self.working_dir.exists():
-            shutil.rmtree(self.working_dir)
-        self.working_dir.mkdir(parents=True, exist_ok=True)
-
-    def _copy_to_working_dir(self, source: Path) -> None:
-        """Copy theme files to working dir."""
-        self._clear_working_dir()
-        _copy_flat_files(source, self.working_dir)
-
-    # ── Rendering ─────────────────────────────────────────────────────
+    # -- Rendering ---------------------------------------------------------
 
     def _render_and_process(self) -> Any | None:
         """Render overlay on current image, apply brightness + rotation."""
@@ -401,11 +236,7 @@ class DisplayService:
         return image
 
     def _apply_split_overlay(self, image: Any) -> Any:
-        """Composite Dynamic Island (灵动岛) overlay for widescreen split mode.
-
-        C# UCScreenImage.cs: overlay selected by (myLddVal, directionB),
-        alpha-composited on top of the rotated frame.
-        """
+        """Composite Dynamic Island overlay for widescreen split mode."""
         if not self.split_mode or not self.is_widescreen_split:
             return image
 
@@ -426,7 +257,6 @@ class DisplayService:
             from PIL import Image as PILImage
             if image.mode != 'RGBA':
                 image = image.convert('RGBA')
-            # Resize overlay if it doesn't match (shouldn't happen, but safe)
             if overlay.size != image.size:
                 overlay = overlay.resize(image.size, PILImage.Resampling.LANCZOS)
             image = PILImage.alpha_composite(image, overlay)
@@ -443,28 +273,22 @@ class DisplayService:
             from PIL import Image as PILImage
             path = os.path.join(RESOURCES_DIR, asset_name)
             if os.path.exists(path):
-                img = PILImage.open(path).convert('RGBA')
-                return img
+                return PILImage.open(path).convert('RGBA')
             log.warning("Split overlay not found: %s", path)
         except Exception as e:
             log.error("Failed to load split overlay %s: %s", asset_name, e)
         return None
 
     def set_video_fit_mode(self, mode: str) -> Any | None:
-        """Set video fit mode (C# UCBoFangQiKongZhi: buttonTPJCW/buttonTPJCH).
-
-        mode: 'fill' (stretch), 'width' (letterbox width), 'height' (letterbox height).
-        Re-decodes video frames with adjusted scaling. Returns preview image.
-        """
+        """Set video fit mode. Re-decodes frames. Returns preview image."""
         if self.media.set_fit_mode(mode):
-            # Get current frame for preview
             frame = self.media.get_frame()
             if frame:
                 self.current_image = frame
                 return self._render_and_process()
         return self._render_and_process()
 
-    # ── Video playback ────────────────────────────────────────────────
+    # -- Video playback ----------------------------------------------------
 
     def video_tick(self) -> dict | None:
         """Advance one video frame. Returns dict or None if not playing."""
@@ -496,7 +320,7 @@ class DisplayService:
         """Check if video is currently playing."""
         return self.media.is_playing
 
-    # ── LCD send ──────────────────────────────────────────────────────
+    # -- LCD send ----------------------------------------------------------
 
     def send_current_image(self) -> bytes | None:
         """Prepare current image for LCD send. Returns encoded bytes or None."""
@@ -509,11 +333,7 @@ class DisplayService:
         return self._encode_for_device(image)
 
     def _encode_for_device(self, img: Any) -> bytes:
-        """Encode image for LCD device.
-
-        Delegates encoding strategy to ImageService.encode_for_device() —
-        JPEG for bulk/LY/HID-JPEG devices, RGB565 with pre-rotation for others.
-        """
+        """Encode image for LCD device."""
         device = self.devices.selected
         protocol = device.protocol if device else 'scsi'
         resolution = device.resolution if device else (320, 320)
@@ -521,25 +341,17 @@ class DisplayService:
         use_jpeg = device.use_jpeg if device else True
         return ImageService.encode_for_device(img, protocol, resolution, fbl, use_jpeg)
 
-    # ── Theme save (delegates to ThemeService) ────────────────────────
+    # -- Theme save (delegates to ThemePersistence) ------------------------
 
     def save_theme(self, name: str, data_dir: Path) -> Tuple[bool, str]:
         """Save current config as a custom theme."""
-        if not self.current_image:
-            return False, "No image to save"
-
-        rendered = self.overlay.render(self.current_image)
-        mask_img, mask_pos = self.overlay.get_mask()
-        overlay_config = self._get_overlay_config()
-
-        ok, msg = ThemeService.save(
+        ok, msg = ThemePersistence.save(
             name, data_dir, self.lcd_size,
-            background=rendered,
-            overlay_config=overlay_config,
-            mask=mask_img,
-            mask_source=self._mask_source_dir,
-            mask_position=mask_pos,
-            video_path=self.media.source_path if self.media.is_playing else None,
+            current_image=self.current_image,
+            overlay=self.overlay,
+            mask_source_dir=self._mask_source_dir,
+            media_source_path=self.media.source_path,
+            media_is_playing=self.media.is_playing,
             current_theme_path=self.current_theme_path,
         )
         if ok:
@@ -547,56 +359,23 @@ class DisplayService:
             self.current_theme_path = data_dir / f'theme{self.lcd_width}{self.lcd_height}' / safe_name
         return ok, msg
 
-    def _get_overlay_config(self) -> dict:
-        """Get current overlay config for saving."""
-        return self.overlay.config
-
-    # ── Theme export / import (delegates to ThemeService) ─────────────
-
     def export_config(self, export_path: Path) -> Tuple[bool, str]:
         """Export current theme as .tr or JSON file."""
-        if not self.current_theme_path:
-            return False, "No theme loaded"
-
-        if str(export_path).endswith('.tr'):
-            return ThemeService.export_tr(self.current_theme_path, export_path)
-
-        # JSON export
-        config = {
-            'theme_path': str(self.current_theme_path),
-            'resolution': f'{self.lcd_width}x{self.lcd_height}',
-        }
-        try:
-            with open(str(export_path), 'w') as f:
-                json.dump(config, f, indent=2)
-            return True, f"Exported: {export_path.name}"
-        except Exception as e:
-            return False, f"Export failed: {e}"
+        return ThemePersistence.export_config(
+            export_path, self.current_theme_path,
+            self.lcd_width, self.lcd_height,
+        )
 
     def import_config(self, import_path: Path, data_dir: Path) -> Tuple[bool, str]:
         """Import theme from .tr or JSON file."""
-        if str(import_path).endswith('.tr'):
-            ok, result = ThemeService.import_tr(import_path, data_dir, self.lcd_size)
-            if ok and not isinstance(result, str):
-                self.load_local_theme(result)
-                return True, f"Imported: {import_path.stem}"
-            return ok, result if isinstance(result, str) else "Import failed"
+        ok, result = ThemePersistence.import_config(
+            import_path, data_dir, self.lcd_size)
+        if ok and not isinstance(result, str):
+            self.load_local_theme(result)
+            return True, f"Imported: {import_path.stem}"
+        return ok, result if isinstance(result, str) else "Import failed"
 
-        # JSON import
-        try:
-            with open(str(import_path)) as f:
-                config = json.load(f)
-            tp = config.get('theme_path')
-            if tp and Path(tp).exists():
-                from ..core.models import ThemeInfo
-                theme = ThemeInfo.from_directory(Path(tp))
-                self.load_local_theme(theme)
-                return True, f"Imported config from {import_path.name}"
-            return False, "Theme path in config not found"
-        except Exception as e:
-            return False, f"Import failed: {e}"
-
-    # ── Directory properties ──────────────────────────────────────────
+    # -- Directory properties ----------------------------------------------
 
     @property
     def local_dir(self) -> Path | None:

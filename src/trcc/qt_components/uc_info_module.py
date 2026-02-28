@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ..adapters.system.info import get_all_metrics
+from ..services.system import get_all_metrics
 
 # Default sensors: (metric_key, label, color)
 DEFAULT_SENSORS = [

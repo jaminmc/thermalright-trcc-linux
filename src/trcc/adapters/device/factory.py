@@ -21,7 +21,7 @@ Usage::
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 from trcc.core.models import (
     DEVICE_TYPE_NAMES,
@@ -654,6 +654,17 @@ class DeviceProtocolFactory:
 
     _protocols: Dict[str, DeviceProtocol] = {}
 
+    # Registry map: (protocol, implementation) → factory function.
+    # Looked up by exact match first, then (protocol, '') as fallback.
+    _PROTOCOL_REGISTRY: ClassVar[Dict[Tuple[str, str], Callable[..., DeviceProtocol]]] = {
+        ('scsi', ''):       lambda di: ScsiProtocol(di.path),
+        ('bulk', ''):       lambda di: BulkProtocol(vid=di.vid, pid=di.pid),
+        ('ly', ''):         lambda di: LyProtocol(vid=di.vid, pid=di.pid),
+        ('hid', 'hid_led'): lambda di: LedProtocol(vid=di.vid, pid=di.pid),
+        ('hid', ''):        lambda di: HidProtocol(vid=di.vid, pid=di.pid,
+                                device_type=getattr(di, 'device_type', 2)),
+    }
+
     @classmethod
     def _device_key(cls, device_info) -> str:
         """Build a cache key from device info."""
@@ -666,8 +677,8 @@ class DeviceProtocolFactory:
     def create_protocol(cls, device_info) -> DeviceProtocol:
         """Create a new protocol for the given device (not cached).
 
-        Routes to ScsiProtocol or HidProtocol based on device_info.protocol.
-        SCSI is the default when protocol is unset.
+        Routes to the appropriate protocol class via _PROTOCOL_REGISTRY.
+        Lookup: exact (protocol, implementation) first, then (protocol, '').
 
         Args:
             device_info: Object with protocol, vid, pid, path, device_type.
@@ -681,40 +692,18 @@ class DeviceProtocolFactory:
         protocol = getattr(device_info, 'protocol', 'scsi')
         implementation = getattr(device_info, 'implementation', '')
 
-        if protocol == 'scsi':
-            log.info("Creating ScsiProtocol for %s", device_info.path)
-            return ScsiProtocol(device_info.path)
-        elif protocol == 'bulk':
-            log.info("Creating BulkProtocol for %04X:%04X",
-                     device_info.vid, device_info.pid)
-            return BulkProtocol(
-                vid=device_info.vid,
-                pid=device_info.pid,
-            )
-        elif protocol == 'ly':
-            log.info("Creating LyProtocol for %04X:%04X",
-                     device_info.vid, device_info.pid)
-            return LyProtocol(
-                vid=device_info.vid,
-                pid=device_info.pid,
-            )
-        elif protocol == 'hid':
-            # LED devices use a different protocol than LCD HID devices
-            if implementation == 'hid_led':
-                log.info("Creating LedProtocol for %04X:%04X", device_info.vid, device_info.pid)
-                return LedProtocol(
-                    vid=device_info.vid,
-                    pid=device_info.pid,
-                )
-            log.info("Creating HidProtocol for %04X:%04X (type %d)",
-                     device_info.vid, device_info.pid, getattr(device_info, 'device_type', 2))
-            return HidProtocol(
-                vid=device_info.vid,
-                pid=device_info.pid,
-                device_type=getattr(device_info, 'device_type', 2),
-            )
-        else:
+        factory_fn = cls._PROTOCOL_REGISTRY.get(
+            (protocol, implementation),
+        ) or cls._PROTOCOL_REGISTRY.get((protocol, ''))
+
+        if factory_fn is None:
             raise ValueError(f"Unknown protocol: {protocol!r}")
+
+        result = factory_fn(device_info)
+        log.info("Created %s for %s", type(result).__name__,
+                 getattr(device_info, 'path',
+                         f'{device_info.vid:04X}:{device_info.pid:04X}'))
+        return result
 
     @classmethod
     def get_protocol(cls, device_info) -> DeviceProtocol:
@@ -840,17 +829,14 @@ class DeviceProtocolFactory:
 
         implementation = getattr(device_info, 'implementation', '')
 
-        if protocol == "scsi":
-            active = "sg_raw" if backends["sg_raw"] else "none"
-        elif protocol in ("bulk", "ly"):
-            active = "pyusb" if backends["pyusb"] else "none"
-        elif protocol == "hid":
-            if backends["pyusb"]:
-                active = "pyusb"
-            elif backends["hidapi"]:
-                active = "hidapi"
-            else:
-                active = "none"
+        from trcc.core.models import PROTOCOL_TRAITS
+        traits = PROTOCOL_TRAITS.get(protocol)
+        if traits is None:
+            active = "none"
+        elif backends.get(traits.backend_key, False):
+            active = traits.backend_key
+        elif traits.fallback_backend and backends.get(traits.fallback_backend, False):
+            active = traits.fallback_backend
         else:
             active = "none"
 
@@ -917,6 +903,11 @@ class ProtocolInfo:
     @property
     def has_backend(self) -> bool:
         """Whether at least one usable backend is available."""
-        if self.protocol == "scsi":
-            return self.backends.get("sg_raw", False)
-        return self.backends.get("pyusb", False) or self.backends.get("hidapi", False)
+        from trcc.core.models import PROTOCOL_TRAITS
+        traits = PROTOCOL_TRAITS.get(self.protocol)
+        if traits is None:
+            return False
+        if self.backends.get(traits.backend_key, False):
+            return True
+        return bool(traits.fallback_backend
+                    and self.backends.get(traits.fallback_backend, False))

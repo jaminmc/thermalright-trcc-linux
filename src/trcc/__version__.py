@@ -1,9 +1,20 @@
 """TRCC Linux version information."""
 
-__version__ = "6.2.5"
+__version__ = "6.3.0"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
+# 6.3.0  - SOLID refactoring: 7-phase architectural alignment. OCP: ProtocolTraits
+#          frozen dataclass in core/models.py replaces 18 scattered protocol string
+#          checks across 10 files; factory registry dict replaces create_protocol()
+#          if/elif chain. DIP: core/encoding.py pure functions fix lcd.py importing
+#          from services; core/ports.py Renderer ABC fix pil.py importing from
+#          services; module-level convenience API in services/system.py retires
+#          adapters/system/info.py shim. SRP: DisplayService split into ThemeLoader
+#          (theme loading orchestration) + ThemePersistence (save/export/import);
+#          LEDService config persistence extracted to led_config.py. 5 new files,
+#          ~20 modified, net -255 lines from existing files. Public APIs unchanged.
+#          2523 tests.
 # 6.2.5  - Fix SCSI detection on distros without sg module (CachyOS, Arch): device
 #          detector now falls back to /dev/sd* block devices when /dev/sg* not
 #          available — SG_IO ioctl works on both. setup-udev writes

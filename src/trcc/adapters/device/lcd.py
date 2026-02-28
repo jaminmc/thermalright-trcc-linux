@@ -7,9 +7,8 @@ Combines device detection with implementation-specific protocols.
 import logging
 from typing import Optional
 
+from trcc.core.encoding import byte_order_for, rgb_to_bytes
 from trcc.core.models import LCDDeviceConfig
-from trcc.services.device import DeviceService
-from trcc.services.image import ImageService
 
 from .detector import DetectedDevice, detect_devices, get_default_device
 from .scsi import ScsiDevice
@@ -45,10 +44,33 @@ class LCDDriver:
             # Auto-detect
             self._init_auto_detect()
 
-        # Auto-detect resolution via FBL if requested
+        # Auto-detect resolution via FBL if requested (adapter→adapter, no service import)
         if auto_detect_resolution and self.device_path and self.implementation:
-            DeviceService.detect_lcd_resolution(
-                self.implementation, self.device_path, verbose=False)
+            self._detect_resolution()
+
+    def _detect_resolution(self) -> None:
+        """Auto-detect SCSI LCD resolution via poll byte[0] → fbl_to_resolution().
+
+        Adapter-layer resolution detection — uses ScsiDevice directly
+        (adapter→adapter, correct dependency direction).
+        """
+        from trcc.core.models import fbl_to_resolution
+        assert self.device_path is not None
+        assert self.implementation is not None
+        try:
+            poll_header = ScsiDevice._build_header(0xF5, 0xE100)
+            response = ScsiDevice._scsi_read(
+                self.device_path, poll_header[:16], 0xE100)
+            if not response:
+                return
+            fbl = response[0]
+            width, height = fbl_to_resolution(fbl)
+            self.implementation.width = width
+            self.implementation.height = height
+            self.implementation.fbl = fbl
+            self.implementation.resolution_detected = True
+        except Exception:
+            pass  # Resolution discovery is best-effort
 
     def _init_with_path(self, device_path: str):
         """Initialize with explicit device path"""
@@ -150,9 +172,9 @@ class LCDDriver:
             raise RuntimeError("No implementation loaded")
 
         width, height = self.implementation.resolution
-        byte_order = ImageService.byte_order_for(
+        byte_order = byte_order_for(
             'scsi', self.implementation.resolution, self.implementation.fbl)
-        pixel = ImageService.rgb_to_bytes(r, g, b, byte_order)
+        pixel = rgb_to_bytes(r, g, b, byte_order)
         return pixel * (width * height)
 
     def load_image(self, path: str) -> bytes:
@@ -164,13 +186,13 @@ class LCDDriver:
             from PIL import Image
             width, height = self.implementation.resolution
             img = Image.open(path).convert('RGB').resize((width, height))
-            byte_order = ImageService.byte_order_for(
+            byte_order = byte_order_for(
                 'scsi', self.implementation.resolution, self.implementation.fbl)
             data = bytearray()
             for y in range(height):
                 for x in range(width):
                     r, g, b = img.getpixel((x, y))  # type: ignore[misc]
-                    data.extend(ImageService.rgb_to_bytes(r, g, b, byte_order))
+                    data.extend(rgb_to_bytes(r, g, b, byte_order))
             return bytes(data)
         except ImportError:
             raise RuntimeError("PIL not installed. Run: pip install Pillow")
