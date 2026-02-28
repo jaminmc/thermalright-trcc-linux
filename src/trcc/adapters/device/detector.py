@@ -249,11 +249,23 @@ class DeviceDetector:
             except (IOError, OSError):
                 continue
 
-        # Fallback: try lsscsi variants
+        # Method 2: try lsscsi variants
         _scan = DeviceDetector._scan_lsscsi
-        return (_scan(['lsscsi', '-g'], ['USBLCD'])
-                or _scan(['lsscsi', '-t'], ['USBLCD', 'usb'])
-                or _scan(['lsscsi'], ['USBLCD']))
+        result = (_scan(['lsscsi', '-g'], ['USBLCD'])
+                  or _scan(['lsscsi', '-t'], ['USBLCD', 'usb'])
+                  or _scan(['lsscsi'], ['USBLCD']))
+        if result:
+            return result
+
+        # Method 3: sg module not loaded — fall back to /dev/sd* block devices.
+        # SG_IO ioctl works on block devices too.
+        for sd_name in SysUtils.find_scsi_block_devices():
+            dev_path = f"/dev/{sd_name}"
+            if os.path.exists(dev_path):
+                log.info("sg module not loaded — using block device %s", dev_path)
+                return dev_path
+
+        return None
 
     @staticmethod
     def _scan_lsscsi(cmd: list[str], patterns: list[str]) -> Optional[str]:
@@ -269,10 +281,43 @@ class DeviceDetector:
         return None
 
     @staticmethod
+    def _resolve_usblcd_vid_pid(sysfs_base: str) -> tuple[int, int, str, str]:
+        """Walk sysfs parents to find VID/PID for a USBLCD SCSI device."""
+        dev_vid = 0x87CD  # Fallback
+        dev_pid = 0x70DB
+        dev_model = "CZTV"
+        dev_button = "A1CZTV"
+        try:
+            device_path = os.path.realpath(sysfs_base)
+            for _ in range(10):
+                device_path = os.path.dirname(device_path)
+                vid_path = os.path.join(device_path, "idVendor")
+                pid_path = os.path.join(device_path, "idProduct")
+                if os.path.exists(vid_path) and os.path.exists(pid_path):
+                    with open(vid_path) as vf:
+                        dev_vid = int(vf.read().strip(), 16)
+                    with open(pid_path) as pf:
+                        dev_pid = int(pf.read().strip(), 16)
+                    if (dev_vid, dev_pid) in KNOWN_DEVICES:
+                        dev_info = KNOWN_DEVICES[(dev_vid, dev_pid)]
+                        dev_model = dev_info.model
+                        dev_button = dev_info.button_image
+                    break
+        except (IOError, OSError, ValueError):
+            pass
+        return dev_vid, dev_pid, dev_model, dev_button
+
+    @staticmethod
     def find_scsi_usblcd_devices() -> List[DetectedDevice]:
-        """Find USBLCD devices directly via sysfs (pure Python, no external commands)."""
+        """Find USBLCD devices directly via sysfs (pure Python, no external commands).
+
+        Scans SCSI generic devices (``/dev/sg*``) first.  If the ``sg`` kernel
+        module is not loaded, falls back to block devices (``/dev/sd*``) which
+        also support SG_IO ioctl.
+        """
         devices = []
 
+        # --- Pass 1: SCSI generic (/dev/sg*) ---
         for sg_name in SysUtils.find_scsi_devices():
             sg_path = f"/dev/{sg_name}"
             sysfs_base = f"/sys/class/scsi_generic/{sg_name}/device"
@@ -287,32 +332,11 @@ class DeviceDetector:
                     model = f.read().strip()
 
                 if 'USBLCD' in vendor:
-                    dev_vid = 0x87CD  # Fallback
-                    dev_pid = 0x70DB
-                    dev_model = "CZTV"
-                    dev_button = "A1CZTV"
-
-                    try:
-                        device_path = os.path.realpath(sysfs_base)
-                        for _ in range(10):
-                            device_path = os.path.dirname(device_path)
-                            vid_path = os.path.join(device_path, "idVendor")
-                            pid_path = os.path.join(device_path, "idProduct")
-                            if os.path.exists(vid_path) and os.path.exists(pid_path):
-                                with open(vid_path) as vf:
-                                    dev_vid = int(vf.read().strip(), 16)
-                                with open(pid_path) as pf:
-                                    dev_pid = int(pf.read().strip(), 16)
-                                if (dev_vid, dev_pid) in KNOWN_DEVICES:
-                                    dev_info = KNOWN_DEVICES[(dev_vid, dev_pid)]
-                                    dev_model = dev_info.model
-                                    dev_button = dev_info.button_image
-                                break
-                    except (IOError, OSError, ValueError):
-                        pass
-
+                    vid, pid, dev_model, dev_button = (
+                        DeviceDetector._resolve_usblcd_vid_pid(sysfs_base)
+                    )
                     devices.append(DetectedDevice(
-                        vid=dev_vid, pid=dev_pid,
+                        vid=vid, pid=pid,
                         vendor_name="Thermalright",
                         product_name=f"LCD Display ({model})",
                         usb_path="unknown",
@@ -323,6 +347,35 @@ class DeviceDetector:
                     ))
             except (IOError, OSError):
                 continue
+
+        if devices:
+            return devices
+
+        # --- Pass 2: block devices (/dev/sd*) — sg module not loaded ---
+        for sd_name in SysUtils.find_scsi_block_devices():
+            sd_path = f"/dev/{sd_name}"
+            sysfs_base = f"/sys/block/{sd_name}/device"
+
+            try:
+                with open(f"{sysfs_base}/model", 'r') as f:
+                    model = f.read().strip()
+            except (IOError, OSError):
+                model = "USB PRC System"
+
+            vid, pid, dev_model, dev_button = (
+                DeviceDetector._resolve_usblcd_vid_pid(sysfs_base)
+            )
+            log.info("sg module not loaded — detected USBLCD via block device %s", sd_path)
+            devices.append(DetectedDevice(
+                vid=vid, pid=pid,
+                vendor_name="Thermalright",
+                product_name=f"LCD Display ({model})",
+                usb_path="unknown",
+                scsi_device=sd_path,
+                implementation="thermalright_lcd_v1",
+                model=dev_model,
+                button_image=dev_button,
+            ))
 
         return devices
 

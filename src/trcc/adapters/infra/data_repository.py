@@ -84,6 +84,30 @@ class SysUtils:
             return []
         return [e for e in sorted(os.listdir(sysfs)) if e.startswith('sg')]
 
+    @staticmethod
+    def find_scsi_block_devices() -> List[str]:
+        """List /dev/sd* block devices whose SCSI vendor is 'USBLCD'.
+
+        Fallback for systems where the ``sg`` kernel module is not loaded —
+        the SCSI subsystem still creates ``/sys/block/sdX`` with a vendor
+        sysfs attribute, and SG_IO ioctl works on block devices too.
+        """
+        sysfs = '/sys/block'
+        if not os.path.isdir(sysfs):
+            return []
+        results: List[str] = []
+        for entry in sorted(os.listdir(sysfs)):
+            if not entry.startswith('sd'):
+                continue
+            vendor_path = os.path.join(sysfs, entry, 'device', 'vendor')
+            try:
+                with open(vendor_path, 'r') as f:
+                    if 'USBLCD' in f.read().strip():
+                        results.append(entry)
+            except (IOError, OSError):
+                continue
+        return results
+
     _sg_raw_path: str | None = None
     _sg_raw_checked: bool = False
 

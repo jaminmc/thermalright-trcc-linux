@@ -273,10 +273,11 @@ class TestFindScsiDeviceByUsbPath(unittest.TestCase):
 class TestFindScsiUsblcdDevices(unittest.TestCase):
     """Test find_scsi_usblcd_devices function."""
 
+    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_block_devices', return_value=[])
     @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=[])
     @patch('os.path.exists')
-    def test_no_sg_devices(self, mock_exists, _):
-        """Test when no sg devices exist."""
+    def test_no_sg_devices(self, mock_exists, _, __):
+        """Test when no sg or block devices exist."""
         mock_exists.return_value = False
         devices = find_scsi_usblcd_devices()
         self.assertEqual(devices, [])
@@ -853,6 +854,125 @@ class TestMainPathOnlyNoScsi(unittest.TestCase):
         with patch('sys.argv', ['prog', '--path-only']):
             result = main()
         self.assertEqual(result, 1)
+
+
+# ── Block device fallback (sg module not loaded) ────────────────────────────
+
+_SYSUTILS = 'trcc.adapters.infra.data_repository.SysUtils'
+
+
+class TestFindScsiBlockDevices(unittest.TestCase):
+    """Test SysUtils.find_scsi_block_devices() fallback."""
+
+    @patch('os.listdir', return_value=['sda', 'sdb', 'nvme0n1'])
+    @patch('os.path.isdir', return_value=True)
+    @patch('builtins.open')
+    def test_finds_usblcd_block_device(self, mock_open_fn, mock_isdir, mock_listdir):
+        """Block device with USBLCD vendor is found."""
+        from trcc.adapters.infra.data_repository import SysUtils
+
+        def open_side(path, *args, **kwargs):
+            m = MagicMock()
+            if 'sdb/device/vendor' in path:
+                m.__enter__ = lambda s: MagicMock(read=lambda: ' USBLCD  ')
+            elif 'sda/device/vendor' in path:
+                m.__enter__ = lambda s: MagicMock(read=lambda: 'ATA     ')
+            else:
+                raise IOError("no vendor")
+            m.__exit__ = lambda s, *a: None
+            return m
+        mock_open_fn.side_effect = open_side
+
+        result = SysUtils.find_scsi_block_devices()
+        self.assertEqual(result, ['sdb'])
+
+    @patch('os.listdir', return_value=['sda'])
+    @patch('os.path.isdir', return_value=True)
+    @patch('builtins.open')
+    def test_no_usblcd_block_device(self, mock_open_fn, mock_isdir, mock_listdir):
+        """No block device has USBLCD vendor."""
+        from trcc.adapters.infra.data_repository import SysUtils
+
+        m = MagicMock()
+        m.__enter__ = lambda s: MagicMock(read=lambda: 'ATA     ')
+        m.__exit__ = lambda s, *a: None
+        mock_open_fn.return_value = m
+
+        result = SysUtils.find_scsi_block_devices()
+        self.assertEqual(result, [])
+
+    @patch('os.path.isdir', return_value=False)
+    def test_no_sysfs_block_dir(self, mock_isdir):
+        """No /sys/block directory — returns empty list."""
+        from trcc.adapters.infra.data_repository import SysUtils
+        self.assertEqual(SysUtils.find_scsi_block_devices(), [])
+
+
+class TestBlockDeviceFallbackDetector(unittest.TestCase):
+    """Test detector falls back to /dev/sd* when sg module not loaded."""
+
+    @patch(f'{_SYSUTILS}.find_scsi_block_devices', return_value=['sdb'])
+    @patch(f'{_SYSUTILS}.find_scsi_devices', return_value=[])
+    @patch(f'{_CLS}.run_command', return_value='')
+    @patch('trcc.adapters.device.detector.os.path.exists', return_value=True)
+    def test_find_scsi_device_falls_back_to_block(self, mock_exists, _, __, ___):
+        """find_scsi_device_by_usb_path returns /dev/sdb when sg not loaded."""
+        result = find_scsi_device_by_usb_path('1-2')
+        self.assertEqual(result, '/dev/sdb')
+
+    @patch(f'{_SYSUTILS}.find_scsi_block_devices', return_value=['sdb'])
+    @patch(f'{_SYSUTILS}.find_scsi_devices', return_value=[])
+    @patch('trcc.adapters.device.detector.os.path.exists')
+    @patch('trcc.adapters.device.detector.os.path.realpath',
+           return_value='/sys/devices/pci/usb/scsi/block/sdb')
+    @patch('builtins.open')
+    def test_find_scsi_usblcd_falls_back_to_block(
+        self, mock_open_fn, mock_realpath, mock_exists, _, __,
+    ):
+        """find_scsi_usblcd_devices returns /dev/sdb when sg not loaded."""
+        def exists_side(path):
+            if 'idVendor' in path or 'idProduct' in path:
+                return True
+            return 'block/sdb' in path
+
+        mock_exists.side_effect = exists_side
+
+        def open_side(path, *args, **kwargs):
+            m = MagicMock()
+            if 'model' in path and 'id' not in path:
+                m.__enter__ = lambda s: MagicMock(read=lambda: 'USB PRC System')
+            elif 'idVendor' in path:
+                m.__enter__ = lambda s: MagicMock(read=lambda: '0402')
+            elif 'idProduct' in path:
+                m.__enter__ = lambda s: MagicMock(read=lambda: '3922')
+            else:
+                m.__enter__ = lambda s: MagicMock(read=lambda: '')
+            m.__exit__ = lambda s, *a: None
+            return m
+        mock_open_fn.side_effect = open_side
+
+        devices = find_scsi_usblcd_devices()
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0].scsi_device, '/dev/sdb')
+        self.assertEqual(devices[0].vid, 0x0402)
+        self.assertEqual(devices[0].pid, 0x3922)
+        self.assertEqual(devices[0].model, 'FROZEN_WARFRAME')
+
+    @patch(f'{_SYSUTILS}.find_scsi_block_devices', return_value=[])
+    @patch(f'{_SYSUTILS}.find_scsi_devices', return_value=[])
+    @patch(f'{_CLS}.run_command', return_value='')
+    @patch('trcc.adapters.device.detector.os.path.exists', return_value=False)
+    def test_no_sg_no_block_returns_none(self, *_):
+        """No sg devices and no block devices — returns None."""
+        result = find_scsi_device_by_usb_path('1-2')
+        self.assertIsNone(result)
+
+    @patch(f'{_SYSUTILS}.find_scsi_block_devices', return_value=[])
+    @patch(f'{_SYSUTILS}.find_scsi_devices', return_value=[])
+    def test_no_sg_no_block_usblcd_returns_empty(self, _, __):
+        """No sg devices and no block devices — returns empty list."""
+        devices = find_scsi_usblcd_devices()
+        self.assertEqual(devices, [])
 
 
 if __name__ == '__main__':

@@ -1,9 +1,15 @@
 """TRCC Linux version information."""
 
-__version__ = "6.2.4"
+__version__ = "6.2.5"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
+# 6.2.5  - Fix SCSI detection on distros without sg module (CachyOS, Arch): device
+#          detector now falls back to /dev/sd* block devices when /dev/sg* not
+#          available — SG_IO ioctl works on both. setup-udev writes
+#          /etc/modules-load.d/trcc-sg.conf to autoload sg on boot + modprobe sg
+#          immediately. Extracted _resolve_usblcd_vid_pid() DRY helper. uninstall
+#          cleans up trcc-sg.conf. Addresses #46. 2516 tests.
 # 6.2.4  - DRY refactoring: eliminate 3 code duplications across 10 source files.
 #          Extract parse_hex_color() to core/models.py (was duplicated in CLI and
 #          2 API modules). Extract dispatch_result() to api/models.py (was duplicated
