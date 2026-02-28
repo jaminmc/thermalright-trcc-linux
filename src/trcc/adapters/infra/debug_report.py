@@ -231,8 +231,9 @@ class DebugReport:
             scsi_devs = [d for d in self._detected_devices if d.protocol == "scsi"]
             hid_devs = [d for d in self._detected_devices if d.protocol == "hid"]
             bulk_devs = [d for d in self._detected_devices if d.protocol == "bulk"]
+            ly_devs = [d for d in self._detected_devices if d.protocol == "ly"]
 
-            if not scsi_devs and not hid_devs and not bulk_devs:
+            if not scsi_devs and not hid_devs and not bulk_devs and not ly_devs:
                 sec.lines.append("  (no devices to handshake)")
                 return
 
@@ -259,6 +260,13 @@ class DebugReport:
                 sec.lines.append(f"\n  {dev.vid:04x}:{dev.pid:04x} — Bulk")
                 try:
                     self._handshake_bulk(dev, sec)
+                except Exception as e:
+                    sec.lines.append(f"    FAILED: {e}")
+
+            for dev in ly_devs:
+                sec.lines.append(f"\n  {dev.vid:04x}:{dev.pid:04x} — LY")
+                try:
+                    self._handshake_ly(dev, sec)
                 except Exception as e:
                     sec.lines.append(f"    FAILED: {e}")
 
@@ -422,6 +430,29 @@ class DebugReport:
         from trcc.adapters.device.factory import BulkProtocol, _is_ebusy
 
         protocol = BulkProtocol(vid=dev.vid, pid=dev.pid)
+        try:
+            result = protocol.handshake()
+            if result is None:
+                error = protocol.last_error
+                if error and _is_ebusy(error):
+                    self._ebusy_fallback(sec)
+                else:
+                    sec.lines.append(
+                        f"    Result: None ({error or 'no response'})")
+                return
+            sec.lines.append(
+                f"    PM={result.model_id}, resolution={result.resolution}, "
+                f"serial={result.serial}"
+            )
+            if result.raw_response:
+                sec.lines.append(f"    raw[0:64]={result.raw_response[:64].hex()}")
+        finally:
+            protocol.close()
+
+    def _handshake_ly(self, dev, sec: _Section) -> None:
+        from trcc.adapters.device.factory import LyProtocol, _is_ebusy
+
+        protocol = LyProtocol(vid=dev.vid, pid=dev.pid)
         try:
             result = protocol.handshake()
             if result is None:

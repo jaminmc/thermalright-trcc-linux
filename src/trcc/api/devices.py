@@ -78,6 +78,10 @@ def select_device(device_id: int) -> dict:
         if not result["success"]:
             api._led_dispatcher = None
     else:
+        # Discover resolution via handshake if not yet known (all LCD protocols)
+        from trcc.cli._device import discover_resolution
+        discover_resolution(dev)
+
         from trcc.cli._display import DisplayDispatcher
 
         api._display_dispatcher = DisplayDispatcher(device_svc=_device_svc)

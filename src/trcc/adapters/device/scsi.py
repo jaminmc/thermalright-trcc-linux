@@ -555,16 +555,16 @@ def find_lcd_devices() -> List[Dict]:
                 'device_type': device_type,
                 'implementation': dev.implementation,
             })
-        elif protocol == 'bulk':
-            # Bulk USB devices — no SCSI path, use VID:PID
-            bulk_path = f"bulk:{dev.vid:04x}:{dev.pid:04x}"
+        elif protocol in ('bulk', 'ly'):
+            # Bulk / LY USB devices — no SCSI path, use VID:PID
+            dev_path = f"{protocol}:{dev.vid:04x}:{dev.pid:04x}"
 
             # Resolution unknown until handshake; default from device registry
             resolution = (0, 0)
 
             devices.append({
                 'name': f"{dev.vendor_name} {dev.product_name}",
-                'path': bulk_path,
+                'path': dev_path,
                 'resolution': resolution,
                 'vendor': dev.vendor_name,
                 'product': dev.product_name,
@@ -572,7 +572,7 @@ def find_lcd_devices() -> List[Dict]:
                 'button_image': dev.button_image,
                 'vid': dev.vid,
                 'pid': dev.pid,
-                'protocol': 'bulk',
+                'protocol': protocol,
                 'device_type': device_type,
                 'implementation': dev.implementation,
             })

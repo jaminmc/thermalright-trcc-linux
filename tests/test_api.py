@@ -105,6 +105,28 @@ class TestDeviceEndpoints(unittest.TestCase):
         self.assertEqual(resp.json()["selected"], "LCD1")
         self.assertEqual(_device_svc.selected, dev)
 
+    @patch("trcc.cli._device.discover_resolution")
+    def test_select_device_calls_discover_resolution(self, mock_discover):
+        """Select triggers resolution discovery for LCD devices with (0,0) resolution."""
+        dev = DeviceInfo(name="FW", path="/dev/sg1", vid=0x0402, pid=0x3922,
+                         protocol="scsi", resolution=(0, 0))
+        _device_svc._devices = [dev]
+        resp = self.client.post("/devices/0/select")
+        self.assertEqual(resp.status_code, 200)
+        mock_discover.assert_called_once_with(dev)
+
+    @patch("trcc.cli._device.discover_resolution")
+    def test_select_led_device_skips_discover_resolution(self, mock_discover):
+        """LED devices have no resolution — discover_resolution must not be called."""
+        dev = DeviceInfo(name="HR10", path="hid:0416:8001", vid=0x0416, pid=0x8001,
+                         protocol="led", implementation="hid_led")
+        _device_svc._devices = [dev]
+        with patch("trcc.cli._led.LEDDispatcher") as mock_led:
+            mock_led.return_value.connect.return_value = {"success": True}
+            resp = self.client.post("/devices/0/select")
+        self.assertEqual(resp.status_code, 200)
+        mock_discover.assert_not_called()
+
     def test_select_device_not_found(self):
         resp = self.client.post("/devices/99/select")
         self.assertEqual(resp.status_code, 404)

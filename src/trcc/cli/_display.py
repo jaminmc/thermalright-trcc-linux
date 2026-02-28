@@ -629,16 +629,10 @@ def resume():
             continue
 
         # Discover resolution via handshake
+        from trcc.cli._device import discover_resolution
+        discover_resolution(dev)
         if dev.resolution == (0, 0):
-            try:
-                from trcc.adapters.device.factory import DeviceProtocolFactory
-                proto = DeviceProtocolFactory.get_protocol(dev)
-                result = proto.handshake()
-                res = getattr(result, 'resolution', None) if result else None
-                if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
-                    dev.resolution = res
-            except Exception:
-                continue
+            continue
 
         key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
         cfg = Settings.get_device_config(key)

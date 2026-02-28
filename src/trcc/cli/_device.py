@@ -38,27 +38,38 @@ def _get_service(device_path: Optional[str] = None):
 
     # Discover resolution + FBL via handshake if not yet known
     dev = svc.selected
-    if dev and dev.resolution == (0, 0):
-        try:
-            from trcc.adapters.device.factory import DeviceProtocolFactory
-            protocol = DeviceProtocolFactory.get_protocol(dev)
-            result = protocol.handshake()
-            if result:
-                res = getattr(result, 'resolution', None)
-                if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
-                    dev.resolution = res
-                # Propagate FBL code for JPEG mode detection
-                fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
-                if fbl:
-                    dev.fbl_code = fbl
-                # Bulk PM=32 uses RGB565, not JPEG
-                bulk_dev = getattr(protocol, '_device', None)
-                if bulk_dev is not None:
-                    dev.use_jpeg = getattr(bulk_dev, 'use_jpeg', True)
-        except Exception:
-            pass  # Handshake may fail if device not ready
+    if dev:
+        discover_resolution(dev)
 
     return svc
+
+
+def discover_resolution(dev) -> None:
+    """Run protocol handshake to discover resolution + FBL if still unknown.
+
+    Mutates dev in-place: sets resolution, fbl_code, use_jpeg.
+    Safe to call multiple times — no-op if resolution already known.
+    """
+    if dev.resolution != (0, 0):
+        return
+    try:
+        from trcc.adapters.device.factory import DeviceProtocolFactory
+        protocol = DeviceProtocolFactory.get_protocol(dev)
+        result = protocol.handshake()
+        if result:
+            res = getattr(result, 'resolution', None)
+            if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
+                dev.resolution = res
+            # Propagate FBL code for JPEG mode detection
+            fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
+            if fbl:
+                dev.fbl_code = fbl
+            # Bulk PM=32 uses RGB565, not JPEG
+            bulk_dev = getattr(protocol, '_device', None)
+            if bulk_dev is not None:
+                dev.use_jpeg = getattr(bulk_dev, 'use_jpeg', True)
+    except Exception:
+        pass  # Handshake may fail if device not ready
 
 
 def _ensure_extracted(driver):
@@ -145,7 +156,7 @@ def _format(dev, probe=False):
     proto = dev.protocol.upper()
     if dev.scsi_device:
         path = dev.scsi_device
-    elif dev.protocol in ("hid", "bulk"):
+    elif dev.protocol in ("hid", "bulk", "ly"):
         path = f"{dev.vid:04x}:{dev.pid:04x}"
     else:
         path = "No device path found"

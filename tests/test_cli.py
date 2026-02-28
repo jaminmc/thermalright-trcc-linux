@@ -36,6 +36,7 @@ from trcc.cli import (
     _get_service,
     _probe_device,
     detect,
+    discover_resolution,
     download_themes,
     export_theme,
     gui,
@@ -1635,6 +1636,79 @@ class TestGetService(unittest.TestCase):
 
         self.assertEqual(dev.resolution, (320, 240))
         self.assertEqual(dev.fbl_code, 50)
+
+
+# ---------------------------------------------------------------------------
+# discover_resolution
+# ---------------------------------------------------------------------------
+
+class TestDiscoverResolution(unittest.TestCase):
+    """Tests for discover_resolution() helper."""
+
+    def test_noop_when_resolution_known(self):
+        """No handshake when resolution is already set."""
+        dev = _make_device_info(resolution=(320, 240))
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol') as mock_gp:
+            discover_resolution(dev)
+        mock_gp.assert_not_called()
+        self.assertEqual(dev.resolution, (320, 240))
+
+    def test_sets_resolution_from_handshake(self):
+        """Handshake result populates dev.resolution."""
+        dev = _make_device_info(path='/dev/sg0', resolution=(0, 0))
+        mock_result = MagicMock()
+        mock_result.resolution = (320, 240)
+        mock_result.fbl = 50
+        mock_result.model_id = 50
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.return_value = mock_result
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            discover_resolution(dev)
+        self.assertEqual(dev.resolution, (320, 240))
+        self.assertEqual(dev.fbl_code, 50)
+
+    def test_sets_use_jpeg_for_bulk(self):
+        """Bulk protocol propagates use_jpeg from BulkDevice."""
+        dev = _make_device_info(path='bulk:87ad:70db', protocol='bulk', resolution=(0, 0))
+        mock_result = MagicMock()
+        mock_result.resolution = (480, 480)
+        mock_result.fbl = None
+        mock_result.model_id = 72
+        mock_bulk_dev = MagicMock()
+        mock_bulk_dev.use_jpeg = False
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.return_value = mock_result
+        mock_protocol._device = mock_bulk_dev
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            discover_resolution(dev)
+        self.assertEqual(dev.resolution, (480, 480))
+        self.assertFalse(dev.use_jpeg)
+
+    def test_handles_handshake_failure(self):
+        """Handshake exception is silently caught — dev unchanged."""
+        dev = _make_device_info(path='/dev/sg0', resolution=(0, 0))
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.side_effect = OSError("device busy")
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            discover_resolution(dev)
+        self.assertEqual(dev.resolution, (0, 0))
+
+    def test_skips_zero_resolution_from_handshake(self):
+        """Handshake returning (0,0) resolution does not update dev."""
+        dev = _make_device_info(path='/dev/sg0', resolution=(0, 0))
+        mock_result = MagicMock()
+        mock_result.resolution = (0, 0)
+        mock_result.fbl = None
+        mock_result.model_id = None
+        mock_protocol = MagicMock()
+        mock_protocol.handshake.return_value = mock_result
+        with patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
+                   return_value=mock_protocol):
+            discover_resolution(dev)
+        self.assertEqual(dev.resolution, (0, 0))
 
 
 # ---------------------------------------------------------------------------

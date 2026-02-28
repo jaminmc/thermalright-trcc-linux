@@ -176,7 +176,7 @@ def setup_udev(dry_run=False):
                 f'ATTR{{idProduct}}=="{pid:04x}", '
                 f'MODE="0666"'
             )
-        elif protocol == "bulk":
+        elif protocol in ("bulk", "ly"):
             rules_lines.append(
                 f'# {vendor} {product}\n'
                 f'SUBSYSTEM=="usb", '

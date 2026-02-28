@@ -1195,22 +1195,41 @@ RESOLUTION_TO_PM: dict[tuple[int, int], int] = {
 # (FormCZTV.cs lines 682-821)
 # For all other PM values, PM=FBL (same convention as SCSI poll bytes).
 _PM_TO_FBL_OVERRIDES: dict[int, int] = {
-    5:   50,    # 240x320
+    5:   50,    # 320x240
     7:   64,    # 640x480
     9:   224,   # 854x480
-    10:  224,   # 960x540 (special: actual res depends on PM)
+    10:  224,   # 960x540 (disambiguated in _FBL_224_BY_PM)
     11:  224,   # 854x480
-    12:  224,   # 800x480 (special)
+    12:  224,   # 800x480 (disambiguated in _FBL_224_BY_PM)
+    13:  224,   # 960x320 (disambiguated in _FBL_224_BY_PM)
+    14:  64,    # 640x480
+    15:  224,   # 640x172 (disambiguated in _FBL_224_BY_PM)
+    16:  224,   # 960x540 (disambiguated in _FBL_224_BY_PM)
+    17:  224,   # 960x320 (disambiguated in _FBL_224_BY_PM)
     32:  100,   # 320x320
+    50:  50,    # 320x240 (SPI mode 2)
     64:  114,   # 1600x720
     65:  192,   # 1920x462
+    66:  192,   # 1920x462
+    68:  192,   # 1280x480 (disambiguated in _FBL_192_BY_PM)
+    69:  192,   # 1920x440 (disambiguated in _FBL_192_BY_PM)
 }
 
 
-# FBL 224 is shared by 3 resolutions — PM byte disambiguates
+# FBL 224 is shared by 5 resolutions — PM byte disambiguates
 _FBL_224_BY_PM: dict[int, tuple[int, int]] = {
     10: (960, 540),
     12: (800, 480),
+    13: (960, 320),
+    15: (640, 172),
+    16: (960, 540),
+    17: (960, 320),
+}
+
+# FBL 192 is shared by 3 resolutions — PM byte disambiguates
+_FBL_192_BY_PM: dict[int, tuple[int, int]] = {
+    68: (1280, 480),
+    69: (1920, 440),
 }
 
 # PM+SUB compound keys where sub byte changes the FBL mapping
@@ -1226,11 +1245,13 @@ def fbl_to_resolution(fbl: int, pm: int = 0) -> tuple[int, int]:
     Used by all protocols: SCSI (poll byte[0] = FBL directly),
     HID (PM → pm_to_fbl → FBL), and Bulk (PM → pm_to_fbl → FBL).
 
-    For FBL 224, the PM byte disambiguates the actual resolution.
+    For FBL 224 and 192, the PM byte disambiguates the actual resolution.
     Returns (320, 320) as default if FBL is unknown.
     """
     if fbl == 224:
         return _FBL_224_BY_PM.get(pm, (854, 480))
+    if fbl == 192:
+        return _FBL_192_BY_PM.get(pm, (1920, 462))
     return FBL_TO_RESOLUTION.get(fbl, (320, 320))
 
 

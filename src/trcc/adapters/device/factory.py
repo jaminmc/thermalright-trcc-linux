@@ -842,7 +842,7 @@ class DeviceProtocolFactory:
 
         if protocol == "scsi":
             active = "sg_raw" if backends["sg_raw"] else "none"
-        elif protocol == "bulk":
+        elif protocol in ("bulk", "ly"):
             active = "pyusb" if backends["pyusb"] else "none"
         elif protocol == "hid":
             if backends["pyusb"]:

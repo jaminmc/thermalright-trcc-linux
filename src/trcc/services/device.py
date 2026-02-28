@@ -175,7 +175,7 @@ class DeviceService:
 
         # Bulk PM=32 uses RGB565, not JPEG
         use_jpeg = device.use_jpeg if device else True
-        if (protocol == 'bulk' and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
+        if (protocol in ('bulk', 'ly') and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
             jpeg = ImageService.to_jpeg(image)
             return self.send_rgb565(jpeg, width, height)
 

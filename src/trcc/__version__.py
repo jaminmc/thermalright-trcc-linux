@@ -1,9 +1,15 @@
 """TRCC Linux version information."""
 
-__version__ = "6.2.1"
+__version__ = "6.2.2"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 # Version history:
+# 6.2.2  - Fix LY protocol integration gaps: GUI device poll, JPEG encoding,
+#          CLI display path, udev rules, and debug report all missed `ly` protocol.
+#          Add missing PM→FBL overrides (PM 13-17, 50, 66, 68, 69) and FBL 192/224
+#          multi-resolution disambiguation from v2.1.2 audit. Extract reusable
+#          discover_resolution() for API device select handshake. Addresses #45.
+#          2481 tests.
 # 6.2.1  - Add `trcc api` CLI command: lists all REST API endpoints with method,
 #          path, and description. 2445 tests.
 # 6.2.0  - Serve theme/web/mask images via REST API static files. Android app can

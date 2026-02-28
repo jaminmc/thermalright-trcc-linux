@@ -518,7 +518,7 @@ class DisplayService:
 
         # Bulk (most use JPEG, PM=32 uses RGB565) and HID JPEG-mode devices
         use_jpeg = device.use_jpeg if device else True
-        if (protocol == 'bulk' and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
+        if (protocol in ('bulk', 'ly') and use_jpeg) or (protocol == 'hid' and fbl in JPEG_MODE_FBLS):
             data = ImageService.to_jpeg(img)
             log.debug("_encode_for_device: %dx%d → JPEG %d bytes (protocol=%s, fbl=%s)",
                       img.width, img.height, len(data), protocol, fbl)

@@ -938,6 +938,7 @@ _format_device = _device._format
 _ensure_extracted = _device._ensure_extracted
 _get_driver = _device._get_driver
 _get_service = _device._get_service
+discover_resolution = _device.discover_resolution
 send_image = _display.send_image
 send_color = _display.send_color
 play_video = _display.play_video
