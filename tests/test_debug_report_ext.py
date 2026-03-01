@@ -1170,7 +1170,9 @@ class TestStrAndSections:
     def test_str_footer_url(self):
         rpt = DebugReport()
         text = str(rpt)
-        assert "github.com" in text
+        from urllib.parse import urlparse
+        urls = [w for w in text.split() if w.startswith("http")]
+        assert any(urlparse(u).hostname == "github.com" for u in urls)
 
     def test_sections_returns_title_body_pairs(self):
         rpt = DebugReport()
