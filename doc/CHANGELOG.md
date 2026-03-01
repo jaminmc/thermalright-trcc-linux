@@ -1,5 +1,71 @@
 # Changelog
 
+## v6.5.2
+
+### Video Background Save Fix
+- **Fixed**: Custom theme save renamed all video files to `Theme.zt` regardless of format — MP4 files got wrong decoder on reload, causing black screen
+- **Fixed**: Save now preserves original video extension (`.mp4` stays `.mp4`, `.zt` stays `.zt`)
+- **Added**: Fallback decoder for `.zt` files that fail magic check (handles old broken saves)
+- Addresses #42
+- 4440 tests across 54 files
+
+## v6.5.1
+
+### CodeQL Fix
+- **Fixed**: CodeQL false positive — URL substring check in test replaced with `urlparse().hostname`
+- 4440 tests across 54 files
+
+## v6.5.0
+
+### IPC Daemon — GUI-as-Server
+- **Added**: Unix domain socket IPC — when GUI is running, it owns USB device exclusively. CLI commands auto-route through socket instead of fighting over device
+- **Added**: `IPCServer`, `IPCClient`, `IPCDisplayProxy`, `IPCLEDProxy` in new `src/trcc/ipc.py`
+- **Added**: Method whitelist routing with `_DISPLAY_METHODS` and `_LED_METHODS` for security
+- **Added**: QSocketNotifier integration for non-blocking socket I/O in Qt event loop
+- **Changed**: Info module (sensor metrics bar) decoupled from overlay toggle
+- **Added**: `show_info_module` config setting (default: false) in `~/.config/trcc/config.json`
+- Addresses #48
+- 4440 tests across 54 files
+
+## v6.4.1
+
+### Info Module Decoupling
+- **Changed**: Sensor metrics bar visibility no longer tied to overlay enable/disable
+- **Added**: `show_info_module` config toggle (default: off)
+- 4440 tests across 54 files
+
+## v6.4.0
+
+### Test Suite Expansion
+- **Added**: 1995 new tests (2445 → 4440), 18% coverage increase (58% → 76%), 15 new test files (39 → 54)
+- **Added**: Session-scoped `qapp` fixture for headless Qt testing
+- **Added**: `@pytest.fixture` patterns with `autouse=True` for module-wide mocking
+- 4440 tests across 54 files
+
+## v6.3.7
+
+### Codebase Minimization
+- **Refactored**: Trimmed 694 lines of shipped source — collapsed glue code, generic dispatch helpers
+- 4440 tests across 54 files
+
+## v6.3.6
+
+### CLI-Centric Simplification
+- **Refactored**: Generic dispatch helpers collapse CLI glue code
+- 2523 tests across 39 files
+
+## v6.3.5
+
+### DRY Refactoring
+- **Refactored**: USB Device Factory, shared API helpers, LED dispatcher cleanup
+- 2523 tests across 39 files
+
+## v6.3.4
+
+### Bug Fixes
+- **Fixed**: Minor fixes and improvements
+- 2523 tests across 39 files
+
 ## v6.3.3
 
 ### Single-Instance Window Raise

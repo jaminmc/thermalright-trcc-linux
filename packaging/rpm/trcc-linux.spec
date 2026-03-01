@@ -3,7 +3,7 @@
 %global srcname trcc-linux
 
 Name:           trcc-linux
-Version:        6.3.3
+Version:        6.5.2
 Release:        1%{?dist}
 Summary:        Thermalright LCD/LED Control Center for Linux
 
@@ -115,6 +115,13 @@ udevadm control --reload-rules 2>/dev/null || :
 %endif
 
 %changelog
+* Sat Mar 01 2026 TRCC Linux Contributors <noreply@github.com> - 6.5.2-1
+- IPC daemon: GUI-as-server for single-device-owner safety
+- Fix video background black screen on custom theme reload
+- CodeQL security fix (URL substring sanitization)
+- Test suite: 4440 tests, 76%% coverage
+- See https://github.com/Lexonight1/thermalright-trcc-linux/releases
+
 * Fri Feb 28 2026 TRCC Linux Contributors <noreply@github.com> - 6.3.3-1
 - Single-instance window raise via SIGUSR1
 - PM-based device button image resolution

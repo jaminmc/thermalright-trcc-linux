@@ -1,3 +1,12 @@
+trcc-linux (6.5.2-1) unstable; urgency=medium
+
+  * IPC daemon: GUI-as-server for single-device-owner safety
+  * Fix video background black screen on custom theme reload
+  * CodeQL security fix (URL substring sanitization)
+  * Test suite: 4440 tests, 76% coverage
+
+ -- TRCC Linux Contributors <noreply@github.com>  Sat, 01 Mar 2026 00:00:00 +0000
+
 trcc-linux (6.3.3-1) unstable; urgency=medium
 
   * Single-instance window raise via SIGUSR1
