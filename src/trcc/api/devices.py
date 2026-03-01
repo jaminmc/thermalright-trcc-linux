@@ -88,12 +88,58 @@ def select_device(device_id: int) -> dict:
 
         api._display_dispatcher = DisplayDispatcher(device_svc=_device_svc)
 
+        # Restore last theme as _current_image for preview endpoints
+        _restore_last_theme(dev)
+
     # Mount static file directories for this device's resolution
     w, h = dev.resolution or (0, 0)
     if w and h:
         api.mount_static_dirs(w, h)
 
     return {"selected": dev.name, "resolution": dev.resolution}
+
+
+def _restore_last_theme(dev) -> None:
+    """Load saved theme image into _current_image (for preview/stream).
+
+    Mirrors CLI --last-one: reads theme_path from device config, opens
+    00.png, applies brightness + rotation. Does NOT re-send to device.
+    """
+    import os
+
+    from trcc.api import set_current_image
+    from trcc.conf import Settings
+
+    key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
+    cfg = Settings.get_device_config(key)
+    theme_path = cfg.get("theme_path")
+    if not theme_path:
+        return
+
+    image_path = None
+    if os.path.isdir(theme_path):
+        candidate = os.path.join(theme_path, "00.png")
+        if os.path.exists(candidate):
+            image_path = candidate
+    elif os.path.isfile(theme_path):
+        image_path = theme_path
+
+    if not image_path:
+        return
+
+    try:
+        w, h = dev.resolution
+        img = Image.open(image_path).convert("RGB")
+        img = ImageService.resize(img, w, h)
+
+        brightness_pct = {1: 25, 2: 50, 3: 100}.get(cfg.get("brightness_level", 3), 100)
+        img = ImageService.apply_brightness(img, brightness_pct)
+        img = ImageService.apply_rotation(img, cfg.get("rotation", 0))
+
+        set_current_image(img)
+        log.info("Restored last theme for preview: %s", os.path.basename(theme_path))
+    except Exception as e:
+        log.debug("Could not restore last theme: %s", e)
 
 
 @router.get("/devices/{device_id}")
@@ -156,5 +202,8 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
 
     if not ok:
         raise HTTPException(status_code=500, detail="Send failed (device busy or error)")
+
+    from trcc.api import set_current_image
+    set_current_image(img)
 
     return {"sent": True, "resolution": (w, h)}

@@ -8,7 +8,7 @@
 - **Controllers** (`core/controllers.py`): Facades — `LCDDeviceController` (LCD themes/video/overlay/device) + `LEDDeviceController` (LED effects/segment). Delegate to services, fire callbacks. No business logic.
 - **Views** (`qt_components/`): PySide6 GUI adapter
 - **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 6 submodules). `LEDDispatcher` + `DisplayDispatcher` classes — single authority for programmatic LED/LCD operations, return result dicts (never print). CLI functions are thin presentation wrappers.
-- **API** (`api/`): FastAPI REST adapter (package: `__init__.py` + 6 submodules). 35 endpoints covering devices, display, LED, themes, and system metrics. Reuses `DisplayDispatcher` + `LEDDispatcher` from CLI — zero duplicated business logic.
+- **API** (`api/`): FastAPI REST adapter (package: `__init__.py` + 6 submodules). 38 endpoints covering devices, display, LED, themes, and system metrics. Includes WebSocket live preview stream + cloud theme download. Reuses `DisplayDispatcher` + `LEDDispatcher` from CLI — zero duplicated business logic. `_current_image` tracks last frame sent for preview endpoints.
 - **Config** (`conf.py`): Application settings singleton — resolution, language, temp unit, device prefs. Single source of truth for all mutable app state.
 - **Entry**: `cli/` → `qt_app_mvc.py` (main window) → controller.initialize()
 - **Protocols**: SCSI (LCD frames), HID (handshake/resolution), LED (RGB effects + segment displays)
@@ -113,7 +113,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4440 tests across 54 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4475 tests across 54 files
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -347,7 +347,7 @@ Current FBL table (16 entries, full C# parity):
 1. **Hexagonal architecture** — CLI, GUI, and API all adapt to the same core services. Adding the API took hours, not weeks. Device protocols slot in as new adapter subclasses.
 2. **C# as ground truth** — every bug we fixed was traced back to "our code doesn't match C#". The decompiled source eliminated guesswork.
 3. **Data-driven design** — FBL tables, wire remap tables, LED style configs, segment display layouts are all data. Logic operates on data. New devices = new data, not new logic.
-4. **Test suite (4440 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
+4. **Test suite (4475 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
 5. **`trcc report` diagnostic** — users paste one command output and we get VID:PID, PM, FBL, resolution, raw handshake bytes, permissions, SELinux status. Eliminates back-and-forth.
 6. **GoF patterns applied pragmatically** — Facade (controllers), Flyweight+Strategy (segment displays), Template Method (protocol handshakes), Memento (LED config), Observer (metrics), Command (dispatchers). Each pattern solved a real problem, not applied for theory.
 
@@ -359,13 +359,14 @@ Current FBL table (16 entries, full C# parity):
 5. **State not propagated** — handshake discovers resolution/FBL but the value never reaches the encoding layer. Multiple fixes for "fbl not propagated from handshake."
 6. **Linux-specific USB issues** — kernel driver detach, SELinux blocking, polkit for udev rules, UsrMerge symlink differences, XFCE session not "active" in logind.
 
-### Version Evolution (v1.0 → v6.5.3)
+### Version Evolution (v1.0 → v6.6.1)
 - **v1.x** (17 releases) — Basic GUI, SCSI protocol, theme loading, bug-fixing spree
 - **v2.0** — Module rename/restructure, HR10 LED backend, PM/FBL unification
 - **v3.0** — Hexagonal architecture, services layer, CLI (Typer), REST API, 2081→2166 tests
 - **v4.0** — Adapters restructure, domain data consolidation, setup wizard, SELinux support
 - **v5.0** — Full C# feature parity audit (35 items), video fit-mode, all LED wire remaps, JPEG encoding for large displays
 - **v6.0** — GoF refactoring (-1203 lines), CLI dispatchers, metrics observer, LED test harness, circulate fix, FBL table completion
+- **v6.6** — Cloud theme download endpoint (`POST /themes/web/{id}/download`), display preview (`GET /display/preview` PNG snapshot), WebSocket live stream (`/display/preview/stream` with JPEG change detection, fps/quality/pause control, token auth), `_current_image` tracking across all display/theme endpoints, 4475 tests
 - **v6.5** — IPC daemon (GUI-as-server, CLI auto-routes through Unix socket), info module decoupling, video background save fix, 4440 tests
 - **v6.3–v6.4** — Codebase minimization, DRY refactoring, test suite expansion (2509→4440 tests, 39→54 files, 76% coverage)
 - **v6.2** — REST API static files, `trcc api` command, LY protocol integration, HiDPI fix, DRY refactoring (3 duplications eliminated, Strategy pattern), 2509 tests
