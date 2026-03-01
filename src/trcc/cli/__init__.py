@@ -736,7 +736,7 @@ def _cmd_serve(
     )] = "127.0.0.1",
     port: Annotated[int, typer.Option(
         "--port", "-p", help="Listen port",
-    )] = 8080,
+    )] = 9876,
     token: Annotated[Optional[str], typer.Option(
         "--token", "-t", help="API token for auth",
     )] = None,

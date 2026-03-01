@@ -406,7 +406,7 @@ Start the REST API server for remote LCD/LED control.
 
 ```bash
 trcc serve                              # localhost:9876
-trcc serve --host 0.0.0.0 --port 8080  # LAN-accessible
+trcc serve --host 0.0.0.0 --port 3000  # LAN on custom port
 trcc serve --token mysecret             # require auth token
 trcc serve --tls                        # HTTPS with auto-generated self-signed cert
 trcc serve --cert cert.pem --key key.pem  # custom TLS certificate
@@ -694,6 +694,171 @@ Set sensor source for temperature/load linked LED modes.
 trcc led-sensor cpu        # CPU temp/load drives LED color
 trcc led-sensor gpu        # GPU temp/load drives LED color
 ```
+
+---
+
+### `trcc led-zone-color`
+
+Set color for a specific LED zone.
+
+```bash
+trcc led-zone-color 0 ff0000      # zone 0 = red
+trcc led-zone-color 1 00ff00      # zone 1 = green
+```
+
+| Option | Description |
+|--------|-------------|
+| `--preview`, `-p` | Show ANSI terminal preview |
+
+Zone indices are 0-based.
+
+---
+
+### `trcc led-zone-mode`
+
+Set effect mode for a specific LED zone.
+
+```bash
+trcc led-zone-mode 0 static       # zone 0 = solid color
+trcc led-zone-mode 1 breathing    # zone 1 = fade in/out
+trcc led-zone-mode 2 colorful     # zone 2 = cycle colors
+trcc led-zone-mode 3 rainbow      # zone 3 = rotating hue
+```
+
+| Option | Description |
+|--------|-------------|
+| `--preview`, `-p` | Show ANSI terminal preview |
+
+---
+
+### `trcc led-zone-brightness`
+
+Set brightness for a specific LED zone.
+
+```bash
+trcc led-zone-brightness 0 50     # zone 0 at 50%
+trcc led-zone-brightness 1 100    # zone 1 at full
+```
+
+| Option | Description |
+|--------|-------------|
+| `--preview`, `-p` | Show ANSI terminal preview |
+
+Range: 0-100.
+
+---
+
+### `trcc led-zone-toggle`
+
+Toggle a specific LED zone on or off.
+
+```bash
+trcc led-zone-toggle 0 true       # turn zone 0 on
+trcc led-zone-toggle 1 false      # turn zone 1 off
+```
+
+---
+
+### `trcc led-zone-sync`
+
+Enable or disable LED zone sync (circulate/select-all mode).
+
+```bash
+trcc led-zone-sync true            # enable zone sync
+trcc led-zone-sync false           # disable zone sync
+trcc led-zone-sync true --interval 2  # sync every 2 seconds
+```
+
+| Option | Description |
+|--------|-------------|
+| `--interval`, `-i` | Sync interval in seconds |
+
+---
+
+### `trcc led-segment`
+
+Toggle a specific LED segment on or off.
+
+```bash
+trcc led-segment 0 true           # turn segment 0 on
+trcc led-segment 3 false          # turn segment 3 off
+```
+
+Segment indices are 0-based.
+
+---
+
+### `trcc led-clock`
+
+Set LED segment display clock format.
+
+```bash
+trcc led-clock true                # 24-hour format
+trcc led-clock false               # 12-hour format
+```
+
+---
+
+### `trcc led-temp-unit`
+
+Set LED segment display temperature unit.
+
+```bash
+trcc led-temp-unit C               # Celsius
+trcc led-temp-unit F               # Fahrenheit
+```
+
+---
+
+### `trcc split`
+
+Set split mode (Dynamic Island) for widescreen displays.
+
+```bash
+trcc split 0                       # off
+trcc split 1                       # Dynamic Island style 1
+trcc split 2                       # Dynamic Island style 2
+trcc split 3                       # Dynamic Island style 3
+```
+
+| Option | Description |
+|--------|-------------|
+| `--device`, `-d` | Device path (default: auto-detect) |
+
+Only applies to non-square widescreen LCDs.
+
+---
+
+### `trcc test-led`
+
+Test LED ANSI preview with real system metrics. No device needed.
+
+```bash
+trcc test-led                      # cycle all modes
+trcc test-led static               # test static mode only
+trcc test-led breathing --duration 10
+trcc test-led --segments 30        # simulate 30-LED device
+```
+
+| Option | Description |
+|--------|-------------|
+| `--segments`, `-s` | Number of LED segments to simulate (default: 64) |
+| `--duration`, `-t` | Animation duration in seconds (default: auto) |
+
+---
+
+### `trcc test-lcd`
+
+Test LCD ANSI preview with real system metrics. No device needed.
+
+```bash
+trcc test-lcd
+trcc test-lcd --cols 80            # wider terminal output
+```
+
+| Option | Description |
+|--------|-------------|
+| `--cols`, `-c` | Terminal width in columns (default: 60) |
 
 ---
 
