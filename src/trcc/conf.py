@@ -248,6 +248,11 @@ class Settings:
         save_config(config)
 
     @staticmethod
+    def show_info_module() -> bool:
+        """Whether to show the sensor metrics bar above the preview (default: off)."""
+        return load_config().get('show_info_module', False)
+
+    @staticmethod
     def get_format_prefs() -> dict:
         """Get saved format preferences. Keys: time_format, date_format, temp_unit."""
         return load_config().get('format_prefs', {})

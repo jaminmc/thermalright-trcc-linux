@@ -1236,6 +1236,11 @@ class TRCCMainWindowMVC(QMainWindow):
 
     def _apply_device_config(self, device: DeviceInfo, w: int, h: int):
         """Apply device resolution, theme, overlay, and carousel config."""
+        # Sensor metrics bar — controlled by config.json "show_info_module" (default: off)
+        if Settings.show_info_module():
+            self.uc_info_module.setVisible(True)
+            self.uc_info_module.start_updates(3000)
+
         if (w, h) != (self.controller.lcd_width, self.controller.lcd_height):
             self._on_resolution_changed(w, h)
 
@@ -1322,12 +1327,8 @@ class TRCCMainWindowMVC(QMainWindow):
             self.uc_theme_setting.set_overlay_enabled(enabled)
             self.controller.enable_overlay(enabled)
             if enabled:
-                self.uc_info_module.setVisible(True)
-                self.uc_info_module.start_updates(3000)
                 self.start_metrics()
             else:
-                self.uc_info_module.setVisible(False)
-                self.uc_info_module.stop_updates()
                 self.stop_metrics()
         else:
             log.debug("No saved overlay config — keeping theme defaults")
@@ -1789,13 +1790,10 @@ class TRCCMainWindowMVC(QMainWindow):
         self.uc_activity_sidebar.stop_updates()
 
     def _on_overlay_toggle(self, enabled):
-        """Toggle overlay display and info module visibility."""
-        self.uc_info_module.setVisible(enabled)
+        """Toggle overlay display."""
         if enabled:
-            self.uc_info_module.start_updates(3000)
             self.start_metrics()
         else:
-            self.uc_info_module.stop_updates()
             self.stop_metrics()
 
         # Save overlay enabled state per-device
