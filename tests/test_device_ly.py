@@ -1,5 +1,5 @@
 """
-Tests for ly — LY USB bulk handler for 0416:5408/5409 devices.
+Tests for ly — LY USB bulk handler for Trofeo Vision 9.16 LCD (0416:5408/5409).
 
 Tests cover:
 - LyDevice construction and defaults

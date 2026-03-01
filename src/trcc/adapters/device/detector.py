@@ -19,9 +19,9 @@ Supported devices (HID LED — RGB controllers, auto-detected when plugged in):
 Supported devices (Raw USB bulk — bInterfaceClass=255, Vendor Specific):
 - ChiZhu Tech:  VID=0x87AD, PID=0x70DB  (GrandVision/Mjolnir Vision, USBLCDNew protocol)
 
-Supported devices (LY USB bulk — bInterfaceClass=255, TRCC v2.1.2):
-- Winbond:      VID=0x0416, PID=0x5408  (LY)
-- Winbond:      VID=0x0416, PID=0x5409  (LY1)
+Supported devices (LY USB bulk — bInterfaceClass=255, Trofeo Vision 9.16 LCD):
+- Winbond:      VID=0x0416, PID=0x5408  (LY — Trofeo Vision 9.16 LCD)
+- Winbond:      VID=0x0416, PID=0x5409  (LY1 — Trofeo Vision 9.16 LCD)
 """
 
 import logging
@@ -130,11 +130,11 @@ _BULK_DEVICES: dict[tuple[int, int], DeviceEntry] = {
 # LY USB bulk devices (bInterfaceClass=255, TRCC v2.1.2 ThreadSendDeviceDataLY)
 _LY_DEVICES: dict[tuple[int, int], DeviceEntry] = {
     (0x0416, 0x5408): DeviceEntry(
-        vendor="Winbond", product="USBDISPLAY",
+        vendor="Winbond", product="Trofeo Vision 9.16 LCD",
         implementation="ly_bulk", protocol="ly", device_type=5,
     ),
     (0x0416, 0x5409): DeviceEntry(
-        vendor="Winbond", product="USBDISPLAY",
+        vendor="Winbond", product="Trofeo Vision 9.16 LCD",
         implementation="ly_bulk", protocol="ly", device_type=5,
     ),
 }

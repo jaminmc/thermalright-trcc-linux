@@ -89,7 +89,7 @@ All features are tested and working on the `main` branch:
 | 26 | IPC daemon (GUI-as-server) | Done — Unix socket, CLI auto-routes through GUI |
 | 27 | Native packages (RPM, DEB, Arch) | Done — CI builds on tag push |
 | 28 | Version bump automation | Done — `scripts/bump_version.py` |
-| 29 | Type annotation hardening (pyright strict) | Planned |
+| 29 | Type annotation hardening (pyright strict) | Not planned — basic mode with targeted checks is sufficient |
 
 ## Reporting Issues
 

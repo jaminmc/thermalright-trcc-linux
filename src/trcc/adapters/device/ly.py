@@ -1,5 +1,5 @@
 """
-USB bulk device handler for LY-type devices (0x0416:0x5408 / 0x5409).
+USB bulk device handler for Trofeo Vision 9.16 LCD (0x0416:0x5408 / 0x5409).
 
 Protocol reverse-engineered from TRCC v2.1.2 USBLCDNEW.dll:
   ThreadSendDeviceDataLY  (PID 0x5408, EP9 OUT)

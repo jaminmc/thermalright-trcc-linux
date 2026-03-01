@@ -1,5 +1,6 @@
 """Shared test fixtures for the TRCC Linux test suite.
 
+Tier 0: Environment — disable live IPC daemon (tests must never route through GUI)
 Tier 1: Data factories — DeviceInfo, mock devices, PIL images
 Tier 2: Filesystem — isolated config dirs, theme dirs, temp PNGs
 Tier 3: Service — pre-wired LED/Display dispatchers
@@ -9,12 +10,26 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
 
 from trcc.core.models import DeviceInfo
+
+# =========================================================================
+# Tier 0: Environment — disable live IPC daemon
+# =========================================================================
+
+@pytest.fixture(autouse=True)
+def _no_ipc():
+    """Prevent tests from routing through a live GUI IPC daemon.
+
+    When the GUI is running, IPCClient.available() returns True and CLI
+    functions short-circuit to IPC proxies, bypassing mocked services.
+    """
+    with patch("trcc.ipc.IPCClient.available", return_value=False):
+        yield
 
 # =========================================================================
 # Tier 1: Data factories
