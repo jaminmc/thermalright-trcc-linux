@@ -1,336 +1,218 @@
-# TRCC Linux - Installation & Setup Guide
+# TRCC Linux — Installation Guide
 
-A beginner-friendly guide to getting Thermalright LCD Control Center running on Linux.
+A step-by-step guide for every major Linux distro. Each section is self-contained — find your distro, copy-paste the commands, done.
+
+> **New to Linux?** See [New to Linux?](NEW_TO_LINUX.md) for a quick primer on terminals, package managers, and other concepts used here.
 
 ---
 
 ## Table of Contents
 
-1. [What is TRCC?](#what-is-trcc)
-2. [Compatible Coolers](#compatible-coolers)
-3. [HID Device Support](#hid-device-support)
-4. [Prerequisites](#prerequisites)
-5. [Step 1 - Install System Dependencies](#step-1---install-system-dependencies)
-   - [Fedora / RHEL / CentOS Stream / Rocky / Alma](#fedora--rhel--centos-stream--rocky--alma)
-   - [Ubuntu / Debian / Linux Mint / Pop!_OS / Zorin / elementary](#ubuntu--debian--linux-mint--pop_os--zorin--elementary)
-   - [Arch Linux / Manjaro / EndeavourOS / CachyOS / Garuda](#arch-linux--manjaro--endeavouros--cachyos--garuda)
-   - [openSUSE Tumbleweed / Leap](#opensuse-tumbleweed--leap)
-   - [Nobara](#nobara)
+1. [Before You Start](#before-you-start)
+2. [Find Your Distro](#find-your-distro)
+3. [Native Package Install (Recommended)](#native-package-install-recommended)
+   - [Fedora / Nobara](#fedora--nobara)
+   - [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin)
+   - [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda)
+   - [openSUSE](#opensuse)
    - [NixOS](#nixos)
-   - [Void Linux](#void-linux)
    - [Gentoo](#gentoo)
+4. [PyPI Install (Alternative)](#pypi-install-alternative)
+   - [Fedora / Nobara (pip)](#fedora--nobara-pip)
+   - [Ubuntu / Debian / Mint / Pop!_OS / Zorin (pip)](#ubuntu--debian--mint--pop_os--zorin-pip)
+   - [Arch / CachyOS / Manjaro / EndeavourOS / Garuda (pip)](#arch--cachyos--manjaro--endeavouros--garuda-pip)
+   - [openSUSE (pip)](#opensuse-pip)
+   - [Void Linux](#void-linux)
    - [Alpine Linux](#alpine-linux)
    - [Solus](#solus)
    - [Clear Linux](#clear-linux)
-6. [Step 2 - Download TRCC](#step-2---download-trcc)
-7. [Step 3 - Install Python Dependencies](#step-3---install-python-dependencies)
-8. [Step 4 - Set Up Device Permissions](#step-4---set-up-device-permissions)
-9. [Step 5 - Connect Your Cooler](#step-5---connect-your-cooler)
-10. [Step 6 - Run TRCC](#step-6---run-trcc)
-11. [Immutable / Atomic Distros](#immutable--atomic-distros)
-    - [Bazzite / Fedora Atomic / Aurora / Bluefin](#bazzite--fedora-atomic--aurora--bluefin)
-    - [SteamOS (Steam Deck)](#steamos-steam-deck)
-    - [Vanilla OS](#vanilla-os)
-    - [ChromeOS (Crostini)](#chromeos-crostini)
-12. [Special Hardware](#special-hardware)
-    - [Asahi Linux (Apple Silicon)](#asahi-linux-apple-silicon)
-    - [Raspberry Pi / ARM SBCs](#raspberry-pi--arm-sbcs)
-    - [WSL2 (Windows Subsystem for Linux)](#wsl2-windows-subsystem-for-linux)
-13. [Using the GUI](#using-the-gui)
-14. [Command Line Usage](#command-line-usage)
-15. [Troubleshooting](#troubleshooting)
-16. [Wayland-Specific Notes](#wayland-specific-notes)
-17. [Uninstalling](#uninstalling)
+5. [One-Line Install](#one-line-install)
+6. [Git Clone Install](#git-clone-install)
+7. [Immutable / Atomic Distros](#immutable--atomic-distros)
+   - [Bazzite / Aurora / Bluefin / Fedora Atomic](#bazzite--aurora--bluefin--fedora-atomic)
+   - [SteamOS (Steam Deck)](#steamos-steam-deck)
+   - [Vanilla OS](#vanilla-os)
+   - [ChromeOS (Crostini)](#chromeos-crostini)
+8. [Special Hardware](#special-hardware)
+   - [Asahi Linux (Apple Silicon)](#asahi-linux-apple-silicon)
+   - [Raspberry Pi / ARM SBCs](#raspberry-pi--arm-sbcs)
+   - [WSL2 (Windows Subsystem for Linux)](#wsl2-windows-subsystem-for-linux)
+9. [After Installing](#after-installing)
+10. [Verify Your Download](#verify-your-download)
+11. [What Each Package Does](#what-each-package-does)
+12. [Troubleshooting](#troubleshooting)
+13. [Uninstalling](#uninstalling)
 
 ---
 
-## What is TRCC?
+## Before You Start
 
-TRCC (Thermalright LCD Control Center) is software that controls the small LCD screen built into certain Thermalright CPU coolers and AIO liquid coolers. It lets you display custom images, animations, live system stats (CPU/GPU temperature, usage), clocks, and more on the cooler's built-in LCD.
+You need:
+- A Linux computer with internet access
+- A Thermalright cooler with LCD or LED display, connected via the included USB cable
+- About 5 minutes
 
-This is the Linux version, ported from the official Windows TRCC 2.0.3 application.
+### How to open a terminal
 
----
+This whole guide uses the terminal (the command-line app). Here's how to open it:
 
-## Compatible Coolers
+| Desktop | How to open |
+|---------|-------------|
+| GNOME (Ubuntu, Fedora, Pop!_OS) | Press `Ctrl+Alt+T`, or search "Terminal" in Activities |
+| KDE Plasma (Kubuntu, Fedora KDE, Manjaro) | Press `Ctrl+Alt+T`, or search "Konsole" in the app menu |
+| XFCE (Xubuntu, Mint XFCE) | Press `Ctrl+Alt+T`, or find "Terminal Emulator" in the app menu |
+| Cinnamon (Linux Mint) | Press `Ctrl+Alt+T` |
+| Any distro | Search "terminal" in your app launcher |
 
-TRCC Linux works with these Thermalright products that have a built-in LCD display:
-
-**Air Coolers:**
-- FROZEN WARFRAME / FROZEN WARFRAME SE
-- FROZEN HORIZON PRO / FROZEN MAGIC PRO
-- FROZEN VISION V2 / CORE VISION / ELITE VISION
-- AK120 DIGITAL / AX120 DIGITAL / PA120 DIGITAL
-- Wonder Vision (CZTV)
-
-**AIO Liquid Coolers:**
-- LC1 / LC2 / LC3 / LC5 (pump head display)
-
-**Supported LCD Resolutions:**
-- 240x240, 240x320, 320x320 (most common)
-- 360x360, 480x480, 640x480, 800x480
-- 854x480, 960x540, 1280x480 (Trofeo Vision)
-- 1600x720, 1920x462
-
-Theme data for any resolution is automatically downloaded on first use if not bundled.
-
-> **Note:** If your cooler came with a Windows-only CD or download link for "TRCC" or "CZTV" software, it's compatible.
+Once the terminal is open, you can paste commands with `Ctrl+Shift+V` (not `Ctrl+V` — that doesn't work in most Linux terminals).
 
 ---
 
-## HID Device Support
+## Find Your Distro
 
-HID devices are fully supported and auto-detected. Multiple devices have been validated by testers on real hardware. Just install TRCC normally and run:
+Not sure which Linux you're running? Open a terminal and type:
 
 ```bash
-trcc detect       # Check if your device is found
-trcc gui          # Launch the GUI (HID auto-detected)
+cat /etc/os-release
 ```
 
-See the **[Device Testing Guide](DEVICE_TESTING.md)** for supported devices and what to report.
+Look at the `ID=` line — that's your distro. Match it below:
+
+| You see | You're running | Go to section |
+|---------|---------------|---------------|
+| `ID=fedora` | Fedora | [Fedora / Nobara](#fedora--nobara) |
+| `ID=nobara` | Nobara | [Fedora / Nobara](#fedora--nobara) |
+| `ID=ubuntu` | Ubuntu | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=debian` | Debian | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=linuxmint` | Linux Mint | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=pop` | Pop!_OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=zorin` | Zorin OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=elementary` | elementary OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
+| `ID=arch` | Arch Linux | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
+| `ID=cachyos` | CachyOS | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
+| `ID=manjaro` | Manjaro | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
+| `ID=endeavouros` | EndeavourOS | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
+| `ID=garuda` | Garuda Linux | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
+| `ID=opensuse-tumbleweed` | openSUSE Tumbleweed | [openSUSE](#opensuse) |
+| `ID=opensuse-leap` | openSUSE Leap | [openSUSE](#opensuse) |
+| `ID=nixos` | NixOS | [NixOS](#nixos) |
+| `ID=gentoo` | Gentoo | [Gentoo](#gentoo) |
+| `ID=void` | Void Linux | [Void Linux](#void-linux) |
+| `ID=alpine` | Alpine Linux | [Alpine Linux](#alpine-linux) |
+| `ID=solus` | Solus | [Solus](#solus) |
+| `ID=clear-linux-os` | Clear Linux | [Clear Linux](#clear-linux) |
+| `ID=bazzite` | Bazzite | [Bazzite / Aurora / Bluefin / Fedora Atomic](#bazzite--aurora--bluefin--fedora-atomic) |
+| `ID=steamos` | SteamOS (Steam Deck) | [SteamOS (Steam Deck)](#steamos-steam-deck) |
 
 ---
 
-> **New to Linux?** If you're coming from Windows or Mac, see [New to Linux?](NEW_TO_LINUX.md) for a quick primer on terminals, package managers, and other concepts used in this guide.
+## Native Package Install (Recommended)
+
+Pre-built packages that install like any other app. No pip, no venv, no Python headaches. This is the easiest way.
+
+**How it works:** Go to the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) page, download the package for your distro, then run the install command below.
 
 ---
 
-## Native Packages (Recommended)
+### Fedora / Nobara
 
-Pre-built packages are available for every major distro — no pip, no venv, no PEP 668 headaches. Download from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) page:
+Covers: Fedora 39+, Nobara 39+
 
-**Fedora / openSUSE / Nobara:**
+**Step 1 — Download** the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+
+**Step 2 — Open a terminal** and run:
+
 ```bash
 cd ~/Downloads
 sudo dnf install ./trcc-linux-*.noarch.rpm
 ```
 
-**Ubuntu / Debian / Mint / Pop!_OS / Zorin:**
+It will ask for your password — type it and press Enter (the password won't show as you type, that's normal).
+
+**Step 3 — Unplug and replug** the USB cable from your cooler (or reboot).
+
+**Step 4 — Launch:**
+
+```bash
+trcc gui
+```
+
+That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
+
+---
+
+### Ubuntu / Debian / Mint / Pop!_OS / Zorin
+
+Covers: Ubuntu 22.04+, Debian 12+, Linux Mint 21+, Pop!_OS 22.04+, Zorin OS 17+, elementary OS 7+, KDE neon, Kubuntu, Xubuntu, Lubuntu
+
+**Step 1 — Download** the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+
+**Step 2 — Open a terminal** and run:
+
 ```bash
 cd ~/Downloads
 sudo dpkg -i trcc-linux_*_all.deb
-sudo apt-get install -f    # pulls in any missing dependencies
+sudo apt-get install -f
 ```
 
-**Arch / CachyOS / Manjaro / EndeavourOS / Garuda:**
+The first command installs the package. The second command pulls in any missing dependencies — if it says "0 newly installed", that's fine, everything was already there.
+
+**Step 3 — Unplug and replug** the USB cable from your cooler (or reboot).
+
+**Step 4 — Launch:**
+
+```bash
+trcc gui
+```
+
+That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
+
+---
+
+### Arch / CachyOS / Manjaro / EndeavourOS / Garuda
+
+Covers: Arch Linux, CachyOS, Manjaro, EndeavourOS, Garuda Linux, Artix Linux, ArcoLinux, BlackArch
+
+**Step 1 — Download** the `.pkg.tar.zst` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+
+**Step 2 — Open a terminal** and run:
+
 ```bash
 cd ~/Downloads
 sudo pacman -U trcc-linux-*-any.pkg.tar.zst
 ```
 
-**NixOS:**
-```nix
-{
-  inputs.trcc-linux.url = "github:Lexonight1/thermalright-trcc-linux";
-  # In your system configuration:
-  programs.trcc-linux.enable = true;
-}
-```
-Then run `sudo nixos-rebuild switch`.
+**Step 3 — Unplug and replug** the USB cable from your cooler (or reboot).
 
-After installing: **unplug and replug the USB cable** (or reboot), then run `trcc gui`.
-
-Every release includes a `SHA256SUMS.txt` file — download it from the same page and run `sha256sum -c SHA256SUMS.txt --ignore-missing` to verify your package is clean.
-
-> If your distro isn't listed above, use one of the methods below.
-
-## Quick Install from PyPI
+**Step 4 — Launch:**
 
 ```bash
-pip install trcc-linux
-trcc setup        # interactive wizard — checks deps, udev, desktop entry
+trcc gui
 ```
 
-Then **unplug and replug the USB cable** and run `trcc gui`.
-
-On Arch-based distros (Arch, CachyOS, Manjaro, EndeavourOS, Garuda) use pipx instead:
-```bash
-sudo pacman -S python-pipx
-pipx install trcc-linux
-trcc setup
-```
-
-> **Note:** Some distros need system packages for Qt6 and SCSI (`sg3_utils`). The setup wizard will detect and offer to install them.
-
-## One-Line Bootstrap
-
-Download and run — installs trcc-linux, then launches the setup wizard (GUI if you have a display, CLI otherwise):
-
-```bash
-bash <(curl -sSL https://raw.githubusercontent.com/Lexonight1/thermalright-trcc-linux/main/setup.sh)
-```
-
-## Setup Wizard
-
-After installing, run the setup wizard to configure everything:
-
-```bash
-trcc setup        # interactive CLI wizard
-trcc setup-gui    # GUI wizard with Install buttons
-```
-
-The wizard checks system dependencies, GPU packages, udev rules, and desktop integration — and offers to install anything missing.
-
-## Full Install (Recommended)
-
-The install script auto-detects your distro, installs system packages, Python deps, udev rules, and desktop shortcut:
-
-```bash
-git clone https://github.com/Lexonight1/thermalright-trcc-linux.git
-cd thermalright-trcc-linux
-sudo ./install.sh
-```
-
-On PEP 668 distros (Ubuntu 24.04+, Fedora 41+) it auto-falls back to a virtual environment at `~/trcc-env` if `pip` refuses direct install.
-
-After it finishes: unplug and replug the USB cable, then run `trcc gui`.
-
-To uninstall: `trcc uninstall` (or `sudo ./install.sh --uninstall`)
-
-If you prefer manual steps, continue below.
+That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
 
 ---
 
-## Prerequisites
+### openSUSE
 
-Before starting, make sure you have:
+Covers: openSUSE Tumbleweed, openSUSE Leap 15.5+
 
-- A Linux distribution (see supported list below)
-- Python 3.10 or newer (check with `python3 --version`)
-- A Thermalright cooler with LCD, connected via the included USB cable
-- Internet connection (for downloading dependencies)
+**Step 1 — Download** the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
 
-### Check your Python version
-
-Open a terminal and type:
+**Step 2 — Open a terminal** and run:
 
 ```bash
-python3 --version
+cd ~/Downloads
+sudo zypper install ./trcc-linux-*.noarch.rpm
 ```
 
-You should see something like `Python 3.11.6` or higher. If you get "command not found" or a version below 3.10, you'll need to install or update Python first:
+**Step 3 — Unplug and replug** the USB cable from your cooler (or reboot).
+
+**Step 4 — Launch:**
 
 ```bash
-# Fedora / RHEL
-sudo dnf install python3
-
-# Ubuntu / Debian
-sudo apt install python3
-
-# Arch
-sudo pacman -S python
-
-# openSUSE
-sudo zypper install python3
-
-# Void
-sudo xbps-install python3
-
-# Alpine
-sudo apk add python3
-```
-
----
-
-## Step 1 - Install System Dependencies
-
-These are system-level packages that TRCC needs. Find your distro below and run the commands.
-
-> **Important: Use system PySide6 when possible.** Installing PySide6 from your distro's package manager avoids Qt6 version mismatches. Only fall back to `pip install PySide6` if your distro doesn't package it.
-
----
-
-### Fedora / RHEL / CentOS Stream / Rocky / Alma
-
-Covers: Fedora 39-43, RHEL 9+, CentOS Stream 9+, Rocky Linux 9+, AlmaLinux 9+
-
-```bash
-# Required
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland, NVIDIA GPU sensors)
-sudo dnf install lm_sensors grim python3-gobject python3-dbus pipewire-devel
-```
-
-> **RHEL/Rocky/Alma note:** You may need to enable EPEL and CRB repositories for `ffmpeg` and `python3-pyside6`:
-> ```bash
-> sudo dnf install epel-release
-> sudo dnf config-manager --set-enabled crb
-> ```
-> If `python3-pyside6` isn't available, use `pip install PySide6` instead.
-
----
-
-### Ubuntu / Debian / Linux Mint / Pop!_OS / Zorin / elementary
-
-Covers: Ubuntu 22.04+, Debian 12+, Linux Mint 21+, Pop!_OS 22.04+, Zorin OS 17+, elementary OS 7+, KDE neon, Kubuntu, Xubuntu, Lubuntu
-
-```bash
-# Required
-sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland, system tray)
-sudo apt install lm-sensors grim python3-gi python3-dbus python3-gst-1.0
-```
-
-> **Debian 12 (Bookworm) note:** `python3-pyside6` is available in the repo. On older Debian/Ubuntu releases where it's missing, use `pip install PySide6`.
-
-> **Ubuntu 23.04+ / Debian 12+ note:** pip may show "externally-managed-environment" errors. See [Step 3](#step-3---install-python-dependencies) for the fix.
-
----
-
-### Arch Linux / Manjaro / EndeavourOS / CachyOS / Garuda
-
-Covers: Arch Linux, Manjaro, EndeavourOS, CachyOS, Garuda Linux, Artix Linux, ArcoLinux, BlackArch
-
-```bash
-# Required
-sudo pacman -S python-pip sg3_utils python-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland, NVIDIA GPU sensors)
-sudo pacman -S lm_sensors grim python-gobject python-dbus python-gst
-```
-
-> **CachyOS note:** CachyOS ships its own optimized repos. The package names are the same as Arch. If you use the CachyOS kernel, `sg3_utils` works out of the box.
-
-> **Garuda note:** Garuda includes `chaotic-aur` by default, so most packages are available without building from source.
-
----
-
-### openSUSE Tumbleweed / Leap
-
-Covers: openSUSE Tumbleweed, openSUSE Leap 15.5+, openSUSE MicroOS
-
-```bash
-# Required
-sudo zypper install python3-pip sg3_utils python3-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland)
-sudo zypper install sensors grim python3-gobject python3-dbus-python python3-gstreamer
-```
-
-> **Leap note:** Leap's repos may have older PySide6 versions. If you get import errors, use `pip install PySide6` instead.
-
-> **MicroOS note:** openSUSE MicroOS is immutable. Use `transactional-update` instead of `zypper`:
-> ```bash
-> sudo transactional-update pkg install sg3_utils python3-pip python3-pyside6 ffmpeg
-> sudo reboot
-> ```
-
----
-
-### Nobara
-
-Covers: Nobara 39-41 (Fedora-based gaming distro by GloriousEggroll)
-
-Nobara uses the same package manager as Fedora, with extra multimedia repos pre-configured:
-
-```bash
-# Required (ffmpeg is usually pre-installed on Nobara)
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland)
-sudo dnf install lm_sensors grim python3-gobject python3-dbus pipewire-devel
+trcc gui
 ```
 
 ---
@@ -339,40 +221,14 @@ sudo dnf install lm_sensors grim python3-gobject python3-dbus pipewire-devel
 
 Covers: NixOS 24.05+, NixOS unstable
 
-NixOS uses a declarative configuration model. You have two approaches:
-
-**Option A: Add to system configuration** (persistent, recommended)
-
-Edit `/etc/nixos/configuration.nix`:
+NixOS is different from other distros — you declare packages in a config file instead of downloading them. Add to your `flake.nix`:
 
 ```nix
-{ pkgs, ... }:
 {
-  environment.systemPackages = with pkgs; [
-    python3
-    python3Packages.pip
-    python3Packages.pyside6
-    python3Packages.pillow
-    python3Packages.psutil
-    sg3_utils
-    lm_sensors
-    ffmpeg
-    p7zip
-  ];
+  inputs.trcc-linux.url = "github:Lexonight1/thermalright-trcc-linux";
 
-  # Allow your user to access Thermalright USB devices
-  services.udev.extraRules = ''
-    # SCSI LCD devices
-    SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="87cd", ATTRS{idProduct}=="70db", MODE="0666"
-    SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="87ad", ATTRS{idProduct}=="70db", MODE="0666"
-    SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="5406", MODE="0666"
-    SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0402", ATTRS{idProduct}=="3922", MODE="0666"
-    # HID LCD/LED devices
-    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="5302", MODE="0666"
-    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5303", MODE="0666"
-    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5304", MODE="0666"
-    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="8001", MODE="0666"
-  '';
+  # In your system configuration:
+  programs.trcc-linux.enable = true;
 }
 ```
 
@@ -382,39 +238,24 @@ Then rebuild:
 sudo nixos-rebuild switch
 ```
 
-**Option B: Use nix-shell** (temporary, for testing)
+Unplug and replug the USB cable, then:
 
 ```bash
-nix-shell -p python3 python3Packages.pip python3Packages.pyside6 python3Packages.pillow python3Packages.psutil sg3_utils ffmpeg
+trcc gui
 ```
 
-Then follow [Step 2](#step-2---download-trcc) and [Step 3](#step-3---install-python-dependencies) from inside the shell.
-
-> **NixOS note:** The `trcc setup-udev` command won't work on NixOS because udev rules are managed declaratively. Add the rules to your `configuration.nix` as shown in Option A instead.
-
----
-
-### Void Linux
-
-Covers: Void Linux (glibc and musl)
-
-```bash
-# Required
-sudo xbps-install sg3_utils python3-pip python3-pyside6 ffmpeg
-
-# Optional (hardware sensors, screen capture on Wayland)
-sudo xbps-install lm_sensors grim python3-gobject python3-dbus python3-gst
-```
-
-> **Void musl note:** Some Python packages may not have pre-built wheels for musl. You may need `python3-devel` and a C compiler to build them:
-> ```bash
-> sudo xbps-install python3-devel gcc
-> ```
-
-> **Void note:** If `python3-pyside6` is not in the repo, install via pip:
-> ```bash
-> sudo xbps-install python3-pip qt6-base
-> pip install PySide6
+> **NixOS note:** The `trcc setup-udev` command won't work because NixOS manages udev rules declaratively. If you need manual udev rules, add them to your `configuration.nix`:
+> ```nix
+> services.udev.extraRules = ''
+>   SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="87cd", ATTRS{idProduct}=="70db", MODE="0666"
+>   SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="87ad", ATTRS{idProduct}=="70db", MODE="0666"
+>   SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="5406", MODE="0666"
+>   SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0402", ATTRS{idProduct}=="3922", MODE="0666"
+>   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="5302", MODE="0666"
+>   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5303", MODE="0666"
+>   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0418", ATTRS{idProduct}=="5304", MODE="0666"
+>   SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0416", ATTRS{idProduct}=="8001", MODE="0666"
+> '';
 > ```
 
 ---
@@ -423,39 +264,202 @@ sudo xbps-install lm_sensors grim python3-gobject python3-dbus python3-gst
 
 Covers: Gentoo Linux, Funtoo, Calculate Linux
 
-```bash
-# Required
-sudo emerge --ask sg3_utils dev-python/pip dev-python/pyside6 media-video/ffmpeg
+An ebuild is provided in the repo:
 
-# Optional (hardware sensors, screen capture on Wayland)
-sudo emerge --ask sys-apps/lm-sensors gui-apps/grim dev-python/pygobject dev-python/dbus-python
+```bash
+# Copy the ebuild to your local overlay
+sudo mkdir -p /var/db/repos/local/app-misc/trcc-linux
+sudo cp packaging/gentoo/trcc-linux-*.ebuild /var/db/repos/local/app-misc/trcc-linux/
+cd /var/db/repos/local/app-misc/trcc-linux
+sudo ebuild trcc-linux-*.ebuild manifest
+
+# Install
+sudo emerge --ask app-misc/trcc-linux
 ```
 
-> **USE flags:** Make sure your PySide6 package has the `widgets` and `gui` USE flags enabled:
+Unplug and replug the USB cable, then:
+
+```bash
+trcc gui
+```
+
+---
+
+## PyPI Install (Alternative)
+
+If native packages aren't available for your distro, or you prefer pip. This requires installing system dependencies first, then the Python package.
+
+---
+
+### Fedora / Nobara (pip)
+
+```bash
+# Step 1: Install system dependencies
+sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
+
+# Step 2: Install optional extras (hardware sensors, Wayland screen capture)
+sudo dnf install lm_sensors grim python3-gobject python3-dbus pipewire-devel
+
+# Step 3: Install TRCC
+pip install trcc-linux
+
+# Step 4: Run the setup wizard (device permissions, desktop shortcut)
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+> **RHEL / Rocky / Alma:** Enable EPEL and CRB first:
 > ```bash
-> echo "dev-python/pyside6 widgets gui" | sudo tee -a /etc/portage/package.use/trcc
+> sudo dnf install epel-release
+> sudo dnf config-manager --set-enabled crb
+> ```
+> Then run the commands above. If `python3-pyside6` isn't available, the `pip install trcc-linux` command will pull it in automatically.
+
+---
+
+### Ubuntu / Debian / Mint / Pop!_OS / Zorin (pip)
+
+```bash
+# Step 1: Install system dependencies
+sudo apt update
+sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
+
+# Step 2: Install optional extras (hardware sensors, Wayland screen capture)
+sudo apt install lm-sensors grim python3-gi python3-dbus python3-gst-1.0
+
+# Step 3: Install TRCC
+pip install trcc-linux
+```
+
+> **"externally-managed-environment" error?** Ubuntu 23.04+, Debian 12+, and Mint 22+ block pip installs by default. Use one of these instead:
+> ```bash
+> # Option A: Allow it anyway (simplest)
+> pip install --break-system-packages trcc-linux
+>
+> # Option B: Use a virtual environment (cleanest)
+> python3 -m venv ~/trcc-env
+> source ~/trcc-env/bin/activate
+> pip install trcc-linux
+> ```
+> If you used Option B, you'll need to run `source ~/trcc-env/bin/activate` each time you open a new terminal before running `trcc`.
+
+```bash
+# Step 4: Run the setup wizard
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+---
+
+### Arch / CachyOS / Manjaro / EndeavourOS / Garuda (pip)
+
+Arch-based distros enforce PEP 668 — use `pipx` instead of `pip`:
+
+```bash
+# Step 1: Install system dependencies
+sudo pacman -S python-pipx sg3_utils python-pyside6 ffmpeg
+
+# Step 2: Install optional extras (hardware sensors, Wayland screen capture)
+sudo pacman -S lm_sensors grim python-gobject python-dbus python-gst
+
+# Step 3: Install TRCC via pipx
+pipx install trcc-linux
+
+# Step 4: Run the setup wizard
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+> To upgrade later: `pipx upgrade trcc-linux`
+
+---
+
+### openSUSE (pip)
+
+```bash
+# Step 1: Install system dependencies
+sudo zypper install python3-pip sg3_utils python3-pyside6 ffmpeg
+
+# Step 2: Install optional extras (hardware sensors, Wayland screen capture)
+sudo zypper install sensors grim python3-gobject python3-dbus-python python3-gstreamer
+
+# Step 3: Install TRCC
+pip install trcc-linux
+
+# Step 4: Run the setup wizard
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+> **openSUSE MicroOS:** Use `transactional-update` instead of `zypper`:
+> ```bash
+> sudo transactional-update pkg install sg3_utils python3-pip python3-pyside6 ffmpeg
+> sudo reboot
+> ```
+> Then continue from Step 3.
+
+---
+
+### Void Linux
+
+```bash
+# Step 1: Install system dependencies
+sudo xbps-install sg3_utils python3-pip python3-pyside6 ffmpeg
+
+# Step 2: Install optional extras
+sudo xbps-install lm_sensors grim python3-gobject python3-dbus python3-gst
+
+# Step 3: Install TRCC
+pip install trcc-linux
+
+# Step 4: Run the setup wizard
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+> **Void musl:** If packages fail to build, you may need:
+> ```bash
+> sudo xbps-install python3-devel gcc
 > ```
 
-> **Gentoo note:** If `dev-python/pyside6` is masked, you may need to unmask it:
+> If `python3-pyside6` isn't in the repo:
 > ```bash
-> echo "dev-python/pyside6 ~amd64" | sudo tee -a /etc/portage/package.accept_keywords/trcc
+> sudo xbps-install qt6-base
+> pip install PySide6
 > ```
 
 ---
 
 ### Alpine Linux
 
-Covers: Alpine Linux 3.18+, postmarketOS
-
 ```bash
-# Required
+# Step 1: Install system dependencies
 sudo apk add python3 py3-pip sg3_utils py3-pyside6 ffmpeg
 
-# Optional (hardware sensors, screen capture on Wayland)
+# Step 2: Install optional extras
 sudo apk add lm-sensors grim py3-gobject3 py3-dbus
+
+# Step 3: Install TRCC
+pip install trcc-linux
+
+# Step 4: Run the setup wizard
+trcc setup
+
+# Step 5: Unplug and replug the USB cable, then launch
+trcc gui
 ```
 
-> **Alpine note:** Alpine uses musl libc. If `py3-pyside6` isn't available in your release, you'll need to install from pip with build dependencies:
+> **Alpine musl:** If `py3-pyside6` isn't available:
 > ```bash
 > sudo apk add python3-dev gcc musl-dev qt6-qtbase-dev
 > pip install PySide6
@@ -465,189 +469,357 @@ sudo apk add lm-sensors grim py3-gobject3 py3-dbus
 
 ### Solus
 
-Covers: Solus 4.x (Budgie, GNOME, MATE, Plasma editions)
-
 ```bash
-# Required
+# Step 1: Install system dependencies
 sudo eopkg install sg3_utils python3-pip ffmpeg
 
-# PySide6 (may need pip)
+# Step 2: Install PySide6 (not packaged in Solus)
 pip install PySide6
 
-# Optional (hardware sensors, screen capture on Wayland)
+# Step 3: Install optional extras
 sudo eopkg install lm-sensors grim python3-gobject python3-dbus
+
+# Step 4: Install TRCC
+pip install trcc-linux
+
+# Step 5: Run the setup wizard
+trcc setup
+
+# Step 6: Unplug and replug the USB cable, then launch
+trcc gui
 ```
 
 ---
 
 ### Clear Linux
 
-Covers: Clear Linux OS (Intel)
-
 ```bash
-# Required
+# Step 1: Install system dependencies
 sudo swupd bundle-add python3-basic devpkg-sg3_utils ffmpeg
 
-# PySide6 via pip (not bundled in Clear Linux)
+# Step 2: Install PySide6 (not bundled in Clear Linux)
 pip install PySide6
 
-# Optional (hardware sensors, screen capture on Wayland)
+# Step 3: Install optional extras
 sudo swupd bundle-add sysadmin-basic devpkg-pipewire
+
+# Step 4: Install TRCC
+pip install trcc-linux
+
+# Step 5: Run the setup wizard
+trcc setup
+
+# Step 6: Unplug and replug the USB cable, then launch
+trcc gui
 ```
 
-> **Clear Linux note:** You may need to install `sg3_utils` from source or find it in an alternative bundle. Check `sudo swupd search sg3` for the current bundle name.
-
 ---
 
-### What each package does
+## One-Line Install
 
-| Package | Why it's needed |
-|---------|----------------|
-| `python3-pip` | Installs Python packages (like TRCC itself) |
-| `sg3_utils` | Sends data to the LCD over USB (SCSI commands) — **required for SCSI devices** |
-| `lm-sensors` / `lm_sensors` | Hardware sensor readings (CPU/GPU temps, fan speeds) — improves sensor accuracy |
-| `PySide6` / `python3-pyside6` | The graphical user interface (GUI) toolkit |
-| `ffmpeg` | Video and GIF playback on the LCD |
-| `p7zip` / `7zip` | Extracts bundled theme `.7z` archives (required) |
-| `grim` | Screen capture on Wayland desktops (optional) |
-| `python3-gobject` / `python3-dbus` | PipeWire screen capture for GNOME/KDE Wayland (optional) |
-| `pyusb` + `libusb` | USB communication for HID LCD/LED devices |
-| `hidapi` + `libhidapi` | Fallback USB backend for HID LCD/LED devices |
-
----
-
-## Step 2 - Install TRCC
-
-### Option A: Install from PyPI (recommended)
+Downloads and installs TRCC automatically, then launches the setup wizard:
 
 ```bash
-pip install trcc-linux
+bash <(curl -sSL https://raw.githubusercontent.com/Lexonight1/thermalright-trcc-linux/main/setup.sh)
 ```
 
-> **Arch-based distros** (Arch, CachyOS, Manjaro, EndeavourOS, Garuda) enforce PEP 668 — use pipx instead:
-> ```bash
-> sudo pacman -S python-pipx
-> pipx install trcc-linux
-> ```
-> Upgrades: `pipx upgrade trcc-linux`
+After it finishes: unplug and replug the USB cable, then run `trcc gui`.
 
-> **Other PEP 668 distros** (Fedora 38+, Ubuntu 23.04+, Debian 12+, openSUSE Tumbleweed, Void) — use `--break-system-packages` or a venv:
-> ```bash
-> pip install --break-system-packages trcc-linux
-> ```
->
-> Or use a virtual environment:
-> ```bash
-> python3 -m venv ~/trcc-env
-> source ~/trcc-env/bin/activate
-> pip install trcc-linux
-> # You'll need to run 'source ~/trcc-env/bin/activate' each time you open a new terminal
-> ```
+---
 
-### Option B: Clone with Git (for development)
+## Git Clone Install
+
+For developers or if you want the latest code:
 
 ```bash
 git clone https://github.com/Lexonight1/thermalright-trcc-linux.git
 cd thermalright-trcc-linux
-pip install -e .
+sudo ./install.sh
 ```
 
-### Ensure `~/.local/bin` is in your PATH
+The script auto-detects your distro, installs system packages, Python deps, udev rules, and a desktop shortcut. After it finishes: unplug and replug the USB cable, then run `trcc gui`.
 
-When you install with `pip install`, the `trcc` command is placed in `~/.local/bin/`. On many distros this directory is **not** in your `PATH` by default, so the `trcc` command won't be found after a reboot.
-
-Add it to your shell config:
-
-```bash
-# Bash (~/.bashrc)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-
-# Zsh (~/.zshrc) — default on Arch, Garuda, some Manjaro
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-# Fish (~/.config/fish/config.fish)
-fish_add_path ~/.local/bin
-```
-
-| Distro | `~/.local/bin` in PATH by default? |
-|--------|-----------------------------------|
-| Fedora | Yes (usually works without this step) |
-| Ubuntu / Debian | Conditionally — only if the directory exists at login time |
-| Arch / Manjaro / EndeavourOS | No |
-| openSUSE | No |
-| Void / Alpine | No |
-
-> **Tip:** You can verify with `echo $PATH | tr ':' '\n' | grep local`. If you see `~/.local/bin` (or `/home/yourname/.local/bin`), you're good.
+To uninstall: `trcc uninstall` (or `sudo ./install.sh --uninstall`).
 
 ---
 
-## Step 4 - Set Up Device Permissions
+## Immutable / Atomic Distros
 
-Linux needs permission rules to let TRCC talk to the LCD without requiring `sudo` every time. TRCC includes an automatic setup command for this.
-
-### Run the setup command
-
-```bash
-trcc setup-udev
-```
-
-Or, if you installed with `pip install -e .`:
-
-```bash
-trcc setup-udev
-```
-
-**What this does:**
-1. Creates a **udev rule** (`/etc/udev/rules.d/99-trcc-lcd.rules`) that gives your user account permission to access the LCD's USB device
-2. Creates a **USB quirk** (`/etc/modprobe.d/trcc-lcd.conf`) that tells the kernel to use the correct USB protocol for the LCD
-
-### Preview first (optional)
-
-If you want to see what the command will do before running it:
-
-```bash
-trcc setup-udev --dry-run
-```
-
-### After running setup-udev
-
-**Unplug and replug the USB cable.** If the cable isn't easily accessible (internal header), reboot your computer instead. The new permissions take effect when the device reconnects.
-
-> **Why is this needed?** On Linux, USB devices default to root-only access. The udev rule changes this for Thermalright LCDs specifically. The USB quirk is needed because the kernel otherwise tries to use a protocol (UAS) that these displays don't support, which prevents the LCD from being detected at all.
-
-> **NixOS users:** Skip this step. Add the udev rules to your `configuration.nix` instead (see [NixOS section](#nixos)).
+These distros have read-only root filesystems. Standard package installation works differently.
 
 ---
 
-## Step 5 - Connect Your Cooler
+### Bazzite / Aurora / Bluefin / Fedora Atomic
 
-1. **Plug in the USB cable** from your cooler to your computer
-2. **Wait a few seconds** for Linux to detect the device
-3. **Verify it's detected:**
+Covers: Bazzite, Aurora, Bluefin, Fedora Silverblue, Fedora Kinoite, and all Universal Blue / Fedora Atomic desktops
+
+These use an immutable root filesystem — you can't `sudo dnf install` like normal Fedora. Instead:
+
+```bash
+# Step 1: Layer sg3_utils (needed for SCSI USB devices — requires reboot)
+rpm-ostree install sg3_utils
+systemctl reboot
+```
+
+After rebooting:
+
+```bash
+# Step 2: Create a Python virtual environment (system Python is read-only)
+python3 -m venv ~/trcc-env
+source ~/trcc-env/bin/activate
+
+# Step 3: Install TRCC
+pip install trcc-linux
+
+# Step 4: Set up device permissions
+trcc setup-udev
+
+# Step 5: If you have a bulk USB device, install SELinux policy
+trcc setup-selinux
+```
+
+> If `checkmodule` is not found: `sudo dnf install checkpolicy`
+
+```bash
+# Step 6: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+**To launch TRCC in the future:**
+```bash
+source ~/trcc-env/bin/activate
+trcc gui
+```
+
+> **Tip:** Add an alias so you don't have to type the activate command every time:
+> ```bash
+> echo 'alias trcc-start="source ~/trcc-env/bin/activate && trcc gui"' >> ~/.bashrc
+> source ~/.bashrc
+> # Now just type: trcc-start
+> ```
+
+**Optional desktop shortcut** (launches from your app menu):
+```bash
+mkdir -p ~/.local/share/applications
+cat > ~/.local/share/applications/trcc.desktop << 'EOF'
+[Desktop Entry]
+Name=TRCC LCD Control
+Comment=Thermalright LCD Control Center
+Exec=bash -c 'source ~/trcc-env/bin/activate && trcc gui'
+Icon=preferences-desktop-display
+Terminal=false
+Type=Application
+Categories=Utility;System;
+EOF
+```
+
+**Optional: Wayland screen capture** (for screen cast / eyedropper features):
+```bash
+source ~/trcc-env/bin/activate
+pip install dbus-python PyGObject
+```
+
+**Alternative — Distrobox** (avoids layering anything onto the host):
+```bash
+distrobox create --name trcc --image fedora:latest
+distrobox enter trcc
+
+# Inside the container — normal Fedora commands work
+sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
+pip install trcc-linux
+exit
+
+# Back on the host — set up device permissions
+trcc setup-udev
+# Unplug/replug USB cable
+
+# Run from Distrobox
+distrobox enter trcc -- trcc gui
+```
+
+---
+
+### SteamOS (Steam Deck)
+
+Switch to Desktop Mode first: hold the Power button > Desktop Mode, then open Konsole.
+
+**Option A — Direct install** (simpler, but lost on SteamOS updates):
+
+```bash
+# Unlock the read-only filesystem
+sudo steamos-readonly disable
+
+# Set a password if you haven't already
+passwd
+
+# Install dependencies
+sudo pacman -S --needed sg3_utils python-pip python-pyside6 ffmpeg
+
+# Install TRCC
+pip install --break-system-packages trcc-linux
+
+# Set up device permissions
+sudo trcc setup-udev
+
+# Re-enable read-only (recommended)
+sudo steamos-readonly enable
+
+# Unplug/replug USB cable, then launch
+trcc gui
+```
+
+> **Warning:** System packages installed with `pacman` are lost when SteamOS updates. You'll need to re-run the `steamos-readonly disable` and `pacman` steps after each update. The `pip install` persists in your home directory.
+
+**Option B — Distrobox** (survives updates):
+
+```bash
+distrobox create --name trcc --image archlinux:latest
+distrobox enter trcc
+
+# Inside the container
+sudo pacman -S python-pip sg3_utils python-pyside6 ffmpeg
+pip install trcc-linux
+exit
+
+# Set up udev on the HOST (requires temporary unlock)
+sudo steamos-readonly disable
+sudo trcc setup-udev
+sudo steamos-readonly enable
+
+# Unplug/replug USB cable, then run
+distrobox enter trcc -- trcc gui
+```
+
+---
+
+### Vanilla OS
+
+Covers: Vanilla OS 2.x (Orchid)
+
+```bash
+# Create a Fedora subsystem
+apx subsystems create --name trcc-system --stack fedora
+
+# Install dependencies inside the subsystem
+apx trcc-system install python3-pip sg3_utils python3-pyside6 ffmpeg
+
+# Enter the subsystem and install TRCC
+apx trcc-system enter
+pip install trcc-linux
+exit
+
+# Set up udev rules on the host
+trcc setup-udev
+
+# Unplug/replug USB cable, then run
+apx trcc-system run -- trcc gui
+```
+
+---
+
+### ChromeOS (Crostini)
+
+1. Enable Linux: **Settings > Advanced > Developers > Turn On Linux development environment**
+2. Open the Linux terminal:
+
+```bash
+# Install dependencies
+sudo apt update
+sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
+
+# Install TRCC
+pip install --break-system-packages trcc-linux
+
+# Set up device permissions
+trcc setup-udev
+
+# Unplug/replug USB cable, then launch
+trcc gui
+```
+
+> **ChromeOS USB passthrough:** Go to **Settings > Advanced > Developers > Linux > Manage USB devices** and enable your Thermalright LCD device. You may need to replug after enabling.
+
+---
+
+## Special Hardware
+
+---
+
+### Asahi Linux (Apple Silicon)
+
+Covers: Fedora Asahi Remix on Apple M1/M2/M3/M4 Macs
+
+Follow the [Fedora / Nobara (pip)](#fedora--nobara-pip) instructions — Asahi is Fedora-based:
+
+```bash
+sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
+pip install trcc-linux
+trcc setup
+trcc gui
+```
+
+> USB-A ports on Apple Silicon Macs work through Thunderbolt hubs/docks. Make sure your cooler's USB cable goes through a compatible hub or USB-C adapter.
+
+---
+
+### Raspberry Pi / ARM SBCs
+
+Covers: Raspberry Pi OS (Bookworm), Ubuntu for Raspberry Pi, Armbian
+
+TRCC works on ARM64 (aarch64) systems:
+
+```bash
+# Raspberry Pi OS / Armbian (Debian-based)
+sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
+pip install --break-system-packages trcc-linux
+trcc setup
+trcc gui
+```
+
+> **No display?** If you're running headless (no monitor), the CLI still works:
+> ```bash
+> trcc send /path/to/image.png
+> trcc color ff0000
+> trcc test
+> ```
+
+> **ARM PySide6:** If `pip install PySide6` fails, use the system package (`python3-pyside6`). The CLI commands work without PySide6 — only the GUI needs it.
+
+---
+
+### WSL2 (Windows Subsystem for Linux)
+
+> **You probably want the Windows version instead.** WSL2 has limited USB support. But if you want to try:
+
+1. **On Windows** — Install [usbipd-win](https://github.com/dorssel/usbipd-win)
+2. **On Windows** (PowerShell as admin):
+   ```powershell
+   usbipd list                          # Find your Thermalright device
+   usbipd bind --busid <BUSID>          # Bind it
+   usbipd attach --wsl --busid <BUSID>  # Attach to WSL
+   ```
+3. **Inside WSL2** — Follow the [Ubuntu / Debian (pip)](#ubuntu--debian--mint--pop_os--zorin-pip) instructions
+
+> You need to re-attach the USB device every time you restart WSL or unplug it. GUI apps require WSLg (Windows 11 or recent Windows 10).
+
+---
+
+## After Installing
+
+### Verify your device is detected
 
 ```bash
 trcc detect
 ```
 
 You should see something like:
-
 ```
 Active: /dev/sg1
 ```
 
-If you have multiple Thermalright LCD devices:
-
+If you have multiple devices:
 ```bash
 trcc detect --all
-```
-
-Shows all connected devices with numbers you can use to switch between them:
-
-```
-* [1] /dev/sg1 (LCD Display (USBLCD))
-  [2] /dev/sg2 (FROZEN WARFRAME)
 ```
 
 ### Quick test
@@ -658,34 +830,38 @@ Send a test pattern to make sure everything works:
 trcc test
 ```
 
-This cycles through red, green, blue, yellow, magenta, cyan, and white. If you see the colors on your cooler's LCD, everything is set up correctly.
+This cycles through red, green, blue, yellow, magenta, cyan, and white on the LCD. If you see the colors, you're all set.
 
----
+### `trcc: command not found`?
 
-## Step 6 - Run TRCC
+**Open a new terminal.** When you install with pip, the `trcc` command goes to `~/.local/bin/` which only gets added to your PATH when you open a new terminal session.
 
-Launch the GUI:
-
-```bash
-trcc gui
-```
-
-Or, if you didn't install with pip:
+If it still doesn't work after opening a new terminal, add it manually:
 
 ```bash
-PYTHONPATH=src python3 -m trcc.cli gui
+# For bash (most distros)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+
+# For zsh (Arch, Garuda, some Manjaro)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# For fish
+fish_add_path ~/.local/bin
 ```
 
-The application window will appear, showing the same interface as the Windows version.
-
-> **Tip:** To run with a normal window title bar (for easier resizing/moving while getting used to the app):
-> ```bash
-> trcc gui --decorated
-> ```
+| Distro | `~/.local/bin` in PATH by default? |
+|--------|-----------------------------------|
+| Fedora | Yes |
+| Ubuntu / Debian | Only if the directory exists at login time |
+| Arch / Manjaro / EndeavourOS | No |
+| openSUSE | No |
+| Void / Alpine | No |
 
 ### Create a desktop shortcut (optional)
 
-If you'd rather launch TRCC from your app menu instead of typing a command every time, create a `.desktop` file:
+So you can launch TRCC from your app menu instead of typing a command:
 
 ```bash
 mkdir -p ~/.local/share/applications
@@ -701,470 +877,38 @@ Categories=Utility;System;
 EOF
 ```
 
-This adds "TRCC LCD Control" to your application menu. On most desktops it appears immediately; on some you may need to log out and back in.
-
-> **Using a venv?** If you installed TRCC in a virtual environment, change the `Exec` line to:
+> **Using a venv?** Change the `Exec` line to:
 > ```
 > Exec=bash -c 'source ~/trcc-env/bin/activate && trcc gui'
 > ```
 
 ---
 
-## Immutable / Atomic Distros
+## Verify Your Download
 
-These distros have read-only root filesystems. Standard package installation doesn't work the same way.
+Every release includes a `SHA256SUMS.txt` file. Download it from the same release page, then:
+
+```bash
+cd ~/Downloads
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
+If you see `OK` next to your package — it's clean. Source code is GPL-3.0, fully auditable — no binaries, no obfuscation, no telemetry.
 
 ---
 
-### Bazzite / Fedora Atomic / Aurora / Bluefin
-
-Covers: Bazzite, Aurora, Bluefin, Fedora Silverblue, Fedora Kinoite, and all Universal Blue / Fedora Atomic desktops
-
-These use an **immutable root filesystem**. Standard `dnf install` doesn't work — you layer packages with `rpm-ostree` (requires reboot) or install userspace tools via `brew`, `pip`, or containers.
-
-#### Why it's different
-
-| Normal Fedora | Bazzite / Fedora Atomic |
-|---------------|-------------------------|
-| `sudo dnf install pkg` | `rpm-ostree install pkg` + reboot |
-| Packages available immediately | Layered packages available after reboot |
-| System Python is writable | System Python is read-only — use a venv |
-
-The goal is to layer as little as possible onto the base image and do everything else in a Python virtual environment.
-
-#### Step 1 — Layer `sg3_utils`
-
-`sg3_utils` provides the `sg_raw` command that TRCC uses to send SCSI commands to the LCD over USB. This **must** be on the host system (not inside a container) because it needs direct access to `/dev/sg*` devices.
-
-```bash
-rpm-ostree install sg3_utils
-systemctl reboot
-```
-
-After rebooting, verify it's available:
-
-```bash
-which sg_raw
-```
-
-> **Note:** If you want to avoid layering and rebooting, you can also use `brew install sg3_utils` on Bazzite (Homebrew is pre-installed). However, the `rpm-ostree` approach is more reliable for system-level hardware tools.
-
-#### Step 2 — Install TRCC in a virtual environment
-
-Bazzite's system Python is read-only, so a venv is **required** (not optional like on normal Fedora):
-
-```bash
-python3 -m venv ~/trcc-env
-source ~/trcc-env/bin/activate
-pip install trcc-linux
-```
-
-> **Tip:** Add the activation to your shell profile so it's automatic:
-> ```bash
-> echo 'alias trcc-env="source ~/trcc-env/bin/activate"' >> ~/.bashrc
-> ```
-
-#### Step 4 — Install FFmpeg (for video/GIF playback)
-
-Bazzite ships FFmpeg by default. Verify with:
-
-```bash
-ffmpeg -version
-```
-
-If for some reason it's missing:
-
-```bash
-brew install ffmpeg
-```
-
-#### Step 5 — Set up device permissions
-
-Udev rules live on the host filesystem and work the same as on normal Fedora:
-
-```bash
-source ~/trcc-env/bin/activate
-trcc setup-udev
-```
-
-**SELinux policy (required for bulk USB devices on Bazzite):**
-
-Bazzite runs SELinux in enforcing mode, which blocks raw USB device access. Install the SELinux policy module:
-
-```bash
-trcc setup-selinux    # auto-elevates with sudo
-```
-
-If `checkmodule` is not found, install it first:
-```bash
-sudo dnf install checkpolicy
-```
-
-Then **unplug and replug the USB cable** (or reboot if it's not easily accessible).
-
-#### Step 6 — Run TRCC
-
-```bash
-source ~/trcc-env/bin/activate
-trcc gui
-```
-
-#### Optional: Create a desktop shortcut
-
-So you don't need to activate the venv manually each time:
-
-```bash
-mkdir -p ~/.local/share/applications
-cat > ~/.local/share/applications/trcc.desktop << 'EOF'
-[Desktop Entry]
-Name=TRCC LCD Control
-Comment=Thermalright LCD Control Center
-Exec=bash -c 'source ~/trcc-env/bin/activate && trcc gui'
-Icon=preferences-desktop-display
-Terminal=false
-Type=Application
-Categories=Utility;System;
-EOF
-```
-
-#### Optional: Wayland screen capture
-
-Bazzite uses Wayland (KDE or GNOME) by default. For screen cast / eyedropper features, install the PipeWire bindings inside your venv:
-
-```bash
-source ~/trcc-env/bin/activate
-pip install dbus-python PyGObject
-```
-
-> **Note:** `pipewire` and `pipewire-devel` are already included in Bazzite's base image.
-
-#### Alternative: Distrobox approach
-
-If you prefer full isolation, you can run TRCC inside a Distrobox container. This avoids layering anything with `rpm-ostree`:
-
-```bash
-# Create a Fedora container
-distrobox create --name trcc --image fedora:latest
-distrobox enter trcc
-
-# Inside the container — normal Fedora commands work
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
-pip install trcc-linux
-
-# Set up device permissions (must run on the host)
-exit
-sudo distrobox-host-exec trcc setup-udev
-# Unplug/replug USB cable, or reboot
-
-# Run the GUI from the container
-distrobox enter trcc -- trcc gui
-```
-
-> **Caveat:** The udev rules and USB quirk still need to be set up on the **host** system. The Distrobox container can access `/dev/sg*` devices through the host, but permissions must be configured on the host side. You may need to run `setup-udev` directly on the host rather than through `distrobox-host-exec`.
-
-#### Uninstalling on Bazzite
-
-```bash
-# Remove the venv
-rm -rf ~/trcc-env
-
-# Remove the cloned repo
-rm -rf ~/thermalright-trcc-linux
-
-# Remove desktop shortcut (if created)
-rm ~/.local/share/applications/trcc.desktop
-
-# Unlayer sg3_utils (optional)
-rpm-ostree uninstall sg3_utils
-systemctl reboot
-
-# Remove udev rules (optional)
-sudo rm /etc/udev/rules.d/99-trcc-lcd.rules
-sudo rm /etc/modprobe.d/trcc-lcd.conf
-sudo udevadm control --reload-rules
-```
-
----
-
-### SteamOS (Steam Deck)
-
-Covers: SteamOS 3.x on Steam Deck (LCD and OLED models)
-
-SteamOS is an immutable Arch-based distro. The root filesystem is read-only by default, but you can temporarily unlock it.
-
-#### Option A: Unlock root filesystem (simpler, lost on SteamOS updates)
-
-Switch to Desktop Mode (hold Power button > Desktop Mode), then open Konsole:
-
-```bash
-# Disable read-only filesystem
-sudo steamos-readonly disable
-
-# Set a password if you haven't already
-passwd
-
-# Install system deps
-sudo pacman -S --needed sg3_utils python-pip python-pyside6 ffmpeg
-
-# Install TRCC
-pip install --break-system-packages trcc-linux
-
-# Set up device permissions
-sudo trcc setup-udev
-# Unplug/replug USB cable, or reboot
-
-# Re-enable read-only (optional, recommended)
-sudo steamos-readonly enable
-
-# Launch
-trcc gui
-```
-
-> **Warning:** `steamos-readonly disable` changes are lost when SteamOS updates. You'll need to re-install system packages after each update. Python packages installed with `pip --break-system-packages` persist in your home directory.
-
-#### Option B: Distrobox (survives updates)
-
-```bash
-# In Desktop Mode, open Konsole
-distrobox create --name trcc --image archlinux:latest
-distrobox enter trcc
-
-# Inside the container
-sudo pacman -S python-pip sg3_utils python-pyside6 ffmpeg
-pip install trcc-linux
-exit
-
-# Set up udev on the HOST (requires steamos-readonly disable temporarily)
-sudo steamos-readonly disable
-sudo distrobox-host-exec trcc setup-udev
-sudo steamos-readonly enable
-# Unplug/replug USB cable, or reboot
-
-# Run from Distrobox
-distrobox enter trcc -- trcc gui
-```
-
----
-
-### Vanilla OS
-
-Covers: Vanilla OS 2.x (Orchid)
-
-Vanilla OS uses `apx` (based on Distrobox) for package management:
-
-```bash
-# Create a Fedora subsystem
-apx subsystems create --name trcc-system --stack fedora
-
-# Install dependencies inside the subsystem
-apx trcc-system install python3-pip sg3_utils python3-pyside6 ffmpeg
-
-# Enter the subsystem and install
-apx trcc-system enter
-pip install trcc-linux
-exit
-
-# Udev rules must be applied on the host
-# Copy the rules manually (setup-udev won't work from inside apx)
-sudo cp /path/to/99-trcc-lcd.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-# Unplug/replug USB cable, or reboot
-
-# Run
-apx trcc-system run -- trcc gui
-```
-
----
-
-### ChromeOS (Crostini)
-
-Covers: ChromeOS with Linux development environment enabled (Crostini / Debian container)
-
-1. Enable Linux: Settings > Advanced > Developers > Turn On Linux development environment
-2. Open the Linux terminal, then follow the Debian instructions:
-
-```bash
-sudo apt update
-sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
-pip install --break-system-packages trcc-linux
-```
-
-> **ChromeOS limitation:** USB device passthrough to the Linux container requires enabling it in ChromeOS settings. Go to Settings > Advanced > Developers > Linux > Manage USB devices, and enable your Thermalright LCD device. You may also need to run `trcc setup-udev` inside the container and replug the USB device.
-
-```bash
-trcc setup-udev
-trcc gui
-```
-
----
-
-## Special Hardware
-
----
-
-### Asahi Linux (Apple Silicon)
-
-Covers: Fedora Asahi Remix on Apple M1/M2/M3/M4 Macs
-
-Asahi Linux uses the Fedora Asahi Remix. Follow the standard [Fedora instructions](#fedora--rhel--centos-stream--rocky--alma):
-
-```bash
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
-pip install trcc-linux
-sudo trcc setup-udev
-```
-
-> **Apple Silicon note:** USB-A ports on Apple Silicon Macs work through Thunderbolt hubs/docks. Make sure your USB connection to the cooler is going through a compatible hub. Direct USB-C adapters should also work.
-
----
-
-### Raspberry Pi / ARM SBCs
-
-Covers: Raspberry Pi OS (Bookworm), Ubuntu for Raspberry Pi, Armbian
-
-TRCC works on ARM64 (aarch64) systems. The SCSI protocol and LCD communication are architecture-independent.
-
-```bash
-# Raspberry Pi OS / Armbian (Debian-based)
-sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
-pip install --break-system-packages trcc-linux
-sudo trcc setup-udev
-```
-
-> **ARM note:** PySide6 wheels may not be available for ARM. If `pip install PySide6` fails, use the system package (`python3-pyside6`) or build from source. The CLI commands (`trcc send`, `trcc test`, `trcc color`) work without PySide6 — only the GUI requires it.
-
-> **Headless usage:** If you're running on a Pi without a display, you can still use the CLI to send images to the LCD:
-> ```bash
-> trcc send /path/to/image.png
-> trcc color ff0000
-> ```
-
----
-
-### WSL2 (Windows Subsystem for Linux)
-
-Covers: WSL2 on Windows 10/11
-
-> **You probably want the Windows version instead.** WSL2 has limited USB passthrough and you'd need the official Windows TRCC app for the best experience. However, if you want to use the Linux version:
-
-WSL2 requires `usbipd-win` to pass USB devices through:
-
-1. **On Windows:** Install [usbipd-win](https://github.com/dorssel/usbipd-win) from the Microsoft Store or GitHub
-2. **On Windows (PowerShell as admin):**
-   ```powershell
-   usbipd list                          # Find your Thermalright device
-   usbipd bind --busid <BUSID>          # Bind it
-   usbipd attach --wsl --busid <BUSID>  # Attach to WSL
-   ```
-3. **Inside WSL2:** Follow the [Ubuntu/Debian instructions](#ubuntu--debian--linux-mint--pop_os--zorin--elementary)
-
-> **WSL2 note:** You need to re-attach the USB device every time you restart WSL or unplug the device. GUI apps require WSLg (included in Windows 11 and recent Windows 10 updates).
-
----
-
-## Using the GUI
-
-The interface has several main areas:
-
-### Left Sidebar (Device Panel)
-
-Shows your connected Thermalright cooler(s). Click a device to select it. The blue highlighted device is the one currently being controlled.
-
-Each device remembers its own settings (theme, brightness, rotation). Switching devices restores that device's configuration automatically.
-
-- **Sensor** button: Opens a live system info display
-- **About** button: Settings (LCD resolution, language, auto-start, temperature units). Auto-start is enabled automatically on first launch — it creates `~/.config/autostart/trcc.desktop` which runs `trcc --last-one` on login to send the last-used theme to your device without opening the GUI.
-
-### Top Tabs
-
-Four tabs to switch between different modes:
-
-| Tab | What it does |
-|-----|-------------|
-| **Local** | Browse themes saved on your computer |
-| **Masks** | Download and apply mask overlays (clocks, gauges, etc.) |
-| **Cloud** | Browse and download themes from the Thermalright cloud server |
-| **Settings** | Configure overlay elements (text, sensors, masks, display modes) |
-
-### Preview Area (Center)
-
-Shows a live preview of what's currently displayed (or about to be displayed) on the LCD. Below the preview are video playback controls when playing animated themes.
-
-### Bottom Bar
-
-- **Rotation** dropdown: Rotate the display (0/90/180/270 degrees)
-- **Brightness** button: Adjust LCD brightness
-- **Theme name** field + **Save** button: Name and save your current theme
-- **Export/Import** buttons: Share themes as files
-
-### Common Workflow
-
-1. **Pick a theme:** Click the "Local" tab, then click a theme thumbnail
-2. **Preview it:** The preview area updates to show the theme
-3. **Customize it:** Switch to the "Settings" tab to add overlays (CPU temp, clock, custom text, etc.)
-4. **Send to LCD:** The preview automatically sends to the connected LCD. Or click a theme to apply it.
-
-### Display Modes (Settings Tab)
-
-The Settings tab has several display mode panels at the bottom:
-
-| Mode | What it does |
-|------|-------------|
-| **Mask** | Enable/disable the mask overlay layer |
-| **Background** | Toggle background image on/off |
-| **Screen Cast** | Mirror a region of your desktop to the LCD in real-time |
-| **Video** | Play video/GIF files on the LCD |
-
-### Screen Cast (Desktop Mirroring)
-
-This mirrors a portion of your screen onto the LCD in real-time:
-
-1. Go to the **Settings** tab
-2. Find the **Screen Cast** panel
-3. Set the **X, Y, W, H** values to define which part of your screen to capture
-4. Toggle the screencast on
-
-Example: X=0, Y=0, W=500, H=500 captures a 500x500 square from the top-left of your screen.
-
----
-
-## Command Line Usage
-
-TRCC also works from the terminal without the GUI:
-
-```bash
-# Show all available commands
-trcc --help
-
-# Detect connected devices
-trcc detect
-trcc detect --all
-
-# Select a specific device (by number from detect --all)
-trcc select 2
-
-# Send an image to the LCD
-trcc send /path/to/image.png
-
-# Display a solid color (hex code, no # needed)
-trcc color ff0000          # Red
-trcc color 00ff00          # Green
-trcc color 0000ff          # Blue
-
-# Test the display with a color cycle
-trcc test
-trcc test --loop           # Loop continuously (Ctrl+C to stop)
-
-# Show system info (CPU/GPU temps, memory, etc.)
-trcc info
-
-# Reset/reinitialize the LCD
-trcc reset
-
-# Download cloud theme packs
-trcc download --list       # See available packs
-trcc download themes-320   # Download 320x320 themes
-```
+## What Each Package Does
+
+| Package | Why it's needed |
+|---------|----------------|
+| `python3-pip` | Installs Python packages (like TRCC itself) |
+| `sg3_utils` / `sg3-utils` | Sends data to the LCD over USB (SCSI commands) — **required for SCSI devices** |
+| `PySide6` / `python3-pyside6` | The graphical user interface (GUI) toolkit |
+| `ffmpeg` | Video and GIF playback on the LCD |
+| `lm-sensors` / `lm_sensors` | Hardware sensor readings (CPU/GPU temps, fan speeds) — optional but recommended |
+| `grim` | Screen capture on Wayland desktops — optional |
+| `python3-gobject` / `python3-dbus` | PipeWire screen capture for GNOME/KDE on Wayland — optional |
+| `pyusb` + `libusb` | USB communication for HID LCD/LED devices (pulled in by pip automatically) |
 
 ---
 
@@ -1176,49 +920,26 @@ Quick fixes for the most common issues:
 
 | Problem | Fix |
 |---------|-----|
-| `trcc: command not found` | Open a new terminal, or add `~/.local/bin` to PATH |
-| No device detected | `trcc setup-udev` then unplug/replug USB |
+| `trcc: command not found` | Open a new terminal, or [add `~/.local/bin` to PATH](#trcc-command-not-found) |
+| No device detected | Run `trcc setup-udev` then unplug/replug USB |
 | Permission denied | `pip install --upgrade trcc-linux` then `trcc setup-udev` |
-| Permission denied on SELinux (Bazzite, Silverblue) | `trcc setup-selinux` (v4.2.0+), or upgrade to v1.2.16+ for udev `MODE="0666"` |
-| PySide6 not available | Install system package: `sudo dnf install python3-pyside6` |
+| Permission denied on SELinux (Bazzite) | `trcc setup-selinux` |
+| PySide6 not available | Install system package: `sudo dnf install python3-pyside6` (or your distro's equivalent) |
 | Qt_6_PRIVATE_API not found | Use system PySide6 instead of pip version |
-| HID handshake None | Upgrade to v1.2.9+, power-cycle USB, run `trcc hid-debug` |
-| externally-managed-environment | Use `--break-system-packages` or a venv |
+| externally-managed-environment | Use `--break-system-packages` or a venv (see your distro's section above) |
 | NixOS: setup-udev fails | Add udev rules to `configuration.nix` (see [NixOS section](#nixos)) |
+| HID handshake None | Upgrade to latest version, power-cycle USB, run `trcc hid-debug` |
 
----
+### Wayland screen capture
 
-## Wayland-Specific Notes
+| Desktop | Screen capture method | Extra packages needed |
+|---------|----------------------|----------------------|
+| GNOME | PipeWire portal | `python3-gobject` + `python3-dbus` |
+| KDE Plasma | PipeWire portal | `python3-gobject` + `python3-dbus` |
+| Sway / Hyprland / Wayfire | `grim` | `grim` |
+| X11 (any) | Native X11 capture | None |
 
-Linux has two display systems: **X11** (older, but widely supported) and **Wayland** (newer, more secure). Most features work on both, but there are some differences:
-
-### How to check which one you're using
-
-```bash
-echo $XDG_SESSION_TYPE
-```
-
-This prints either `x11` or `wayland`.
-
-### Wayland differences
-
-- **Screen capture:** Works via PipeWire portal (requires permission dialog on first use)
-- **Eyedropper color picker:** Uses the same PipeWire portal for screen access
-- **Window decorations:** The app uses its own custom title bar by default on both X11 and Wayland. Use `--decorated` if you prefer your desktop's native title bar.
-
-### Compositors and screen capture
-
-| Compositor | Screen capture method | Notes |
-|------------|----------------------|-------|
-| GNOME (Mutter) | PipeWire portal | Needs `python3-gobject` + `python3-dbus` |
-| KDE (KWin) | PipeWire portal | Needs `python3-gobject` + `python3-dbus` |
-| Sway | `grim` / wlr-screencopy | Works out of the box with `grim` installed |
-| Hyprland | `grim` / wlr-screencopy | Works out of the box with `grim` installed |
-| Wayfire | `grim` / wlr-screencopy | Works out of the box with `grim` installed |
-| River | `grim` / wlr-screencopy | Works out of the box with `grim` installed |
-| X11 (any WM/DE) | Native X11 capture | Works everywhere, no extra deps |
-
-Everything else (themes, overlays, video playback, device communication) works identically on both X11 and Wayland.
+Everything else (themes, overlays, video, device communication) works identically on X11 and Wayland.
 
 ---
 
@@ -1230,11 +951,9 @@ Everything else (themes, overlays, video playback, device communication) works i
 trcc uninstall
 ```
 
-This removes config, autostart, desktop files, udev rules (auto-elevates with sudo), and the pip package in one step. Use `--yes` to skip prompts.
+Removes config, autostart, desktop files, udev rules (auto-elevates with sudo), and the pip package. Use `--yes` to skip prompts.
 
-You can also use the GUI wizard: `trcc setup-gui` → click Uninstall.
-
-### Manual removal (if trcc command is unavailable)
+### Manual removal (if `trcc` command is unavailable)
 
 ```bash
 pip uninstall trcc-linux
@@ -1250,6 +969,7 @@ rm -f ~/.local/share/applications/trcc*.desktop
 
 ## Getting Help
 
-- Check the [Troubleshooting](#troubleshooting) section above
-- Look at the terminal output for error messages (run `trcc gui -v` for verbose output, or `trcc gui -vv` for debug output)
-- File an issue at https://github.com/Lexonight1/thermalright-trcc-linux/issues
+- Run `trcc doctor` to check your system for missing dependencies
+- Run `trcc report` and [paste the output in an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) — this gives us everything we need to help you
+- Check the [Troubleshooting guide](TROUBLESHOOTING.md) for more solutions
+- For verbose output: `trcc gui -v` (or `trcc gui -vv` for debug)
