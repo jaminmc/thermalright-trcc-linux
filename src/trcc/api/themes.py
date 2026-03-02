@@ -312,6 +312,8 @@ async def import_theme(file: UploadFile) -> dict:
         if not ok:
             raise HTTPException(status_code=400, detail=str(result))
         return {"success": True, "message": f"Theme imported from {file.filename}"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:

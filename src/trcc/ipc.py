@@ -310,6 +310,13 @@ class IPCLEDProxy:
 
     connected = True
 
+    @property
+    def status(self) -> str | None:
+        result = IPCClient.send("status")
+        if result.get("led", {}).get("connected"):
+            return "Connected (via GUI daemon)"
+        return None
+
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
             raise AttributeError(name)

@@ -92,6 +92,12 @@ def select_device(device_id: int) -> dict:
         api._display_dispatcher = IPCDisplayProxy()
         api._led_dispatcher = IPCLEDProxy()
 
+        # Daemon already discovered resolution — sync it to DeviceInfo
+        # so static dirs mount correctly and response has real resolution
+        proxy_res = api._display_dispatcher.resolution
+        if proxy_res != (0, 0):
+            dev.resolution = proxy_res
+
         log.info("Using GUI daemon for device %s", dev.name)
     else:
         # Standalone mode — API manages device directly

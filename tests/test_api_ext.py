@@ -486,9 +486,8 @@ class TestThemeEdgeCases(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 413)
 
-    def test_import_theme_service_error_returns_500(self) -> None:
-        """ThemeService.import_tr returning (False, msg) raises HTTPException(400) inside
-        the broad except-block, which re-wraps it as 500.  Test actual behaviour."""
+    def test_import_theme_service_error_returns_400(self) -> None:
+        """ThemeService.import_tr returning (False, msg) → 400."""
         with patch("trcc.api.themes.ThemeService.import_tr", return_value=(False, "bad archive")), \
              patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
@@ -496,8 +495,7 @@ class TestThemeEdgeCases(unittest.TestCase):
                 "/themes/import",
                 files={"file": ("x.tr", io.BytesIO(b"junk"), "application/octet-stream")},
             )
-        # The broad except Exception swallows the HTTPException(400) and re-raises as 500.
-        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp.status_code, 400)
 
     def test_save_theme_empty_config_returns_500(self) -> None:
         """load_config() returning empty dict → 500."""

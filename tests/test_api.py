@@ -1233,6 +1233,9 @@ class TestIPCFrameSharing(unittest.TestCase):
     def test_select_device_uses_ipc_when_daemon_available(self, mock_ipc):
         """select_device() uses IPC proxies when GUI daemon is running."""
         mock_ipc.available.return_value = True
+        mock_ipc.send.return_value = {
+            "lcd": {"resolution": [320, 320], "path": "/dev/sg0"},
+        }
 
         dev = DeviceInfo(name="LCD1", path="/dev/sg0", vid=0x0402, pid=0x3922,
                          protocol="scsi", resolution=(320, 320))
@@ -1245,6 +1248,49 @@ class TestIPCFrameSharing(unittest.TestCase):
         self.assertIsInstance(api_module._display_dispatcher, IPCDisplayProxy)
 
         api_module._display_dispatcher = None
+        api_module._led_dispatcher = None
+
+    @patch('trcc.ipc.IPCClient')
+    def test_select_device_ipc_syncs_resolution_from_daemon(self, mock_ipc):
+        """select_device() syncs real resolution from daemon when device has (0,0)."""
+        mock_ipc.available.return_value = True
+        mock_ipc.send.return_value = {
+            "lcd": {"resolution": [320, 320], "path": "/dev/sg0"},
+        }
+
+        # Device starts with (0, 0) — resolution not yet discovered
+        dev = DeviceInfo(name="LCD1", path="/dev/sg0", vid=0x0402, pid=0x3922,
+                         protocol="scsi", resolution=(0, 0))
+        _device_svc._devices = [dev]
+
+        resp = self.client.post("/devices/0/select")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        # Resolution should be synced from daemon, not (0, 0)
+        self.assertEqual(data["resolution"], [320, 320])
+        self.assertEqual(dev.resolution, (320, 320))
+
+        api_module._display_dispatcher = None
+        api_module._led_dispatcher = None
+
+    def test_led_status_returns_string_in_ipc_mode(self):
+        """IPCLEDProxy.status returns a string, not a proxy function."""
+        from trcc.ipc import IPCLEDProxy
+
+        with patch('trcc.ipc.IPCClient') as mock_ipc:
+            mock_ipc.send.return_value = {"led": {"connected": True}}
+            proxy = IPCLEDProxy()
+            self.assertIsInstance(proxy.status, str)
+
+        api_module._led_dispatcher = IPCLEDProxy()
+        with patch('trcc.ipc.IPCClient') as mock_ipc:
+            mock_ipc.send.return_value = {"led": {"connected": True}}
+            resp = self.client.get("/led/status")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertIn("status", data)
+            self.assertIsInstance(data["status"], str)
         api_module._led_dispatcher = None
 
     @patch('trcc.ipc.IPCClient')

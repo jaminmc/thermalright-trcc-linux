@@ -131,7 +131,7 @@ def led_status() -> dict:
     from trcc.api import _led_dispatcher
 
     if not _led_dispatcher or not _led_dispatcher.connected:
-        return {"connected": False}
+        return {"connected": False, "status": None}
 
     led = _led_dispatcher
     return {

@@ -117,7 +117,7 @@ def display_status() -> dict:
     from trcc.api import _display_dispatcher
 
     if not _display_dispatcher or not _display_dispatcher.connected:
-        return {"connected": False}
+        return {"connected": False, "resolution": [0, 0], "device_path": None}
 
     lcd = _display_dispatcher
     return {
