@@ -5,8 +5,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 # ── Shared helpers ────────────────────────────────────────────────────
-
-_NON_SERIALIZABLE_KEYS = frozenset({"image", "colors"})
+from trcc.core.models import NON_SERIALIZABLE_KEYS as _NON_SERIALIZABLE_KEYS
 
 
 def dispatch_result(result: dict) -> dict:

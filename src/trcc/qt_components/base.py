@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
+import numpy as np
 from PIL import Image
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
@@ -187,14 +188,26 @@ class ImageLabel(QLabel):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def set_pil_image(self, pil_image, fast: bool = False):
-        """Set image from PIL Image.
+        """Set image from PIL Image or numpy array.
 
         Args:
-            pil_image: PIL Image to display.
+            pil_image: PIL Image or numpy array (H×W×3 RGB) to display.
             fast: Use BILINEAR instead of LANCZOS for resize (video frames).
         """
         if pil_image is None:
             self.clear()
+            return
+
+        if isinstance(pil_image, np.ndarray):
+            h, w = pil_image.shape[:2]
+            if (w, h) != (self._width, self._height):
+                # Resize via PIL at boundary (preview only, not hot path)
+                pil_img = Image.fromarray(pil_image)
+                resampling = Image.Resampling.BILINEAR if fast else Image.Resampling.LANCZOS
+                pil_img = pil_img.resize((self._width, self._height), resampling)
+                self.setPixmap(pil_to_pixmap(pil_img))
+            else:
+                self.setPixmap(numpy_to_pixmap(pil_image))
             return
 
         if pil_image.size != (self._width, self._height):
@@ -272,18 +285,31 @@ class ClickableFrame(QFrame):
         super().mousePressEvent(event)
 
 
+def numpy_to_pixmap(arr: np.ndarray) -> QPixmap:
+    """Convert numpy RGB array to QPixmap. Zero PIL overhead."""
+    if arr.ndim == 3 and arr.shape[2] == 4:
+        arr = arr[:, :, :3]  # strip alpha
+    h, w = arr.shape[:2]
+    data = np.ascontiguousarray(arr).tobytes()
+    qimage = QImage(data, w, h, w * 3, QImage.Format.Format_RGB888)
+    return QPixmap.fromImage(qimage)
+
+
 def pil_to_pixmap(pil_image):
-    """
-    Convert PIL Image to QPixmap efficiently.
+    """Convert PIL Image or numpy array to QPixmap.
 
     Args:
-        pil_image: PIL Image
+        pil_image: PIL Image or numpy array
 
     Returns:
         QPixmap
     """
     if pil_image is None:
         return QPixmap()
+
+    # Dispatch numpy arrays directly
+    if isinstance(pil_image, np.ndarray):
+        return numpy_to_pixmap(pil_image)
 
     # Convert to RGB if needed
     if pil_image.mode == 'RGBA':

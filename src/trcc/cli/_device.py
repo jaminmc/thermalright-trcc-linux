@@ -188,13 +188,17 @@ def _format(dev, probe=False):
 @_cli_handler
 def detect(show_all=False):
     """Detect LCD device."""
-    from trcc.adapters.device.detector import check_udev_rules, detect_devices
+    from trcc.cli._display import DisplayDispatcher
     from trcc.conf import Settings
 
-    devices = detect_devices()
-    if not devices:
+    lcd = DisplayDispatcher()
+    result = lcd.detect()
+
+    if not result["success"]:
         print("No compatible TRCC LCD device detected.")
         return 1
+
+    devices = result["devices"]
 
     if show_all:
         selected = Settings.get_selected_device()
@@ -213,6 +217,7 @@ def detect(show_all=False):
         print(f"Active: {_format(dev, probe=True)}")
 
     # Check for stale/missing udev rules on any device
+    from trcc.adapters.device.detector import check_udev_rules
     from trcc.core.models import PROTOCOL_TRAITS
 
     for dev in devices:
@@ -231,14 +236,17 @@ def detect(show_all=False):
 @_cli_handler
 def select(number):
     """Select a device by number."""
-    from trcc.adapters.device.detector import detect_devices
+    from trcc.cli._display import DisplayDispatcher
     from trcc.conf import Settings
 
-    devices = detect_devices()
-    if not devices:
+    lcd = DisplayDispatcher()
+    result = lcd.detect()
+
+    if not result["success"]:
         print("No devices found.")
         return 1
 
+    devices = result["devices"]
     if number < 1 or number > len(devices):
         print(f"Invalid device number. Use 1-{len(devices)}")
         return 1

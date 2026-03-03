@@ -1,39 +1,38 @@
-"""Theme discovery and loading commands."""
+"""Theme discovery and loading commands.
+
+All operations route through DisplayDispatcher — no direct
+service/adapter imports. CLI functions are thin presentation wrappers.
+"""
 from __future__ import annotations
 
-from trcc.cli import _cli_handler, _device
+from trcc.cli import _cli_handler
 
 
 @_cli_handler
 def list_themes(cloud=False, category=None):
     """List available themes for the current device resolution."""
-    from trcc.adapters.infra.data_repository import DataManager
-    from trcc.conf import settings
-    from trcc.services import ThemeService
+    from trcc.cli._display import DisplayDispatcher
 
-    w, h = settings.width, settings.height
-    if not w or not h:
-        w, h = 320, 320
+    lcd = DisplayDispatcher()
+    result = lcd.list_themes(category=category or '')
 
-    DataManager.ensure_all(w, h)
-    settings._resolve_paths()
+    res = result.get("resolution", [320, 320])
+    w, h = res[0], res[1]
 
     if cloud:
-        web_dir = settings.web_dir
-        if not web_dir or not web_dir.exists():
+        themes = result.get("cloud", [])
+        if not themes:
             print(f"No cloud themes for {w}x{h}.")
             return 0
-        themes = ThemeService.discover_cloud(web_dir, category)
         print(f"Cloud themes ({w}x{h}): {len(themes)}")
         for t in themes:
             cat = f" [{t.category}]" if t.category else ""
             print(f"  {t.name}{cat}")
     else:
-        td = settings.theme_dir
-        if not td or not td.exists():
+        themes = result.get("local", [])
+        if not themes:
             print(f"No local themes for {w}x{h}.")
             return 0
-        themes = ThemeService.discover_local(td.path, (w, h))
         print(f"Local themes ({w}x{h}): {len(themes)}")
         for t in themes:
             kind = "video" if t.is_animated else "static"
@@ -46,177 +45,51 @@ def list_themes(cloud=False, category=None):
 @_cli_handler
 def load_theme(name, *, device=None, preview=False):
     """Load a theme by name and send to LCD."""
-    from PIL import Image
+    from trcc.cli._display import _connect_or_fail, _print_result
 
-    from trcc.adapters.infra.data_repository import DataManager
-    from trcc.conf import Settings, settings
-    from trcc.services import ImageService, ThemeService
+    lcd, rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
-
-    dev = svc.selected
-    w, h = dev.resolution
-
-    DataManager.ensure_all(w, h)
-    settings._resolve_paths()
-
-    td = settings.theme_dir
-    if not td or not td.exists():
-        print(f"No themes for {w}x{h}.")
-        return 1
-
-    themes = ThemeService.discover_local(td.path, (w, h))
-    match = next((t for t in themes if t.name == name), None)
-    if not match:
-        # Try partial match
-        match = next((t for t in themes if name.lower() in t.name.lower()), None)
-    if not match:
-        print(f"Theme not found: {name}")
-        print("Use 'trcc theme-list' to see available themes.")
-        return 1
-
-    # Load the theme image
-    if match.is_animated and match.animation_path:
-        print(f"Theme '{match.name}' is animated — use 'trcc video {match.animation_path}'")
+    result = lcd.load_theme_by_name(name)
+    if result.get("is_animated"):
+        print(result["message"])
         return 0
 
-    if match.background_path and match.background_path.exists():
-        img = Image.open(match.background_path).convert('RGB')
-        img = ImageService.resize(img, w, h)
-
-        # Apply saved adjustments
-        key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
-        cfg = Settings.get_device_config(key)
-        brightness = {1: 25, 2: 50, 3: 100}.get(
-            cfg.get('brightness_level', 3), 100)
-        rotation = cfg.get('rotation', 0)
-        img = ImageService.apply_brightness(img, brightness)
-        img = ImageService.apply_rotation(img, rotation)
-
-        svc.send_pil(img, w, h)
-
-        # Save as last-used theme
-        Settings.save_device_setting(key, 'theme_path', str(match.path))
-        print(f"Loaded '{match.name}' → {dev.path}")
-        if preview:
-            print(ImageService.to_ansi(img))
-    else:
-        print(f"Theme '{match.name}' has no background image.")
-        return 1
-
-    return 0
+    return _print_result(result, preview=preview)
 
 
 @_cli_handler
 def save_theme(name, *, device=None, video=None):
     """Save current display state as a custom theme."""
-    from pathlib import Path
+    from trcc.cli._display import _connect_or_fail, _print_result
 
-    from PIL import Image
+    lcd, rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    from trcc.adapters.infra.data_repository import USER_DATA_DIR
-    from trcc.services import ThemeService
-
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
-
-    dev = svc.selected
-    w, h = dev.resolution
-
-    # Load current background from last-used theme
-    from trcc.conf import Settings
-    key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
-    cfg = Settings.get_device_config(key)
-    theme_path = cfg.get('theme_path')
-
-    bg = None
-    if theme_path:
-        from trcc.adapters.infra.data_repository import ThemeDir as TDir
-        td = TDir(theme_path)
-        if td.bg.exists():
-            bg = Image.open(td.bg).convert('RGB')
-            bg = bg.resize((w, h), Image.Resampling.LANCZOS)
-
-    if not bg:
-        print("No current theme to save. Load a theme first.")
-        return 1
-
-    video_path = Path(video) if video else None
-    data_dir = Path(USER_DATA_DIR)
-    ok, msg = ThemeService.save(
-        name, data_dir, (w, h),
-        background=bg, overlay_config={},
-        video_path=video_path,
-        current_theme_path=Path(theme_path) if theme_path else None,
-    )
-    print(msg)
-    return 0 if ok else 1
+    result = lcd.save_custom_theme(name, video=video)
+    return _print_result(result)
 
 
 @_cli_handler
 def export_theme(theme_name, output_path):
     """Export a theme as .tr file."""
-    from pathlib import Path
+    from trcc.cli._display import DisplayDispatcher, _print_result
 
-    from trcc.adapters.infra.data_repository import DataManager
-    from trcc.conf import settings
-    from trcc.services import ThemeService
-
-    w, h = settings.width, settings.height
-    if not w or not h:
-        w, h = 320, 320
-
-    DataManager.ensure_all(w, h)
-    settings._resolve_paths()
-
-    td = settings.theme_dir
-    if not td or not td.exists():
-        print(f"No themes for {w}x{h}.")
-        return 1
-
-    # Find theme by name
-    themes = ThemeService.discover_local(td.path, (w, h))
-    match = next((t for t in themes if t.name == theme_name), None)
-    if not match:
-        match = next(
-            (t for t in themes if theme_name.lower() in t.name.lower()),
-            None,
-        )
-    if not match or not match.path:
-        print(f"Theme not found: {theme_name}")
-        return 1
-
-    ok, msg = ThemeService.export_tr(match.path, Path(output_path))
-    print(msg)
-    return 0 if ok else 1
+    lcd = DisplayDispatcher()
+    result = lcd.export_theme_by_name(theme_name, output_path)
+    return _print_result(result)
 
 
 @_cli_handler
 def import_theme(file_path, *, device=None):
     """Import a theme from .tr file."""
-    from pathlib import Path
+    from trcc.cli._display import _connect_or_fail, _print_result
 
-    from trcc.adapters.infra.data_repository import USER_DATA_DIR
-    from trcc.services import ThemeService
+    lcd, rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
-
-    dev = svc.selected
-    w, h = dev.resolution
-    data_dir = Path(USER_DATA_DIR)
-
-    ok, result = ThemeService.import_tr(
-        Path(file_path), data_dir, (w, h))
-    if ok and not isinstance(result, str):
-        print(f"Imported: {result.name}")
-    else:
-        print(result)
-    return 0 if ok else 1
+    result = lcd.import_theme_file(file_path)
+    return _print_result(result)

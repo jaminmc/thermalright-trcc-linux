@@ -7,25 +7,14 @@ Matches Windows TRCC right-side Activity panel.
 
 import logging
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
+from ..core.models import CATEGORY_COLORS_BY_NAME as CATEGORY_COLORS
 from ..core.models import OverlayElementConfig, OverlayMode
-from ..services.system import get_all_metrics
 
 log = logging.getLogger(__name__)
-
-
-# Category colors matching Windows TRCC
-CATEGORY_COLORS = {
-    'cpu': '#32C5FF',
-    'gpu': '#44D7B6',
-    'memory': '#6DD401',
-    'hdd': '#F7B501',
-    'network': '#FA6401',
-    'fan': '#E02020',
-}
 
 # Sensor definitions: category -> [(key_suffix, label, unit, metric_key)]
 SENSORS = {
@@ -166,9 +155,6 @@ class UCActivitySidebar(QWidget):
         super().__init__(parent)
 
         self._sensor_items = []  # all SensorItem widgets
-        self._update_timer = QTimer(self)
-        self._update_timer.timeout.connect(self._update_values)
-
         self._setup_ui()
 
     def _setup_ui(self):
@@ -233,19 +219,9 @@ class UCActivitySidebar(QWidget):
     def _on_sensor_clicked(self, config):
         self.sensor_clicked.emit(config)
 
-    def start_updates(self, interval_ms=1000):
-        """Start periodic sensor value updates."""
-        self._update_values()
-        self._update_timer.start(interval_ms)
-
-    def stop_updates(self):
-        """Stop sensor value updates."""
-        self._update_timer.stop()
-
-    def _update_values(self):
-        """Update all sensor values from system_info."""
+    def update_from_metrics(self, metrics) -> None:
+        """Accept pre-polled metrics from MetricsMediator."""
         try:
-            metrics = get_all_metrics()
             for item in self._sensor_items:
                 item.update_value(metrics)
         except Exception as e:

@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
+import numpy as np
+
 from ..adapters.infra.data_repository import RESOURCES_DIR, DataManager
 from ..conf import settings
 from ..core.models import SPLIT_MODE_RESOLUTIONS, SPLIT_OVERLAY_MAP
@@ -49,7 +51,7 @@ class DisplayService:
         self.working_dir = Path(tempfile.mkdtemp(prefix='trcc_work_'))
 
         # State
-        self.current_image: Any | None = None  # PIL Image
+        self.current_image: Any | None = None  # numpy array (H×W×3 RGB)
         self.current_theme_path: Path | None = None
         self.auto_send = True
         self.rotation = 0         # directionB: 0, 90, 180, 270
@@ -157,15 +159,15 @@ class DisplayService:
         self.current_theme_path = result.get('theme_path')
 
         # Set current_image from result or from video first frame
-        if result.get('image'):
+        if result.get('image') is not None:
             self.current_image = result['image']
         elif result.get('is_animated'):
             first_frame = self.media.get_frame(0)
-            if first_frame:
+            if first_frame is not None:
                 self.current_image = first_frame
 
         # Render with adjustments if we have a static image
-        if result.get('image') and not result.get('is_animated'):
+        if result.get('image') is not None and not result.get('is_animated'):
             result['image'] = self._render_and_process()
 
         return result
@@ -175,7 +177,7 @@ class DisplayService:
         result = self._loader.load_cloud_theme(theme, self.working_dir)
 
         first_frame = self.media.get_frame(0)
-        if first_frame:
+        if first_frame is not None:
             self.current_image = first_frame
         result['image'] = self.current_image
         return result
@@ -185,8 +187,8 @@ class DisplayService:
         self._mask_source_dir = self._loader.apply_mask(
             mask_dir, self.working_dir, self.lcd_size)
 
-        if not self.current_image:
-            self.current_image = ImageService.solid_color(0, 0, 0, *self.lcd_size)
+        if self.current_image is None:
+            self._create_black_background()
 
         return self.render_overlay()
 
@@ -198,21 +200,23 @@ class DisplayService:
         return self._render_and_process()
 
     def _load_static_image(self, path: Path) -> None:
-        """Load and resize a static image to LCD dimensions."""
+        """Load and resize a static image to LCD dimensions (as numpy)."""
         try:
-            self.current_image = ImageService.open_and_resize(path, *self.lcd_size)
+            img = ImageService.open_and_resize(path, *self.lcd_size)
+            self.current_image = np.array(img)
         except Exception as e:
             log.error("Failed to load image: %s", e)
 
     def _create_black_background(self) -> None:
-        """Create black background for mask-only themes."""
-        self.current_image = ImageService.solid_color(0, 0, 0, *self.lcd_size)
+        """Create black background for mask-only themes (as numpy)."""
+        w, h = self.lcd_size
+        self.current_image = np.zeros((h, w, 3), dtype=np.uint8)
 
     # -- Rendering ---------------------------------------------------------
 
     def _render_and_process(self) -> Any | None:
         """Render overlay on current image, apply brightness + rotation."""
-        if not self.current_image:
+        if self.current_image is None:
             return None
         image = self.current_image
         if self.overlay.enabled:
@@ -221,7 +225,7 @@ class DisplayService:
 
     def render_overlay(self) -> Any | None:
         """Force-render overlay (for live editing). Returns image or None."""
-        if not self.current_image:
+        if self.current_image is None:
             self._create_black_background()
         image = self.overlay.render(self.current_image, force=True)
         return self._apply_adjustments(image)
@@ -254,26 +258,31 @@ class DisplayService:
             return image
 
         try:
-            from PIL import Image as PILImage
-            if image.mode != 'RGBA':
-                image = image.convert('RGBA')
-            if overlay.size != image.size:
-                overlay = overlay.resize(image.size, PILImage.Resampling.LANCZOS)
-            image = PILImage.alpha_composite(image, overlay)
-            return image.convert('RGB')
+            from ..adapters.render.numpy_renderer import NumpyRenderer
+
+            r = NumpyRenderer()
+            base = image if isinstance(image, np.ndarray) else r.from_pil(image)
+            base = r.convert_to_rgba(base)
+            # Resize overlay to match base if needed
+            oh, ow = overlay.shape[:2]
+            bh, bw = base.shape[:2]
+            if (ow, oh) != (bw, bh):
+                overlay = r.resize(overlay, bw, bh)
+            r.composite(base, overlay, (0, 0))
+            return r.convert_to_rgb(base)
         except Exception as e:
             log.error("Split overlay composite failed: %s", e)
             return image
 
     @staticmethod
     def _load_split_overlay(asset_name: str) -> Any | None:
-        """Load a split overlay PNG from assets/gui/ as PIL RGBA Image."""
+        """Load a split overlay PNG from assets/gui/ as numpy RGBA array."""
         import os
         try:
             from PIL import Image as PILImage
             path = os.path.join(RESOURCES_DIR, asset_name)
             if os.path.exists(path):
-                return PILImage.open(path).convert('RGBA')
+                return np.array(PILImage.open(path).convert('RGBA'))
             log.warning("Split overlay not found: %s", path)
         except Exception as e:
             log.error("Failed to load split overlay %s: %s", asset_name, e)
@@ -291,9 +300,13 @@ class DisplayService:
     # -- Video playback ----------------------------------------------------
 
     def video_tick(self) -> dict | None:
-        """Advance one video frame. Returns dict or None if not playing."""
+        """Advance one video frame. Returns dict or None if not playing.
+
+        Returns single processed frame — observers (preview, device, IPC)
+        all read the same data.
+        """
         frame, should_send, progress = self.media.tick()
-        if not frame:
+        if frame is None:
             return None
 
         self.current_image = frame
@@ -303,14 +316,11 @@ class DisplayService:
 
         processed = self._apply_adjustments(frame)
 
-        result: dict[str, Any] = {'preview': processed, 'progress': progress}
-
-        if should_send and self.auto_send:
-            result['send_image'] = processed
-        else:
-            result['send_image'] = None
-
-        return result
+        return {
+            'frame': processed,
+            'send': should_send and self.auto_send,
+            'progress': progress,
+        }
 
     def get_video_interval(self) -> int:
         """Get video frame interval in ms for timer setup."""
@@ -324,7 +334,7 @@ class DisplayService:
 
     def send_current_image(self) -> bytes | None:
         """Prepare current image for LCD send. Returns encoded bytes or None."""
-        if not self.current_image:
+        if self.current_image is None:
             return None
         image = self.current_image
         if self.overlay.enabled:

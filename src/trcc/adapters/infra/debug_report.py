@@ -61,6 +61,7 @@ class DebugReport:
         self._handshakes()
         self._process_usage()
         self._config()
+        self._recent_log()
 
     @property
     def sections(self) -> list[tuple[str, str]]:
@@ -318,6 +319,25 @@ class DebugReport:
                 sec.lines.append(f"  devices: {len(devices)} configured")
         except Exception as e:
             sec.lines.append(f"  Error: {e}")
+
+    def _recent_log(self, tail: int = 50) -> None:
+        """Include last N lines from the log file."""
+        log_path = Path(
+            os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
+            'trcc', 'trcc.log',
+        )
+        sec = self._add(f"Recent log ({log_path})")
+        if not log_path.exists():
+            sec.lines.append("  (no log file — run 'trcc gui' first)")
+            return
+        try:
+            lines = log_path.read_text().splitlines()
+            for line in lines[-tail:]:
+                sec.lines.append(f"  {line}")
+            if len(lines) > tail:
+                sec.lines.append(f"  ... ({len(lines) - tail} earlier lines omitted)")
+        except Exception as e:
+            sec.lines.append(f"  Error reading log: {e}")
 
     # ------------------------------------------------------------------
     # Handshake helpers

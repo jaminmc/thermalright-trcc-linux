@@ -113,21 +113,21 @@ async def render_overlay(dc_path: str, send: bool = True) -> dict:
 
 @router.get("/status")
 def display_status() -> dict:
-    """Get current display state — resolution, device path, connection."""
+    """Get current display state — resolution, device, overlay, video."""
     from trcc.api import _display_dispatcher
 
     if not _display_dispatcher or not _display_dispatcher.connected:
         return {"connected": False, "resolution": [0, 0], "device_path": None}
-
-    lcd = _display_dispatcher
-    return {
-        "connected": True,
-        "resolution": lcd.resolution,
-        "device_path": lcd.device_path,
-    }
+    return _display_dispatcher.status()
 
 
 # ── Video playback endpoints ──────────────────────────────────────────
+
+
+@router.post("/video/play")
+def video_play() -> dict:
+    """Start/resume video playback."""
+    return dispatch_result(_get_display().play_video())
 
 
 @router.post("/video/stop")
@@ -136,30 +136,27 @@ def video_stop() -> dict:
     from trcc.api import stop_video_playback
 
     stop_video_playback()
-    return {"success": True, "message": "Video playback stopped"}
+    return dispatch_result(_get_display().stop_video())
 
 
 @router.post("/video/pause")
 def video_pause() -> dict:
-    """Toggle pause on background video playback."""
-    from trcc.api import _media_service, pause_video_playback
-
-    if not _media_service:
-        raise HTTPException(status_code=409, detail="No video playing")
-    pause_video_playback()
-    return {"success": True, "paused": not _media_service.is_playing}
+    """Pause video playback."""
+    return dispatch_result(_get_display().pause_video())
 
 
 @router.get("/video/status")
 def video_status() -> VideoStatusResponse:
     """Get current video playback state."""
-    from trcc.api import _media_service
-    from trcc.core.models import PlaybackState
+    from trcc.api import _display_dispatcher
 
-    if not _media_service:
+    if not _display_dispatcher or not _display_dispatcher.display_service:
         return VideoStatusResponse()
 
-    state = _media_service.state
+    media = _display_dispatcher.display_service.media
+    from trcc.core.models import PlaybackState
+
+    state = media.state
     return VideoStatusResponse(
         playing=state.state == PlaybackState.PLAYING,
         paused=state.state == PlaybackState.PAUSED,
@@ -167,7 +164,7 @@ def video_status() -> VideoStatusResponse:
         current_time=state.current_time_str,
         total_time=state.total_time_str,
         fps=state.fps,
-        source=str(_media_service.source_path or ""),
+        source=str(media.source_path or ""),
         loop=state.loop,
     )
 
@@ -208,9 +205,16 @@ def _get_lcd_frame():
 @router.get("/preview")
 def display_preview() -> Response:
     """Return the current LCD frame as a PNG image."""
+    import numpy as np
+
     frame = _get_lcd_frame()
     if frame is None:
         raise HTTPException(status_code=503, detail="No image available")
+
+    if isinstance(frame, np.ndarray):
+        from PIL import Image as PILImage
+        arr = frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] == 4 else frame
+        frame = PILImage.fromarray(arr)
 
     buf = io.BytesIO()
     frame.save(buf, format="PNG")
@@ -283,6 +287,13 @@ async def preview_stream(websocket: WebSocket):
                 continue
 
             # ── Encode and send ───────────────────────────────────────
+            import numpy as np
+
+            if isinstance(frame, np.ndarray):
+                from PIL import Image as PILImage
+                arr = frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] == 4 else frame
+                frame = PILImage.fromarray(arr)
+
             buf = io.BytesIO()
             frame.save(buf, format="JPEG", quality=quality)
             await websocket.send_bytes(buf.getvalue())

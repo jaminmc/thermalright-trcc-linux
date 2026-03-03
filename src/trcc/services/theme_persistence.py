@@ -28,7 +28,7 @@ class ThemePersistence:
         current_theme_path: Path | None,
     ) -> Tuple[bool, str]:
         """Save current config as a custom theme."""
-        if not current_image:
+        if current_image is None:
             return False, "No image to save"
 
         rendered = overlay.render(current_image)

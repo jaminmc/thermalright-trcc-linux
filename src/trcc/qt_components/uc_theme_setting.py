@@ -38,37 +38,19 @@ from ..core.models import (
     OverlayElementConfig,
     OverlayMode,
 )
+from ..core.models import (
+    OVERLAY_CATEGORY_COLORS as CATEGORY_COLORS,
+)
+from ..core.models import (
+    OVERLAY_CATEGORY_NAMES as CATEGORY_NAMES,
+)
+from ..core.models import (
+    OVERLAY_SUB_METRICS as SUB_METRICS,
+)
 from ..services.system import format_metric
 from .assets import Assets
 from .base import BasePanel, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
-
-# ============================================================================
-# Overlay element constants (matching Tkinter UCXiTongXianShiSub)
-# ============================================================================
-
-CATEGORY_NAMES = {0: 'CPU', 1: 'GPU', 2: 'MEM', 3: 'HDD', 4: 'NET', 5: 'FAN'}
-
-CATEGORY_COLORS = {
-    0: '#32C5FF',   # CPU - cyan
-    1: '#44D7B6',   # GPU - teal
-    2: '#6DD401',   # MEM - lime
-    3: '#F7B501',   # HDD - amber
-    4: '#FA6401',   # NET - orange
-    5: '#E02020',   # FAN - red
-}
-
-SUB_METRICS = {
-    0: {1: 'Temp', 2: 'Usage', 3: 'Freq', 4: 'Power'},
-    1: {1: 'Temp', 2: 'Usage', 3: 'Clock', 4: 'Power'},
-    2: {1: 'Used%', 2: 'Clock', 3: 'Used', 4: 'Free'},
-    3: {1: 'Read', 2: 'Write', 3: 'Activity', 4: 'Temp'},
-    4: {1: 'Down', 2: 'Up', 3: 'Total', 4: 'Ping'},
-    5: {1: 'RPM', 2: 'PWM%', 3: 'Temp', 4: 'Speed'},
-}
-
-TIME_FORMATS = {0: 'HH:mm', 1: 'hh:mm AM/PM'}
-DATE_FORMATS = {1: 'yyyy/MM/dd', 2: 'dd/MM/yyyy', 3: 'MM/dd', 4: 'dd/MM'}
 
 # Background images per mode (60x60 icons)
 MODE_IMAGES = {

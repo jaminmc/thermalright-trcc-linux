@@ -1022,3 +1022,42 @@ class TestCLICommands:
                    return_value=(mock_svc, None)):
             rc = set_temp_unit("X")
         assert rc == 1
+
+
+# =========================================================================
+# TestCLILedStatus
+# =========================================================================
+
+class TestCLILedStatus:
+    """Tests for the led-status CLI command."""
+
+    def test_led_status_connected(self, capsys):
+        from trcc.cli._led import led_status
+        mock_led = MagicMock()
+        mock_led.get_state.return_value = {
+            "success": True,
+            "mode": "STATIC",
+            "color": [255, 0, 0],
+            "brightness": 80,
+            "global_on": True,
+            "zones": [
+                {"color": [255, 0, 0], "mode": "STATIC", "brightness": 100, "on": True},
+            ],
+            "segment_on": [True, True, False],
+        }
+        with patch("trcc.cli._led._connect_or_fail", return_value=(mock_led, 0)):
+            rc = led_status()
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "STATIC" in out
+        assert "#ff0000" in out
+        assert "80%" in out
+        assert "ON" in out
+        assert "2/3 on" in out
+
+    def test_led_status_connect_fail(self, capsys):
+        from trcc.cli._led import led_status
+        mock_led = MagicMock()
+        with patch("trcc.cli._led._connect_or_fail", return_value=(mock_led, 1)):
+            rc = led_status()
+        assert rc == 1

@@ -769,7 +769,7 @@ class TestDetect:
     def test_no_devices_returns_1(self):
         """No devices detected -> prints message, returns 1."""
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = []
+        mock_det.DeviceDetector.detect.return_value = []
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}):
@@ -782,7 +782,7 @@ class TestDetect:
         dev = self._scsi_dev()
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -798,7 +798,7 @@ class TestDetect:
         dev2 = self._scsi_dev("/dev/sg1", "Device B")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev1, dev2]
+        mock_det.DeviceDetector.detect.return_value = [dev1, dev2]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -816,7 +816,7 @@ class TestDetect:
         dev = self._scsi_dev("/dev/sg0")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -832,7 +832,7 @@ class TestDetect:
         dev = self._scsi_dev()
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -849,7 +849,7 @@ class TestDetect:
         dev2 = self._scsi_dev("/dev/sg1")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev1, dev2]
+        mock_det.DeviceDetector.detect.return_value = [dev1, dev2]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -866,7 +866,7 @@ class TestDetect:
         dev1 = self._scsi_dev("/dev/sg1", "Device B")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev0, dev1]
+        mock_det.DeviceDetector.detect.return_value = [dev0, dev1]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -882,7 +882,7 @@ class TestDetect:
         dev = self._scsi_dev(protocol="scsi")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = False  # needs update
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -899,7 +899,7 @@ class TestDetect:
         dev = self._scsi_dev(protocol="scsi")
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = False
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -916,7 +916,7 @@ class TestDetect:
         dev.scsi_device = None
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = False
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -932,7 +932,7 @@ class TestDetect:
         dev = self._scsi_dev()
 
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
         mock_det.check_udev_rules.return_value = True
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
@@ -960,7 +960,7 @@ class TestSelect:
     def test_no_devices_returns_1(self):
         """No devices -> prints message, returns 1."""
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = []
+        mock_det.DeviceDetector.detect.return_value = []
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}):
             result = select(1)
@@ -971,7 +971,7 @@ class TestSelect:
         """Number 0 is below minimum (1), returns 1."""
         dev = self._scsi_dev()
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}):
             result = select(0)
@@ -982,7 +982,7 @@ class TestSelect:
         """Number exceeding device count returns 1."""
         dev = self._scsi_dev()
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}):
             result = select(5)
@@ -993,7 +993,7 @@ class TestSelect:
         """Valid device number saves and returns 0."""
         dev = self._scsi_dev("/dev/sg1", "Frost Commander")
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
              patch("trcc.conf.Settings.save_selected_device") as mock_save:
@@ -1006,7 +1006,7 @@ class TestSelect:
         """Valid selection prints device scsi_device and product_name."""
         dev = self._scsi_dev("/dev/sg0", "Frost Commander 360")
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev]
+        mock_det.DeviceDetector.detect.return_value = [dev]
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
              patch("trcc.conf.Settings.save_selected_device"):
@@ -1021,7 +1021,7 @@ class TestSelect:
         dev1 = self._scsi_dev("/dev/sg0", "Device A")
         dev2 = self._scsi_dev("/dev/sg1", "Device B")
         mock_det = MagicMock()
-        mock_det.detect_devices.return_value = [dev1, dev2]
+        mock_det.DeviceDetector.detect.return_value = [dev1, dev2]
 
         with patch.dict("sys.modules", {"trcc.adapters.device.detector": mock_det}), \
              patch("trcc.conf.Settings.save_selected_device") as mock_save:

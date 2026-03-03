@@ -59,13 +59,13 @@ class TestDisplayDispatcherInit:
     def test_default_no_service(self):
         from trcc.cli._display import DisplayDispatcher
         d = DisplayDispatcher()
-        assert d._svc is None
+        assert d._device_svc is None
 
     def test_injected_service_stored(self):
         from trcc.cli._display import DisplayDispatcher
         svc = MagicMock()
         d = DisplayDispatcher(svc)
-        assert d._svc is svc
+        assert d._device_svc is svc
 
     def test_connected_false_when_no_svc(self):
         from trcc.cli._display import DisplayDispatcher
@@ -171,9 +171,9 @@ class TestDisplayDispatcherConnect:
         svc, _ = _make_mock_svc()
         with patch(_GET_SVC, return_value=svc):
             d = DisplayDispatcher()
-            assert d._svc is None
+            assert d._device_svc is None
             d.connect()
-            assert d._svc is svc
+            assert d._device_svc is svc
 
 
 # =========================================================================
@@ -1020,25 +1020,89 @@ class TestCLIReset:
 # TestCLIVideoStatus
 # =========================================================================
 
-class TestCLIVideoStatus:
-    def test_video_status_with_device(self, capsys):
-        from trcc.cli._display import video_status
-        svc, _ = _make_mock_svc()
-        with patch(_GET_SVC, return_value=svc):
-            rc = video_status()
+class TestCLIDisplayStatus:
+    def test_display_status_connected(self, capsys):
+        from trcc.cli._display import display_status
+        mock_lcd = MagicMock()
+        mock_lcd.status.return_value = {
+            "success": True, "connected": True,
+            "device_path": "/dev/sg0", "protocol": "scsi",
+            "resolution": [320, 320], "rotation": 0,
+            "brightness": 50, "split_mode": 0,
+            "overlay_enabled": False, "video_playing": False,
+        }
+        with patch("trcc.cli._display._connect_or_fail",
+                   return_value=(mock_lcd, 0)):
+            rc = display_status()
         assert rc == 0
         out = capsys.readouterr().out
-        assert "video" in out.lower()
+        assert "Device:" in out
+        assert "/dev/sg0" in out
+        assert "320x320" in out
 
-    def test_video_status_no_device(self, capsys):
-        from trcc.cli._display import video_status
-        svc = MagicMock()
-        svc.selected = None
-        with patch(_GET_SVC, return_value=svc):
-            rc = video_status()
+    def test_display_status_no_device(self, capsys):
+        from trcc.cli._display import display_status
+        mock_lcd = MagicMock()
+        with patch("trcc.cli._display._connect_or_fail",
+                   return_value=(mock_lcd, 1)):
+            rc = display_status()
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "No device found" in out
+
+
+class TestCLIDaemonControl:
+    """Tests for video-play, video-pause, video-stop, overlay-toggle CLI commands."""
+
+    def _mock_lcd(self, method: str, return_value: dict):
+        mock = MagicMock()
+        getattr(mock, method).return_value = return_value
+        return mock
+
+    def test_video_play(self, capsys):
+        from trcc.cli._display import video_play
+        mock_lcd = self._mock_lcd("play_video", {"success": True, "message": "Video playing"})
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 0)):
+            rc = video_play()
+        assert rc == 0
+        assert "Video playing" in capsys.readouterr().out
+
+    def test_video_pause(self, capsys):
+        from trcc.cli._display import video_pause
+        mock_lcd = self._mock_lcd("pause_video", {"success": True, "message": "Video paused"})
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 0)):
+            rc = video_pause()
+        assert rc == 0
+        assert "Video paused" in capsys.readouterr().out
+
+    def test_video_stop(self, capsys):
+        from trcc.cli._display import video_stop
+        mock_lcd = self._mock_lcd("stop_video", {"success": True, "message": "Video stopped"})
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 0)):
+            rc = video_stop()
+        assert rc == 0
+        assert "Video stopped" in capsys.readouterr().out
+
+    def test_overlay_toggle_on(self, capsys):
+        from trcc.cli._display import overlay_toggle
+        mock_lcd = self._mock_lcd("enable_overlay", {"success": True, "message": "Overlay enabled"})
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 0)):
+            rc = overlay_toggle(True)
+        assert rc == 0
+        assert "Overlay enabled" in capsys.readouterr().out
+
+    def test_overlay_toggle_off(self, capsys):
+        from trcc.cli._display import overlay_toggle
+        mock_lcd = self._mock_lcd("enable_overlay", {"success": True, "message": "Overlay disabled"})
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 0)):
+            rc = overlay_toggle(False)
+        assert rc == 0
+        assert "Overlay disabled" in capsys.readouterr().out
+
+    def test_daemon_command_connect_fail(self, capsys):
+        from trcc.cli._display import video_play
+        mock_lcd = MagicMock()
+        with patch("trcc.cli._display._connect_or_fail", return_value=(mock_lcd, 1)):
+            rc = video_play()
+        assert rc == 1
 
 
 # =========================================================================

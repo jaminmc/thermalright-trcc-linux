@@ -284,6 +284,30 @@ class LEDDispatcher:
         self._svc.send_colors(colors)
         return {"colors": colors}
 
+    # ── State queries ─────────────────────────────────────────────────
+
+    def get_state(self) -> dict:
+        """Full LED state dict (mode, colors, zones, segments, brightness)."""
+        st = self._svc.state
+        return {
+            "success": True,
+            "mode": st.mode.name if hasattr(st.mode, 'name') else str(st.mode),
+            "color": list(st.color),
+            "brightness": st.brightness,
+            "global_on": st.global_on,
+            "zones": [
+                {"color": list(z.color), "mode": z.mode.name if hasattr(z.mode, 'name') else str(z.mode),
+                 "brightness": z.brightness, "on": z.on}
+                for z in st.zones
+            ],
+            "segment_on": list(st.segment_on),
+        }
+
+    def update_metrics(self, metrics: Any) -> dict:
+        """Push hardware metrics into LED service for segment display."""
+        self._svc.update_metrics(metrics)
+        return {"success": True}
+
 
 # =========================================================================
 # CLI presentation helpers
@@ -467,6 +491,35 @@ def set_clock_format(is_24h: bool):
 def set_temp_unit(unit: str):
     """Set LED segment display temperature unit (C/F)."""
     return _led_command("set_temp_unit", unit)
+
+
+@_cli_handler
+def led_status():
+    """Show LED device status (mode, color, brightness, zones, segments)."""
+    led, rc = _connect_or_fail()
+    if rc:
+        return rc
+    result = led.get_state()
+    if not result["success"]:
+        print(f"Error: {result.get('error', 'Unknown error')}")
+        return 1
+    print(f"  Mode:       {result['mode']}")
+    r, g, b = result['color']
+    print(f"  Color:      #{r:02x}{g:02x}{b:02x}")
+    print(f"  Brightness: {result['brightness']}%")
+    print(f"  Global:     {'ON' if result['global_on'] else 'OFF'}")
+    zones = result.get('zones', [])
+    if zones:
+        print(f"  Zones ({len(zones)}):")
+        for i, z in enumerate(zones):
+            zr, zg, zb = z['color']
+            print(f"    [{i}] {z['mode']:10s} #{zr:02x}{zg:02x}{zb:02x} "
+                  f"B={z['brightness']}% {'ON' if z['on'] else 'OFF'}")
+    segs = result.get('segment_on', [])
+    if segs:
+        on_count = sum(segs)
+        print(f"  Segments: {on_count}/{len(segs)} on")
+    return 0
 
 
 # =========================================================================

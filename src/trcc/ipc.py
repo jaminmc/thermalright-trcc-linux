@@ -18,6 +18,8 @@ import socket
 from pathlib import Path
 from typing import Any
 
+from trcc.core.models import NON_SERIALIZABLE_KEYS as _NON_SERIALIZABLE
+
 log = logging.getLogger(__name__)
 
 # Socket path: same dir as the instance lock file
@@ -27,15 +29,28 @@ _SOCK_NAME = "trcc-linux.sock"
 def _socket_path() -> Path:
     return Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / _SOCK_NAME
 
-
-# Non-serializable keys to strip from dispatcher results (PIL Image, etc.)
-_NON_SERIALIZABLE = frozenset({"image", "colors"})
-
 # Allowed dispatcher methods (whitelist — reject anything else)
 _DISPLAY_METHODS = frozenset({
     "send_image", "send_color", "reset",
     "set_brightness", "set_rotation", "set_split_mode",
     "load_mask", "render_overlay",
+    # Video control
+    "load_theme", "play_video", "pause_video", "stop_video", "video_tick",
+    "play_pause", "seek_video", "set_video_fit_mode", "load_video",
+    # Overlay control
+    "enable_overlay", "set_overlay_config", "update_metrics",
+    "render_current_overlay", "set_overlay_temp_unit",
+    "set_overlay_background", "set_overlay_mask_visible",
+    "set_overlay_theme_mask", "render_overlay_and_preview",
+    # Device/theme
+    "detect", "select_device", "set_resolution",
+    "select_theme", "list_themes", "save_theme",
+    "export_config", "import_config",
+    # CLI-oriented theme operations
+    "load_theme_by_name", "save_custom_theme",
+    "export_theme_by_name", "import_theme_file",
+    # Frame/state
+    "send_frame", "get_current_frame", "status", "cleanup",
 })
 _LED_METHODS = frozenset({
     "set_color", "set_mode", "set_brightness", "off",
@@ -43,6 +58,7 @@ _LED_METHODS = frozenset({
     "set_zone_color", "set_zone_mode", "set_zone_brightness",
     "toggle_zone", "set_zone_sync",
     "toggle_segment", "set_clock_format", "set_temp_unit",
+    "get_state", "update_metrics",
 })
 
 
@@ -189,10 +205,19 @@ class IPCServer:
         import base64
         import io
 
+        import numpy as np
+
         if self._current_frame is None:
             return {"success": False, "error": "No frame available"}
+
+        frame = self._current_frame
+        if isinstance(frame, np.ndarray):
+            from PIL import Image as PILImage
+            arr = frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] == 4 else frame
+            frame = PILImage.fromarray(arr)
+
         buf = io.BytesIO()
-        self._current_frame.save(buf, format="JPEG", quality=85)
+        frame.save(buf, format="JPEG", quality=85)
         return {
             "success": True,
             "frame": base64.b64encode(buf.getvalue()).decode("ascii"),

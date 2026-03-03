@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -771,7 +772,8 @@ class TestOverlayService(unittest.TestCase):
         svc = OverlayService()
         img = Image.new('RGB', (320, 320))
         svc.set_background(img)
-        self.assertIs(svc.background, img)
+        self.assertIsInstance(svc.background, np.ndarray)
+        self.assertEqual(svc.background.shape[:2], (320, 320))
 
     def test_set_resolution(self):
         svc = OverlayService(320, 320)
@@ -780,12 +782,14 @@ class TestOverlayService(unittest.TestCase):
         self.assertEqual(svc.height, 480)
 
     def test_render_no_config_returns_background(self):
-        """With no config/mask set, render returns background as-is (fast path)."""
+        """With no config/mask set, render returns background as numpy (fast path)."""
         svc = OverlayService()
         img = Image.new('RGB', (320, 320), (255, 0, 0))
         svc.set_background(img)
         result = svc.render()
-        self.assertIs(result, img)
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(result.shape, (320, 320, 3))
+        self.assertEqual(tuple(result[0, 0]), (255, 0, 0))
 
     def test_dc_data_round_trip(self):
         svc = OverlayService()

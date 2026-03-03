@@ -9,7 +9,21 @@ from enum import Enum, IntEnum, auto
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
-from ..adapters.infra.data_repository import ThemeDir
+# =============================================================================
+# Theme file conventions (canonical definitions — imported by data_repository)
+# =============================================================================
+
+THEME_BG = '00.png'
+THEME_MASK = '01.png'
+THEME_PREVIEW = 'Theme.png'
+THEME_DC = 'config1.dc'
+THEME_ZT = 'Theme.zt'
+
+# =============================================================================
+# Non-serializable keys stripped from dispatcher results (PIL Image, etc.)
+# =============================================================================
+
+NON_SERIALIZABLE_KEYS: frozenset[str] = frozenset({"image", "colors"})
 
 # =============================================================================
 # Temperature conversion — single source of truth
@@ -132,12 +146,16 @@ class ThemeInfo:
     @classmethod
     def from_directory(cls, path: Path, resolution: Tuple[int, int] = (320, 320)) -> 'ThemeInfo':
         """Create ThemeInfo from a theme directory."""
-        td = ThemeDir(path)
+        bg = path / THEME_BG
+        mask = path / THEME_MASK
+        preview = path / THEME_PREVIEW
+        dc = path / THEME_DC
+        zt = path / THEME_ZT
 
         # Determine if animated — check Theme.zt first, then .mp4 files
-        if td.zt.exists():
+        if zt.exists():
             is_animated = True
-            animation_path = td.zt
+            animation_path = zt
         else:
             mp4_files = list(path.glob('*.mp4'))
             if mp4_files:
@@ -151,14 +169,14 @@ class ThemeInfo:
             name=path.name,
             path=path,
             theme_type=ThemeType.LOCAL,
-            background_path=td.bg if td.bg.exists() else None,
-            mask_path=td.mask if td.mask.exists() else None,
-            thumbnail_path=td.preview if td.preview.exists() else (td.bg if td.bg.exists() else None),
+            background_path=bg if bg.exists() else None,
+            mask_path=mask if mask.exists() else None,
+            thumbnail_path=preview if preview.exists() else (bg if bg.exists() else None),
             animation_path=animation_path,
-            config_path=td.dc if td.dc.exists() else None,
+            config_path=dc if dc.exists() else None,
             resolution=resolution,
             is_animated=is_animated,
-            is_mask_only=not td.bg.exists() and td.mask.exists(),
+            is_mask_only=not bg.exists() and mask.exists(),
         )
 
     @classmethod
@@ -1464,5 +1482,29 @@ CATEGORY_COLORS: dict[int, str] = {
     4: '#F7B501',     # HDD: Orange
     5: '#FA6401',     # Network: Red-orange
     6: '#E02020',     # Fan: Red
+}
+
+# Derived from CATEGORY_COLORS — overlay uses 0-based indices (no "Custom" slot)
+OVERLAY_CATEGORY_COLORS: dict[int, str] = {i: CATEGORY_COLORS[i + 1] for i in range(6)}
+
+# String-keyed variant for sidebar
+CATEGORY_COLORS_BY_NAME: dict[str, str] = {
+    name: CATEGORY_COLORS[i + 1]
+    for i, name in enumerate(['cpu', 'gpu', 'memory', 'hdd', 'network', 'fan'])
+}
+
+# Overlay category display names
+OVERLAY_CATEGORY_NAMES: dict[int, str] = {
+    0: 'CPU', 1: 'GPU', 2: 'MEM', 3: 'HDD', 4: 'NET', 5: 'FAN',
+}
+
+# Sub-metric labels per overlay category
+OVERLAY_SUB_METRICS: dict[int, dict[int, str]] = {
+    0: {1: 'Temp', 2: 'Usage', 3: 'Freq', 4: 'Power'},
+    1: {1: 'Temp', 2: 'Usage', 3: 'Clock', 4: 'Power'},
+    2: {1: 'Used%', 2: 'Clock', 3: 'Used', 4: 'Free'},
+    3: {1: 'Read', 2: 'Write', 3: 'Activity', 4: 'Temp'},
+    4: {1: 'Down', 2: 'Up', 3: 'Total', 4: 'Ping'},
+    5: {1: 'RPM', 2: 'PWM%', 3: 'Temp', 4: 'Speed'},
 }
 

@@ -21,6 +21,8 @@ import shutil
 import subprocess
 from typing import List, Optional
 
+from ...core.models import THEME_BG, THEME_DC, THEME_MASK, THEME_PREVIEW
+
 log = logging.getLogger(__name__)
 
 # =========================================================================
@@ -40,12 +42,7 @@ RESOURCES_DIR = os.path.join(ASSETS_DIR, 'gui')
 USER_CONFIG_DIR = os.path.expanduser('~/.trcc')
 USER_DATA_DIR = os.path.join(USER_CONFIG_DIR, 'data')
 
-# Theme file conventions (used across models, controllers, theme_downloader, etc.)
-THEME_BG = '00.png'          # Background image
-THEME_MASK = '01.png'        # Mask overlay image
-THEME_PREVIEW = 'Theme.png'  # Thumbnail preview
-THEME_DC = 'config1.dc'      # Binary overlay config
-THEME_JSON = 'config.json'   # JSON config (custom themes)
+THEME_JSON = 'config.json'   # JSON config (custom themes) — local to data_repository
 
 
 # =========================================================================

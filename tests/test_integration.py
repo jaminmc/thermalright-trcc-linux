@@ -222,7 +222,7 @@ class TestCLIResumePipeline(unittest.TestCase):
 class TestCLIDetectPipeline(unittest.TestCase):
     """CLI detect() exercises device_detector.detect_devices end-to-end."""
 
-    @patch("trcc.adapters.device.detector.detect_devices")
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
     def test_detect_shows_device(self, mock_detect):
         """detect() with a device returns 0 and formats output."""
         from trcc.cli import detect
@@ -234,7 +234,7 @@ class TestCLIDetectPipeline(unittest.TestCase):
             result = detect(show_all=True)
         self.assertEqual(result, 0)
 
-    @patch("trcc.adapters.device.detector.detect_devices")
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
     def test_detect_no_devices(self, mock_detect):
         """detect() with no devices returns 1."""
         from trcc.cli import detect
@@ -242,7 +242,7 @@ class TestCLIDetectPipeline(unittest.TestCase):
         result = detect()
         self.assertEqual(result, 1)
 
-    @patch("trcc.adapters.device.detector.detect_devices")
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
     def test_detect_multiple_devices(self, mock_detect):
         """detect --all with multiple devices lists all."""
         from trcc.cli import detect

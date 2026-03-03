@@ -149,7 +149,7 @@ class TestDetect(unittest.TestCase):
     def test_no_devices(self):
         """No devices -> returns 1."""
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = []
+        mock_mod.DeviceDetector.detect.return_value = []
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = detect(show_all=False)
         self.assertEqual(result, 1)
@@ -158,7 +158,7 @@ class TestDetect(unittest.TestCase):
         """Single device -> returns 0 and prints path."""
         dev = self._make_device()
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [dev]
+        mock_mod.DeviceDetector.detect.return_value = [dev]
 
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.get_selected_device', return_value='/dev/sg0'):
@@ -298,21 +298,21 @@ class TestSelectDevice(unittest.TestCase):
 
     def test_no_devices(self):
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = []
+        mock_mod.DeviceDetector.detect.return_value = []
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(1)
         self.assertEqual(result, 1)
 
     def test_invalid_number_too_low(self):
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [self._make_device()]
+        mock_mod.DeviceDetector.detect.return_value = [self._make_device()]
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(0)
         self.assertEqual(result, 1)
 
     def test_invalid_number_too_high(self):
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [self._make_device()]
+        mock_mod.DeviceDetector.detect.return_value = [self._make_device()]
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = select_device(5)
         self.assertEqual(result, 1)
@@ -320,7 +320,7 @@ class TestSelectDevice(unittest.TestCase):
     def test_valid_selection(self):
         dev = self._make_device('/dev/sg1', 'Frost Commander')
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [dev]
+        mock_mod.DeviceDetector.detect.return_value = [dev]
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}), \
              patch('trcc.conf.Settings.save_selected_device') as mock_set:
             result = select_device(1)
@@ -587,9 +587,9 @@ class TestDetectExtra(unittest.TestCase):
         return dev
 
     def test_detect_exception(self):
-        """detect_devices raises -> returns 1."""
+        """DeviceDetector.detect raises -> returns 1."""
         mock_mod = MagicMock()
-        mock_mod.detect_devices.side_effect = RuntimeError('oops')
+        mock_mod.DeviceDetector.detect.side_effect = RuntimeError('oops')
         with patch.dict('sys.modules', {'trcc.adapters.device.detector': mock_mod}):
             result = detect()
         self.assertEqual(result, 1)
@@ -599,7 +599,7 @@ class TestDetectExtra(unittest.TestCase):
         dev1 = self._make_device('/dev/sg0', 'LCD-A')
         dev2 = self._make_device('/dev/sg1', 'LCD-B')
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [dev1, dev2]
+        mock_mod.DeviceDetector.detect.return_value = [dev1, dev2]
 
         import io
         from contextlib import redirect_stdout
@@ -617,7 +617,7 @@ class TestDetectExtra(unittest.TestCase):
         """Selected device not in list -> prints first device."""
         dev = self._make_device('/dev/sg0', 'LCD')
         mock_mod = MagicMock()
-        mock_mod.detect_devices.return_value = [dev]
+        mock_mod.DeviceDetector.detect.return_value = [dev]
 
         import io
         from contextlib import redirect_stdout
@@ -755,7 +755,7 @@ class TestMainDispatch(unittest.TestCase):
 
 class TestSelectDeviceException(unittest.TestCase):
 
-    @patch('trcc.adapters.device.detector.detect_devices', side_effect=RuntimeError("fail"))
+    @patch('trcc.adapters.device.detector.DeviceDetector.detect', side_effect=RuntimeError("fail"))
     def test_exception_returns_1(self, _):
         result = select_device(1)
         self.assertEqual(result, 1)

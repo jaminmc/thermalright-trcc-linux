@@ -122,7 +122,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         decoder = VideoDecoder('/fake/video.mp4', target_size=(w, h))
         self.assertEqual(decoder.frame_count, 3)
         self.assertEqual(len(decoder.frames), 3)
-        self.assertEqual(decoder.frames[0].size, (w, h))
+        self.assertEqual(decoder.frames[0].shape[:2], (h, w))
         self.assertEqual(decoder.fps, 16)
         decoder.close()
 
@@ -283,7 +283,8 @@ class TestThemeZtDecoder(unittest.TestCase):
 
     def test_frames_are_rgb(self):
         for frame in self.decoder.frames:
-            self.assertEqual(frame.mode, 'RGB')
+            self.assertEqual(frame.ndim, 3)
+            self.assertEqual(frame.shape[2], 3)
 
     def test_fps_from_delays(self):
         # avg delay = 42ms → fps ≈ 23.8
@@ -300,7 +301,7 @@ class TestThemeZtDecoder(unittest.TestCase):
 
     def test_resize_on_load(self):
         decoder = ThemeZtDecoder(self.path, target_size=(4, 4))
-        self.assertEqual(decoder.frames[0].size, (4, 4))
+        self.assertEqual(decoder.frames[0].shape[:2], (4, 4))
         decoder.close()
 
 

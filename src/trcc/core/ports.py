@@ -13,8 +13,8 @@ class Renderer(ABC):
     """Port: rendering backend for overlay compositing.
 
     Concrete implementations:
-        - PilRenderer  (adapters/render/pil.py)  — PIL/Pillow, CPU-only
-        - QPainterRenderer (adapters/render/qt.py) — PySide6 QPainter, GPU-capable
+        - NumpyRenderer (adapters/render/numpy_renderer.py) — NumPy SIMD, default
+        - PilRenderer   (adapters/render/pil.py)             — PIL/Pillow, fallback
     """
 
     @abstractmethod

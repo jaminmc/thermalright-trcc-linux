@@ -6,6 +6,7 @@ Absorbed from DeviceController + DeviceModel in controllers.py/models.py.
 from __future__ import annotations
 
 import logging
+import queue
 import threading
 from typing import Any, Optional
 
@@ -23,6 +24,8 @@ class DeviceService:
         self._send_lock = threading.Lock()
         self._send_busy = False
         self.on_frame_sent: Any = None  # callback(PIL Image) — called after every send_pil
+        self._send_queue: queue.Queue = queue.Queue(maxsize=1)
+        self._send_worker: threading.Thread | None = None
 
     # ── Detection ────────────────────────────────────────────────────
 
@@ -181,27 +184,40 @@ class DeviceService:
         return ok
 
     def send_rgb565_async(self, data: bytes, width: int, height: int) -> None:
-        """Send RGB565 bytes in a background thread. Thread-safe."""
-        if self.is_busy:
-            log.debug("send_rgb565_async: busy, skipping")
-            return
-
-        log.debug("send_rgb565_async: starting worker thread (%d bytes)", len(data))
-
-        def worker():
-            self.send_rgb565(data, width, height)
-
-        threading.Thread(target=worker, daemon=True).start()
+        """Send RGB565 bytes via persistent worker thread. Drops frame if busy."""
+        log.debug("send_rgb565_async: queueing (%d bytes)", len(data))
+        self._submit(lambda: self.send_rgb565(data, width, height))
 
     def send_pil_async(self, image: Any, width: int, height: int) -> None:
-        """Convert PIL to RGB565 and send in background thread."""
-        if self.is_busy:
+        """Encode + send PIL Image via persistent worker thread. Drops frame if busy."""
+        self._submit(lambda: self.send_pil(image, width, height))
+
+    def _submit(self, job: Any) -> None:
+        """Submit a send job to the persistent worker. Drops if queue full."""
+        self._ensure_worker()
+        try:
+            self._send_queue.put_nowait(job)
+        except queue.Full:
+            pass  # drop frame — worker still processing previous
+
+    def _ensure_worker(self) -> None:
+        """Start the persistent send worker thread if not alive."""
+        if self._send_worker and self._send_worker.is_alive():
             return
+        self._send_worker = threading.Thread(
+            target=self._send_loop, daemon=True, name="device-send")
+        self._send_worker.start()
 
-        def worker():
-            self.send_pil(image, width, height)
-
-        threading.Thread(target=worker, daemon=True).start()
+    def _send_loop(self) -> None:
+        """Persistent worker: process send jobs from the queue."""
+        while True:
+            try:
+                job = self._send_queue.get(timeout=30)
+                job()
+            except queue.Empty:
+                return  # idle for 30s → exit thread (re-created on next submit)
+            except Exception:
+                log.exception("Send worker error")
 
     @property
     def is_busy(self) -> bool:

@@ -331,6 +331,11 @@ class TestDisplayEndpoints(unittest.TestCase):
         self.mock_lcd.connected = True
         self.mock_lcd.resolution = (320, 320)
         self.mock_lcd.device_path = "/dev/sg0"
+        self.mock_lcd.status.return_value = {
+            "success": True, "connected": True,
+            "resolution": [320, 320], "device_path": "/dev/sg0",
+            "protocol": "scsi",
+        }
         api_module._display_dispatcher = self.mock_lcd
 
     def tearDown(self):
@@ -928,12 +933,12 @@ class TestVideoPlaybackEndpoints(unittest.TestCase):
         self.client = TestClient(app)
 
     def tearDown(self):
-        api_module._media_service = None
         api_module._video_thread = None
         api_module._video_stop_event = None
+        api_module._display_dispatcher = None
 
     def test_video_status_no_video(self):
-        api_module._media_service = None
+        api_module._display_dispatcher = None
         resp = self.client.get("/display/video/status")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -952,7 +957,11 @@ class TestVideoPlaybackEndpoints(unittest.TestCase):
         mock_state.loop = True
         mock_media.state = mock_state
         mock_media.source_path = "/tmp/video.mp4"
-        api_module._media_service = mock_media
+
+        mock_lcd = MagicMock()
+        mock_lcd.connected = True
+        mock_lcd.display_service.media = mock_media
+        api_module._display_dispatcher = mock_lcd
 
         resp = self.client.get("/display/video/status")
         self.assertEqual(resp.status_code, 200)
@@ -963,7 +972,10 @@ class TestVideoPlaybackEndpoints(unittest.TestCase):
         self.assertTrue(data["loop"])
 
     def test_video_stop(self):
-        api_module._media_service = MagicMock()
+        mock_lcd = MagicMock()
+        mock_lcd.connected = True
+        mock_lcd.stop_video.return_value = {"success": True, "message": "Video stopped"}
+        api_module._display_dispatcher = mock_lcd
         api_module._video_stop_event = MagicMock()
         api_module._video_thread = MagicMock()
         api_module._video_thread.is_alive.return_value = False
@@ -971,22 +983,22 @@ class TestVideoPlaybackEndpoints(unittest.TestCase):
         resp = self.client.post("/display/video/stop")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])
-        # Should have been cleaned up
-        self.assertIsNone(api_module._media_service)
+        self.assertIsNone(api_module._video_thread)
 
-    def test_video_pause_no_video(self):
-        api_module._media_service = None
+    def test_video_pause_no_device(self):
+        api_module._display_dispatcher = None
         resp = self.client.post("/display/video/pause")
         self.assertEqual(resp.status_code, 409)
 
-    def test_video_pause_with_video(self):
-        mock_media = MagicMock()
-        mock_media.is_playing = False  # After toggle
-        api_module._media_service = mock_media
+    def test_video_pause_with_device(self):
+        mock_lcd = MagicMock()
+        mock_lcd.connected = True
+        mock_lcd.pause_video.return_value = {"success": True, "message": "Video paused"}
+        api_module._display_dispatcher = mock_lcd
 
         resp = self.client.post("/display/video/pause")
         self.assertEqual(resp.status_code, 200)
-        mock_media.toggle.assert_called_once()
+        mock_lcd.pause_video.assert_called_once()
 
     @patch('trcc.api.start_video_playback', return_value=True)
     @patch('trcc.api.stop_video_playback')
@@ -1032,16 +1044,16 @@ class TestVideoPlaybackEndpoints(unittest.TestCase):
             "success": True, "message": "Sent"}
         api_module._display_dispatcher = mock_lcd
 
-        # Simulate running video
-        api_module._media_service = MagicMock()
+        # Simulate running video thread
         api_module._video_stop_event = MagicMock()
         api_module._video_thread = MagicMock()
         api_module._video_thread.is_alive.return_value = False
 
         self.client.post("/display/color", json={"hex": "ff0000"})
 
-        # Video should be stopped
-        self.assertIsNone(api_module._media_service)
+        # Video thread should be cleaned up, dispatcher.stop_video called
+        self.assertIsNone(api_module._video_thread)
+        mock_lcd.stop_video.assert_called()
         api_module._display_dispatcher = None
 
 
@@ -1057,7 +1069,6 @@ class TestOverlayLoop(unittest.TestCase):
         self.client = TestClient(app)
 
     def tearDown(self):
-        api_module._overlay_svc = None
         api_module._overlay_thread = None
         api_module._overlay_stop_event = None
         api_module._display_dispatcher = None
@@ -1152,14 +1163,12 @@ class TestOverlayLoop(unittest.TestCase):
 
     def test_stop_overlay_loop_cleans_up(self):
         """stop_overlay_loop() clears all overlay state."""
-        api_module._overlay_svc = MagicMock()
         api_module._overlay_stop_event = MagicMock()
         api_module._overlay_thread = MagicMock()
         api_module._overlay_thread.is_alive.return_value = False
 
         api_module.stop_overlay_loop()
 
-        self.assertIsNone(api_module._overlay_svc)
         self.assertIsNone(api_module._overlay_thread)
         self.assertIsNone(api_module._overlay_stop_event)
 
@@ -1170,9 +1179,18 @@ class TestOverlayLoop(unittest.TestCase):
         import time
 
         from trcc.core.models import HardwareMetrics
+        from trcc.services import OverlayService
 
         mock_metrics.return_value = HardwareMetrics()
         mock_svc.send_pil.return_value = True
+
+        # Set up dispatcher with real overlay service
+        mock_lcd = MagicMock()
+        mock_lcd.display_service.overlay = OverlayService(320, 320)
+        mock_lcd.enable_overlay.return_value = {"success": True}
+        mock_lcd.update_metrics.return_value = {"success": True}
+        mock_lcd.render_current_overlay.return_value = {"success": True, "image": None}
+        api_module._display_dispatcher = mock_lcd
 
         bg = Image.new('RGB', (320, 320), 'black')
 

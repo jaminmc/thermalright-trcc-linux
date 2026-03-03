@@ -2,7 +2,12 @@
 
 Pure Python, no Qt dependencies.
 Orchestrates background, mask compositing, text overlays, and dynamic scaling.
-Rendering delegated to Renderer ABC (Strategy pattern) — PIL or QPainter.
+Rendering delegated to Renderer ABC (Strategy pattern).
+
+Internal surfaces are ``np.ndarray`` (uint8, H×W×C).  PIL Images are accepted
+at entry points (set_background, set_mask) and converted to numpy immediately.
+render() returns numpy arrays — callers convert to PIL/QPixmap at their own
+boundary.
 """
 from __future__ import annotations
 
@@ -10,11 +15,22 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from ..core.models import HardwareMetrics
 from ..core.ports import Renderer
 from .system import SystemService
 
 log = logging.getLogger(__name__)
+
+
+def _to_numpy(image: Any) -> np.ndarray:
+    """Convert PIL Image to numpy array. Identity for numpy input."""
+    if isinstance(image, np.ndarray):
+        return image
+    if image.mode not in ('RGB', 'RGBA'):
+        image = image.convert('RGB')
+    return np.array(image)
 
 
 class OverlayService:
@@ -37,8 +53,8 @@ class OverlayService:
                  renderer: Renderer | None = None) -> None:
         # Rendering backend (Strategy pattern)
         if renderer is None:
-            from ..adapters.render.pil import PilRenderer
-            renderer = PilRenderer()
+            from ..adapters.render.numpy_renderer import NumpyRenderer
+            renderer = NumpyRenderer()
         self._renderer: Renderer = renderer
 
         # Rendering state (public — tests + callers access these directly)
@@ -104,24 +120,23 @@ class OverlayService:
     # ── Background ───────────────────────────────────────────────────
 
     def set_background(self, image: Any) -> None:
-        """Set background image.
+        """Set background image (always stored as numpy array).
 
-        Optimized for video playback — skips copy/resize if image is
-        already the correct size (VideoPlayer pre-resizes frames).
+        Accepts both numpy arrays and PIL Images — PIL is converted at entry.
+        Optimized for video playback — skips resize if already correct size.
         """
         if image is None:
             self.background = None
             return
+        arr = image if isinstance(image, np.ndarray) else _to_numpy(image)
         if not self.width or not self.height:
-            self.background = image
+            self.background = arr
             return
-        # Skip resize if already correct size (video frames are pre-sized)
-        if image.size == (self.width, self.height):
-            self.background = image
+        h, w = arr.shape[:2]
+        if (w, h) == (self.width, self.height):
+            self.background = arr
         else:
-            self.background = self._renderer.resize(
-                self._renderer.copy_surface(image), self.width, self.height
-            )
+            self.background = self._renderer.resize(arr, self.width, self.height)
 
     # ── Config ───────────────────────────────────────────────────────
 
@@ -213,8 +228,9 @@ class OverlayService:
         self.set_theme_mask(image, position)
 
     def set_theme_mask(self, image: Any, position: tuple[int, int] | None = None) -> None:
-        """Set theme mask overlay.
+        """Set theme mask overlay (stored as numpy RGBA array).
 
+        Accepts both numpy arrays and PIL Images — PIL is converted at entry.
         Masks are kept at original size (not stretched) and positioned
         at the bottom by default for partial overlays.
         """
@@ -224,15 +240,15 @@ class OverlayService:
             self._invalidate_cache()
             return
 
-        if image.mode != 'RGBA':
-            image = image.convert('RGBA')
+        arr = image if isinstance(image, np.ndarray) else _to_numpy(image)
+        arr = self._renderer.convert_to_rgba(arr)
+        self.theme_mask = arr
 
-        self.theme_mask = image
-
+        mask_h, mask_w = arr.shape[:2]
         if position is not None:
             self.theme_mask_position = position
-        elif image.height < self.height:
-            self.theme_mask_position = (0, self.height - image.height)
+        elif mask_h < self.height:
+            self.theme_mask_position = (0, self.height - mask_h)
         else:
             self.theme_mask_position = (0, 0)
 
@@ -364,13 +380,13 @@ class OverlayService:
         Callers gate on `.enabled` before calling — this method always renders.
 
         Args:
-            background: Optional PIL Image (uses stored background if None).
+            background: Optional numpy array or PIL Image (uses stored if None).
             metrics: HardwareMetrics DTO (uses stored metrics if None).
 
         Returns:
-            PIL Image with overlay rendered.
+            numpy array (H×W×3 RGB) with overlay rendered.
         """
-        if background:
+        if background is not None:
             self.set_background(background)
         m = metrics if metrics is not None else self._metrics
         return self._render_overlay(m)
@@ -389,10 +405,10 @@ class OverlayService:
 
         # Fast path: no overlays, just return background as-is
         has_overlays = (
-            (self.theme_mask and self.theme_mask_visible)
+            (self.theme_mask is not None and self.theme_mask_visible)
             or (self.config and isinstance(self.config, dict))
         )
-        if not has_overlays and self.background:
+        if not has_overlays and self.background is not None:
             return self.background
 
         # Check overlay layer cache
@@ -404,7 +420,7 @@ class OverlayService:
             self._composite_result = None  # Invalidate composite
 
         # Fast path: overlay layer has no visible content (no mask, no text)
-        if not self._overlay_has_content and self.background:
+        if not self._overlay_has_content and self.background is not None:
             return self.background
 
         # Check composite cache — skip copy+paste when nothing changed
@@ -422,17 +438,17 @@ class OverlayService:
     def _composite_onto_background(self, r: Renderer) -> Any:
         """Composite cached overlay layer onto current background.
 
-        Overlay cache is RGBA; background is RGB.  PIL paste() with alpha
-        mask works directly on RGB — no RGBA round-trip needed.
+        Overlay cache is RGBA numpy; background is RGB numpy.
+        Returns numpy RGB — no PIL conversion in the hot path.
         """
         if self.background is None:
             base = r.create_surface(self.width, self.height)
             r.composite(base, self._overlay_cache, (0, 0))
-            return r.to_pil(r.convert_to_rgb(base))
+            return r.convert_to_rgb(base)
 
-        base = r.copy_surface(r.from_pil(self.background))
+        base = r.copy_surface(self.background)
         r.composite(base, self._overlay_cache, (0, 0))
-        return r.to_pil(base)
+        return base
 
     def _render_overlay_layer(self, metrics: HardwareMetrics,
                               r: Renderer) -> Any:
@@ -444,21 +460,22 @@ class OverlayService:
         self._overlay_has_content = False
         overlay = r.create_surface(self.width, self.height)
 
-        # Apply theme mask
-        if self.theme_mask and self.theme_mask_visible:
+        # Apply theme mask (already stored as numpy RGBA)
+        if self.theme_mask is not None and self.theme_mask_visible:
             scale = self._get_scale_factor()
-            mask_pil = self.theme_mask
+            mask_arr = self.theme_mask
             self._overlay_has_content = True
             if abs(scale - 1.0) > 0.01:
-                mask_w = int(mask_pil.width * scale)
-                mask_h = int(mask_pil.height * scale)
-                mask_surface = r.resize(r.from_pil(mask_pil), mask_w, mask_h)
+                mask_h, mask_w = mask_arr.shape[:2]
+                scaled_w = int(mask_w * scale)
+                scaled_h = int(mask_h * scale)
+                mask_surface = r.resize(mask_arr, scaled_w, scaled_h)
                 pos_x = int(self.theme_mask_position[0] * scale)
                 pos_y = int(self.theme_mask_position[1] * scale)
                 overlay = r.composite(overlay, mask_surface, (pos_x, pos_y))
             else:
                 overlay = r.composite(
-                    overlay, r.from_pil(mask_pil), self.theme_mask_position)
+                    overlay, mask_arr, self.theme_mask_position)
 
         # Draw text overlays
         if not self.config or not isinstance(self.config, dict):

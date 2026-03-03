@@ -59,6 +59,34 @@ def get_metrics_by_category(category: str) -> dict:
     return {k: v for k, v in all_data.items() if k.startswith(prefix)}
 
 
+@router.get("/commands")
+def list_commands() -> dict:
+    """List all available dispatcher commands (self-documenting API).
+
+    Returns display and LED command names with descriptions, so API
+    clients (Flutter app, scripts) can discover what's available.
+    """
+    from trcc.cli._display import DisplayDispatcher
+    from trcc.cli._led import LEDDispatcher
+
+    def _methods(cls: type) -> list[dict]:
+        results = []
+        for name in sorted(dir(cls)):
+            if name.startswith('_'):
+                continue
+            attr = getattr(cls, name, None)
+            if not callable(attr):
+                continue
+            doc = (attr.__doc__ or '').strip().split('\n')[0]
+            results.append({"name": name, "description": doc})
+        return results
+
+    return {
+        "display": _methods(DisplayDispatcher),
+        "led": _methods(LEDDispatcher),
+    }
+
+
 @router.get("/report")
 def get_report() -> dict:
     """Generate diagnostic report for bug reports."""

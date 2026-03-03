@@ -33,7 +33,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..adapters.device.scsi import find_lcd_devices
 from ..adapters.infra.dc_writer import CarouselConfig, read_carousel_config, write_carousel_config
 from ..adapters.system.sensors import SensorEnumerator
 from ..conf import Settings, settings
@@ -41,15 +40,15 @@ from ..conf import Settings, settings
 # Import MVC core
 from ..core.controllers import LEDDeviceController, create_controller
 from ..core.models import SPLIT_MODE_RESOLUTIONS, DeviceInfo, PlaybackState, ThemeInfo
-from ..services.system import get_all_metrics
 
 # Import view components
 from .assets import Assets
 from .base import create_image_button, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
+from .metrics_mediator import MetricsMediator
 from .uc_about import UCAbout, ensure_autostart
 from .uc_activity_sidebar import UCActivitySidebar
-from .uc_device import UCDevice
+from .uc_device import UCDevice, find_lcd_devices
 from .uc_image_cut import UCImageCut
 from .uc_info_module import UCInfoModule
 from .uc_led_control import UCLedControl
@@ -71,9 +70,14 @@ log = logging.getLogger(__name__)
 class LEDHandler:
     """Mediator for LED device control.
 
-    Owns the LEDDeviceController lifecycle, animation timer, sensor polling,
+    Owns the LEDDeviceController lifecycle, animation timer,
     and signal wiring. Extracted from TRCCMainWindowMVC to reduce God Object.
+    Sensor polling is handled by MetricsMediator (not this class).
     """
+
+    # Modes that need 150ms animation ticks (breathing/colorful/rainbow).
+    # Static, temp-linked, and load-linked modes tick at 1000ms instead.
+    _ANIMATED_MODES = frozenset({1, 2, 3})  # LEDMode.BREATHING, COLORFUL, RAINBOW
 
     def __init__(self, panel: UCLedControl, on_temp_unit_changed):
         self._panel = panel
@@ -81,9 +85,9 @@ class LEDHandler:
         self._controller: LEDDeviceController | None = None
         self._active = False
         self._style_id = 0
-        self._sensor_counter = 0
+        self._signals_connected = False
 
-        # Timers (owned by handler, parented to panel for Qt lifecycle)
+        # Animation timer (owned by handler, parented to panel for Qt lifecycle)
         self._timer = QTimer(panel)
         self._timer.timeout.connect(self._on_tick)
 
@@ -107,7 +111,6 @@ class LEDHandler:
 
         self._controller.initialize(device, led_style)
         self._style_id = led_style
-        self._sensor_counter = 0
 
         style_info = LEDService.get_style_info(led_style)
         if style_info:
@@ -122,7 +125,7 @@ class LEDHandler:
         self._controller.set_seg_temp_unit(seg_unit)
 
         self._active = True
-        self._timer.start(150)
+        self._adjust_tick_rate()
 
     def stop(self):
         """Stop LED mode — save config, stop timers, release protocol."""
@@ -167,8 +170,8 @@ class LEDHandler:
     # ── Signal wiring ────────────────────────────────────────────────
 
     def _connect_signals(self):
-        """Wire UCLedControl signals to LEDDeviceController."""
-        if not self._controller:
+        """Wire UCLedControl signals to LEDDeviceController (once only)."""
+        if self._signals_connected or not self._controller:
             return
 
         ctrl = self._controller
@@ -207,6 +210,7 @@ class LEDHandler:
 
         ctrl.on_preview_update = self._on_colors_update
         ctrl.on_status_update = lambda text: panel.set_status(text)
+        self._signals_connected = True
 
     # ── Zone-aware routing ───────────────────────────────────────────
 
@@ -218,6 +222,8 @@ class LEDHandler:
         ctrl.set_mode(mode)
         if ctrl.state.zones:
             ctrl.set_zone_mode(self._panel.selected_zone, mode)
+        if self._active:
+            self._adjust_tick_rate()
 
     def _on_color_changed(self, r, g, b):
         ctrl = self._controller
@@ -248,27 +254,25 @@ class LEDHandler:
             self._panel.load_zone_state(
                 zone_index, z.mode.value, z.color, z.brightness, z.on)
 
-    # ── Animation tick + sensor polling ──────────────────────────────
+    # ── Animation tick ──────────────────────────────────────────────
 
     def _on_tick(self):
-        if not (self._controller and self._active):
-            return
-        self._controller.tick()
+        """LED color tick — animation only. Metrics come from MetricsMediator."""
+        if self._controller and self._active:
+            self._controller.tick()
 
-        self._sensor_counter += 1
-        if self._sensor_counter >= 7:
-            self._sensor_counter = 0
-            self._poll_sensors()
-
-    def _poll_sensors(self):
+    def update_from_metrics(self, metrics) -> None:
+        """Accept pre-polled metrics from MetricsMediator."""
         if not self._controller:
-            return
-        try:
-            metrics = get_all_metrics()
-        except Exception:
             return
         self._controller.update_metrics(metrics)
         self._panel.update_metrics(metrics)
+
+    def _adjust_tick_rate(self) -> None:
+        """Set animation timer: 150ms for animated modes, 1000ms for static."""
+        mode_val = self._controller.svc.mode.value if self._controller else 0
+        interval = 150 if mode_val in self._ANIMATED_MODES else 1000
+        self._timer.start(interval)
 
     # ── LED colors ──────────────────────────────────────────────────
 
@@ -458,7 +462,6 @@ class TRCCMainWindowMVC(QMainWindow):
         def _video_tick_wrapper():
             self.controller.video_tick()
         self._animation_timer = self._make_timer(_video_tick_wrapper)
-        self._metrics_timer = self._make_timer(self._on_metrics_tick)
         self._device_timer = self._make_timer(self._on_device_poll)
         self._flash_timer = self._make_timer(self._on_flash_timeout, single_shot=True)
         self._slideshow_timer = self._make_timer(self._on_slideshow_tick)
@@ -466,6 +469,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._handshake_done.connect(self._on_handshake_done)
 
         self._background_active = False  # C# myBjxs — background display mode
+        self._last_rendered_image = None  # overlay change detection
 
         # Slideshow state
         self._slideshow_index = 0
@@ -487,6 +491,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._screencast = ScreencastHandler(self, self.controller, self._on_screencast_frame)
         self._connect_controller_callbacks()
         self._connect_view_signals()
+        self._setup_mediator()
 
         # Restore saved temperature unit preference
         saved_unit = settings.temp_unit
@@ -583,7 +588,7 @@ class TRCCMainWindowMVC(QMainWindow):
             log.info("System suspending — stopping timers")
             self._device_timer.stop()
             self._animation_timer.stop()
-            self._metrics_timer.stop()
+            self._mediator.stop()
             self._screencast.stop()
         else:
             log.info("System resuming — invalidating USB handles")
@@ -862,8 +867,7 @@ class TRCCMainWindowMVC(QMainWindow):
         Windows: value is 1-100 (seconds).
         """
         ms = interval * 1000
-        if self._metrics_timer.isActive():
-            self._metrics_timer.setInterval(ms)
+        self._mediator.set_interval(ms)
         self.uc_preview.set_status(f"Refresh: {interval}s")
 
     def _on_resolution_changed(self, width: int, height: int):
@@ -1143,6 +1147,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if device.implementation == 'hid_led':
             self._led.show(device)
             self._show_view('led')
+            self._mediator.ensure_running()
             # Sync IPC LED dispatcher with the active controller's service
             ctrl = self._led._controller
             if self._ipc_server and ctrl:
@@ -1248,7 +1253,7 @@ class TRCCMainWindowMVC(QMainWindow):
         # Sensor metrics bar — controlled by config.json "show_info_module" (default: off)
         if Settings.show_info_module():
             self.uc_info_module.setVisible(True)
-            self.uc_info_module.start_updates(3000)
+            self._mediator.ensure_running()
 
         if (w, h) != (self.controller.lcd_width, self.controller.lcd_height):
             self._on_resolution_changed(w, h)
@@ -1451,6 +1456,7 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.stop_video()
             self._led.show(device)
             self._show_view('led')
+            self._mediator.ensure_running()
         else:
             # Stop LED mode if switching from LED to LCD device
             if self._led.active:
@@ -1568,17 +1574,15 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.stop_video()
             self._screencast.stop()
             self._render_and_send()
-            # Start continuous rendering (C# isToTimer=true — timer sends every tick)
-            if not self._metrics_timer.isActive():
-                self._metrics_timer.start(1000)
+            # Start continuous rendering — mediator handles timer lifecycle
+            self._mediator.ensure_running()
         else:
             # C# toggle OFF: myBjxs=false → black canvas + overlays
             self.controller.set_overlay_background(None)
             self.controller._display._create_black_background()
             self._render_and_send()
-            # Stop continuous background sending if overlay isn't independently enabled
-            if not self.controller.is_overlay_enabled():
-                self._metrics_timer.stop()
+            # Mediator will auto-stop if no subscribers need it
+            self._mediator.ensure_running()
         self.uc_preview.set_status(f"Background: {'On' if enabled else 'Off'}")
 
     def _on_screencast_toggle(self, enabled: bool):
@@ -1751,13 +1755,16 @@ class TRCCMainWindowMVC(QMainWindow):
         """
         self._hide_cutters()
         if result is not None:
-            # Save cropped image as background (Windows: ImageCut_OK_Write)
-            self.controller.current_image = result
-            # Save to working dir for later theme save
+            import numpy as np
+            # Save to working dir for later theme save (PIL for file I/O)
             bg_path = self.controller.working_dir / '00.png'
             result.save(str(bg_path))
+            # Convert to numpy for pipeline (one-time at crop boundary)
+            arr = np.array(result)
+            # Save cropped image as background (Windows: ImageCut_OK_Write)
+            self.controller.current_image = arr
             # Set as overlay background so mask/overlays render on top
-            self.controller.set_overlay_background(result)
+            self.controller.set_overlay_background(arr)
             self._render_and_send()
             self.uc_preview.set_status("Image cropped and saved")
         else:
@@ -1790,13 +1797,12 @@ class TRCCMainWindowMVC(QMainWindow):
         """Show activity sidebar when overlay grid requests add."""
         self.uc_activity_sidebar.setVisible(True)
         self.uc_activity_sidebar.raise_()
-        self.uc_activity_sidebar.start_updates()
+        self._mediator.ensure_running()
 
     def _on_sensor_element_add(self, config):
         """Add sensor element to overlay grid from activity sidebar."""
         self.uc_theme_setting.overlay_grid.add_element(config)
         self.uc_activity_sidebar.setVisible(False)
-        self.uc_activity_sidebar.stop_updates()
 
     def _on_overlay_toggle(self, enabled):
         """Toggle overlay display."""
@@ -2138,6 +2144,7 @@ class TRCCMainWindowMVC(QMainWindow):
                 if device.implementation == 'hid_led':
                     self._led.show(device)
                     self._show_view('led')
+                    self._mediator.ensure_running()
                 else:
                     self.controller.select_device(device)
                     self.uc_preview.set_status(f"Device: {device.path}")
@@ -2232,37 +2239,67 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.set_split_mode(0)  # Disable split for non-widescreen
         self._update_ldd_icon()
 
-    def _on_metrics_tick(self):
-        """Collect system metrics and re-render overlay, send to LCD.
+    # ── MetricsMediator setup + callbacks ────────────────────────────
 
-        C# Timer_event myMode=0: renders every 10 ticks (~160ms).
-        We tick every 1s (sufficient for sensor refresh) and always send
-        when background mode is active OR overlay is enabled.
-        """
-        try:
-            metrics = get_all_metrics()
-        except Exception:
-            return
-        self.controller.update_overlay_metrics(metrics)
-        should_render = (
-            (self.controller.current_image and self.controller.is_overlay_enabled())
-            or self._background_active
+    def _setup_mediator(self) -> None:
+        """Register all metrics subscribers with the centralized mediator."""
+        self._mediator = MetricsMediator(self)
+        self._mediator.subscribe(
+            self._on_overlay_tick, period=1,
+            guard=lambda: self.controller.is_overlay_enabled() or self._background_active,
         )
-        if not should_render:
+        self._mediator.subscribe(
+            self._on_led_metrics, period=1,
+            guard=lambda: self._led.active,
+        )
+        self._mediator.subscribe(
+            self.uc_info_module.update_from_metrics, period=3,
+            guard=lambda: self.uc_info_module.isVisible(),
+        )
+        self._mediator.subscribe(
+            self.uc_activity_sidebar.update_from_metrics, period=1,
+            guard=lambda: self.uc_activity_sidebar.isVisible(),
+        )
+
+    def _on_overlay_tick(self, metrics) -> None:
+        """Overlay subscriber — render + send to LCD every tick.
+
+        During video playback, only updates metrics (video_tick handles
+        rendering + preview + USB at frame rate).
+
+        LCD firmware requires periodic frames to stay alive — skipping
+        sends causes the display to reset.  GUI preview uses change
+        detection to avoid unnecessary PIL→QPixmap conversions.
+        """
+        self.controller.update_overlay_metrics(metrics)
+        if self.controller.is_video_playing():
+            return  # video_tick composites overlay onto each frame
+        img = self.controller.render_overlay()
+        if not img:
             return
-        self._render_and_send(skip_if_video=True)
+        # GUI preview: skip when overlay returns same cached object
+        if img is not self._last_rendered_image:
+            self._last_rendered_image = img
+            self.uc_preview.set_image(img)
+        # LCD send: always send to keep firmware alive
+        if self.controller.auto_send:
+            self.controller._send_frame_to_lcd(img)
+
+    def _on_led_metrics(self, metrics) -> None:
+        """LED subscriber — forward pre-polled metrics to LED handler."""
+        self._led.update_from_metrics(metrics)
 
     def start_metrics(self):
         """Start live metrics collection for overlay display."""
-        log.info("Metrics timer started (1s interval)")
+        log.info("Metrics mediator: overlay started")
         self.controller.enable_overlay(True)
-        self._metrics_timer.start(1000)
+        self._mediator.ensure_running()
 
     def stop_metrics(self):
-        """Stop live metrics collection."""
-        log.info("Metrics timer stopped")
+        """Stop overlay metrics — mediator stays alive if other consumers need it."""
+        log.info("Metrics mediator: overlay stopped")
         self.controller.enable_overlay(False)
-        self._metrics_timer.stop()
+        self._mediator.ensure_running()
 
     # =========================================================================
     # Borderless Window Drag
@@ -2309,12 +2346,10 @@ class TRCCMainWindowMVC(QMainWindow):
         self._animation_timer.stop()
         self._slideshow_timer.stop()
         self._screencast.cleanup()
-        self._metrics_timer.stop()
+        self._mediator.stop()
         self._device_timer.stop()
         self._led.cleanup()
         self.uc_system_info.stop_updates()
-        self.uc_info_module.stop_updates()
-        self.uc_activity_sidebar.stop_updates()
         self.controller.stop_video()
         self.controller.cleanup()
         if self._ipc_server:
@@ -2398,7 +2433,9 @@ def run_mvc_app(data_dir: Path | None = None, decorated: bool = False,
     from ..cli._display import DisplayDispatcher
     from ..cli._led import LEDDispatcher
     from ..ipc import IPCServer
-    ipc_display = DisplayDispatcher(device_svc=window.controller.device_svc)
+    ipc_display = DisplayDispatcher(
+        device_svc=window.controller.device_svc,
+        display_svc=window.controller.lcd_svc)
     ipc_led = LEDDispatcher()
     ipc_server = IPCServer(ipc_display, ipc_led)
     ipc_server.start()

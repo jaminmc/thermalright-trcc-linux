@@ -116,9 +116,17 @@ def select_device(device_id: int) -> dict:
             from trcc.cli._device import discover_resolution
             discover_resolution(dev)
 
+            # Create full DisplayService so dispatcher can handle
+            # video, overlay, themes — not just image/color/reset.
+            from trcc.services import MediaService, OverlayService
+            from trcc.services.display import DisplayService
+
+            display_svc = DisplayService(_device_svc, OverlayService(), MediaService())
+
             from trcc.cli._display import DisplayDispatcher
 
-            api._display_dispatcher = DisplayDispatcher(device_svc=_device_svc)
+            api._display_dispatcher = DisplayDispatcher(
+                device_svc=_device_svc, display_svc=display_svc)
 
             w_res, h_res = dev.resolution or (320, 320)
             api.set_current_image(Image.new('RGB', (w_res, h_res), (0, 0, 0)))

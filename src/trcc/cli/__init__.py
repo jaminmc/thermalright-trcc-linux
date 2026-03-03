@@ -106,6 +106,46 @@ def _main_callback(
 # GUI launcher
 # =========================================================================
 
+def _setup_logging(verbose: int = 0) -> None:
+    """Configure console + file logging.
+
+    Console level follows ``-v`` flags.  File always logs at DEBUG
+    to ``~/.config/trcc/trcc.log`` (rotated, 1 MB × 3 backups).
+    """
+    import os
+    from logging.handlers import RotatingFileHandler
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # Console handler — verbosity-controlled
+    console = logging.StreamHandler()
+    if verbose >= 2:
+        console.setLevel(logging.DEBUG)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(name)s: %(message)s'))
+    elif verbose == 1:
+        console.setLevel(logging.INFO)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    else:
+        console.setLevel(logging.WARNING)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    root.addHandler(console)
+
+    # File handler — always DEBUG
+    log_dir = os.path.join(
+        os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')), 'trcc')
+    os.makedirs(log_dir, exist_ok=True)
+    fh = RotatingFileHandler(
+        os.path.join(log_dir, 'trcc.log'), maxBytes=1_000_000, backupCount=3)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s', datefmt='%H:%M:%S'))
+    root.addHandler(fh)
+
+    # Suppress noisy libraries
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+
+
 def gui(verbose=0, decorated=False, start_hidden=False):
     """Launch the GUI application.
 
@@ -114,14 +154,7 @@ def gui(verbose=0, decorated=False, start_hidden=False):
         decorated: Use decorated window with titlebar.
         start_hidden: Start minimized to system tray (used by --last-one autostart).
     """
-    # Set up logging based on verbosity (filter out noisy PIL)
-    if verbose >= 2:
-        logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(name)s: %(message)s')
-        logging.getLogger('PIL').setLevel(logging.WARNING)
-    elif verbose == 1:
-        logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-    else:
-        logging.basicConfig(level=logging.WARNING)
+    _setup_logging(verbose)
 
     try:
         from trcc.qt_components.qt_app_mvc import run_mvc_app
@@ -405,6 +438,12 @@ def _cmd_led_sensor(
     return _led.set_sensor_source(source)
 
 
+@app.command("led-status")
+def _cmd_led_status() -> int:
+    """Show LED device status (mode, color, zones, segments)."""
+    return _led.led_status()
+
+
 @app.command("led-zone-color")
 def _cmd_led_zone_color(
     zone: Annotated[int, typer.Argument(help="Zone index (0-based)")],
@@ -488,6 +527,57 @@ def _cmd_led_temp_unit(
 ) -> int:
     """Set LED segment display temperature unit."""
     return _led.set_temp_unit(unit)
+
+
+@app.command("display-status")
+def _cmd_display_status(
+    device: Annotated[Optional[str], typer.Option(
+        "--device", "-d", help="Device path",
+    )] = None,
+) -> int:
+    """Show display status (device, resolution, overlay, video)."""
+    return _display.display_status(device=device)
+
+
+@app.command("video-play")
+def _cmd_video_play(
+    device: Annotated[Optional[str], typer.Option(
+        "--device", "-d", help="Device path",
+    )] = None,
+) -> int:
+    """Start/resume video playback (requires running daemon)."""
+    return _display.video_play(device=device)
+
+
+@app.command("video-pause")
+def _cmd_video_pause(
+    device: Annotated[Optional[str], typer.Option(
+        "--device", "-d", help="Device path",
+    )] = None,
+) -> int:
+    """Pause video playback (requires running daemon)."""
+    return _display.video_pause(device=device)
+
+
+@app.command("video-stop")
+def _cmd_video_stop(
+    device: Annotated[Optional[str], typer.Option(
+        "--device", "-d", help="Device path",
+    )] = None,
+) -> int:
+    """Stop video playback (requires running daemon)."""
+    return _display.video_stop(device=device)
+
+
+@app.command("overlay-toggle")
+def _cmd_overlay_toggle(
+    enabled: Annotated[bool, typer.Argument(help="true/false")],
+    device: Annotated[Optional[str], typer.Option(
+        "--device", "-d", help="Device path",
+    )] = None,
+) -> int:
+    """Enable or disable overlay rendering."""
+    return _display.overlay_toggle(enabled, device=device)
 
 
 @app.command("split")
@@ -887,9 +977,17 @@ save_theme = _theme.save_theme
 export_theme = _theme.export_theme
 import_theme = _theme.import_theme
 
+# Display status / daemon control
+display_status = _display.display_status
+video_play = _display.video_play
+video_pause = _display.video_pause
+video_stop = _display.video_stop
+overlay_toggle = _display.overlay_toggle
+
 # LED commands
 led_color = _led.set_color
 led_mode = _led.set_mode
 led_brightness = _led.set_led_brightness
 led_off = _led.led_off
 led_sensor = _led.set_sensor_source
+led_status = _led.led_status

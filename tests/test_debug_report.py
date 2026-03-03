@@ -287,8 +287,9 @@ class TestFullCollect(unittest.TestCase):
         self.assertIn("Config", text)
         self.assertIn("Process usage", text)
         self.assertIn("RAPL power sensors", text)
-        # 11 sections total
-        self.assertEqual(len(rpt.sections), 11)
+        self.assertIn("Recent log", text)
+        # 12 sections total
+        self.assertEqual(len(rpt.sections), 12)
 
 
 if __name__ == "__main__":

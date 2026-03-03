@@ -256,6 +256,10 @@ class TestDisplayErrorPaths(unittest.TestCase):
         self.mock_lcd.connected = True
         self.mock_lcd.resolution = (320, 320)
         self.mock_lcd.device_path = "/dev/sg0"
+        self.mock_lcd.status.return_value = {
+            "success": True, "connected": True,
+            "resolution": [320, 320], "device_path": "/dev/sg0",
+        }
         api_module._display_dispatcher = self.mock_lcd
 
     def tearDown(self) -> None:

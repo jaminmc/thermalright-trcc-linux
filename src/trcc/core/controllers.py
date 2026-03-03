@@ -363,14 +363,14 @@ class LCDDeviceController:
 
     def set_rotation(self, degrees: int):
         image = self._display.set_rotation(degrees)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send:
                 self._send_frame_to_lcd(image)
 
     def set_brightness(self, percent: int):
         image = self._display.set_brightness(percent)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send:
                 self._send_frame_to_lcd(image)
@@ -378,7 +378,7 @@ class LCDDeviceController:
     def set_split_mode(self, mode: int):
         """Set split mode (C# myLddVal: 0=off, 1-3=Dynamic Island style)."""
         image = self._display.set_split_mode(mode)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send:
                 self._send_frame_to_lcd(image)
@@ -397,7 +397,7 @@ class LCDDeviceController:
                              skip_send_if_animated: bool = False) -> None:
         image = result.get('image')
         is_animated = result.get('is_animated', False)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send and not (skip_send_if_animated and is_animated):
                 self._send_frame_to_lcd(image)
@@ -408,7 +408,7 @@ class LCDDeviceController:
 
     def apply_mask(self, mask_dir: Path):
         image = self._display.apply_mask(mask_dir)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send and not self._display.is_video_playing():
                 self._send_frame_to_lcd(image)
@@ -416,7 +416,7 @@ class LCDDeviceController:
 
     def load_image_file(self, path: Path):
         image = self._display.load_image_file(path)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send:
                 self._send_frame_to_lcd(image)
@@ -435,7 +435,7 @@ class LCDDeviceController:
     def set_video_fit_mode(self, mode: str):
         """Set video fit mode (C# buttonTPJCW/buttonTPJCH)."""
         image = self._display.set_video_fit_mode(mode)
-        if image:
+        if image is not None:
             self._fire_preview(image)
             if self.auto_send:
                 self._send_frame_to_lcd(image)
@@ -451,11 +451,11 @@ class LCDDeviceController:
         if not result:
             return
 
-        self._fire_preview(result['preview'])
+        frame = result['frame']
+        self._fire_preview(frame)
 
-        send_img = result.get('send_image')
-        if send_img:
-            self.send_pil_async(send_img, self.lcd_width, self.lcd_height)
+        if result['send']:
+            self.send_pil_async(frame, self.lcd_width, self.lcd_height)
 
     def get_video_interval(self) -> int:
         return self._display.get_video_interval()
@@ -472,8 +472,8 @@ class LCDDeviceController:
             self._fire_status("Sent to LCD")
 
     def render_overlay_and_preview(self):
-        image = self._display.render_overlay()
-        if image:
+        image = self.render_overlay()
+        if image is not None:
             self._fire_preview(image)
         return image
 
@@ -537,6 +537,9 @@ class LEDDeviceController:
         self.on_send_complete: Optional[Callable[[bool], None]] = None
         self.on_status_update: Optional[Callable[[str], None]] = None
 
+        # USB change detection — skip send when colors unchanged
+        self._last_colors: list | None = None
+
     @property
     def svc(self) -> Any:
         return self._svc
@@ -558,7 +561,8 @@ class LEDDeviceController:
         display_colors = self._svc.apply_mask(colors)
         if self.on_preview_update:
             self.on_preview_update(display_colors)
-        if self._svc.has_protocol:
+        if self._svc.has_protocol and colors != self._last_colors:
+            self._last_colors = list(colors)
             success = self._svc.send_colors(colors)
             if self.on_send_complete:
                 self.on_send_complete(success)
