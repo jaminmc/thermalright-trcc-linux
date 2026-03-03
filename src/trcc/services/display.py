@@ -292,7 +292,7 @@ class DisplayService:
         """Set video fit mode. Re-decodes frames. Returns preview image."""
         if self.media.set_fit_mode(mode):
             frame = self.media.get_frame()
-            if frame:
+            if frame is not None:
                 self.current_image = frame
                 return self._render_and_process()
         return self._render_and_process()

@@ -1357,7 +1357,7 @@ class TRCCMainWindowMVC(QMainWindow):
     def _render_and_send(self, skip_if_video: bool = False) -> None:
         """Render overlay preview and send to LCD if auto-send is on."""
         img = self.controller.render_overlay_and_preview()
-        if not img or not self.controller.auto_send:
+        if img is None or not self.controller.auto_send:
             return
         if skip_if_video and self.controller.is_video_playing():
             return
@@ -2275,7 +2275,7 @@ class TRCCMainWindowMVC(QMainWindow):
         if self.controller.is_video_playing():
             return  # video_tick composites overlay onto each frame
         img = self.controller.render_overlay()
-        if not img:
+        if img is None:
             return
         # GUI preview: skip when overlay returns same cached object
         if img is not self._last_rendered_image:
