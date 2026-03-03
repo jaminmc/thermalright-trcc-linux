@@ -18,6 +18,7 @@ from trcc.api.models import (
     VideoStatusResponse,
     dispatch_result,
     parse_hex_or_400,
+    require_connected,
 )
 
 log = logging.getLogger(__name__)
@@ -29,9 +30,7 @@ def _get_display():
     """Get the active DisplayDispatcher, raise 409 if not connected."""
     from trcc.api import _display_dispatcher
 
-    if not _display_dispatcher or not _display_dispatcher.connected:
-        raise HTTPException(status_code=409, detail="No LCD device selected. POST /devices/{id}/select first.")
-    return _display_dispatcher
+    return require_connected(_display_dispatcher, "LCD")
 
 
 def _display_route(method: str, *args, **kwargs) -> dict:

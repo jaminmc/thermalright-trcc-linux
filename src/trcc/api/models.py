@@ -8,6 +8,16 @@ from pydantic import BaseModel, Field
 from trcc.core.models import NON_SERIALIZABLE_KEYS as _NON_SERIALIZABLE_KEYS
 
 
+def require_connected(dispatcher, label: str = "LCD"):
+    """Ensure dispatcher is connected, raise 409 if not."""
+    if not dispatcher or not dispatcher.connected:
+        raise HTTPException(
+            status_code=409,
+            detail=f"No {label} device selected. POST /devices/{{id}}/select first.",
+        )
+    return dispatcher
+
+
 def dispatch_result(result: dict) -> dict:
     """Convert dispatcher result dict to JSON-safe API response. Raises 400 on failure."""
     if not result.get("success"):
