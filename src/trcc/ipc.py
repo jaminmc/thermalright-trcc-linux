@@ -18,6 +18,9 @@ import socket
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+from PySide6.QtGui import QImage
+
 log = logging.getLogger(__name__)
 
 # Socket path: same dir as the instance lock file
@@ -187,15 +190,30 @@ class IPCServer:
     def _get_frame(self) -> dict:
         """Return the current LCD frame as base64 JPEG."""
         import base64
-        import io
 
         if self._current_frame is None:
             return {"success": False, "error": "No frame available"}
-        buf = io.BytesIO()
-        self._current_frame.save(buf, format="JPEG", quality=85)
+
+        frame = self._current_frame
+
+        # QImage path (hot — Qt renderer)
+        if isinstance(frame, QImage):
+            buf = QByteArray()
+            qbuf = QBuffer(buf)
+            qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
+            frame.save(qbuf, 'jpeg', 85)  # type: ignore[call-overload]
+            qbuf.close()
+            jpeg_data = bytes(buf.data())
+        else:
+            # PIL Image fallback
+            import io
+            bio = io.BytesIO()
+            frame.save(bio, format="JPEG", quality=85)
+            jpeg_data = bio.getvalue()
+
         return {
             "success": True,
-            "frame": base64.b64encode(buf.getvalue()).decode("ascii"),
+            "frame": base64.b64encode(jpeg_data).decode("ascii"),
         }
 
     def _status(self) -> dict:

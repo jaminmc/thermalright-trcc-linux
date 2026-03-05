@@ -9,6 +9,7 @@ import pytest
 
 from trcc.core.controllers import create_controller
 from trcc.core.models import ThemeInfo
+from trcc.services.image import ImageService
 
 DATA_DIR = Path(__file__).parent.parent / 'src' / 'trcc' / 'data'
 VIDEO_DIR = Path.home() / '.trcc' / 'data' / 'web' / '320320'
@@ -72,13 +73,18 @@ class TestCloudVideoPlayback:
             if result is None:
                 none_count += 1
             else:
-                assert result['preview'] is not None
-                assert result['preview'].size == (320, 320)
+                # Cached path returns encoded (bytes), fallback returns preview (PIL)
+                if result.get('encoded') is not None:
+                    assert isinstance(result['encoded'], bytes)
+                else:
+                    assert result['preview'] is not None
+                    r = ImageService._r()
+                    assert r.surface_size(result['preview']) == (320, 320)
 
         assert none_count == 0, f"{none_count}/10 ticks returned None"
 
     def test_fire_preview_called_every_tick(self, controller, preview_log):
-        """on_preview_update must be called with non-None image every tick."""
+        """Preview must fire every tick via on_preview_update (PIL)."""
         video = _find_test_video()
         if not video:
             pytest.skip("No cached cloud video MP4")
@@ -97,10 +103,11 @@ class TestCloudVideoPlayback:
         for _ in range(10):
             controller.video_tick()
 
-        # Every tick fires preview: 10 ticks + 1 from load
-        assert len(calls) >= 11, f"Expected 11+ preview calls, got {len(calls)}"
+        # Dedup may skip 1 when load + first tick return same frame object
+        assert len(calls) >= 10, (
+            f"Expected 10+ preview calls, got {len(calls)}")
 
-        # Check NONE of them are None
+        # Check NONE of the calls are None
         for i, img in enumerate(calls):
             assert img is not None, f"Preview call {i} was None!"
 
@@ -122,7 +129,9 @@ class TestCloudVideoPlayback:
 
             result = overlay.render(frame)
             assert result is not None, f"overlay.render returned None on frame {i}"
-            assert result.size == (320, 320), f"overlay.render size wrong: {result.size}"
+            r = ImageService._r()
+            assert r.surface_size(result) == (320, 320), (
+                f"overlay.render size wrong: {r.surface_size(result)}")
 
     def test_render_overlay_and_preview_during_video(self, controller, preview_log):
         """render_overlay_and_preview must NOT clear the preview during video."""

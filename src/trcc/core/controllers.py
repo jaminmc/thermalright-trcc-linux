@@ -38,10 +38,19 @@ class LCDDeviceController:
 
     CATEGORIES = ThemeService.CATEGORIES
 
-    def __init__(self):
+    def __init__(self, renderer=None):
+        # Single renderer for entire pipeline (DI)
+        if renderer is None:
+            from ..adapters.render.qt import QtRenderer
+            renderer = QtRenderer()
+
+        # Set renderer on ImageService (global facade)
+        from ..services.image import ImageService
+        ImageService.set_renderer(renderer)
+
         # Create shared services
         device_svc = DeviceService()
-        overlay_svc = OverlayService()
+        overlay_svc = OverlayService(renderer=renderer)
         media_svc = MediaService()
 
         # The head chef
@@ -54,21 +63,13 @@ class LCDDeviceController:
         self.on_preview_update: Optional[Callable[[Any], None]] = None
         self.on_status_update: Optional[Callable[[str], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
-        self.on_resolution_changed: Optional[Callable[[int, int], None]] = None
-
-        # View callbacks — Theme
-        self.on_themes_loaded: Optional[Callable[[List[ThemeInfo]], None]] = None
-        self.on_filter_changed: Optional[Callable[[str], None]] = None
 
         # View callbacks — Device
-        self.on_devices_changed: Optional[Callable[[List[DeviceInfo]], None]] = None
         self.on_device_selected: Optional[Callable[[DeviceInfo], None]] = None
-        self.on_send_started: Optional[Callable[[], None]] = None
         self.on_send_complete: Optional[Callable[[bool], None]] = None
 
         # View callbacks — Video
         self.on_video_loaded: Optional[Callable[[VideoState], None]] = None
-        self.on_video_progress_update: Optional[Callable[[float, str, str], None]] = None
         self.on_video_state_changed: Optional[Callable[[PlaybackState], None]] = None
 
         # View callbacks — Overlay
@@ -182,22 +183,7 @@ class LCDDeviceController:
         self._theme_svc.set_directories(local_dir, web_dir, masks_dir)
 
     def load_local_themes(self, resolution: Tuple[int, int] = (320, 320)):
-        themes = self._theme_svc.load_local_themes(resolution)
-        if self.on_themes_loaded:
-            self.on_themes_loaded(themes)
-
-    def load_cloud_themes(self):
-        themes = self._theme_svc.load_cloud_themes()
-        if self.on_themes_loaded:
-            self.on_themes_loaded(themes)
-
-    def set_theme_filter(self, mode: str):
-        self._theme_svc.set_filter(mode)
-        if self.on_filter_changed:
-            self.on_filter_changed(mode)
-
-    def set_theme_category(self, category: str):
-        self._theme_svc.set_category(category)
+        self._theme_svc.load_local_themes(resolution)
 
     def select_theme(self, theme: ThemeInfo):
         """Select a theme — routes to local or cloud loader."""
@@ -218,8 +204,6 @@ class LCDDeviceController:
 
     def detect_devices(self):
         self._display.devices.detect()
-        if self.on_devices_changed:
-            self.on_devices_changed(self._display.devices.devices)
         if self._display.devices.selected and self.on_device_selected:
             self.on_device_selected(self._display.devices.selected)
 
@@ -240,20 +224,13 @@ class LCDDeviceController:
             return
         log.debug("send_image_async: dispatching %d bytes (%dx%d)",
                   len(rgb565_data), width, height)
-        if self.on_send_started:
-            self.on_send_started()
         self._display.devices.send_rgb565_async(rgb565_data, width, height)
 
     def send_pil_async(self, image: Any, width: int, height: int,
                        byte_order: str = '>'):
         if self._display.devices.is_busy:
             return
-        if self.on_send_started:
-            self.on_send_started()
         self._display.devices.send_pil_async(image, width, height)
-
-    def get_protocol_info(self):
-        return self._display.devices.get_protocol_info()
 
     # ── Video operations ──────────────────────────────────────────────
 
@@ -285,13 +262,6 @@ class LCDDeviceController:
 
     def video_has_frames(self) -> bool:
         return self._display.media.has_frames
-
-    def get_video_frame(self, index: Optional[int] = None) -> Optional[Any]:
-        return self._display.media.get_frame(index)
-
-    @property
-    def video_source_path(self) -> Optional[Path]:
-        return self._display.media.source_path
 
     # ── Overlay operations ────────────────────────────────────────────
 
@@ -325,6 +295,10 @@ class LCDDeviceController:
     def update_overlay_metrics(self, metrics: Any):
         self._display.overlay.update_metrics(metrics)
 
+    def overlay_has_changed(self, metrics: Any) -> bool:
+        """Check if overlay would produce a visually different frame."""
+        return self._display.overlay.would_change(metrics)
+
     def render_overlay(self, background: Any = None, **kwargs) -> Any:
         """Render overlay onto background. No-arg = use current image."""
         if background is None and not kwargs:
@@ -357,9 +331,6 @@ class LCDDeviceController:
 
         if width and height:
             self.load_local_themes((width, height))
-
-        if self.on_resolution_changed:
-            self.on_resolution_changed(width, height)
 
     def set_rotation(self, degrees: int):
         image = self._display.set_rotation(degrees)
@@ -397,6 +368,9 @@ class LCDDeviceController:
                              skip_send_if_animated: bool = False) -> None:
         image = result.get('image')
         is_animated = result.get('is_animated', False)
+        log.debug("_handle_theme_result: image=%s animated=%s auto_send=%s skip_anim=%s",
+                  type(image).__name__ if image else None, is_animated,
+                  self.auto_send, skip_send_if_animated)
         if image:
             self._fire_preview(image)
             if self.auto_send and not (skip_send_if_animated and is_animated):
@@ -451,10 +425,24 @@ class LCDDeviceController:
         if not result:
             return
 
-        self._fire_preview(result['preview'])
+        # Preview shows what the LCD shows (with overlay + adjustments)
+        preview = result.get('preview')
+        if preview is not None:
+            log.debug("video_tick: preview type=%s", type(preview).__name__)
+            self._fire_preview(preview)
 
+        # Pre-encoded path — bytes already baked, skip encode
+        encoded = result.get('encoded')
+        if encoded is not None:
+            log.debug("video_tick: encoded %d bytes", len(encoded))
+            self._display.devices.send_rgb565_async(
+                encoded, self.lcd_width, self.lcd_height)
+            return
+
+        # Fallback: encode path (cache not active)
         send_img = result.get('send_image')
         if send_img:
+            log.debug("video_tick: fallback encode path, type=%s", type(send_img).__name__)
             self.send_pil_async(send_img, self.lcd_width, self.lcd_height)
 
     def get_video_interval(self) -> int:
@@ -463,16 +451,16 @@ class LCDDeviceController:
     def is_video_playing(self) -> bool:
         return self._display.is_video_playing()
 
-    # ── Device Operations ─────────────────────────────────────────────
+    def rebuild_video_cache_metrics(self, metrics: Any) -> None:
+        """Rebuild video frame cache with new metrics text."""
+        self._display.rebuild_video_cache_metrics(metrics)
 
-    def send_current_image(self):
-        rgb565 = self._display.send_current_image()
-        if rgb565:
-            self.send_image_async(rgb565, self.lcd_width, self.lcd_height)
-            self._fire_status("Sent to LCD")
+    # ── Device Operations ─────────────────────────────────────────────
 
     def render_overlay_and_preview(self):
         image = self._display.render_overlay()
+        log.debug("render_overlay_and_preview: result=%s",
+                  type(image).__name__ if image else None)
         if image:
             self._fire_preview(image)
         return image
@@ -480,6 +468,9 @@ class LCDDeviceController:
     # ── Private helpers ───────────────────────────────────────────────
 
     def _fire_preview(self, image: Any):
+        log.debug("_fire_preview: type=%s id=%d callback=%s",
+                  type(image).__name__, id(image),
+                  self.on_preview_update is not None)
         if self.on_preview_update:
             self.on_preview_update(image)
 
@@ -487,26 +478,12 @@ class LCDDeviceController:
         if self.on_status_update:
             self.on_status_update(text)
 
-    def _fire_error(self, message: str):
-        log.error("%s", message)
-        if self.on_error:
-            self.on_error(message)
-
     def _send_frame_to_lcd(self, image: Any):
-        """Send a processed image to the LCD via DeviceService."""
+        """Send image to LCD device (callers handle preview separately)."""
         device = self.get_selected_device()
         if not device:
-            log.debug("Send skipped — no device selected")
             return
         self.send_pil_async(image, self.lcd_width, self.lcd_height)
-
-    def _setup_theme_dirs(self, width: int, height: int):
-        self._display._setup_dirs(width, height)
-        self.set_theme_directories(
-            local_dir=self._display.local_dir,
-            web_dir=self._display.web_dir,
-            masks_dir=self._display.masks_dir,
-        )
 
 
 # =============================================================================
@@ -600,9 +577,10 @@ class LEDDeviceController:
 # Convenience function
 # =============================================================================
 
-def create_controller(data_dir: Optional[Path] = None) -> LCDDeviceController:
+def create_controller(data_dir: Optional[Path] = None,
+                      renderer=None) -> LCDDeviceController:
     """Create and initialize the main controller."""
-    controller = LCDDeviceController()
+    controller = LCDDeviceController(renderer=renderer)
     if data_dir:
         controller.initialize(data_dir)
     return controller

@@ -8,11 +8,15 @@ and gc (no uncollectable cycles).
 from __future__ import annotations
 
 import gc
+import os
 import tracemalloc
 import weakref
 from unittest.mock import MagicMock
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
+from conftest import make_test_surface
 from PIL import Image
 
 from trcc.core.models import (
@@ -77,7 +81,7 @@ class TestImageLifecycle:
 
     def test_resize_returns_new_object(self):
         """ImageService.resize() returns a different object — old is GC-eligible."""
-        original = Image.new("RGB", (640, 640), (255, 0, 0))
+        original = make_test_surface(640, 640, (255, 0, 0))
         original_id = id(original)
         resized = ImageService.resize(original, 320, 320)
         assert id(resized) != original_id
@@ -130,20 +134,21 @@ class TestMediaFrameAccumulation:
         media_svc._state.state = PlaybackState.STOPPED
         return media_svc
 
-    def test_close_clears_frames(self, loaded_media):
-        """close() empties _frames and sets _decoder to None."""
+    def test_clear_frames(self, loaded_media):
+        """Clearing _frames empties list and releases memory."""
         assert len(loaded_media._frames) == 10
-        loaded_media.close()
+        loaded_media._frames.clear()
+        loaded_media._decoder = None
         assert len(loaded_media._frames) == 0
         assert loaded_media._decoder is None
 
-    def test_frame_weakrefs_die_after_close(self, loaded_media):
-        """All frame references become reclaimable after close()."""
+    def test_frame_weakrefs_die_after_clear(self, loaded_media):
+        """All frame references become reclaimable after clearing."""
         refs = [weakref.ref(f) for f in loaded_media._frames]
-        loaded_media.close()
+        loaded_media._frames.clear()
         gc.collect()
         alive = sum(1 for r in refs if r() is not None)
-        assert alive == 0, f"{alive}/10 frames still alive after close()"
+        assert alive == 0, f"{alive}/10 frames still alive after clear()"
 
     def test_load_clears_previous_frames(self, media_svc):
         """Second load() releases first frame set."""
@@ -405,7 +410,8 @@ class TestGarbageCollectability:
         media_svc._frames = [
             Image.new("RGB", (4, 4), (i, 0, 0)) for i in range(10)
         ]
-        media_svc.close()
+        media_svc._frames.clear()
+        media_svc._decoder = None
         del media_svc
         gc.collect()
 

@@ -49,13 +49,16 @@ class DisplayService:
         self.working_dir = Path(tempfile.mkdtemp(prefix='trcc_work_'))
 
         # State
-        self.current_image: Any | None = None  # PIL Image
+        self.current_image: Any | None = None  # Native surface (QImage or PIL)
         self.current_theme_path: Path | None = None
         self.auto_send = True
         self.rotation = 0         # directionB: 0, 90, 180, 270
         self.brightness = 50      # percent (0-100)
         self.split_mode = 0       # myLddVal: 0=off, 1-3=Dynamic Island style
         self._split_overlay_cache: dict[tuple[int, int], Any] = {}  # (style,rot)->PIL
+
+        # Pre-baked video frame cache (None when inactive)
+        self._cache: Any | None = None  # VideoFrameCache
 
         # Theme directories
         self._local_dir: Path | None = None
@@ -125,11 +128,15 @@ class DisplayService:
     def set_rotation(self, degrees: int) -> Any | None:
         """Set display rotation. Returns rendered image or None."""
         self.rotation = degrees % 360
+        if self._cache and self._cache.active:
+            self._cache.rebuild_from_rotation(self.rotation)
         return self._render_and_process()
 
     def set_brightness(self, percent: int) -> Any | None:
         """Set display brightness. Returns rendered image or None."""
         self.brightness = max(0, min(100, percent))
+        if self._cache and self._cache.active:
+            self._cache.rebuild_from_brightness(self.brightness)
         return self._render_and_process()
 
     def set_split_mode(self, mode: int) -> Any | None:
@@ -145,12 +152,36 @@ class DisplayService:
         """True if current resolution supports split mode."""
         return self.lcd_size in SPLIT_MODE_RESOLUTIONS
 
+    # -- Frame conversion --------------------------------------------------
+
+    def _convert_media_frames(self) -> None:
+        """Convert MediaService's PIL frames to native renderer surfaces.
+
+        VideoDecoder produces PIL Images, but the rendering pipeline
+        (QtRenderer) needs QImage.  Convert in-place once at load time
+        so all downstream code (video_tick, _build_video_cache, overlay)
+        sees native surfaces.
+        """
+        frames = self.media._frames
+        if not frames:
+            return
+        r = ImageService._r()
+        try:
+            r.surface_size(frames[0])
+        except (AttributeError, TypeError):
+            self.media._frames = [r.from_pil(f) for f in frames]
+
     # -- Theme loading (delegates to ThemeLoader) --------------------------
 
     def load_local_theme(self, theme) -> dict:
         """Load a local theme with DC config, mask, and overlay."""
+        self._cache = None  # Invalidate previous video cache
         result = self._loader.load_local_theme(
             theme, self.lcd_size, self.working_dir)
+
+        # Convert PIL frames → native renderer surfaces (if animated)
+        if result.get('is_animated'):
+            self._convert_media_frames()
 
         # Wire up state from loader result
         self._mask_source_dir = result.get('mask_source_dir')
@@ -164,6 +195,10 @@ class DisplayService:
             if first_frame:
                 self.current_image = first_frame
 
+        # Build pre-baked cache for animated themes
+        if result.get('is_animated') and self.media.has_frames:
+            self._build_video_cache()
+
         # Render with adjustments if we have a static image
         if result.get('image') and not result.get('is_animated'):
             result['image'] = self._render_and_process()
@@ -172,12 +207,28 @@ class DisplayService:
 
     def load_cloud_theme(self, theme) -> dict:
         """Load a cloud video theme as background."""
+        self._cache = None  # Invalidate previous video cache
         result = self._loader.load_cloud_theme(theme, self.working_dir)
+        log.debug("load_cloud_theme: loader result keys=%s", list(result.keys()))
+
+        # Convert PIL frames → native renderer surfaces
+        self._convert_media_frames()
+        log.debug("load_cloud_theme: frames converted, count=%d",
+                  len(self.media._frames) if self.media._frames else 0)
 
         first_frame = self.media.get_frame(0)
+        log.debug("load_cloud_theme: first_frame=%s",
+                  type(first_frame).__name__ if first_frame else None)
         if first_frame:
             self.current_image = first_frame
         result['image'] = self.current_image
+
+        # Build pre-baked cache for cloud video themes
+        if self.media.has_frames:
+            log.debug("load_cloud_theme: building video cache")
+            self._build_video_cache()
+            log.debug("load_cloud_theme: cache active=%s",
+                      self._cache.active if self._cache else False)
         return result
 
     def apply_mask(self, mask_dir: Path) -> Any | None:
@@ -213,17 +264,26 @@ class DisplayService:
     def _render_and_process(self) -> Any | None:
         """Render overlay on current image, apply brightness + rotation."""
         if not self.current_image:
+            log.debug("_render_and_process: no current_image")
             return None
         image = self.current_image
+        log.debug("_render_and_process: current_image type=%s overlay_enabled=%s",
+                  type(image).__name__, self.overlay.enabled)
         if self.overlay.enabled:
             image = self.overlay.render(image)
+            log.debug("_render_and_process: after overlay type=%s", type(image).__name__)
         return self._apply_adjustments(image)
 
     def render_overlay(self) -> Any | None:
         """Force-render overlay (for live editing). Returns image or None."""
         if not self.current_image:
+            log.debug("render_overlay: no current_image, creating black bg")
             self._create_black_background()
+        log.debug("render_overlay: current_image type=%s bg=%s",
+                  type(self.current_image).__name__ if self.current_image else None,
+                  type(self.overlay.background).__name__ if self.overlay.background else None)
         image = self.overlay.render(self.current_image, force=True)
+        log.debug("render_overlay: result type=%s", type(image).__name__)
         return self._apply_adjustments(image)
 
     def _apply_adjustments(self, image: Any) -> Any:
@@ -232,8 +292,7 @@ class DisplayService:
             return image
         image = ImageService.apply_brightness(image, self.brightness)
         image = ImageService.apply_rotation(image, self.rotation)
-        image = self._apply_split_overlay(image)
-        return image
+        return self._apply_split_overlay(image)
 
     def _apply_split_overlay(self, image: Any) -> Any:
         """Composite Dynamic Island overlay for widescreen split mode."""
@@ -254,26 +313,28 @@ class DisplayService:
             return image
 
         try:
-            from PIL import Image as PILImage
-            if image.mode != 'RGBA':
-                image = image.convert('RGBA')
-            if overlay.size != image.size:
-                overlay = overlay.resize(image.size, PILImage.Resampling.LANCZOS)
-            image = PILImage.alpha_composite(image, overlay)
-            return image.convert('RGB')
+            r = ImageService._r()
+            image = r.convert_to_rgba(image)
+            img_w, img_h = r.surface_size(image)
+            ovl_w, ovl_h = r.surface_size(overlay)
+            if (ovl_w, ovl_h) != (img_w, img_h):
+                overlay = r.resize(overlay, img_w, img_h)
+            image = r.composite(image, overlay, (0, 0))
+            return r.convert_to_rgb(image)
         except Exception as e:
             log.error("Split overlay composite failed: %s", e)
             return image
 
     @staticmethod
     def _load_split_overlay(asset_name: str) -> Any | None:
-        """Load a split overlay PNG from assets/gui/ as PIL RGBA Image."""
+        """Load a split overlay PNG from assets/gui/ as native surface."""
         import os
         try:
-            from PIL import Image as PILImage
             path = os.path.join(RESOURCES_DIR, asset_name)
             if os.path.exists(path):
-                return PILImage.open(path).convert('RGBA')
+                r = ImageService._r()
+                img = r.open_image(path)
+                return r.convert_to_rgba(img)
             log.warning("Split overlay not found: %s", path)
         except Exception as e:
             log.error("Failed to load split overlay %s: %s", asset_name, e)
@@ -282,6 +343,7 @@ class DisplayService:
     def set_video_fit_mode(self, mode: str) -> Any | None:
         """Set video fit mode. Re-decodes frames. Returns preview image."""
         if self.media.set_fit_mode(mode):
+            self._convert_media_frames()
             frame = self.media.get_frame()
             if frame:
                 self.current_image = frame
@@ -297,18 +359,29 @@ class DisplayService:
             return None
 
         self.current_image = frame
+        log.debug("video_tick: frame type=%s cache=%s",
+                  type(frame).__name__, self._cache.active if self._cache else None)
 
+        # Fast path: pre-baked cache active — zero PIL work per tick
+        if self._cache and self._cache.active:
+            cf = self.media.state.current_frame
+            total = self.media.state.total_frames
+            index = (cf - 1) % total if total > 0 else 0
+            return {
+                'preview': self._cache.get_preview(index),
+                'progress': progress,
+                'send_image': None,
+                'encoded': self._cache.get_encoded(index),
+            }
+
+        # Fallback: original pipeline (overlay disabled, or cache not built)
         if self.overlay.enabled:
             frame = self.overlay.render(frame)
 
         processed = self._apply_adjustments(frame)
 
-        result: dict[str, Any] = {'preview': processed, 'progress': progress}
-
-        if should_send and self.auto_send:
-            result['send_image'] = processed
-        else:
-            result['send_image'] = None
+        result = {'preview': processed, 'progress': progress,
+                  'send_image': processed if (should_send and self.auto_send) else None}
 
         return result
 
@@ -319,6 +392,41 @@ class DisplayService:
     def is_video_playing(self) -> bool:
         """Check if video is currently playing."""
         return self.media.is_playing
+
+    # -- Video frame cache -------------------------------------------------
+
+    def _build_video_cache(self) -> None:
+        """Build pre-baked video frame cache from current state."""
+        from .video_cache import VideoFrameCache
+
+        device = self.devices.selected
+        if device:
+            protocol, resolution, fbl, use_jpeg = device.encoding_params
+        else:
+            protocol, resolution, fbl, use_jpeg = 'scsi', (320, 320), None, False
+        cache = VideoFrameCache()
+        cache.build(
+            frames=self.media._frames,
+            mask=(self.overlay.theme_mask
+                  if self.overlay.enabled and self.overlay.theme_mask_visible
+                  else None),
+            mask_position=self.overlay.theme_mask_position,
+            overlay_svc=self.overlay if self.overlay.enabled else None,
+            metrics=self.overlay._metrics,
+            brightness=self.brightness,
+            rotation=self.rotation,
+            protocol=protocol,
+            resolution=resolution,
+            fbl=fbl,
+            use_jpeg=use_jpeg,
+        )
+        self._cache = cache
+
+    def rebuild_video_cache_metrics(self, metrics: Any) -> None:
+        """Rebuild video cache with new metrics text."""
+        if self._cache and self._cache.active:
+            self._cache.rebuild_from_metrics(
+                self.overlay if self.overlay.enabled else None, metrics)
 
     # -- LCD send ----------------------------------------------------------
 
@@ -335,10 +443,10 @@ class DisplayService:
     def _encode_for_device(self, img: Any) -> bytes:
         """Encode image for LCD device."""
         device = self.devices.selected
-        protocol = device.protocol if device else 'scsi'
-        resolution = device.resolution if device else (320, 320)
-        fbl = device.fbl_code if device else None
-        use_jpeg = device.use_jpeg if device else True
+        if device:
+            protocol, resolution, fbl, use_jpeg = device.encoding_params
+        else:
+            protocol, resolution, fbl, use_jpeg = 'scsi', (320, 320), None, True
         return ImageService.encode_for_device(img, protocol, resolution, fbl, use_jpeg)
 
     # -- Theme save (delegates to ThemePersistence) ------------------------

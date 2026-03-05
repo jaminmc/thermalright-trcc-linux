@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trcc-linux"
-version = "7.0.5"
+version = "7.0.6"
 description = "Linux implementation of Thermalright LCD Control Center"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -113,7 +113,7 @@ artifacts = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

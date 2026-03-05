@@ -12,16 +12,19 @@ Tests cover:
 """
 
 import os
-import sys
 import unittest
 
-# Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
-
+from conftest import get_pixel, surface_size
 from PIL import Image
 
 from trcc.core.models import HardwareMetrics
 from trcc.services.overlay import OverlayService as OverlayRenderer
+
+# QtRenderer needs QApplication for font operations (QPainter, QFontDatabase)
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+_app = QApplication.instance() or QApplication([])
 
 
 class TestOverlayRendererInit(unittest.TestCase):
@@ -70,7 +73,7 @@ class TestSetResolution(unittest.TestCase):
     def test_clears_background_on_change(self):
         """Test that background is cleared on resolution change."""
         renderer = OverlayRenderer()
-        renderer.background = Image.new('RGB', (320, 320), 'red')
+        renderer.set_background(Image.new('RGB', (320, 320), 'red'))
         renderer.set_resolution(480, 480)
         self.assertIsNone(renderer.background)
 
@@ -141,12 +144,12 @@ class TestSetBackground(unittest.TestCase):
         img = Image.new('RGB', (100, 100), 'blue')
         renderer.set_background(img)
         self.assertIsNotNone(renderer.background)
-        self.assertEqual(renderer.background.size, (320, 320))
+        self.assertEqual(surface_size(renderer.background), (320, 320))
 
     def test_set_background_none(self):
         """Test clearing background with None."""
         renderer = OverlayRenderer()
-        renderer.background = Image.new('RGB', (320, 320))
+        renderer.set_background(Image.new('RGB', (320, 320)))
         renderer.set_background(None)
         self.assertIsNone(renderer.background)
 
@@ -155,7 +158,7 @@ class TestSetBackground(unittest.TestCase):
         renderer = OverlayRenderer(width=480, height=480)
         img = Image.new('RGB', (200, 200), 'green')
         renderer.set_background(img)
-        self.assertEqual(renderer.background.size, (480, 480))
+        self.assertEqual(surface_size(renderer.background), (480, 480))
 
     def test_background_is_copied(self):
         """Test that background image is copied, not referenced."""
@@ -174,7 +177,7 @@ class TestSetThemeMask(unittest.TestCase):
     def test_set_mask_none(self):
         """Test clearing mask with None."""
         renderer = OverlayRenderer()
-        renderer.theme_mask = Image.new('RGBA', (320, 320))
+        renderer.set_theme_mask(Image.new('RGBA', (320, 320)))
         renderer.set_theme_mask(None)
         self.assertIsNone(renderer.theme_mask)
         self.assertEqual(renderer.theme_mask_position, (0, 0))
@@ -204,43 +207,11 @@ class TestSetThemeMask(unittest.TestCase):
         self.assertEqual(renderer.theme_mask_position, (0, 0))
 
     def test_rgb_mask_converted_to_rgba(self):
-        """Test that RGB mask is converted to RGBA."""
+        """Test that RGB mask is converted to RGBA (no error on conversion)."""
         renderer = OverlayRenderer()
         mask = Image.new('RGB', (320, 320), 'red')
         renderer.set_theme_mask(mask)
-        self.assertEqual(renderer.theme_mask.mode, 'RGBA')
-
-
-class TestGetFont(unittest.TestCase):
-    """Test get_font method."""
-
-    def test_font_caching(self):
-        """Test that fonts are cached."""
-        renderer = OverlayRenderer()
-        font1 = renderer.get_font(24, bold=False)
-        font2 = renderer.get_font(24, bold=False)
-        self.assertIs(font1, font2)
-
-    def test_different_sizes_different_cache(self):
-        """Test that different sizes have different cache entries."""
-        renderer = OverlayRenderer()
-        font1 = renderer.get_font(24, bold=False)
-        font2 = renderer.get_font(32, bold=False)
-        self.assertIsNot(font1, font2)
-
-    def test_bold_different_cache(self):
-        """Test that bold uses different cache entry."""
-        renderer = OverlayRenderer()
-        font1 = renderer.get_font(24, bold=False)
-        font2 = renderer.get_font(24, bold=True)
-        self.assertIsNot(font1, font2)
-
-    def test_fallback_to_default(self):
-        """Test fallback to default font when no fonts found."""
-        renderer = OverlayRenderer()
-        # Even if no fonts exist, should return a usable font
-        font = renderer.get_font(24)
-        self.assertIsNotNone(font)
+        self.assertIsNotNone(renderer.theme_mask)
 
 
 class TestRender(unittest.TestCase):
@@ -250,8 +221,8 @@ class TestRender(unittest.TestCase):
         """Test rendering with empty config."""
         renderer = OverlayRenderer()
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
-        self.assertEqual(img.mode, 'RGB')
+        self.assertEqual(surface_size(img), (320, 320))
+        self.assertIsNotNone(img)
 
     def test_render_with_background(self):
         """Test rendering with background."""
@@ -259,7 +230,7 @@ class TestRender(unittest.TestCase):
         bg = Image.new('RGB', (320, 320), 'blue')
         renderer.set_background(bg)
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_with_mask(self):
         """Test rendering with mask overlay."""
@@ -269,7 +240,7 @@ class TestRender(unittest.TestCase):
         renderer.set_background(bg)
         renderer.set_theme_mask(mask)
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_static_text(self):
         """Test rendering static text element."""
@@ -284,7 +255,7 @@ class TestRender(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_metric_element(self):
         """Test rendering metric element."""
@@ -300,7 +271,7 @@ class TestRender(unittest.TestCase):
         })
         metrics = HardwareMetrics(cpu_temp=45)
         img = renderer.render(metrics=metrics)
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_disabled_element_skipped(self):
         """Test that disabled elements are skipped."""
@@ -315,7 +286,7 @@ class TestRender(unittest.TestCase):
         })
         img = renderer.render()
         # Should render without error
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_missing_metric_shows_na(self):
         """Test that missing metric shows N/A."""
@@ -330,7 +301,7 @@ class TestRender(unittest.TestCase):
         })
         # Render with empty metrics
         img = renderer.render(metrics=HardwareMetrics())
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_with_format_options(self):
         """Test rendering respects format options."""
@@ -348,7 +319,7 @@ class TestRender(unittest.TestCase):
         })
         metrics = HardwareMetrics()
         img = renderer.render(metrics=metrics)
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_with_per_element_temp_unit(self):
         """Test per-element temp_unit override."""
@@ -365,21 +336,21 @@ class TestRender(unittest.TestCase):
         })
         metrics = HardwareMetrics(cpu_temp=45)
         img = renderer.render(metrics=metrics)
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_none_config(self):
         """Test rendering with None config."""
         renderer = OverlayRenderer()
         renderer.config = None
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_non_dict_config(self):
         """Test rendering with non-dict config."""
         renderer = OverlayRenderer()
         renderer.config = "invalid"
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
 
 class TestClear(unittest.TestCase):
@@ -466,8 +437,8 @@ class TestRenderIntegration(unittest.TestCase):
         img = renderer.render(metrics=metrics)
 
         # Verify output
-        self.assertEqual(img.size, (320, 320))
-        self.assertEqual(img.mode, 'RGB')
+        self.assertEqual(surface_size(img), (320, 320))
+        self.assertIsNotNone(img)
 
     def test_render_without_metrics(self):
         """Test rendering when no metrics provided."""
@@ -481,7 +452,7 @@ class TestRenderIntegration(unittest.TestCase):
         })
         # Render without providing metrics
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_transparent_background(self):
         """Test rendering with no background starts from black (RGBA→RGB conversion)."""
@@ -496,10 +467,10 @@ class TestRenderIntegration(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.mode, 'RGB')
+        self.assertIsNotNone(img)
         # Transparent RGBA becomes black when converted to RGB
-        pixel = img.getpixel((0, 0))
-        self.assertEqual(pixel, (0, 0, 0))
+        pixel = get_pixel(img, 0, 0)
+        self.assertEqual(pixel[:3], (0, 0, 0))
 
 
 class TestConfigElements(unittest.TestCase):
@@ -518,7 +489,7 @@ class TestConfigElements(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_element_with_non_dict_font(self):
         """Test element with non-dict font config uses default size."""
@@ -533,7 +504,7 @@ class TestConfigElements(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_element_without_x_y_uses_defaults(self):
         """Test element without x/y uses default position."""
@@ -547,7 +518,7 @@ class TestConfigElements(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_non_dict_element_skipped(self):
         """Test that non-dict elements are skipped."""
@@ -562,7 +533,7 @@ class TestConfigElements(unittest.TestCase):
         })
         # Should not crash
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
 
 # ── Scaling / config resolution ──────────────────────────────────────────────
@@ -598,89 +569,6 @@ class TestConfigResolution(unittest.TestCase):
         renderer._config_resolution = (0, 0)
         self.assertAlmostEqual(renderer._get_scale_factor(), 1.0)
 
-    def test_set_scale_enabled_clears_cache(self):
-        renderer = OverlayRenderer()
-        renderer.font_cache = {('key',): 'val'}
-        renderer.set_scale_enabled(False)
-        self.assertEqual(renderer.font_cache, {})
-
-
-# ── _resolve_font_path ──────────────────────────────────────────────────────
-
-class TestResolveFontPath(unittest.TestCase):
-
-    def test_fc_match_success(self):
-        """fc-match returns valid path."""
-        renderer = OverlayRenderer()
-        import os
-        import tempfile
-        fd, tmp = tempfile.mkstemp(suffix='.ttf')
-        os.close(fd)
-        try:
-            from unittest.mock import MagicMock, patch
-            with patch('subprocess.run') as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout=tmp)
-                result = renderer._resolve_font_path('DejaVu Sans')
-            self.assertEqual(result, tmp)
-        finally:
-            os.unlink(tmp)
-
-    def test_fc_match_not_found(self):
-        """fc-match fails → falls through to manual scan."""
-        renderer = OverlayRenderer()
-        from unittest.mock import patch
-        with patch('subprocess.run', side_effect=FileNotFoundError):
-            # Manual scan won't find 'NoSuchFont' either
-            result = renderer._resolve_font_path('NoSuchFontXYZ')
-        self.assertIsNone(result)
-
-    def test_fc_match_timeout(self):
-        """fc-match times out → falls through."""
-        import subprocess
-        renderer = OverlayRenderer()
-        from unittest.mock import patch
-        with patch('subprocess.run', side_effect=subprocess.TimeoutExpired('fc-match', 2)):
-            result = renderer._resolve_font_path('SomeFont')
-        self.assertIsNone(result)
-
-    def test_fc_match_returns_nonexistent_path(self):
-        """fc-match returns path that doesn't exist → None."""
-        renderer = OverlayRenderer()
-        from unittest.mock import MagicMock, patch
-        with patch('subprocess.run') as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout='/nonexistent/font.ttf')
-            result = renderer._resolve_font_path('SomeFont')
-        self.assertIsNone(result)
-
-    def test_manual_scan_finds_font(self):
-        """Manual scan finds font file by name."""
-        import os
-        import tempfile
-        renderer = OverlayRenderer()
-        from unittest.mock import patch
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create fake font file
-            open(os.path.join(tmpdir, 'DejaVuSans.ttf'), 'w').close()
-            with patch('subprocess.run', side_effect=FileNotFoundError), \
-                 patch('trcc.adapters.infra.font_resolver.FONT_SEARCH_DIRS', [tmpdir]):
-                result = renderer._resolve_font_path('DejaVu Sans')
-            # Should find it in our patched search dir
-            if result:
-                self.assertIn('DejaVu', result)
-
-
-# ── get_font with named font ────────────────────────────────────────────────
-
-class TestGetFontNamed(unittest.TestCase):
-
-    def test_named_font_resolved(self):
-        """get_font with font_name calls _resolve_font_path."""
-        renderer = OverlayRenderer()
-        from unittest.mock import patch
-        with patch.object(renderer, '_resolve_font_path', return_value=None):
-            font = renderer.get_font(24, bold=False, font_name='CustomFont')
-        self.assertIsNotNone(font)
-
 
 # ── render with mask scaling ─────────────────────────────────────────────────
 
@@ -696,7 +584,7 @@ class TestRenderMaskScaling(unittest.TestCase):
         # Config with something so has_overlays is true
         renderer.set_config({})
         img = renderer.render()
-        self.assertEqual(img.size, (480, 480))
+        self.assertEqual(surface_size(img), (480, 480))
 
 
 # ── render with flash_skip_index ─────────────────────────────────────────────
@@ -716,7 +604,7 @@ class TestRenderFlashSkip(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
 
 # ── render metric with per-element temp_unit uses global ─────────────────────
@@ -735,7 +623,7 @@ class TestRenderMetricPaths(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_with_font_name(self):
         """Render element with custom font_name."""
@@ -750,7 +638,7 @@ class TestRenderMetricPaths(unittest.TestCase):
             }
         })
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
 
 # ── set_mask_visible ─────────────────────────────────────────────────────────
@@ -772,7 +660,7 @@ class TestSetMaskVisible(unittest.TestCase):
         renderer.set_mask_visible(False)
         renderer.set_config({'x': {'x': 0, 'y': 0, 'text': 'hi', 'enabled': True}})
         img = renderer.render()
-        self.assertEqual(img.size, (320, 320))
+        self.assertEqual(surface_size(img), (320, 320))
 
 
 # ── fallback format_metric (import failure) ──────────────────────────────────

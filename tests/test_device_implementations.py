@@ -4,35 +4,35 @@ import struct
 import unittest
 from unittest.mock import patch
 
+from trcc.core.encoding import rgb_to_bytes
 from trcc.core.models import IMPL_NAMES, LCDDeviceConfig
-from trcc.services.image import ImageService
 
 
 class TestRGBToBytes(unittest.TestCase):
-    """RGB565 big-endian conversion via ImageService."""
+    """RGB565 big-endian conversion."""
 
     def test_white(self):
-        result = ImageService.rgb_to_bytes(255, 255, 255, '>')
+        result = rgb_to_bytes(255, 255, 255, '>')
         self.assertEqual(result, struct.pack('>H', 0xFFFF))
 
     def test_black(self):
-        result = ImageService.rgb_to_bytes(0, 0, 0, '>')
+        result = rgb_to_bytes(0, 0, 0, '>')
         self.assertEqual(result, struct.pack('>H', 0x0000))
 
     def test_pure_red(self):
-        result = ImageService.rgb_to_bytes(255, 0, 0, '>')
+        result = rgb_to_bytes(255, 0, 0, '>')
         self.assertEqual(result, struct.pack('>H', 0xF800))
 
     def test_pure_green(self):
-        result = ImageService.rgb_to_bytes(0, 255, 0, '>')
+        result = rgb_to_bytes(0, 255, 0, '>')
         self.assertEqual(result, struct.pack('>H', 0x07E0))
 
     def test_pure_blue(self):
-        result = ImageService.rgb_to_bytes(0, 0, 255, '>')
+        result = rgb_to_bytes(0, 0, 255, '>')
         self.assertEqual(result, struct.pack('>H', 0x001F))
 
     def test_output_is_two_bytes(self):
-        result = ImageService.rgb_to_bytes(128, 64, 32, '>')
+        result = rgb_to_bytes(128, 64, 32, '>')
         self.assertEqual(len(result), 2)
 
 

@@ -207,10 +207,6 @@ class MediaService:
         return self._source_path
 
     @property
-    def progress(self) -> float:
-        return self._state.progress
-
-    @property
     def current_time_str(self) -> str:
         return self._state.current_time_str
 
@@ -226,10 +222,3 @@ class MediaService:
     def state(self) -> VideoState:
         return self._state
 
-    def close(self) -> None:
-        """Release decoder resources."""
-        if self._decoder:
-            self._decoder.close()
-            self._decoder = None
-        self._frames.clear()
-        self._delays.clear()

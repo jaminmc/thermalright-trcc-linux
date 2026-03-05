@@ -209,10 +209,20 @@ class UCImageCut(QWidget):
         self._rebuild_display()
 
     def _get_rotated_source(self):
-        """Get source image with rotation applied."""
+        """Get source image with rotation applied.
+
+        ``_source_image`` is PIL (from file dialog).  ``ImageService`` operates
+        on native renderer surfaces, so we convert at the boundary and convert
+        back to PIL for the crop/paste operations downstream.
+        """
         if not self._source_image:
             return None
-        return ImageService.apply_rotation(self._source_image, self._rotation)
+        if self._rotation == 0:
+            return self._source_image
+        renderer = ImageService._r()
+        native = renderer.from_pil(self._source_image)
+        rotated = renderer.apply_rotation(native, self._rotation)
+        return renderer.to_pil(rotated)
 
     def _get_cropped_output(self):
         """Get the final cropped PIL Image at target resolution."""

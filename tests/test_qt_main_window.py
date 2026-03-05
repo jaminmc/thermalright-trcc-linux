@@ -718,7 +718,6 @@ class TestLEDHandler:
         assert handler._active is False
         assert handler._controller is None
         assert handler._style_id == 0
-        assert handler._sensor_counter == 0
 
     def test_active_property_false_initially(self, handler):
         assert handler.active is False
@@ -872,33 +871,6 @@ class TestLEDHandler:
         mock_ctrl.initialize.assert_called_once_with(device, 2)
         handler.stop()
 
-    def test_show_resets_sensor_counter(self, handler):
-        handler._sensor_counter = 5
-        device = MagicMock()
-        device.model = "AX120_DIGITAL"
-        device.led_style_id = 1
-        mock_ctrl = MagicMock()
-        mock_ctrl.state = _make_mock_led_state()
-
-        with (
-            patch(
-                "trcc.qt_components.qt_app_mvc.LEDDeviceController",
-                return_value=mock_ctrl,
-            ),
-            patch("trcc.services.led.LEDService") as mock_led_svc,
-            patch.object(handler, "_connect_signals"),
-            patch("trcc.qt_components.qt_app_mvc.settings") as mock_settings,
-        ):
-            mock_led_svc.resolve_style_id.return_value = 1
-            mock_led_svc.get_style_info.return_value = MagicMock(
-                segment_count=10, zone_count=1
-            )
-            mock_settings.temp_unit = 0
-            handler.show(device)
-
-        assert handler._sensor_counter == 0
-        handler.stop()
-
     def test_stop_cleans_up_controller(self, handler):
         mock_ctrl = MagicMock()
         handler._controller = mock_ctrl
@@ -924,35 +896,6 @@ class TestLEDHandler:
         handler._active = True
         handler._on_tick()
         mock_ctrl.tick.assert_called_once()
-
-    def test_tick_increments_sensor_counter(self, handler):
-        mock_ctrl = MagicMock()
-        handler._controller = mock_ctrl
-        handler._active = True
-        handler._sensor_counter = 0
-        handler._on_tick()
-        assert handler._sensor_counter == 1
-
-    def test_tick_polls_sensors_at_7(self, handler):
-        """Sensors polled every 7 ticks."""
-        mock_ctrl = MagicMock()
-        handler._controller = mock_ctrl
-        handler._active = True
-        handler._sensor_counter = 6
-        with patch.object(handler, "_poll_sensors") as mock_poll:
-            handler._on_tick()
-        mock_poll.assert_called_once()
-        assert handler._sensor_counter == 0
-
-    def test_tick_does_not_poll_before_7(self, handler):
-        """Sensors NOT polled before 7th tick."""
-        mock_ctrl = MagicMock()
-        handler._controller = mock_ctrl
-        handler._active = True
-        handler._sensor_counter = 3
-        with patch.object(handler, "_poll_sensors") as mock_poll:
-            handler._on_tick()
-        mock_poll.assert_not_called()
 
     def test_on_mode_changed_no_controller(self, handler):
         """_on_mode_changed with no controller is a no-op."""
@@ -1023,25 +966,17 @@ class TestLEDHandler:
         handler._on_colors_update(colors)
         handler._panel.set_led_colors.assert_called_once_with(colors)
 
-    def test_poll_sensors_no_controller(self, handler):
-        """_poll_sensors with no controller is a no-op."""
-        handler._poll_sensors()  # Should not raise
+    def test_update_from_metrics_no_controller(self, handler):
+        """update_from_metrics with no controller is a no-op."""
+        handler.update_from_metrics(MagicMock())  # Should not raise
 
-    def test_poll_sensors_updates_controller_and_panel(self, handler):
+    def test_update_from_metrics_forwards_to_controller_and_panel(self, handler):
         mock_ctrl = MagicMock()
         handler._controller = mock_ctrl
-        metrics = {"cpu_temp": 65}
-        with patch("trcc.qt_components.qt_app_mvc.get_all_metrics", return_value=metrics):
-            handler._poll_sensors()
+        metrics = MagicMock()
+        handler.update_from_metrics(metrics)
         mock_ctrl.update_metrics.assert_called_once_with(metrics)
         handler._panel.update_metrics.assert_called_once_with(metrics)
-
-    def test_poll_sensors_handles_exception(self, handler):
-        mock_ctrl = MagicMock()
-        handler._controller = mock_ctrl
-        with patch("trcc.qt_components.qt_app_mvc.get_all_metrics", side_effect=RuntimeError("oops")):
-            handler._poll_sensors()  # Should not raise
-        mock_ctrl.update_metrics.assert_not_called()
 
 
 # =========================================================================

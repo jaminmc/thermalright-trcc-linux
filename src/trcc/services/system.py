@@ -13,6 +13,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
     from ..core.models import SensorInfo
 
 log = logging.getLogger(__name__)
+
+# Module-level cache: memory clock never changes at runtime.
+# _SENTINEL distinguishes "not yet queried" from "queried, returned None".
+_SENTINEL = object()
+_mem_clock_cache: object | float | None = _SENTINEL
 
 
 class SystemService:
@@ -48,6 +54,10 @@ class SystemService:
         self._enumerator.start_polling()
         return sensors
 
+    def set_poll_interval(self, seconds: float) -> None:
+        """Set background sensor poll interval (user's data refresh setting)."""
+        self._enumerator.set_poll_interval(seconds)
+
     def start_polling(self) -> None:
         """Start background sensor polling thread."""
         self._ensure_discovered()
@@ -67,11 +77,6 @@ class SystemService:
         """All discovered sensors."""
         self._ensure_discovered()
         return self._enumerator.get_sensors()
-
-    def sensors_by_category(self, category: str) -> list[SensorInfo]:
-        """Filter sensors by category (temperature, fan, clock, etc.)."""
-        self._ensure_discovered()
-        return self._enumerator.get_by_category(category)
 
     @property
     def enumerator(self):
@@ -293,11 +298,8 @@ class SystemService:
         elif metric.startswith('time_') or metric.startswith('date_'):
             return f"{int(value):02d}"
         elif 'temp' in metric:
-            from ..core.models import celsius_to_fahrenheit
-            if temp_unit == 1:  # Fahrenheit
-                return f"{celsius_to_fahrenheit(value):.0f}°F"
-            else:
-                return f"{value:.0f}°C"
+            suffix = "°F" if temp_unit == 1 else "°C"
+            return f"{value:.0f}{suffix}"
         elif 'percent' in metric or 'usage' in metric or 'activity' in metric:
             return f"{value:.0f}%"
         elif 'freq' in metric or 'clock' in metric:
@@ -404,7 +406,17 @@ class SystemService:
 
     @staticmethod
     def _fallback_mem_clock() -> Optional[float]:
-        """Memory clock via dmidecode / lshw / EDAC."""
+        """Memory clock via dmidecode / lshw / EDAC.  Cached after first call."""
+        global _mem_clock_cache  # noqa: PLW0603
+        if _mem_clock_cache is not _SENTINEL:
+            return _mem_clock_cache  # type: ignore[return-value]
+        value = SystemService._probe_mem_clock()
+        _mem_clock_cache = value
+        return value
+
+    @staticmethod
+    def _probe_mem_clock() -> Optional[float]:
+        """Actually probe memory clock (called once, result cached)."""
         from trcc.adapters.system.hardware import _privileged_cmd
         try:
             result = subprocess.run(
@@ -487,6 +499,31 @@ def _get_instance() -> SystemService:
 def get_all_metrics() -> HardwareMetrics:
     """Get all hardware metrics (lazy singleton)."""
     return _get_instance().all_metrics
+
+
+def set_poll_interval(seconds: float) -> None:
+    """Set background sensor poll interval (user's data refresh setting)."""
+    _get_instance().set_poll_interval(seconds)
+
+
+def get_cached_metrics(max_age: float = 0.5) -> HardwareMetrics:
+    """Return cached metrics if fresh enough, else poll once.
+
+    Multiple Qt timers (metrics, info panel, activity sidebar, LED handler)
+    all need metrics each second.  This ensures only ONE actual sensor poll
+    per ``max_age`` window — callers that fire within the same tick share
+    the same result.
+    """
+    global _cached_metrics, _cached_metrics_time  # noqa: PLW0603
+    now = time.monotonic()
+    if _cached_metrics is None or (now - _cached_metrics_time) > max_age:
+        _cached_metrics = get_all_metrics()
+        _cached_metrics_time = now
+    return _cached_metrics
+
+
+_cached_metrics: HardwareMetrics | None = None
+_cached_metrics_time: float = 0.0
 
 
 def format_metric(key: str, value: float, **kwargs: Any) -> str:

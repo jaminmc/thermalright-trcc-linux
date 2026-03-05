@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections import deque
 from typing import Any, Optional
 
 from ..core.models import DeviceInfo, LCDDeviceConfig
@@ -22,7 +23,17 @@ class DeviceService:
         self._selected: DeviceInfo | None = None
         self._send_lock = threading.Lock()
         self._send_busy = False
-        self.on_frame_sent: Any = None  # callback(PIL Image) — called after every send_pil
+        self.on_frame_sent: Any = None  # callback(image) — called after every send
+        # Encoded frame cache — skip re-encoding when same image is sent repeatedly
+        # (C#-matching 150ms refresh sends the same frame ~6x before metrics change)
+        self._last_encode_id: int | None = None
+        self._last_encode_data: bytes | None = None
+
+        # Persistent send worker — avoids 30 thread creations/sec during video
+        self._send_queue: deque[tuple[bytes, int, int]] = deque(maxlen=1)
+        self._send_event = threading.Event()
+        self._send_worker: threading.Thread | None = None
+        self._send_shutdown = False
 
     # ── Detection ────────────────────────────────────────────────────
 
@@ -103,24 +114,6 @@ class DeviceService:
         """List of detected devices."""
         return self._devices
 
-    # ── Handshake ────────────────────────────────────────────────────
-
-    def handshake(self, device: DeviceInfo) -> Any:
-        """Run protocol handshake for HID/Bulk devices.
-
-        Returns:
-            HandshakeResult or None on error/import failure.
-        """
-        try:
-            from ..adapters.device.factory import DeviceProtocolFactory
-
-            protocol = DeviceProtocolFactory.get_protocol(device)
-            if hasattr(protocol, 'handshake'):
-                return protocol.handshake()
-        except Exception as e:
-            log.error("Handshake error: %s", e)
-        return None
-
     # ── Send ─────────────────────────────────────────────────────────
 
     def send_rgb565(self, data: bytes, width: int, height: int) -> bool:
@@ -152,56 +145,91 @@ class DeviceService:
             with self._send_lock:
                 self._send_busy = False
 
-    def send_image(self, image: Any, width: int, height: int,
-                   byte_order: str = '>') -> bool:
-        """Convert PIL Image to RGB565 and send to device."""
-        from .image import ImageService
-
-        rgb565 = ImageService.to_rgb565(image, byte_order)
-        return self.send_rgb565(rgb565, width, height)
-
     def send_pil(self, image: Any, width: int, height: int) -> bool:
-        """Encode PIL Image for device and send.
+        """Encode image for device and send.
 
         Delegates encoding strategy to ImageService.encode_for_device() —
         JPEG for bulk/LY/HID-JPEG devices, RGB565 with pre-rotation for others.
+
+        Caches encoded bytes by image id() — the 150ms refresh timer
+        re-sends the same overlay frame ~6x per second between metric
+        changes.  Cache hit skips the entire encode pipeline.
         """
-        from .image import ImageService
+        img_id = id(image)
+        if img_id == self._last_encode_id and self._last_encode_data is not None:
+            data = self._last_encode_data
+        else:
+            from .image import ImageService
 
-        device = self._selected
-        protocol = device.protocol if device else 'scsi'
-        resolution = device.resolution if device else (320, 320)
-        fbl = device.fbl_code if device else None
-        use_jpeg = device.use_jpeg if device else True
+            if self._selected:
+                protocol, resolution, fbl, use_jpeg = self._selected.encoding_params
+            else:
+                protocol, resolution, fbl, use_jpeg = 'scsi', (320, 320), None, True
 
-        data = ImageService.encode_for_device(image, protocol, resolution, fbl, use_jpeg)
+            data = ImageService.encode_for_device(image, protocol, resolution, fbl, use_jpeg)
+            self._last_encode_id = img_id
+            self._last_encode_data = data
         ok = self.send_rgb565(data, width, height)
         if ok and self.on_frame_sent:
             self.on_frame_sent(image)
         return ok
 
     def send_rgb565_async(self, data: bytes, width: int, height: int) -> None:
-        """Send RGB565 bytes in a background thread. Thread-safe."""
-        if self.is_busy:
-            log.debug("send_rgb565_async: busy, skipping")
-            return
+        """Queue RGB565 bytes for the persistent send worker.
 
-        log.debug("send_rgb565_async: starting worker thread (%d bytes)", len(data))
-
-        def worker():
-            self.send_rgb565(data, width, height)
-
-        threading.Thread(target=worker, daemon=True).start()
+        Latest-frame-wins: if a frame is already queued, it's replaced.
+        The worker drains the queue one frame at a time.
+        """
+        self._ensure_send_worker()
+        self._send_queue.append((data, width, height))
+        self._send_event.set()
 
     def send_pil_async(self, image: Any, width: int, height: int) -> None:
-        """Convert PIL to RGB565 and send in background thread."""
+        """Encode image and queue for the persistent send worker.
+
+        Encoding runs inline (~0.5ms), then routes through the same
+        persistent worker as ``send_rgb565_async`` — no per-call Thread.
+        """
         if self.is_busy:
             return
 
-        def worker():
-            self.send_pil(image, width, height)
+        img_id = id(image)
+        if img_id == self._last_encode_id and self._last_encode_data is not None:
+            data = self._last_encode_data
+        else:
+            from .image import ImageService
 
-        threading.Thread(target=worker, daemon=True).start()
+            if self._selected:
+                protocol, resolution, fbl, use_jpeg = self._selected.encoding_params
+            else:
+                protocol, resolution, fbl, use_jpeg = 'scsi', (320, 320), None, True
+
+            data = ImageService.encode_for_device(
+                image, protocol, resolution, fbl, use_jpeg)
+            self._last_encode_id = img_id
+            self._last_encode_data = data
+
+        self.send_rgb565_async(data, width, height)
+        if self.on_frame_sent:
+            self.on_frame_sent(image)
+
+    def _ensure_send_worker(self) -> None:
+        """Start the persistent send worker if not already running."""
+        if self._send_worker and self._send_worker.is_alive():
+            return
+        self._send_shutdown = False
+        self._send_worker = threading.Thread(
+            target=self._send_worker_loop, daemon=True)
+        self._send_worker.start()
+
+    def _send_worker_loop(self) -> None:
+        """Persistent worker — drains send queue, sleeps when empty."""
+        while not self._send_shutdown:
+            self._send_event.wait(timeout=1.0)
+            self._send_event.clear()
+            while self._send_queue:
+                data, w, h = self._send_queue.popleft()
+                self.send_rgb565(data, w, h)
 
     @property
     def is_busy(self) -> bool:

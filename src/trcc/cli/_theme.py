@@ -46,8 +46,6 @@ def list_themes(cloud=False, category=None):
 @_cli_handler
 def load_theme(name, *, device=None, preview=False):
     """Load a theme by name and send to LCD."""
-    from PIL import Image
-
     from trcc.adapters.infra.data_repository import DataManager
     from trcc.conf import Settings, settings
     from trcc.services import ImageService, ThemeService
@@ -84,8 +82,7 @@ def load_theme(name, *, device=None, preview=False):
         return 0
 
     if match.background_path and match.background_path.exists():
-        img = Image.open(match.background_path).convert('RGB')
-        img = ImageService.resize(img, w, h)
+        img = ImageService.open_and_resize(match.background_path, w, h)
 
         # Apply saved adjustments
         key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
@@ -115,10 +112,8 @@ def save_theme(name, *, device=None, video=None):
     """Save current display state as a custom theme."""
     from pathlib import Path
 
-    from PIL import Image
-
     from trcc.adapters.infra.data_repository import USER_DATA_DIR
-    from trcc.services import ThemeService
+    from trcc.services import ImageService, ThemeService
 
     svc = _device._get_service(device)
     if not svc.selected:
@@ -139,8 +134,7 @@ def save_theme(name, *, device=None, video=None):
         from trcc.adapters.infra.data_repository import ThemeDir as TDir
         td = TDir(theme_path)
         if td.bg.exists():
-            bg = Image.open(td.bg).convert('RGB')
-            bg = bg.resize((w, h), Image.Resampling.LANCZOS)
+            bg = ImageService.open_and_resize(td.bg, w, h)
 
     if not bg:
         print("No current theme to save. Load a theme first.")

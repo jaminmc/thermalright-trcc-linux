@@ -176,24 +176,48 @@ def video_status() -> VideoStatusResponse:
 
 
 def _fetch_ipc_frame():
-    """Fetch current LCD frame from GUI daemon via IPC (blocking call)."""
-    import base64
+    """Fetch current LCD frame from GUI daemon via IPC (blocking call).
 
-    from PIL import Image
+    Returns JPEG bytes (already encoded by IPC server).
+    """
+    import base64
 
     from trcc.ipc import IPCClient
 
     try:
         result = IPCClient.send("display.get_frame")
         if result.get("success") and result.get("frame"):
-            return Image.open(io.BytesIO(base64.b64decode(result["frame"])))
+            return base64.b64decode(result["frame"])
     except Exception:
         pass
     return None
 
 
+def _encode_frame(frame: object, fmt: str = 'JPEG', quality: int = 85) -> bytes | None:
+    """Encode a frame (QImage or PIL) to image bytes."""
+    from PySide6.QtGui import QImage
+
+    if isinstance(frame, bytes):
+        return frame  # Already encoded (IPC path)
+    if isinstance(frame, QImage):
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+        buf = QByteArray()
+        qbuf = QBuffer(buf)
+        qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
+        frame.save(qbuf, fmt.encode(), quality)
+        qbuf.close()
+        return bytes(buf.data())
+    # PIL Image fallback
+    bio = io.BytesIO()
+    frame.save(bio, format=fmt, quality=quality)  # type: ignore[union-attr]
+    return bio.getvalue()
+
+
 def _get_lcd_frame():
-    """Get current LCD frame — from IPC daemon if active, otherwise local state."""
+    """Get current LCD frame — from IPC daemon if active, otherwise local state.
+
+    Returns the raw frame object (QImage, PIL Image, or pre-encoded bytes).
+    """
     from trcc.api import _current_image, _display_dispatcher
     from trcc.ipc import IPCDisplayProxy
 
@@ -212,9 +236,10 @@ def display_preview() -> Response:
     if frame is None:
         raise HTTPException(status_code=503, detail="No image available")
 
-    buf = io.BytesIO()
-    frame.save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
+    data = _encode_frame(frame, fmt='PNG')
+    if data is None:
+        raise HTTPException(status_code=503, detail="Frame encode failed")
+    return Response(content=data, media_type="image/png")
 
 
 @router.websocket("/preview/stream")
@@ -283,9 +308,9 @@ async def preview_stream(websocket: WebSocket):
                 continue
 
             # ── Encode and send ───────────────────────────────────────
-            buf = io.BytesIO()
-            frame.save(buf, format="JPEG", quality=quality)
-            await websocket.send_bytes(buf.getvalue())
+            data = _encode_frame(frame, fmt='JPEG', quality=quality)
+            if data:
+                await websocket.send_bytes(data)
 
     except WebSocketDisconnect:
         pass

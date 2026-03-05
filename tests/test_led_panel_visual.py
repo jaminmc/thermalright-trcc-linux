@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Visual test harness for LED panel — all 12 device styles.
+"""Visual test harness for LED panel — all 12 device styles.
 
 Uses the real LEDService to compute LED colors (segment masks,
 mode effects, metrics-linked gradients). Buttons across the top
@@ -13,6 +12,7 @@ Usage:
     PYTHONPATH=src python3 tests/test_led_panel_visual.py          # real metrics
     PYTHONPATH=src python3 tests/test_led_panel_visual.py --fake    # fake cycling
 """
+from __future__ import annotations
 
 import os
 import sys
@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from trcc.core.models import LED_STYLES, HardwareMetrics
+from trcc.core.models import LED_STYLES, HardwareMetrics, LEDMode
 from trcc.qt_components.uc_led_control import PREVIEW_X, PREVIEW_Y, UCLedControl
 from trcc.qt_components.uc_screen_led import STYLE_POSITIONS
 from trcc.services.led import LEDService
@@ -254,9 +254,10 @@ class LEDPanelTestHarness(QWidget):
 
     def _on_mode(self, mode: int):
         """Route mode: always global + also zone (matches qt_app_mvc LEDHandler)."""
-        self._svc.set_mode(mode)
+        led_mode = LEDMode(mode)
+        self._svc.set_mode(led_mode)
         if self._svc.state.zones:
-            self._svc.set_zone_mode(self._led_panel.selected_zone, mode)
+            self._svc.set_zone_mode(self._led_panel.selected_zone, led_mode)
 
     def _on_color(self, r: int, g: int, b: int):
         """Route color: always global + also zone (matches qt_app_mvc LEDHandler)."""
@@ -359,7 +360,7 @@ class LEDPanelTestHarness(QWidget):
 
     def _update_status(self):
         s = self._svc.state
-        mv = s.mode.value if hasattr(s.mode, 'value') else int(s.mode)
+        mv = s.mode.value
         mode_name = self.MODE_NAMES[mv] if mv < len(self.MODE_NAMES) else "?"
         r, g, b = s.color
         on_count = sum(s.segment_on) if s.segment_on else 0

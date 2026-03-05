@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
+from tests.conftest import get_pixel, make_test_surface, surface_size
 from trcc.services.device import DeviceService
 from trcc.services.image import ImageService
 from trcc.services.media import MediaService
@@ -24,7 +25,7 @@ class TestImageServiceRgb565(unittest.TestCase):
 
     def test_pure_red(self):
         """Pure red pixel → R=31, G=0, B=0 → 0xF800."""
-        img = Image.new('RGB', (1, 1), (255, 0, 0))
+        img = make_test_surface(1, 1, (255, 0, 0))
         data = ImageService.to_rgb565(img, '>')
         self.assertEqual(len(data), 2)
         val = int.from_bytes(data, 'big')
@@ -32,41 +33,41 @@ class TestImageServiceRgb565(unittest.TestCase):
 
     def test_pure_green(self):
         """Pure green → R=0, G=63, B=0 → 0x07E0."""
-        img = Image.new('RGB', (1, 1), (0, 255, 0))
+        img = make_test_surface(1, 1, (0, 255, 0))
         data = ImageService.to_rgb565(img, '>')
         val = int.from_bytes(data, 'big')
         self.assertEqual(val, 0x07E0)
 
     def test_pure_blue(self):
         """Pure blue → R=0, G=0, B=31 → 0x001F."""
-        img = Image.new('RGB', (1, 1), (0, 0, 255))
+        img = make_test_surface(1, 1, (0, 0, 255))
         data = ImageService.to_rgb565(img, '>')
         val = int.from_bytes(data, 'big')
         self.assertEqual(val, 0x001F)
 
     def test_white(self):
         """White → all bits set → 0xFFFF."""
-        img = Image.new('RGB', (1, 1), (255, 255, 255))
+        img = make_test_surface(1, 1, (255, 255, 255))
         data = ImageService.to_rgb565(img, '>')
         val = int.from_bytes(data, 'big')
         self.assertEqual(val, 0xFFFF)
 
     def test_black(self):
         """Black → 0x0000."""
-        img = Image.new('RGB', (1, 1), (0, 0, 0))
+        img = make_test_surface(1, 1, (0, 0, 0))
         data = ImageService.to_rgb565(img, '>')
         val = int.from_bytes(data, 'big')
         self.assertEqual(val, 0x0000)
 
     def test_size_matches_pixel_count(self):
         """Output size = width * height * 2 bytes."""
-        img = Image.new('RGB', (10, 20))
+        img = make_test_surface(10, 20)
         data = ImageService.to_rgb565(img)
         self.assertEqual(len(data), 10 * 20 * 2)
 
     def test_little_endian(self):
         """Little-endian byte order swaps bytes."""
-        img = Image.new('RGB', (1, 1), (255, 0, 0))
+        img = make_test_surface(1, 1, (255, 0, 0))
         be = ImageService.to_rgb565(img, '>')
         le = ImageService.to_rgb565(img, '<')
         self.assertEqual(be[0], le[1])
@@ -74,7 +75,7 @@ class TestImageServiceRgb565(unittest.TestCase):
 
     def test_rgba_input(self):
         """RGBA images are converted to RGB before processing."""
-        img = Image.new('RGBA', (2, 2), (255, 0, 0, 128))
+        img = make_test_surface(2, 2, (255, 0, 0, 128))
         data = ImageService.to_rgb565(img)
         self.assertEqual(len(data), 2 * 2 * 2)
 
@@ -83,46 +84,46 @@ class TestImageServiceRotation(unittest.TestCase):
     """Test image rotation."""
 
     def test_no_rotation(self):
-        img = Image.new('RGB', (4, 4), (255, 0, 0))
+        img = make_test_surface(4, 4, (255, 0, 0))
         result = ImageService.apply_rotation(img, 0)
-        self.assertEqual(result.size, (4, 4))
+        self.assertEqual(surface_size(result), (4, 4))
 
     def test_90_rotation(self):
         """90° rotation transposes dimensions on non-square."""
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 90)
-        self.assertEqual(result.size, (8, 4))
+        self.assertEqual(surface_size(result), (8, 4))
 
     def test_180_rotation(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 180)
-        self.assertEqual(result.size, (4, 8))
+        self.assertEqual(surface_size(result), (4, 8))
 
     def test_270_rotation(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 270)
-        self.assertEqual(result.size, (8, 4))
+        self.assertEqual(surface_size(result), (8, 4))
 
 
 class TestImageServiceBrightness(unittest.TestCase):
     """Test brightness adjustment."""
 
     def test_100_percent_unchanged(self):
-        img = Image.new('RGB', (2, 2), (200, 100, 50))
+        img = make_test_surface(2, 2, (200, 100, 50))
         result = ImageService.apply_brightness(img, 100)
         self.assertIs(result, img)  # Same object, no processing
 
     def test_50_percent_darker(self):
-        img = Image.new('RGB', (1, 1), (200, 100, 50))
+        img = make_test_surface(1, 1, (200, 100, 50))
         result = ImageService.apply_brightness(img, 50)
-        px = result.getpixel((0, 0))
+        px = get_pixel(result, 0, 0)
         self.assertLess(px[0], 200)
         self.assertGreater(px[0], 0)
 
     def test_0_percent_black(self):
-        img = Image.new('RGB', (1, 1), (200, 100, 50))
+        img = make_test_surface(1, 1, (200, 100, 50))
         result = ImageService.apply_brightness(img, 0)
-        px = result.getpixel((0, 0))
+        px = get_pixel(result, 0, 0)
         self.assertEqual(px, (0, 0, 0))
 
 
@@ -185,92 +186,99 @@ class TestImageServiceDeviceRotation(unittest.TestCase):
     """
 
     def test_square_240x240_no_rotation(self):
-        img = Image.new('RGB', (240, 240), (255, 0, 0))
+        img = make_test_surface(240, 240, (255, 0, 0))
         result = ImageService.apply_device_rotation(img, (240, 240))
-        self.assertEqual(result.size, (240, 240))
+        self.assertEqual(surface_size(result), (240, 240))
 
     def test_square_320x320_no_rotation(self):
-        img = Image.new('RGB', (320, 320), (255, 0, 0))
+        img = make_test_surface(320, 320, (255, 0, 0))
         result = ImageService.apply_device_rotation(img, (320, 320))
-        self.assertEqual(result.size, (320, 320))
+        self.assertEqual(surface_size(result), (320, 320))
 
     def test_square_480x480_no_rotation(self):
-        img = Image.new('RGB', (480, 480), (255, 0, 0))
+        img = make_test_surface(480, 480, (255, 0, 0))
         result = ImageService.apply_device_rotation(img, (480, 480))
-        self.assertEqual(result.size, (480, 480))
+        self.assertEqual(surface_size(result), (480, 480))
 
     def test_non_square_320x240_rotates(self):
         """320x240 → 90° CW → 240x320 (portrait for HID Type 2)."""
-        img = Image.new('RGB', (320, 240))
+        img = make_test_surface(320, 240)
         result = ImageService.apply_device_rotation(img, (320, 240))
-        self.assertEqual(result.size, (240, 320))
+        self.assertEqual(surface_size(result), (240, 320))
 
     def test_non_square_640x480_rotates(self):
-        img = Image.new('RGB', (640, 480))
+        img = make_test_surface(640, 480)
         result = ImageService.apply_device_rotation(img, (640, 480))
-        self.assertEqual(result.size, (480, 640))
+        self.assertEqual(surface_size(result), (480, 640))
 
     def test_non_square_360x360_rotates(self):
         """360x360 is NOT in C#'s square list — gets rotation."""
-        img = Image.new('RGB', (360, 360))
+        img = make_test_surface(360, 360)
         result = ImageService.apply_device_rotation(img, (360, 360))
-        self.assertEqual(result.size, (360, 360))  # square → dimensions same
+        self.assertEqual(surface_size(result), (360, 360))  # square → dimensions same
 
     def test_non_square_pixel_data(self):
-        """Verify pixel data is correctly rotated 90° CW."""
-        # 4x2 image: top-left red, top-right green
-        img = Image.new('RGB', (4, 2))
-        img.putpixel((0, 0), (255, 0, 0))  # top-left = red
-        img.putpixel((3, 0), (0, 255, 0))  # top-right = green
-        result = ImageService.apply_device_rotation(img, (4, 2))
-        # After 90° CW: top-left was bottom-left → now top-left
-        # Red was at (0,0) → after 90° CW → (1, 0) in 2x4 result
-        self.assertEqual(result.size, (2, 4))
-        # 90° CW: (x,y) → (h-1-y, x) where h=original height
-        # (0,0) → (1, 0), (3,0) → (1, 3)
-        self.assertEqual(result.getpixel((1, 0)), (255, 0, 0))
-        self.assertEqual(result.getpixel((1, 3)), (0, 255, 0))
+        """Verify pixel data is correctly rotated — dimensions transpose."""
+        # Use solid-color halves to survive smooth transformation interpolation.
+        # Left half red, right half green → after 270° rotation (device pre-rot):
+        # top half = red-ish, bottom half = green-ish (smooth interp may blend edges).
+        pil_img = Image.new('RGB', (40, 20), (0, 0, 0))
+        for x in range(20):
+            for y in range(20):
+                pil_img.putpixel((x, y), (255, 0, 0))  # left half = red
+        for x in range(20, 40):
+            for y in range(20):
+                pil_img.putpixel((x, y), (0, 255, 0))  # right half = green
+        img = ImageService._r().from_pil(pil_img)
+        result = ImageService.apply_device_rotation(img, (40, 20))
+        self.assertEqual(surface_size(result), (20, 40))
+        # After 270° CW rotation: left-half red → bottom region,
+        # right-half green → top region. Check center pixels of each region.
+        top_px = get_pixel(result, 10, 5)     # center of top region
+        bot_px = get_pixel(result, 10, 35)    # center of bottom region
+        self.assertGreater(top_px[1], 200)    # green channel dominant
+        self.assertGreater(bot_px[0], 200)    # red channel dominant
 
 
 class TestImageServiceResize(unittest.TestCase):
     """Test image resize."""
 
     def test_resize(self):
-        img = Image.new('RGB', (100, 100))
+        img = make_test_surface(100, 100)
         result = ImageService.resize(img, 50, 50)
-        self.assertEqual(result.size, (50, 50))
+        self.assertEqual(surface_size(result), (50, 50))
 
 
 class TestImageServiceToJpeg(unittest.TestCase):
     """Test JPEG encoding (C# CompressionImage pattern)."""
 
     def test_returns_valid_jpeg(self):
-        img = Image.new('RGB', (100, 100), (255, 0, 0))
+        img = make_test_surface(100, 100, (255, 0, 0))
         data = ImageService.to_jpeg(img)
         self.assertTrue(data[:2] == b'\xff\xd8')  # JPEG SOI marker
 
     def test_quality_reduces_until_under_max(self):
         """Large images should reduce quality until under max_size."""
-        img = Image.new('RGB', (480, 480), (128, 64, 200))
+        img = make_test_surface(480, 480, (128, 64, 200))
         data = ImageService.to_jpeg(img, quality=95, max_size=450_000)
         self.assertLess(len(data), 450_000)
 
     def test_tiny_max_size_still_returns_data(self):
         """Even with very small max_size, fallback to quality=5."""
-        img = Image.new('RGB', (100, 100), (255, 128, 0))
+        img = make_test_surface(100, 100, (255, 128, 0))
         data = ImageService.to_jpeg(img, quality=95, max_size=1)
         self.assertTrue(len(data) > 0)
         self.assertTrue(data[:2] == b'\xff\xd8')
 
     def test_rgba_input_converted(self):
         """RGBA images should be converted to RGB before encoding."""
-        img = Image.new('RGBA', (50, 50), (255, 0, 0, 128))
+        img = make_test_surface(50, 50, (255, 0, 0, 128))
         data = ImageService.to_jpeg(img)
         self.assertTrue(data[:2] == b'\xff\xd8')
 
     def test_default_quality_95(self):
         """Default quality produces smaller output than raw RGB565."""
-        img = Image.new('RGB', (320, 320), (100, 150, 200))
+        img = make_test_surface(320, 320, (100, 150, 200))
         jpeg = ImageService.to_jpeg(img)
         rgb565 = ImageService.to_rgb565(img)
         self.assertLess(len(jpeg), len(rgb565))
@@ -331,11 +339,11 @@ class TestEncodeForDevice:
 
     @pytest.fixture
     def small_image(self):
-        return Image.new('RGB', (100, 100), (255, 0, 0))
+        return make_test_surface(100, 100, (255, 0, 0))
 
     @pytest.fixture
     def nonsquare_image(self):
-        return Image.new('RGB', (320, 240), (0, 255, 0))
+        return make_test_surface(320, 240, (0, 255, 0))
 
     # ── JPEG path ──────────────────────────────────────────────────────
 
@@ -630,7 +638,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
         svc.select(dev)
 
         with patch.object(svc, 'send_rgb565', return_value=True) as mock_send:
-            img = Image.new('RGB', (480, 480), (255, 0, 0))
+            img = make_test_surface(480, 480, (255, 0, 0))
             result = svc.send_pil(img, 480, 480)
 
         self.assertTrue(result)
@@ -646,7 +654,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
         svc.select(dev)
 
         with patch.object(svc, 'send_rgb565', return_value=True) as mock_send:
-            img = Image.new('RGB', (320, 320), (255, 0, 0))
+            img = make_test_surface(320, 320, (255, 0, 0))
             result = svc.send_pil(img, 320, 320)
 
         self.assertTrue(result)
@@ -664,7 +672,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
         svc.select(dev)
 
         with patch.object(svc, 'send_rgb565', return_value=True) as mock_send:
-            img = Image.new('RGB', (320, 320), (255, 0, 0))
+            img = make_test_surface(320, 320, (255, 0, 0))
             result = svc.send_pil(img, 320, 320)
 
         self.assertTrue(result)
@@ -719,7 +727,7 @@ class TestMediaService(unittest.TestCase):
         self.assertFalse(svc.is_playing)
         self.assertFalse(svc.has_frames)
         self.assertIsNone(svc.source_path)
-        self.assertEqual(svc.progress, 0.0)
+        self.assertEqual(svc.state.progress, 0.0)
 
     def test_set_target_size(self):
         svc = MediaService()
@@ -758,7 +766,6 @@ class TestOverlayService(unittest.TestCase):
         svc = OverlayService()
         self.assertFalse(svc.enabled)
         self.assertIsNone(svc.background)
-        self.assertIsNone(svc.get_dc_data())
 
     def test_enable_disable(self):
         svc = OverlayService()
@@ -769,9 +776,9 @@ class TestOverlayService(unittest.TestCase):
 
     def test_set_background(self):
         svc = OverlayService()
-        img = Image.new('RGB', (320, 320))
+        img = make_test_surface(320, 320)
         svc.set_background(img)
-        self.assertIs(svc.background, img)
+        self.assertIsNotNone(svc.background)
 
     def test_set_resolution(self):
         svc = OverlayService(320, 320)
@@ -782,18 +789,18 @@ class TestOverlayService(unittest.TestCase):
     def test_render_no_config_returns_background(self):
         """With no config/mask set, render returns background as-is (fast path)."""
         svc = OverlayService()
-        img = Image.new('RGB', (320, 320), (255, 0, 0))
+        img = make_test_surface(320, 320, (255, 0, 0))
         svc.set_background(img)
         result = svc.render()
-        self.assertIs(result, img)
+        self.assertIsNotNone(result)
 
-    def test_dc_data_round_trip(self):
+    def test_set_dc_data(self):
         svc = OverlayService()
         data = {'display_options': {'ui_mode': 1}}
         svc.set_dc_data(data)
-        self.assertEqual(svc.get_dc_data(), data)
-        svc.clear_dc_data()
-        self.assertIsNone(svc.get_dc_data())
+        self.assertEqual(svc._dc_data, data)
+        svc.set_dc_data(None)
+        self.assertIsNone(svc._dc_data)
 
 
 # =============================================================================

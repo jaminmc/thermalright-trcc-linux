@@ -112,6 +112,7 @@ class SensorEnumerator:
         self._cache_lock = threading.Lock()
         self._poll_thread: Optional[threading.Thread] = None
         self._poll_stop = threading.Event()
+        self._poll_interval: float = 1.0  # seconds, driven by user's refresh setting
 
     def discover(self) -> list[SensorInfo]:
         """Scan the system for all available sensors. Call once at startup."""
@@ -150,6 +151,10 @@ class SensorEnumerator:
         # Fallback: no cache yet (first call or no bg thread)
         return self._read_all_sync()
 
+    def set_poll_interval(self, seconds: float) -> None:
+        """Set background poll interval (driven by user's data refresh setting)."""
+        self._poll_interval = max(0.5, seconds)
+
     def start_polling(self) -> None:
         """Start background sensor polling thread."""
         if self._poll_thread is not None and self._poll_thread.is_alive():
@@ -158,7 +163,7 @@ class SensorEnumerator:
         self._poll_thread = threading.Thread(
             target=self._poll_loop, daemon=True, name="sensor-poll")
         self._poll_thread.start()
-        log.debug("Sensor polling thread started")
+        log.debug("Sensor polling thread started (interval=%.1fs)", self._poll_interval)
 
     def stop_polling(self) -> None:
         """Stop background sensor polling thread."""
@@ -177,7 +182,7 @@ class SensorEnumerator:
                     self._cached_readings = readings
             except Exception:
                 log.debug("Sensor poll error", exc_info=True)
-            self._poll_stop.wait(4.0)  # ~4s between reads (overlay ticks at 1s)
+            self._poll_stop.wait(self._poll_interval)
 
     def _read_all_sync(self) -> dict[str, float]:
         """Read current values for ALL discovered sensors (blocking)."""

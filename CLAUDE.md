@@ -4,7 +4,7 @@
 
 ### Layer Map
 - **Models** (`core/models.py`): Pure dataclasses, enums, domain constants — zero logic, zero I/O, zero framework deps
-- **Services** (`services/`): Core hexagon — all business logic, pure Python, no framework deps
+- **Services** (`services/`): Core hexagon — all business logic, pure Python. `ImageService` is a thin facade delegating to the active `Renderer` (QtRenderer by default). `OverlayService` uses injected Renderer for compositing/text.
 - **Controllers** (`core/controllers.py`): Facades — `LCDDeviceController` (LCD themes/video/overlay/device) + `LEDDeviceController` (LED effects/segment). Delegate to services, fire callbacks. No business logic.
 - **Views** (`qt_components/`): PySide6 GUI adapter
 - **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 6 submodules). `LEDDispatcher` + `DisplayDispatcher` classes — single authority for programmatic LED/LCD operations, return result dicts (never print). CLI functions are thin presentation wrappers.
@@ -84,6 +84,7 @@ DeviceProtocolFactory — @register() decorator for self-registration (OCP)
 #### Other ABCs
 | ABC | File | Subclasses | Purpose |
 |-----|------|------------|---------|
+| `Renderer` | `core/ports.py` | QtRenderer, PilRenderer (2) | Image rendering ABC — compositing, text, encoding, rotation. QtRenderer is the primary (QImage/QPainter), PilRenderer is fallback |
 | `UsbTransport` | `adapters/device/hid.py` | PyUsbTransport, HidApiTransport (2) | USB I/O abstraction — mockable for tests |
 | `SegmentDisplay` | `adapters/device/led_segment.py` | AX120, PA120, AK120, LC1, LF8, LF12, LF10, CZ1, LC2, LF11 (10) | LED 7-segment mask computation per product |
 | `BasePanel` | `qt_components/base.py` | UCDevice, UCAbout, UCPreview, UCThemeSetting, BaseThemeBrowser (5+3 indirect) | GUI panel lifecycle: `_setup_ui()` enforced, `apply_language()`, `get_state()`/`set_state()`, timer helpers |
@@ -118,7 +119,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4646 tests across 54 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4359 tests across 54 files
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -235,7 +236,7 @@ When adding GUI assets:
 - **Delegate pattern**: Settings tab communicates via `invoke_delegate(CMD_*, data)` to main window
 - **`_update_selected(**fields)`**: Single entry point for all element property changes (color, position, font, format, text)
 
-## GoF Refactoring (COMPLETE — v6.0.0 through v7.0.2, 4646 tests passing)
+## GoF Refactoring (COMPLETE — v6.0.0 through v7.0.5, 4359 tests passing)
 
 ### All Phases
 - **Phase 1: Segment Display Collapse** — `led_segment.py` 1109→687 lines (-422, 38%). Properties→class attrs, 4 encode methods→unified `_encode_digits()` + `_encode_7seg()`, LF12 delegates to LF8. Flyweight + Strategy.
@@ -279,6 +280,16 @@ When adding GUI assets:
   - **OCP**: Added `@DeviceProtocolFactory.register()` decorator for self-registering protocols
 - **Explicit Dependencies (v7.0.3)**: Added `click` as direct dependency (was transitive through `typer`). Addresses #50.
 - **API DRY (v7.0.4)**: Extracted `require_connected()` into `api/models.py` — eliminated 4 duplicated dispatcher guard patterns.
+
+### v7.0.5: QtRenderer — Eliminate PIL from Hot Path
+- **Renderer ABC expanded** (`core/ports.py`): Added apply_brightness, apply_rotation, encode_rgb565, encode_jpeg, open_image, surface_size to existing Renderer ABC
+- **QtRenderer** (`adapters/render/qt.py`): Full QImage/QPainter implementation — compositing, text, rotation, brightness, RGB565/JPEG encoding, font resolution. Zero PIL in hot path.
+- **PilRenderer** (`adapters/render/pil.py`): Same new methods implemented with PIL (fallback only)
+- **ImageService** (`services/image.py`): Now a thin facade — all methods delegate to `_renderer` via `set_renderer()` / `_r()`. Defaults to QtRenderer.
+- **Font pixel sizing**: `QFont.setPixelSize(size)` — PIL callers pass pixel sizes, Qt `QFont(family, size)` interprets as points. Must use `setPixelSize()`.
+- **Test infrastructure**: `conftest.py` helpers `make_test_surface()`, `surface_size()`, `get_pixel()` — all tests use native renderer surfaces
+- **PIL boundary conversion**: PIL Images entering the system converted once via `renderer.from_pil()`, then flow as QImage throughout
+- 4359 tests passing, ruff clean, pyright clean
 
 ### Future Work
 - qt_app_mvc.py Handler extraction (ThemeHandler, OverlayHandler, MediaHandler, DeviceHandler)
@@ -363,7 +374,7 @@ Current FBL table (16 entries, full C# parity):
 1. **Hexagonal architecture** — CLI, GUI, and API all adapt to the same core services. Adding the API took hours, not weeks. Device protocols slot in as new adapter subclasses.
 2. **C# as ground truth** — every bug we fixed was traced back to "our code doesn't match C#". The decompiled source eliminated guesswork.
 3. **Data-driven design** — FBL tables, wire remap tables, LED style configs, segment display layouts are all data. Logic operates on data. New devices = new data, not new logic.
-4. **Test suite (4646 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
+4. **Test suite (4359 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
 5. **`trcc report` diagnostic** — users paste one command output and we get VID:PID, PM, FBL, resolution, raw handshake bytes, permissions, SELinux status. Eliminates back-and-forth.
 6. **GoF patterns applied pragmatically** — Facade (controllers), Flyweight+Strategy (segment displays), Template Method (protocol handshakes), Memento (LED config), Observer (metrics), Command (dispatchers). Each pattern solved a real problem, not applied for theory.
 
@@ -382,7 +393,7 @@ Current FBL table (16 entries, full C# parity):
 - **v4.0** — Adapters restructure, domain data consolidation, setup wizard, SELinux support
 - **v5.0** — Full C# feature parity audit (35 items), video fit-mode, all LED wire remaps, JPEG encoding for large displays
 - **v6.0** — GoF refactoring (-1203 lines), CLI dispatchers, metrics observer, LED test harness, circulate fix, FBL table completion
-- **v7.0** — GoF file renames (13 files → `{pattern}_{name}.py`), SOLID refactoring (ISP/LSP/DIP/SRP/OCP), explicit click dependency, API DRY extraction, 4646 tests
+- **v7.0** — GoF file renames (13 files → `{pattern}_{name}.py`), SOLID refactoring (ISP/LSP/DIP/SRP/OCP), explicit click dependency, API DRY extraction, QtRenderer migration (eliminate PIL from hot path), 4359 tests
 - **v6.6** — LCD preview stream (direct IPC frame read from GUI daemon, steady-fps WebSocket, no poll thread), overlay metrics loop for standalone themes, video playback background thread, API spec + Flutter remote guide, `on_frame_sent` callback on DeviceService, MetricsMediator, 4496 tests
 - **v6.5** — IPC daemon (GUI-as-server, CLI auto-routes through Unix socket), info module decoupling, video background save fix, 4440 tests
 - **v6.3–v6.4** — Codebase minimization, DRY refactoring, test suite expansion (2509→4440 tests, 39→54 files, 76% coverage)

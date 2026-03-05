@@ -228,19 +228,23 @@ class ThemeLoader:
                    lcd_size: tuple[int, int]) -> None:
         """Load mask image with position from DC config."""
         try:
-            from PIL import Image
-            mask_img = Image.open(mask_path)
-            position = self._parse_mask_position(dc_path, mask_img, lcd_size)
+            from .image import ImageService
+            r = ImageService._r()
+            mask_img = r.open_image(mask_path)
+            mask_w, mask_h = r.surface_size(mask_img)
+            position = self._parse_mask_position(
+                dc_path, mask_w, mask_h, lcd_size)
             self._overlay.set_mask(mask_img, position)
         except Exception as e:
             log.error("Failed to load mask: %s", e)
 
     @staticmethod
-    def _parse_mask_position(dc_path: Path | None, mask_img: Any,
+    def _parse_mask_position(dc_path: Path | None,
+                             mask_w: int, mask_h: int,
                              lcd_size: tuple[int, int]) -> tuple[int, int] | None:
         """Parse mask position from DC file, convert center to top-left coords."""
         lcd_w, lcd_h = lcd_size
-        if mask_img.width >= lcd_w and mask_img.height >= lcd_h:
+        if mask_w >= lcd_w and mask_h >= lcd_h:
             return (0, 0)
 
         if not dc_path or not Path(dc_path).exists():
@@ -253,8 +257,8 @@ class ThemeLoader:
                 center_pos = dc.mask_settings.get('mask_position')
                 if center_pos:
                     return (
-                        center_pos[0] - mask_img.width // 2,
-                        center_pos[1] - mask_img.height // 2,
+                        center_pos[0] - mask_w // 2,
+                        center_pos[1] - mask_h // 2,
                     )
         except Exception:
             pass

@@ -309,6 +309,7 @@ class TestLoadTheme:
             img = MagicMock()
         if img_svc is None:
             img_svc = MagicMock()
+            img_svc.open_and_resize.return_value = img
             img_svc.resize.return_value = img
             img_svc.apply_brightness.return_value = img
             img_svc.apply_rotation.return_value = img

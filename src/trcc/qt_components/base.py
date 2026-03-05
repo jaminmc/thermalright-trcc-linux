@@ -186,25 +186,38 @@ class ImageLabel(QLabel):
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
-    def set_pil_image(self, pil_image, fast: bool = False):
-        """Set image from PIL Image.
+    def set_image(self, image, fast: bool = False):
+        """Set image from QImage or PIL Image.
 
-        Args:
-            pil_image: PIL Image to display.
-            fast: Use BILINEAR instead of LANCZOS for resize (video frames).
+        Accepts QImage (hot path — direct QPixmap conversion) or
+        PIL Image (cold path — legacy callers).
         """
-        if pil_image is None:
+        if image is None:
+            log.debug("ImageLabel.set_image: image is None, clearing")
             self.clear()
             return
 
-        if pil_image.size != (self._width, self._height):
-            resampling = Image.Resampling.BILINEAR if fast else Image.Resampling.LANCZOS
-            pil_image = pil_image.resize(
-                (self._width, self._height), resampling
-            )
+        if isinstance(image, QImage):
+            log.debug("ImageLabel.set_image: QImage %dx%d fmt=%s → target %dx%d",
+                      image.width(), image.height(), image.format(), self._width, self._height)
+            if (image.width(), image.height()) != (self._width, self._height):
+                mode = (Qt.TransformationMode.FastTransformation if fast
+                        else Qt.TransformationMode.SmoothTransformation)
+                image = image.scaled(
+                    self._width, self._height,
+                    Qt.AspectRatioMode.IgnoreAspectRatio, mode)
+            pixmap = QPixmap.fromImage(image)
+            log.debug("ImageLabel.set_image: QPixmap %dx%d null=%s",
+                      pixmap.width(), pixmap.height(), pixmap.isNull())
+            self.setPixmap(pixmap)
+            return
 
-        pixmap = pil_to_pixmap(pil_image)
-        self.setPixmap(pixmap)
+        # PIL Image fallback (cold path)
+        log.debug("ImageLabel.set_image: PIL %s %s", type(image).__name__, getattr(image, 'size', '?'))
+        if image.size != (self._width, self._height):
+            resampling = Image.Resampling.BILINEAR if fast else Image.Resampling.LANCZOS
+            image = image.resize((self._width, self._height), resampling)
+        self.setPixmap(pil_to_pixmap(image))
 
     def set_rgb565(self, data: bytes, width: int, height: int,
                    byte_order: str = '>'):

@@ -326,15 +326,17 @@ class TestDetectDevices(unittest.TestCase):
     @patch(f'{_CLS}.find_scsi_usblcd_devices')
     @patch(f'{_CLS}.find_scsi_device_by_usb_path')
     @patch(f'{_CLS}.find_usb_devices')
-    def test_usb_device_with_scsi(self, mock_usb, mock_scsi_path, mock_scsi_direct):
+    @patch(f'{_CLS}.find_usb_devices_sysfs')
+    def test_usb_device_with_scsi(self, mock_sysfs, mock_usb, mock_scsi_path, mock_scsi_direct):
         """Test detection of USB device with SCSI mapping."""
-        mock_usb.return_value = [
+        mock_sysfs.return_value = [
             DetectedDevice(
                 vid=0x87CD, pid=0x70DB,
                 vendor_name="Thermalright", product_name="LCD",
                 usb_path="1-2"
             )
         ]
+        mock_usb.return_value = []
         mock_scsi_path.return_value = "/dev/sg0"
         mock_scsi_direct.return_value = []
 
@@ -345,8 +347,10 @@ class TestDetectDevices(unittest.TestCase):
     @patch(f'{_CLS}.find_scsi_usblcd_devices')
     @patch(f'{_CLS}.find_scsi_device_by_usb_path')
     @patch(f'{_CLS}.find_usb_devices')
-    def test_fallback_to_scsi_direct(self, mock_usb, mock_scsi_path, mock_scsi_direct):
+    @patch(f'{_CLS}.find_usb_devices_sysfs')
+    def test_fallback_to_scsi_direct(self, mock_sysfs, mock_usb, mock_scsi_path, mock_scsi_direct):
         """Test fallback to direct SCSI detection when no USB devices found."""
+        mock_sysfs.return_value = []
         mock_usb.return_value = []
         mock_scsi_path.return_value = None
         mock_scsi_direct.return_value = [
@@ -365,15 +369,17 @@ class TestDetectDevices(unittest.TestCase):
     @patch(f'{_CLS}.find_scsi_usblcd_devices')
     @patch(f'{_CLS}.find_scsi_device_by_usb_path')
     @patch(f'{_CLS}.find_usb_devices')
-    def test_usb_without_scsi_uses_fallback(self, mock_usb, mock_scsi_path, mock_scsi_direct):
+    @patch(f'{_CLS}.find_usb_devices_sysfs')
+    def test_usb_without_scsi_uses_fallback(self, mock_sysfs, mock_usb, mock_scsi_path, mock_scsi_direct):
         """Test USB device without SCSI uses sysfs fallback."""
-        mock_usb.return_value = [
+        mock_sysfs.return_value = [
             DetectedDevice(
                 vid=0x87CD, pid=0x70DB,
                 vendor_name="Thermalright", product_name="LCD",
                 usb_path="1-2"
             )
         ]
+        mock_usb.return_value = []
         mock_scsi_path.return_value = None
         mock_scsi_direct.return_value = [
             DetectedDevice(
@@ -392,8 +398,10 @@ class TestDetectDevices(unittest.TestCase):
     @patch(f'{_CLS}.find_scsi_usblcd_devices')
     @patch(f'{_CLS}.find_scsi_device_by_usb_path')
     @patch(f'{_CLS}.find_usb_devices')
-    def test_no_devices_found(self, mock_usb, mock_scsi_path, mock_scsi_direct):
+    @patch(f'{_CLS}.find_usb_devices_sysfs')
+    def test_no_devices_found(self, mock_sysfs, mock_usb, mock_scsi_path, mock_scsi_direct):
         """Test when no devices are found anywhere."""
+        mock_sysfs.return_value = []
         mock_usb.return_value = []
         mock_scsi_path.return_value = None
         mock_scsi_direct.return_value = []

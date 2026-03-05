@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from ..services.system import get_all_metrics
+from ..services.system import get_cached_metrics
 
 # Default sensors: (metric_key, label, color)
 DEFAULT_SENSORS = [
@@ -88,10 +88,13 @@ class UCInfoModule(QWidget):
     def set_temp_unit(self, unit):
         """Set temperature display unit ('°C' or '°F')."""
         self._temp_unit = unit
-        self._update_values()
+
+    def update_from_metrics(self, metrics) -> None:
+        """Accept pre-polled metrics from MetricsMediator."""
+        self._apply_metrics(metrics)
 
     def start_updates(self, interval_ms=1000):
-        """Start periodic sensor updates."""
+        """Start periodic sensor updates (standalone use)."""
         self._update_values()
         self._timer.start(interval_ms)
 
@@ -100,22 +103,23 @@ class UCInfoModule(QWidget):
         self._timer.stop()
 
     def _update_values(self):
-        """Update all sensor values from system_info."""
+        """Update all sensor values from system_info (standalone timer)."""
         try:
-            metrics = get_all_metrics()
-            for key, box in self._sensor_boxes.items():
-                value = getattr(metrics, key, None)
-                if value is not None and isinstance(value, (int, float)):
-                    if 'temp' in key:
-                        from ..core.models import celsius_to_fahrenheit
-                        if self._temp_unit == '\u00b0F':
-                            value = celsius_to_fahrenheit(value)
-                        box.value_label.setText(f"{int(value)}{self._temp_unit}")
-                    elif 'usage' in key or 'percent' in key:
-                        box.value_label.setText(f"{int(value)}%")
-                    else:
-                        box.value_label.setText(str(int(value)))
-                else:
-                    box.value_label.setText("--")
+            metrics = get_cached_metrics()
+            self._apply_metrics(metrics)
         except Exception:
             pass
+
+    def _apply_metrics(self, metrics) -> None:
+        """Apply metrics data to sensor display boxes."""
+        for key, box in self._sensor_boxes.items():
+            value = getattr(metrics, key, None)
+            if value is not None and isinstance(value, (int, float)):
+                if 'temp' in key:
+                    box.value_label.setText(f"{int(value)}{self._temp_unit}")
+                elif 'usage' in key or 'percent' in key:
+                    box.value_label.setText(f"{int(value)}%")
+                else:
+                    box.value_label.setText(str(int(value)))
+            else:
+                box.value_label.setText("--")

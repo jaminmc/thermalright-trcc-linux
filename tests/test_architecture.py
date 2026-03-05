@@ -17,8 +17,7 @@ from dataclasses import fields
 from pathlib import Path
 from unittest.mock import patch
 
-from PIL import Image
-
+from tests.conftest import get_pixel, make_test_surface, surface_size
 from trcc.core.controllers import (
     LCDDeviceController,
     LEDDeviceController,
@@ -93,13 +92,6 @@ class TestObserverPattern(unittest.TestCase):
         for p in self.patches:
             p.stop()
 
-    def test_facade_fires_on_filter_changed(self):
-        ctrl = LCDDeviceController()
-        fired = []
-        ctrl.on_filter_changed = lambda m: fired.append(m)
-        ctrl.set_theme_filter('user')
-        self.assertEqual(fired, ['user'])
-
     def test_facade_fires_on_device_selected(self):
         ctrl = LCDDeviceController()
         fired = []
@@ -118,7 +110,6 @@ class TestObserverPattern(unittest.TestCase):
     def test_no_callback_no_crash(self):
         """When no callback registered, operations don't raise."""
         ctrl = LCDDeviceController()
-        ctrl.set_theme_filter('all')       # no on_filter_changed set
         ctrl.set_overlay_config({})         # no on_overlay_config_changed set
 
     def test_led_controller_observer_wiring(self):
@@ -173,35 +164,35 @@ class TestStrategyPattern(unittest.TestCase):
         self.assertEqual(ImageService.byte_order_for('hid', (320, 240)), '<')
 
     def test_rotation_strategy_0(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 0)
-        self.assertEqual(result.size, (4, 8))
+        self.assertEqual(surface_size(result), (4, 8))
 
     def test_rotation_strategy_90(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 90)
-        self.assertEqual(result.size, (8, 4))
+        self.assertEqual(surface_size(result), (8, 4))
 
     def test_rotation_strategy_180(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 180)
-        self.assertEqual(result.size, (4, 8))
+        self.assertEqual(surface_size(result), (4, 8))
 
     def test_rotation_strategy_270(self):
-        img = Image.new('RGB', (4, 8))
+        img = make_test_surface(4, 8)
         result = ImageService.apply_rotation(img, 270)
-        self.assertEqual(result.size, (8, 4))
+        self.assertEqual(surface_size(result), (8, 4))
 
     def test_brightness_strategy_100_noop(self):
         """100% brightness returns the same object (no processing)."""
-        img = Image.new('RGB', (2, 2), (200, 100, 50))
+        img = make_test_surface(2, 2, (200, 100, 50))
         result = ImageService.apply_brightness(img, 100)
         self.assertIs(result, img)
 
     def test_brightness_strategy_50_darkens(self):
-        img = Image.new('RGB', (1, 1), (200, 100, 50))
+        img = make_test_surface(1, 1, (200, 100, 50))
         result = ImageService.apply_brightness(img, 50)
-        self.assertLess(result.getpixel((0, 0))[0], 200)
+        self.assertLess(get_pixel(result, 0, 0)[0], 200)
 
     def test_theme_filter_strategy_all(self):
         """'all' filter passes everything."""
@@ -330,13 +321,6 @@ class TestServiceIsolation(unittest.TestCase):
 
 class TestControllerThinness(unittest.TestCase):
     """Facade controllers delegate to services — no business logic."""
-
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
-    def test_facade_delegates_filter(self, _):
-        ctrl = LCDDeviceController()
-        with patch.object(ctrl.theme_svc, 'set_filter') as m:
-            ctrl.set_theme_filter('user')
-            m.assert_called_once_with('user')
 
     @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
     def test_facade_delegates_select(self, _):

@@ -121,7 +121,7 @@ def select_device(device_id: int) -> dict:
             api._display_dispatcher = DisplayDispatcher(device_svc=_device_svc)
 
             w_res, h_res = dev.resolution or (320, 320)
-            api.set_current_image(Image.new('RGB', (w_res, h_res), (0, 0, 0)))
+            api.set_current_image(ImageService.solid_color(0, 0, 0, w_res, h_res))
             _restore_last_theme(dev)
 
     # Mount static file directories for this device's resolution
@@ -162,8 +162,7 @@ def _restore_last_theme(dev) -> None:
 
     try:
         w, h = dev.resolution
-        img = Image.open(image_path).convert("RGB")
-        img = ImageService.resize(img, w, h)
+        img = ImageService.open_and_resize(image_path, w, h)
 
         brightness_pct = {1: 25, 2: 50, 3: 100}.get(cfg.get("brightness_level", 3), 100)
         img = ImageService.apply_brightness(img, brightness_pct)
@@ -200,10 +199,14 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
         raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit")
 
     try:
-        img = Image.open(io.BytesIO(data))
-        img.load()  # Force decode to catch corrupt files
+        pil_img = Image.open(io.BytesIO(data))
+        pil_img.load()  # Force decode to catch corrupt files
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image format")
+
+    # Convert PIL → native renderer surface
+    r = ImageService._r()
+    img = r.from_pil(pil_img)
 
     # Apply rotation and brightness
     if rotation:

@@ -244,8 +244,6 @@ def load_theme(body: ThemeLoadRequest) -> dict:
         return {"success": True, "theme": body.name, "resolution": (w, h), "animated": True}
 
     # Static theme — load first image and send
-    from PIL import Image
-
     img_file = theme_path / "01.png"
     if not img_file.exists():
         img_file = next(theme_path.glob("*.png"), None)
@@ -254,8 +252,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
     if not img_file:
         raise HTTPException(status_code=404, detail=f"No image file in theme '{body.name}'")
 
-    img = Image.open(img_file).convert('RGB')
-    img = ImageService.resize(img, w, h)
+    img = ImageService.open_and_resize(img_file, w, h)
 
     ok = _device_svc.send_pil(img, w, h)
     if not ok:

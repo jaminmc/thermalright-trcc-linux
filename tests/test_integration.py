@@ -11,8 +11,20 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tests.conftest import save_test_png as _make_png
-from trcc.adapters.device.detector import DetectedDevice
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+_qapp = QApplication.instance() or QApplication([])
+
+from tests.conftest import (  # noqa: E402
+    get_pixel,
+    make_test_surface,
+    surface_size,
+)
+from tests.conftest import (  # noqa: E402
+    save_test_png as _make_png,
+)
+from trcc.adapters.device.detector import DetectedDevice  # noqa: E402
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -266,7 +278,8 @@ class TestDeviceDetectorRoundTrip(unittest.TestCase):
 
     @patch("trcc.adapters.device.detector.DeviceDetector.find_scsi_device_by_usb_path")
     @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices")
-    def test_usb_to_scsi_mapping(self, mock_find_usb, mock_find_scsi):
+    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices_sysfs", return_value=[])
+    def test_usb_to_scsi_mapping(self, _mock_sysfs, mock_find_usb, mock_find_scsi):
         """USB device found → SCSI path assigned → returned in detect_devices."""
         from trcc.adapters.device.detector import detect_devices
 
@@ -280,7 +293,8 @@ class TestDeviceDetectorRoundTrip(unittest.TestCase):
 
     @patch("trcc.adapters.device.detector.DeviceDetector.find_scsi_device_by_usb_path")
     @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices")
-    def test_get_default_prefers_thermalright(self, mock_find_usb, mock_find_scsi):
+    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices_sysfs", return_value=[])
+    def test_get_default_prefers_thermalright(self, _mock_sysfs, mock_find_usb, mock_find_scsi):
         """get_default_device prefers Thermalright (VID 0x87CD)."""
         from trcc.adapters.device.detector import get_default_device
 
@@ -366,17 +380,15 @@ class TestRGB565Consistency(unittest.TestCase):
     """Verify RGB565 conversion is consistent between LCDDriver and controllers."""
 
     def test_driver_rgb_matches_controller(self):
-        """ImageService.rgb_to_bytes matches ImageService.to_rgb565 for single pixels."""
-        # Test a few colors
-        from PIL import Image
-
+        """rgb_to_bytes matches ImageService.to_rgb565 for single pixels."""
+        from trcc.core.encoding import rgb_to_bytes
         from trcc.services import ImageService
         for r, g, b in [(255, 0, 0), (0, 255, 0), (0, 0, 255),
                          (128, 128, 128), (255, 255, 255), (0, 0, 0)]:
-            img = Image.new("RGB", (1, 1), (r, g, b))
-            controller_bytes = ImageService.to_rgb565(img)
+            surface = make_test_surface(1, 1, (r, g, b))
+            controller_bytes = ImageService.to_rgb565(surface)
 
-            impl_bytes = ImageService.rgb_to_bytes(r, g, b, '>')
+            impl_bytes = rgb_to_bytes(r, g, b, '>')
 
             # Both should produce the same 2 bytes for the same color
             self.assertEqual(controller_bytes, impl_bytes,
@@ -385,22 +397,22 @@ class TestRGB565Consistency(unittest.TestCase):
 
     def test_rgb565_red_channel(self):
         """Red (255,0,0) → RGB565 big-endian: 0xF800."""
-        from trcc.services import ImageService
-        pixel = ImageService.rgb_to_bytes(255, 0, 0, '>')
+        from trcc.core.encoding import rgb_to_bytes
+        pixel = rgb_to_bytes(255, 0, 0, '>')
         val = struct.unpack(">H", pixel)[0]
         self.assertEqual(val, 0xF800)
 
     def test_rgb565_green_channel(self):
         """Green (0,255,0) → RGB565 big-endian: 0x07E0."""
-        from trcc.services import ImageService
-        pixel = ImageService.rgb_to_bytes(0, 255, 0, '>')
+        from trcc.core.encoding import rgb_to_bytes
+        pixel = rgb_to_bytes(0, 255, 0, '>')
         val = struct.unpack(">H", pixel)[0]
         self.assertEqual(val, 0x07E0)
 
     def test_rgb565_blue_channel(self):
         """Blue (0,0,255) → RGB565 big-endian: 0x001F."""
-        from trcc.services import ImageService
-        pixel = ImageService.rgb_to_bytes(0, 0, 255, '>')
+        from trcc.core.encoding import rgb_to_bytes
+        pixel = rgb_to_bytes(0, 0, 255, '>')
         val = struct.unpack(">H", pixel)[0]
         self.assertEqual(val, 0x001F)
 
@@ -412,18 +424,16 @@ class TestThemeLoadRender(unittest.TestCase):
 
     def test_theme_dir_to_rgb565(self):
         """Load 00.png from theme dir, convert to RGB565, verify size."""
-        from PIL import Image
-
         from trcc.services import ImageService
 
         with tempfile.TemporaryDirectory() as td:
             bg_path = os.path.join(td, "00.png")
             _make_png(bg_path, 320, 320)
 
-            img = Image.open(bg_path).convert("RGB")
-            self.assertEqual(img.size, (320, 320))
+            surface = ImageService.open_and_resize(bg_path, 320, 320)
+            self.assertEqual(surface_size(surface), (320, 320))
 
-            frame = ImageService.to_rgb565(img)
+            frame = ImageService.to_rgb565(surface)
             self.assertEqual(len(frame), 320 * 320 * 2)
 
     def test_theme_with_mask_overlay(self):
@@ -433,33 +443,32 @@ class TestThemeLoadRender(unittest.TestCase):
         from trcc.services import ImageService
 
         with tempfile.TemporaryDirectory() as td:
-            # Create background
+            # Create background and mask files (PIL for file I/O)
             bg = Image.new("RGB", (320, 320), (255, 0, 0))
             bg.save(os.path.join(td, "00.png"))
 
-            # Create mask (RGBA with alpha)
             mask = Image.new("RGBA", (320, 320), (0, 0, 0, 128))
             mask.save(os.path.join(td, "01.png"))
 
+            # Re-open and composite in PIL
             bg = Image.open(os.path.join(td, "00.png")).convert("RGB")
             mask = Image.open(os.path.join(td, "01.png")).convert("RGBA")
-
-            # Composite (same as controller does)
             composite = bg.copy()
             composite.paste(mask, (0, 0), mask)
 
-            frame = ImageService.to_rgb565(composite)
+            # Convert composite to native surface for encoding
+            surface = ImageService._r().from_pil(composite)
+
+            frame = ImageService.to_rgb565(surface)
             self.assertEqual(len(frame), 320 * 320 * 2)
 
     def test_image_resize_and_convert(self):
         """Oversized image gets resized to device resolution before RGB565."""
-        from PIL import Image
-
         from trcc.services import ImageService
 
-        # Create 800x600 image
-        big = Image.new("RGB", (800, 600), (0, 128, 255))
-        resized = big.resize((320, 320))
+        # Create 800x600 native surface
+        big = make_test_surface(800, 600, (0, 128, 255))
+        resized = ImageService.resize(big, 320, 320)
         frame = ImageService.to_rgb565(resized)
         self.assertEqual(len(frame), 320 * 320 * 2)
 
@@ -471,32 +480,34 @@ class TestBrightnessRotation(unittest.TestCase):
 
     def test_apply_rotation_90(self):
         """90° rotation swaps dimensions correctly."""
-        from PIL import Image
-
         from trcc.services import ImageService
 
-        img = Image.new("RGB", (320, 320), (255, 0, 0))
-        # Draw a marker at (0,0) so rotation is verifiable
-        img.putpixel((0, 0), (0, 255, 0))
+        # Red background with a green marker at (0,0)
+        surface = make_test_surface(320, 320, (255, 0, 0))
+        # Draw marker via PIL round-trip so we can set a single pixel
+        pil = ImageService._r().to_pil(surface)
+        pil.putpixel((0, 0), (0, 255, 0))
+        surface = ImageService._r().from_pil(pil)
 
-        rotated = ImageService.apply_rotation(img, 90)
-        self.assertEqual(rotated.size, (320, 320))
+        rotated = ImageService.apply_rotation(surface, 90)
+        self.assertEqual(surface_size(rotated), (320, 320))
 
         # After 90° CW rotation, top-left green pixel moves
         # Verify it's no longer at (0,0)
-        self.assertNotEqual(rotated.getpixel((0, 0)), (0, 255, 0))
+        self.assertNotEqual(get_pixel(rotated, 0, 0)[:3], (0, 255, 0))
 
     def test_apply_rotation_0_noop(self):
         """0° rotation returns identical image."""
-        from PIL import Image
-
         from trcc.services import ImageService
 
-        img = Image.new("RGB", (320, 320), (255, 0, 0))
-        img.putpixel((5, 5), (0, 255, 0))
+        # Red background with a green marker at (5,5)
+        surface = make_test_surface(320, 320, (255, 0, 0))
+        pil = ImageService._r().to_pil(surface)
+        pil.putpixel((5, 5), (0, 255, 0))
+        surface = ImageService._r().from_pil(pil)
 
-        rotated = ImageService.apply_rotation(img, 0)
-        self.assertEqual(rotated.getpixel((5, 5)), (0, 255, 0))
+        rotated = ImageService.apply_rotation(surface, 0)
+        self.assertEqual(get_pixel(rotated, 5, 5)[:3], (0, 255, 0))
 
     def test_brightness_reduces_values(self):
         """50% brightness reduces pixel values."""

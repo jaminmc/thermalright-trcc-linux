@@ -756,7 +756,7 @@ class TestUCActivitySidebar:
         assert categories == {"cpu", "gpu", "memory", "hdd", "network", "fan"}
 
     def test_start_stop_updates(self, sidebar):
-        with patch("trcc.qt_components.uc_activity_sidebar.get_all_metrics") as mock_gam:
+        with patch("trcc.qt_components.uc_activity_sidebar.get_cached_metrics") as mock_gam:
             mock_gam.return_value = SimpleNamespace(
                 cpu_temp=0, cpu_percent=0, cpu_freq=0, cpu_power=0,
                 gpu_temp=0, gpu_usage=0, gpu_clock=0, gpu_power=0,
@@ -769,6 +769,20 @@ class TestUCActivitySidebar:
             assert sidebar._update_timer.isActive()
             sidebar.stop_updates()
             assert not sidebar._update_timer.isActive()
+
+    def test_update_from_metrics(self, sidebar):
+        """update_from_metrics updates sensor items."""
+        metrics = SimpleNamespace(
+            cpu_temp=65.0, cpu_percent=30.0, cpu_freq=3200.0, cpu_power=95.0,
+            gpu_temp=55.0, gpu_usage=45.0, gpu_clock=1800.0, gpu_power=120.0,
+            mem_temp=40.0, mem_percent=60.0, mem_clock=3200.0, mem_available=8192.0,
+            disk_temp=35.0, disk_activity=10.0, disk_read=100.0, disk_write=50.0,
+            net_up=500.0, net_down=1200.0, net_total_up=2048.0, net_total_down=4096.0,
+            fan_cpu=1200, fan_gpu=1500, fan_ssd=800, fan_sys2=900,
+        )
+        sidebar.update_from_metrics(metrics)
+        # Spot check: first item is cpu_temp
+        assert sidebar._sensor_items[0].value_label.text() == "65.0\u00b0C"
 
     def test_sensor_clicked_signal(self, sidebar):
         received = []
@@ -825,15 +839,20 @@ class TestUCInfoModule:
             assert color.startswith("#")
 
     def test_set_temp_unit(self, module):
-        with patch("trcc.qt_components.uc_info_module.get_all_metrics") as mock_gam:
-            mock_gam.return_value = SimpleNamespace(
-                cpu_temp=0, gpu_temp=0, cpu_percent=0, gpu_usage=0,
-            )
-            module.set_temp_unit("\u00b0F")
+        module.set_temp_unit("\u00b0F")
         assert module._temp_unit == "\u00b0F"
 
+    def test_update_from_metrics(self, module):
+        """update_from_metrics updates sensor boxes."""
+        metrics = SimpleNamespace(
+            cpu_temp=65.0, gpu_temp=55.0, cpu_percent=30.0, gpu_usage=45.0,
+        )
+        module.update_from_metrics(metrics)
+        assert module._sensor_boxes['cpu_temp'].value_label.text() == "65\u00b0C"
+        assert module._sensor_boxes['gpu_usage'].value_label.text() == "45%"
+
     def test_start_stop_updates(self, module):
-        with patch("trcc.qt_components.uc_info_module.get_all_metrics") as mock_gam:
+        with patch("trcc.qt_components.uc_info_module.get_cached_metrics") as mock_gam:
             mock_gam.return_value = SimpleNamespace(
                 cpu_temp=65.0, gpu_temp=55.0, cpu_percent=30.0, gpu_usage=45.0,
             )

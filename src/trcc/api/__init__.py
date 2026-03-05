@@ -46,7 +46,7 @@ _led_dispatcher = None      # LEDDispatcher | None
 _system_svc = None          # SystemService | None
 
 # Last frame sent to LCD — updated by display/theme endpoints for preview
-_current_image = None  # PIL Image | None
+_current_image = None  # QImage | PIL Image | None
 
 
 def set_current_image(img) -> None:
@@ -112,7 +112,6 @@ def stop_video_playback() -> None:
         _video_thread.join(timeout=2)
     if _media_service:
         _media_service.stop()
-        _media_service.close()
     _media_service = None
     _video_thread = None
     _video_stop_event = None

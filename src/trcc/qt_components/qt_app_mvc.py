@@ -41,7 +41,6 @@ from ..conf import Settings, settings
 # Import MVC core
 from ..core.controllers import LEDDeviceController, create_controller
 from ..core.models import SPLIT_MODE_RESOLUTIONS, DeviceInfo, PlaybackState, ThemeInfo
-from ..services.system import get_all_metrics
 
 # Import view components
 from .assets import Assets
@@ -81,7 +80,6 @@ class LEDHandler:
         self._controller: LEDDeviceController | None = None
         self._active = False
         self._style_id = 0
-        self._sensor_counter = 0
 
         # Timers (owned by handler, parented to panel for Qt lifecycle)
         self._timer = QTimer(panel)
@@ -107,7 +105,6 @@ class LEDHandler:
 
         self._controller.initialize(device, led_style)
         self._style_id = led_style
-        self._sensor_counter = 0
 
         style_info = LEDService.get_style_info(led_style)
         if style_info:
@@ -248,24 +245,17 @@ class LEDHandler:
             self._panel.load_zone_state(
                 zone_index, z.mode.value, z.color, z.brightness, z.on)
 
-    # ── Animation tick + sensor polling ──────────────────────────────
+    # ── Animation tick ──────────────────────────────────────────────
 
     def _on_tick(self):
+        """LED animation tick only — metrics now come from MetricsMediator."""
         if not (self._controller and self._active):
             return
         self._controller.tick()
 
-        self._sensor_counter += 1
-        if self._sensor_counter >= 7:
-            self._sensor_counter = 0
-            self._poll_sensors()
-
-    def _poll_sensors(self):
+    def update_from_metrics(self, metrics) -> None:
+        """Accept pre-polled metrics from MetricsMediator."""
         if not self._controller:
-            return
-        try:
-            metrics = get_all_metrics()
-        except Exception:
             return
         self._controller.update_metrics(metrics)
         self._panel.update_metrics(metrics)
@@ -458,7 +448,6 @@ class TRCCMainWindowMVC(QMainWindow):
         def _video_tick_wrapper():
             self.controller.video_tick()
         self._animation_timer = self._make_timer(_video_tick_wrapper)
-        self._metrics_timer = self._make_timer(self._on_metrics_tick)
         self._device_timer = self._make_timer(self._on_device_poll)
         self._flash_timer = self._make_timer(self._on_flash_timeout, single_shot=True)
         self._slideshow_timer = self._make_timer(self._on_slideshow_tick)
@@ -487,6 +476,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._screencast = ScreencastHandler(self, self.controller, self._on_screencast_frame)
         self._connect_controller_callbacks()
         self._connect_view_signals()
+        self._setup_mediator()
 
         # Restore saved temperature unit preference
         saved_unit = settings.temp_unit
@@ -583,13 +573,14 @@ class TRCCMainWindowMVC(QMainWindow):
             log.info("System suspending — stopping timers")
             self._device_timer.stop()
             self._animation_timer.stop()
-            self._metrics_timer.stop()
+            self._mediator.stop()
             self._screencast.stop()
         else:
             log.info("System resuming — invalidating USB handles")
             from ..adapters.device.factory import DeviceProtocolFactory
             DeviceProtocolFactory.close_all()
             self._device_timer.start(5000)
+            self._mediator.ensure_running()
             self._on_device_poll()
 
     def _on_tray_activated(self, reason):
@@ -605,6 +596,24 @@ class TRCCMainWindowMVC(QMainWindow):
             self.show()
             self.activateWindow()
             self.raise_()
+
+    def hideEvent(self, event):
+        """Pause device polling when minimized to systray.
+
+        MetricsMediator keeps running — LCD device needs live metric
+        updates even when the GUI is hidden.
+        """
+        super().hideEvent(event)
+        self._device_timer.stop()
+        log.debug("Window hidden — device polling paused")
+
+    def showEvent(self, event):
+        """Resume device polling when restored from systray."""
+        super().showEvent(event)
+        if not self._device_timer.isActive():
+            self._device_timer.start(5000)
+            self._on_device_poll()
+            log.debug("Window shown — device polling resumed")
 
     def _quit_app(self):
         """Quit application from tray menu."""
@@ -862,8 +871,7 @@ class TRCCMainWindowMVC(QMainWindow):
         Windows: value is 1-100 (seconds).
         """
         ms = interval * 1000
-        if self._metrics_timer.isActive():
-            self._metrics_timer.setInterval(ms)
+        self._mediator.set_interval(ms)
         self.uc_preview.set_status(f"Refresh: {interval}s")
 
     def _on_resolution_changed(self, width: int, height: int):
@@ -1100,14 +1108,12 @@ class TRCCMainWindowMVC(QMainWindow):
     def _connect_controller_callbacks(self):
         """Subscribe to controller callbacks."""
         # Main controller — thin forwards to preview widget
-        self.controller.on_preview_update = lambda img: self.uc_preview.set_image(
-            img, fast=self.controller.is_video_playing())
+        self.controller.on_preview_update = self._on_preview_update
         self.controller.on_status_update = self.uc_preview.set_status
         self.controller.on_error = lambda msg: self.uc_preview.set_status(f"Error: {msg}")
 
         # Video
         self.controller.on_video_state_changed = self._on_video_state_changed
-        self.controller.on_video_progress_update = self.uc_preview.set_progress
         self.controller.on_video_loaded = lambda _: self.uc_preview.show_video_controls(True)
 
         # Devices
@@ -1116,6 +1122,10 @@ class TRCCMainWindowMVC(QMainWindow):
 
         # Overlay
         self.controller.on_overlay_config_changed = self.controller.render_overlay_and_preview
+
+    def _on_preview_update(self, img) -> None:
+        """Update preview widget — always set, even when minimized to tray."""
+        self.uc_preview.set_image(img, fast=self.controller.is_video_playing())
 
     def _on_video_state_changed(self, state: PlaybackState):
         """Handle video state change."""
@@ -1142,6 +1152,7 @@ class TRCCMainWindowMVC(QMainWindow):
         # LED devices have no LCD resolution — route to LED panel directly.
         if device.implementation == 'hid_led':
             self._led.show(device)
+            self._mediator.ensure_running()
             self._show_view('led')
             # Sync IPC LED dispatcher with the active controller's service
             ctrl = self._led._controller
@@ -1568,17 +1579,13 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.stop_video()
             self._screencast.stop()
             self._render_and_send()
-            # Start continuous rendering (C# isToTimer=true — timer sends every tick)
-            if not self._metrics_timer.isActive():
-                self._metrics_timer.start(1000)
+            self._mediator.ensure_running()
         else:
             # C# toggle OFF: myBjxs=false → black canvas + overlays
             self.controller.set_overlay_background(None)
             self.controller._display._create_black_background()
             self._render_and_send()
-            # Stop continuous background sending if overlay isn't independently enabled
-            if not self.controller.is_overlay_enabled():
-                self._metrics_timer.stop()
+            self._mediator.ensure_running()
         self.uc_preview.set_status(f"Background: {'On' if enabled else 'Off'}")
 
     def _on_screencast_toggle(self, enabled: bool):
@@ -2232,37 +2239,71 @@ class TRCCMainWindowMVC(QMainWindow):
             self.controller.set_split_mode(0)  # Disable split for non-widescreen
         self._update_ldd_icon()
 
-    def _on_metrics_tick(self):
-        """Collect system metrics and re-render overlay, send to LCD.
+    # ── MetricsMediator setup + callbacks ────────────────────────────
 
-        C# Timer_event myMode=0: renders every 10 ticks (~160ms).
-        We tick every 1s (sufficient for sensor refresh) and always send
-        when background mode is active OR overlay is enabled.
+    def _setup_mediator(self) -> None:
+        """Wire MetricsMediator — single timer, single get_all_metrics() call.
+
+        Replaces the old _metrics_timer + LEDHandler._poll_sensors with one
+        coordinated dispatch loop.  Each subscriber declares its period and
+        guard so we skip work when nothing needs it.
         """
-        try:
-            metrics = get_all_metrics()
-        except Exception:
-            return
-        self.controller.update_overlay_metrics(metrics)
-        should_render = (
-            (self.controller.current_image and self.controller.is_overlay_enabled())
-            or self._background_active
+        from .metrics_mediator import MetricsMediator
+        self._mediator = MetricsMediator(self)
+        self._mediator.subscribe(
+            self._on_overlay_tick, period=1,
+            guard=lambda: (
+                self.controller.is_overlay_enabled()
+                or self._background_active),
         )
-        if not should_render:
+        self._mediator.subscribe(
+            self._on_led_metrics, period=1,
+            guard=lambda: self._led.active,
+        )
+        self._mediator.subscribe(
+            self.uc_info_module.update_from_metrics, period=3,
+            guard=lambda: self.uc_info_module.isVisible(),
+        )
+        self._mediator.subscribe(
+            self.uc_activity_sidebar.update_from_metrics, period=1,
+            guard=lambda: self.uc_activity_sidebar.isVisible(),
+        )
+
+    def _on_overlay_tick(self, metrics) -> None:
+        """Overlay subscriber — render + send to LCD only when visually changed.
+
+        Skips the entire render+encode+SCSI pipeline when display text hasn't
+        changed.  During video playback, rebuilds the pre-baked frame cache
+        when metrics change instead of rendering directly.
+        """
+        self.controller.update_overlay_metrics(metrics)
+
+        if self.controller.is_video_playing():
+            if self.controller.overlay_has_changed(metrics):
+                self.controller.rebuild_video_cache_metrics(metrics)
             return
-        self._render_and_send(skip_if_video=True)
+
+        if not self.controller.overlay_has_changed(metrics):
+            return
+
+        self._render_and_send()
+
+    def _on_led_metrics(self, metrics) -> None:
+        """LED subscriber — forward pre-polled metrics to LED handler."""
+        if self._led.has_controller:
+            self._led.update_from_metrics(metrics)
 
     def start_metrics(self):
         """Start live metrics collection for overlay display."""
-        log.info("Metrics timer started (1s interval)")
+        log.info("Metrics mediator: overlay started")
         self.controller.enable_overlay(True)
-        self._metrics_timer.start(1000)
+        self._mediator.ensure_running()
 
     def stop_metrics(self):
-        """Stop live metrics collection."""
-        log.info("Metrics timer stopped")
+        """Stop overlay metrics — mediator stays alive if other consumers need it."""
+        log.info("Metrics mediator: overlay stopped")
         self.controller.enable_overlay(False)
-        self._metrics_timer.stop()
+        self._mediator.ensure_running()
 
     # =========================================================================
     # Borderless Window Drag
@@ -2309,7 +2350,7 @@ class TRCCMainWindowMVC(QMainWindow):
         self._animation_timer.stop()
         self._slideshow_timer.stop()
         self._screencast.cleanup()
-        self._metrics_timer.stop()
+        self._mediator.stop()
         self._device_timer.stop()
         self._led.cleanup()
         self.uc_system_info.stop_updates()

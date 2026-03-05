@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.models import HardwareMetrics, celsius_to_fahrenheit
+from ..core.models import HardwareMetrics
 from ..services.led import LEDService
 from .assets import Assets
 from .base import set_background_pixmap
@@ -1227,16 +1227,12 @@ class UCLedControl(QWidget):
         """Update UCInfoImage sensor gauges."""
         unit = self._temp_unit
         t = metrics.cpu_temp
-        if unit == "\u00b0F":
-            t = celsius_to_fahrenheit(t)
         self._info_images['cpu_temp'].set_value(t, f"{t:.0f}", unit)
         self._info_images['cpu_clock'].set_value(
             metrics.cpu_freq, f"{metrics.cpu_freq:.0f}", "MHz")
         self._info_images['cpu_usage'].set_value(
             metrics.cpu_percent, f"{metrics.cpu_percent:.0f}", "%")
         t = metrics.gpu_temp
-        if unit == "\u00b0F":
-            t = celsius_to_fahrenheit(t)
         self._info_images['gpu_temp'].set_value(t, f"{t:.0f}", unit)
         self._info_images['gpu_clock'].set_value(
             metrics.gpu_clock, f"{metrics.gpu_clock:.0f}", "MHz")
@@ -1247,8 +1243,6 @@ class UCLedControl(QWidget):
         """Update memory info labels (LC1 style 4, C# UCLEDMemoryInfo)."""
         unit = self._temp_unit
         t = metrics.mem_temp
-        if unit == "\u00b0F":
-            t = celsius_to_fahrenheit(t)
         if t == 0:
             self._mem_labels['mem_temp'].setText("NC")
         else:
@@ -1326,8 +1320,6 @@ class UCLedControl(QWidget):
         """Update disk info labels (LF11 style 10, C# UCLEDHarddiskInfo)."""
         unit = self._temp_unit
         t = metrics.disk_temp
-        if unit == "\u00b0F":
-            t = celsius_to_fahrenheit(t)
         if t == 0:
             self._disk_labels['lf11_disk_temp'].setText("NC")
         else:

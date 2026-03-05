@@ -1,7 +1,7 @@
 """Shared test fixtures for the TRCC Linux test suite.
 
 Tier 0: Environment — disable live IPC daemon (tests must never route through GUI)
-Tier 1: Data factories — DeviceInfo, mock devices, PIL images
+Tier 1: Data factories — DeviceInfo, mock devices, native renderer surfaces
 Tier 2: Filesystem — isolated config dirs, theme dirs, temp PNGs
 Tier 3: Service — pre-wired LED/Display dispatchers
 Tier 4: Qt — session-scoped QApplication (offscreen)
@@ -10,12 +10,44 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
 
 from trcc.core.models import DeviceInfo
+from trcc.services.image import ImageService
+
+# =========================================================================
+# Surface helpers — create/inspect native renderer surfaces in tests
+# =========================================================================
+
+def make_test_surface(
+    w: int = 320, h: int = 320,
+    color: tuple[int, ...] = (128, 0, 0),
+) -> Any:
+    """Create a native renderer surface (QImage) for testing.
+
+    For RGB: pass 3-tuple. For RGBA: pass 4-tuple.
+    """
+    r = ImageService._r()
+    return r.create_surface(w, h, color)
+
+
+def surface_size(surface: Any) -> tuple[int, int]:
+    """Get (width, height) from any renderer surface."""
+    return ImageService._r().surface_size(surface)
+
+
+def get_pixel(surface: Any, x: int, y: int) -> tuple[int, ...]:
+    """Get pixel color from any renderer surface.
+
+    Returns (r, g, b) for RGB surfaces, (r, g, b, a) for RGBA.
+    Converts to PIL internally for uniform pixel access.
+    """
+    pil = ImageService._r().to_pil(surface)
+    return pil.getpixel((x, y))
 
 # =========================================================================
 # Tier 0: Environment — disable live IPC daemon
@@ -92,10 +124,10 @@ def mock_service(device_info):
 
 @pytest.fixture
 def test_image():
-    """Factory fixture: minimal PIL RGB image."""
+    """Factory fixture: native renderer surface for testing."""
     def _make(w: int = 320, h: int = 320,
-              color: tuple[int, int, int] = (128, 0, 0)) -> Image.Image:
-        return Image.new("RGB", (w, h), color)
+              color: tuple[int, ...] = (128, 0, 0)) -> Any:
+        return make_test_surface(w, h, color)
     return _make
 
 
@@ -253,10 +285,10 @@ def make_mock_service(device: DeviceInfo | None = None) -> MagicMock:
 
 
 def make_test_image(
-    w: int = 320, h: int = 320, color: tuple[int, int, int] = (128, 0, 0),
-) -> Image.Image:
+    w: int = 320, h: int = 320, color: tuple[int, ...] = (128, 0, 0),
+) -> Any:
     """Legacy: prefer test_image fixture. Used by test_controllers."""
-    return Image.new("RGB", (w, h), color)
+    return make_test_surface(w, h, color)
 
 
 def save_test_png(path: str, w: int = 320, h: int = 320) -> None:

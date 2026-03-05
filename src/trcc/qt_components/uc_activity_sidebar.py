@@ -12,7 +12,7 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from ..core.models import OverlayElementConfig, OverlayMode
-from ..services.system import get_all_metrics
+from ..services.system import get_cached_metrics
 
 log = logging.getLogger(__name__)
 
@@ -233,8 +233,16 @@ class UCActivitySidebar(QWidget):
     def _on_sensor_clicked(self, config):
         self.sensor_clicked.emit(config)
 
+    def update_from_metrics(self, metrics) -> None:
+        """Accept pre-polled metrics from MetricsMediator."""
+        try:
+            for item in self._sensor_items:
+                item.update_value(metrics)
+        except Exception as e:
+            log.error("Activity sidebar update error: %s", e)
+
     def start_updates(self, interval_ms=1000):
-        """Start periodic sensor value updates."""
+        """Start periodic sensor value updates (standalone use)."""
         self._update_values()
         self._update_timer.start(interval_ms)
 
@@ -243,9 +251,9 @@ class UCActivitySidebar(QWidget):
         self._update_timer.stop()
 
     def _update_values(self):
-        """Update all sensor values from system_info."""
+        """Update all sensor values from system_info (standalone timer)."""
         try:
-            metrics = get_all_metrics()
+            metrics = get_cached_metrics()
             for item in self._sensor_items:
                 item.update_value(metrics)
         except Exception as e:

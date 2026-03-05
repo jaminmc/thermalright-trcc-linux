@@ -297,8 +297,13 @@ class ThemeService:
             td = ThemeDir(theme_path)
 
             # Thumbnail from rendered preview
-            thumb = background.copy()
-            thumb.thumbnail((120, 120))
+            from .image import ImageService
+            r = ImageService._r()
+            src_w, src_h = r.surface_size(background)
+            scale = min(120 / src_w, 120 / src_h, 1.0)
+            thumb = r.resize(r.copy_surface(background),
+                             max(1, int(src_w * scale)),
+                             max(1, int(src_h * scale)))
             thumb.save(str(td.preview))
 
             # Save current frame as 00.png

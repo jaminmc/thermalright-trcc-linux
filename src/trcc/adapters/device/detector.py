@@ -186,8 +186,54 @@ class DeviceDetector:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def find_usb_devices_sysfs() -> List[DetectedDevice]:
+        """Find known USB devices via sysfs (no subprocess).
+
+        Reads ``/sys/bus/usb/devices/*/idVendor`` + ``idProduct`` directly.
+        Much cheaper than fork+exec of ``lsusb`` every poll cycle.
+        """
+        all_known = DeviceDetector._get_all_registries()
+        devices: List[DetectedDevice] = []
+        usb_base = '/sys/bus/usb/devices'
+        try:
+            entries = os.listdir(usb_base)
+        except OSError:
+            return devices
+        for entry in entries:
+            dev_dir = os.path.join(usb_base, entry)
+            vid_path = os.path.join(dev_dir, 'idVendor')
+            pid_path = os.path.join(dev_dir, 'idProduct')
+            if not os.path.isfile(vid_path):
+                continue
+            try:
+                with open(vid_path) as f:
+                    vid = int(f.read().strip(), 16)
+                with open(pid_path) as f:
+                    pid = int(f.read().strip(), 16)
+            except (OSError, ValueError):
+                continue
+            if (vid, pid) not in all_known:
+                continue
+            info = all_known[(vid, pid)]
+            log.debug("Found known device via sysfs: %04X:%04X %s (%s)",
+                      vid, pid, info.vendor, info.protocol)
+            devices.append(DetectedDevice(
+                vid=vid, pid=pid,
+                vendor_name=info.vendor,
+                product_name=info.product,
+                usb_path=entry,
+                implementation=info.implementation,
+                model=info.model,
+                button_image=info.button_image,
+                protocol=info.protocol,
+                device_type=info.device_type,
+            ))
+        log.debug("Sysfs USB scan found %d known device(s)", len(devices))
+        return devices
+
+    @staticmethod
     def find_usb_devices() -> List[DetectedDevice]:
-        """Find all USB LCD devices using lsusb."""
+        """Find all USB LCD devices using lsusb (subprocess fallback)."""
         devices = []
         log.debug("Scanning USB devices via lsusb...")
         output = DeviceDetector.run_command(['lsusb'])
@@ -387,9 +433,15 @@ class DeviceDetector:
 
     @staticmethod
     def detect() -> List[DetectedDevice]:
-        """Detect all USB LCD devices and their SCSI mappings."""
+        """Detect all USB LCD devices and their SCSI mappings.
+
+        Uses sysfs first (pure file reads, no subprocess). Falls back to
+        ``lsusb`` if sysfs returns nothing (e.g. unusual kernel config).
+        """
         log.debug("Starting device detection...")
-        devices = DeviceDetector.find_usb_devices()
+        devices = DeviceDetector.find_usb_devices_sysfs()
+        if not devices:
+            devices = DeviceDetector.find_usb_devices()
 
         for device in devices:
             scsi_dev = DeviceDetector.find_scsi_device_by_usb_path(device.usb_path)

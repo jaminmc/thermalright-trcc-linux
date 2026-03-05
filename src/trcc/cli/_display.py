@@ -85,14 +85,11 @@ class DisplayDispatcher:
         if not os.path.exists(image_path):
             return {"success": False, "error": f"File not found: {image_path}"}
 
-        from PIL import Image
-
         from trcc.services import ImageService
 
         dev = self._dev
         w, h = dev.resolution
-        img = Image.open(image_path).convert('RGB')
-        img = ImageService.resize(img, w, h)
+        img = ImageService.open_and_resize(image_path, w, h)
         self._svc.send_pil(img, w, h)
         return {
             "success": True,
@@ -189,8 +186,6 @@ class DisplayDispatcher:
         """Load mask overlay and send composited image."""
         from pathlib import Path
 
-        from PIL import Image
-
         from trcc.services import ImageService, OverlayService
 
         if not os.path.exists(mask_path):
@@ -210,7 +205,8 @@ class DisplayDispatcher:
             mask_file = p
 
         overlay = OverlayService(w, h)
-        mask_img = Image.open(mask_file).convert('RGBA')
+        r = ImageService._r()
+        mask_img = r.convert_to_rgba(r.open_image(mask_file))
         overlay.set_mask(mask_img)
 
         bg = ImageService.solid_color(0, 0, 0, w, h)
@@ -654,11 +650,8 @@ def resume():
             continue
 
         try:
-            from PIL import Image
-
-            img = Image.open(image_path).convert("RGB")
             w, h = dev.resolution
-            img = ImageService.resize(img, w, h)
+            img = ImageService.open_and_resize(image_path, w, h)
 
             # Apply brightness
             brightness_level = cfg.get("brightness_level", 3)

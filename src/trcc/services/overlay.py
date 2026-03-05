@@ -1,8 +1,7 @@
 """Overlay rendering service — config, mask, metrics → composited image.
 
-Pure Python, no Qt dependencies.
-Orchestrates background, mask compositing, text overlays, and dynamic scaling.
-Rendering delegated to Renderer ABC (Strategy pattern) — PIL or QPainter.
+Renderer-agnostic — delegates all image ops to the Renderer ABC.
+Returns native surfaces (QImage when QtRenderer, PIL Image when PilRenderer).
 """
 from __future__ import annotations
 
@@ -37,8 +36,8 @@ class OverlayService:
                  renderer: Renderer | None = None) -> None:
         # Rendering backend (Strategy pattern)
         if renderer is None:
-            from ..adapters.render.pil import PilRenderer
-            renderer = PilRenderer()
+            from ..adapters.render.qt import QtRenderer
+            renderer = QtRenderer()
         self._renderer: Renderer = renderer
 
         # Rendering state (public — tests + callers access these directly)
@@ -101,26 +100,50 @@ class OverlayService:
         log.debug("Overlay %s", "enabled" if value else "disabled")
         self._enabled = value
 
+    # ── Format detection ────────────────────────────────────────────
+
+    def _is_native_surface(self, image: Any) -> bool:
+        """Check if image is already a native renderer surface."""
+        try:
+            self._renderer.surface_size(image)
+            return True
+        except (AttributeError, TypeError):
+            return False
+
     # ── Background ───────────────────────────────────────────────────
 
     def set_background(self, image: Any) -> None:
         """Set background image.
 
+        Accepts native surfaces or PIL Images (auto-converted via from_pil).
         Optimized for video playback — skips copy/resize if image is
         already the correct size (VideoPlayer pre-resizes frames).
         """
         if image is None:
+            log.debug("overlay.set_background: None")
             self.background = None
             return
+
+        r = self._renderer
+
+        # Convert PIL Image → native surface if needed
+        native = self._is_native_surface(image)
+        log.debug("overlay.set_background: type=%s native=%s", type(image).__name__, native)
+        if not native:
+            image = r.from_pil(image)
+
         if not self.width or not self.height:
             self.background = image
             return
+        img_size = r.surface_size(image)
+        target = (self.width, self.height)
+        log.debug("overlay.set_background: size=%s target=%s", img_size, target)
         # Skip resize if already correct size (video frames are pre-sized)
-        if image.size == (self.width, self.height):
+        if img_size == target:
             self.background = image
         else:
-            self.background = self._renderer.resize(
-                self._renderer.copy_surface(image), self.width, self.height
+            self.background = r.resize(
+                r.copy_surface(image), self.width, self.height
             )
 
     # ── Config ───────────────────────────────────────────────────────
@@ -224,17 +247,20 @@ class OverlayService:
             self._invalidate_cache()
             return
 
-        if image.mode != 'RGBA':
-            image = image.convert('RGBA')
-
+        r = self._renderer
+        if not self._is_native_surface(image):
+            image = r.from_pil(image)
+        image = r.convert_to_rgba(image)
         self.theme_mask = image
 
         if position is not None:
             self.theme_mask_position = position
-        elif image.height < self.height:
-            self.theme_mask_position = (0, self.height - image.height)
         else:
-            self.theme_mask_position = (0, 0)
+            _, mask_h = r.surface_size(image)
+            if mask_h < self.height:
+                self.theme_mask_position = (0, self.height - mask_h)
+            else:
+                self.theme_mask_position = (0, 0)
 
         self._invalidate_cache()
 
@@ -259,30 +285,6 @@ class OverlayService:
     def update_metrics(self, metrics: HardwareMetrics) -> None:
         """Update system metrics for hardware overlay elements."""
         self._metrics = metrics
-
-    # ── Font resolution (delegated to Renderer) ──────────────────────
-
-    @property
-    def font_cache(self) -> dict:
-        """Font cache (delegates to Renderer)."""
-        fonts = getattr(self._renderer, '_fonts', None)
-        return fonts.cache if fonts else {}
-
-    @font_cache.setter
-    def font_cache(self, value: dict) -> None:
-        fonts = getattr(self._renderer, '_fonts', None)
-        if fonts:
-            fonts.cache = value
-
-    def get_font(self, size: int, bold: bool = False,
-                 font_name: str | None = None) -> Any:
-        """Get font by name with fallback chain."""
-        return self._renderer.get_font(size, bold, font_name)
-
-    def _resolve_font_path(self, font_name: str, bold: bool = False) -> str | None:
-        """Resolve font family name to file path."""
-        fonts = getattr(self._renderer, '_fonts', None)
-        return fonts.resolve_path(font_name, bold) if fonts else None
 
     # ── Overlay cache ────────────────────────────────────────────────
 
@@ -317,10 +319,13 @@ class OverlayService:
         )
 
     def _metrics_hash(self, metrics: HardwareMetrics) -> int:
-        """Hash only the metric values referenced by current config.
+        """Hash the *formatted display strings*, not raw metric values.
 
-        Uses display-precision rounding to avoid re-renders from tiny
-        sensor fluctuations (45.1°C vs 45.2°C both display as "45°C").
+        Previous approach used ``round(val)`` which still invalidated the
+        cache on sub-display fluctuations (cpu_percent 12.3→12.7 rounds
+        to 12→13, but both display as "12%").  By hashing the actual
+        text that would be rendered, the overlay only re-draws when the
+        screen would visibly change.
 
         Time/date/weekday elements call datetime.now() during render
         (ignoring the metrics DTO), so we include current time directly
@@ -341,9 +346,13 @@ class OverlayService:
                 has_date = True
             else:
                 val = getattr(metrics, metric_name, None)
-                if isinstance(val, float):
-                    val = round(val)
-                vals.append(val)
+                if val is not None:
+                    time_fmt = cfg.get('time_format', self.time_format)
+                    date_fmt = cfg.get('date_format', self.date_format)
+                    vals.append(SystemService.format_metric(
+                        metric_name, val, time_fmt, date_fmt, self.temp_unit))
+                else:
+                    vals.append(None)
         # Time/date use datetime.now() in render — include in hash
         if has_time or has_date:
             from datetime import datetime
@@ -364,16 +373,22 @@ class OverlayService:
         Callers gate on `.enabled` before calling — this method always renders.
 
         Args:
-            background: Optional PIL Image (uses stored background if None).
+            background: Native surface (uses stored background if None).
             metrics: HardwareMetrics DTO (uses stored metrics if None).
 
         Returns:
-            PIL Image with overlay rendered.
+            Native surface (QImage or PIL Image depending on renderer).
         """
+        log.debug("overlay.render: bg_arg=%s stored_bg=%s config_keys=%d",
+                  type(background).__name__ if background else None,
+                  type(self.background).__name__ if self.background else None,
+                  len(self.config) if self.config else 0)
         if background:
             self.set_background(background)
         m = metrics if metrics is not None else self._metrics
-        return self._render_overlay(m)
+        result = self._render_overlay(m)
+        log.debug("overlay.render: result type=%s", type(result).__name__)
+        return result
 
     def _render_overlay(self, metrics: HardwareMetrics | None = None) -> Any:
         """Compositing pipeline — background + cached overlay layer.
@@ -393,11 +408,14 @@ class OverlayService:
             or (self.config and isinstance(self.config, dict))
         )
         if not has_overlays and self.background:
+            log.debug("_render_overlay: no overlays, returning bg as-is")
             return self.background
 
         # Check overlay layer cache
         cache_key = self._build_cache_key(metrics)
         overlay_changed = cache_key != self._cache_key or self._overlay_cache is None
+        log.debug("_render_overlay: overlay_changed=%s has_mask=%s config_keys=%d",
+                  overlay_changed, self.theme_mask is not None, len(self.config) if self.config else 0)
         if overlay_changed:
             self._overlay_cache = self._render_overlay_layer(metrics, r)
             self._cache_key = cache_key
@@ -405,6 +423,7 @@ class OverlayService:
 
         # Fast path: overlay layer has no visible content (no mask, no text)
         if not self._overlay_has_content and self.background:
+            log.debug("_render_overlay: no visible content, returning bg")
             return self.background
 
         # Check composite cache — skip copy+paste when nothing changed
@@ -412,8 +431,11 @@ class OverlayService:
         if (self._composite_result is not None
                 and not overlay_changed
                 and bg_id == self._composite_bg_id):
+            log.debug("_render_overlay: composite cache hit")
             return self._composite_result
 
+        log.debug("_render_overlay: compositing bg(%s) + overlay",
+                  type(self.background).__name__ if self.background else None)
         result = self._composite_onto_background(r)
         self._composite_result = result
         self._composite_bg_id = bg_id
@@ -422,17 +444,16 @@ class OverlayService:
     def _composite_onto_background(self, r: Renderer) -> Any:
         """Composite cached overlay layer onto current background.
 
-        Overlay cache is RGBA; background is RGB.  PIL paste() with alpha
-        mask works directly on RGB — no RGBA round-trip needed.
+        Returns native surface (QImage or PIL Image depending on renderer).
         """
         if self.background is None:
             base = r.create_surface(self.width, self.height)
             r.composite(base, self._overlay_cache, (0, 0))
-            return r.to_pil(r.convert_to_rgb(base))
+            return r.convert_to_rgb(base)
 
-        base = r.copy_surface(r.from_pil(self.background))
+        base = r.copy_surface(self.background)
         r.composite(base, self._overlay_cache, (0, 0))
-        return r.to_pil(base)
+        return base
 
     def _render_overlay_layer(self, metrics: HardwareMetrics,
                               r: Renderer) -> Any:
@@ -447,24 +468,39 @@ class OverlayService:
         # Apply theme mask
         if self.theme_mask and self.theme_mask_visible:
             scale = self._get_scale_factor()
-            mask_pil = self.theme_mask
             self._overlay_has_content = True
             if abs(scale - 1.0) > 0.01:
-                mask_w = int(mask_pil.width * scale)
-                mask_h = int(mask_pil.height * scale)
-                mask_surface = r.resize(r.from_pil(mask_pil), mask_w, mask_h)
+                mw, mh = r.surface_size(self.theme_mask)
+                mask_surface = r.resize(
+                    r.copy_surface(self.theme_mask),
+                    int(mw * scale), int(mh * scale))
                 pos_x = int(self.theme_mask_position[0] * scale)
                 pos_y = int(self.theme_mask_position[1] * scale)
                 overlay = r.composite(overlay, mask_surface, (pos_x, pos_y))
             else:
                 overlay = r.composite(
-                    overlay, r.from_pil(mask_pil), self.theme_mask_position)
+                    overlay, self.theme_mask, self.theme_mask_position)
 
         # Draw text overlays
+        if self._draw_text_elements(overlay, metrics, r):
+            self._overlay_has_content = True
+
+        return overlay
+
+    def _draw_text_elements(self, surface: Any, metrics: HardwareMetrics,
+                            r: Renderer) -> bool:
+        """Render text elements onto a surface.
+
+        Shared by _render_overlay_layer (mask+text) and render_text_only
+        (text-only for video cache).
+
+        Returns True if any text was drawn.
+        """
         if not self.config or not isinstance(self.config, dict):
-            return overlay
+            return False
 
         scale = self._get_scale_factor()
+        drew_any = False
 
         for elem_idx, (_key, cfg) in enumerate(self.config.items()):
             if not isinstance(cfg, dict) or not cfg.get('enabled', True):
@@ -502,22 +538,38 @@ class OverlayService:
             bold = font_cfg.get('style') == 'bold' if isinstance(font_cfg, dict) else False
             font_name = font_cfg.get('name') if isinstance(font_cfg, dict) else None
             font = r.get_font(font_size, bold=bold, font_name=font_name)
-            r.draw_text(overlay, x, y, text, color, font, anchor='mm')
-            self._overlay_has_content = True
+            r.draw_text(surface, x, y, text, color, font, anchor='mm')
+            drew_any = True
 
-        return overlay
+        return drew_any
+
+    def render_text_only(self, metrics: HardwareMetrics) -> tuple[Any, tuple]:
+        """Render text elements only (no mask) to transparent RGBA surface.
+
+        Used by VideoFrameCache to separate static mask from dynamic text.
+        Returns (native_surface, cache_key) where cache_key tracks text-only changes.
+        """
+        r = self._renderer
+        surface = r.create_surface(self.width, self.height)
+        self._draw_text_elements(surface, metrics, r)
+        return surface, self._build_text_cache_key(metrics)
+
+    def _build_text_cache_key(self, metrics: HardwareMetrics) -> tuple:
+        """Cache key for text-only changes (subset of full cache key)."""
+        return (
+            self.time_format,
+            self.date_format,
+            self.temp_unit,
+            self.flash_skip_index,
+            self._get_scale_factor(),
+            self._metrics_hash(metrics),
+        )
 
     # ── DC data (lossless round-trip) ────────────────────────────────
 
     def set_dc_data(self, data: dict[str, Any] | None) -> None:
         """Store parsed DC data for lossless save round-trip."""
         self._dc_data = data
-
-    def get_dc_data(self) -> dict[str, Any] | None:
-        return self._dc_data
-
-    def clear_dc_data(self) -> None:
-        self._dc_data = None
 
     # ── Clear ────────────────────────────────────────────────────────
 

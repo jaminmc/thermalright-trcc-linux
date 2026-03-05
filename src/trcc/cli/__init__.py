@@ -14,6 +14,8 @@ Split into submodules by command group:
 
 import functools
 import logging
+import logging.handlers
+from pathlib import Path
 from typing import Annotated, Optional
 
 import click.exceptions
@@ -114,14 +116,36 @@ def gui(verbose=0, decorated=False, start_hidden=False):
         decorated: Use decorated window with titlebar.
         start_hidden: Start minimized to system tray (used by --last-one autostart).
     """
-    # Set up logging based on verbosity (filter out noisy PIL)
+    # Root logger at DEBUG — handlers filter independently
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # Console handler — verbosity-controlled
+    console = logging.StreamHandler()
     if verbose >= 2:
-        logging.basicConfig(level=logging.DEBUG, format='[%(levelname)s] %(name)s: %(message)s')
-        logging.getLogger('PIL').setLevel(logging.WARNING)
+        console.setLevel(logging.DEBUG)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(name)s: %(message)s'))
     elif verbose == 1:
-        logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+        console.setLevel(logging.INFO)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
     else:
-        logging.basicConfig(level=logging.WARNING)
+        console.setLevel(logging.WARNING)
+        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    root.addHandler(console)
+
+    # File handler — always DEBUG, rotated (1MB × 3 backups)
+    log_dir = Path.home() / '.config' / 'trcc'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_dir / 'trcc.log', maxBytes=1_000_000, backupCount=3)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'))
+    root.addHandler(file_handler)
+
+    # Suppress noisy PIL debug logging
+    logging.getLogger('PIL').setLevel(logging.WARNING)
 
     try:
         from trcc.qt_components.qt_app_mvc import run_mvc_app

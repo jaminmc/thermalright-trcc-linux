@@ -232,6 +232,14 @@ class DeviceInfo:
         """Get resolution as string (e.g., '320x320')."""
         return f"{self.resolution[0]}x{self.resolution[1]}"
 
+    @property
+    def encoding_params(self) -> tuple:
+        """Encoding params for ImageService.encode_for_device().
+
+        Returns (protocol, resolution, fbl, use_jpeg).
+        """
+        return (self.protocol, self.resolution, self.fbl_code, self.use_jpeg)
+
 
 @dataclass
 class HandshakeResult:
@@ -342,10 +350,15 @@ class VideoState:
 
     @property
     def frame_interval_ms(self) -> int:
-        """Get frame interval in milliseconds."""
+        """Get frame interval in milliseconds (capped at 16 FPS).
+
+        Windows C# uses a fixed 62ms timer (≈16 FPS) for all animated
+        themes regardless of source FPS.  Higher rates waste CPU on a
+        small LCD where the difference is imperceptible.
+        """
         if self.fps <= 0:
-            return 62  # Default ~16fps (Windows: 62.5ms per frame)
-        return int(1000 / self.fps)
+            return 62
+        return max(62, int(1000 / self.fps))
 
 
 class OverlayElementType(Enum):
@@ -1032,6 +1045,21 @@ class HardwareMetrics:
     date: float = 0.0
     time: float = 0.0
     weekday: float = 0.0
+
+    _TEMP_FIELDS = ('cpu_temp', 'gpu_temp', 'mem_temp', 'disk_temp')
+
+    @staticmethod
+    def with_temp_unit(metrics: 'HardwareMetrics', temp_unit: int) -> 'HardwareMetrics':
+        """Apply temperature unit conversion in-place (0=Celsius, 1=Fahrenheit).
+
+        Called once by MetricsMediator before dispatch — all downstream
+        consumers receive pre-converted temps.
+        """
+        if temp_unit != 1:
+            return metrics
+        for attr in HardwareMetrics._TEMP_FIELDS:
+            setattr(metrics, attr, celsius_to_fahrenheit(getattr(metrics, attr)))
+        return metrics
 
 
 # Hardware sensor ↔ metric name mapping (single source of truth).

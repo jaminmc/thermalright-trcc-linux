@@ -6,7 +6,7 @@ Uses QT_QPA_PLATFORM=offscreen for headless testing.
 Tests cover:
 - pil_to_pixmap() / pixmap_to_pil() conversion round-trip
 - BasePanel: init, fixed size, delegate signal, resource loading
-- ImageLabel: init, set_pil_image, click signal
+- ImageLabel: init, set_image, click signal
 - ClickableFrame: click signal
 - BaseThumbnail: init, selection state, style updates
 - BaseThemeBrowser: grid population, empty state, item selection
@@ -124,24 +124,24 @@ class TestImageLabel(unittest.TestCase):
         self.assertEqual(label.width(), 320)
         self.assertEqual(label.height(), 320)
 
-    def test_set_pil_image(self):
+    def test_set_image(self):
         label = ImageLabel(100, 100)
         img = Image.new('RGB', (100, 100), (0, 0, 255))
-        label.set_pil_image(img)
+        label.set_image(img)
         self.assertFalse(label.pixmap().isNull())
 
-    def test_set_pil_image_resizes(self):
+    def test_set_image_resizes(self):
         """Image is resized to fit label dimensions."""
         label = ImageLabel(50, 50)
         img = Image.new('RGB', (200, 200), (255, 0, 0))
-        label.set_pil_image(img)
+        label.set_image(img)
         self.assertEqual(label.pixmap().width(), 50)
 
     def test_set_none_clears(self):
         label = ImageLabel(100, 100)
         img = Image.new('RGB', (100, 100), (0, 0, 0))
-        label.set_pil_image(img)
-        label.set_pil_image(None)
+        label.set_image(img)
+        label.set_image(None)
         # After clear, pixmap should be null or label text empty
         pix = label.pixmap()
         self.assertTrue(pix is None or pix.isNull())

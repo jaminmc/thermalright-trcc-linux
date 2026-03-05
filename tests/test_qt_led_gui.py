@@ -818,12 +818,12 @@ class TestLedControlMetrics:
         assert "100" in led_control._disk_labels['lf11_disk_read'].text()
 
     def test_update_metrics_fahrenheit(self, led_control):
-        """Fahrenheit conversion applies to temp display."""
+        """Fahrenheit display — mediator pre-converts temps before dispatch."""
         led_control._style_id = 1
         led_control._temp_unit = "\u00b0F"
-        m = self._metrics(cpu_temp=100.0, gpu_temp=0.0)
+        # Mediator applies C/F conversion before dispatch — pass pre-converted
+        m = self._metrics(cpu_temp=212.0, gpu_temp=32.0)
         led_control.update_metrics(m)
-        # 100C = 212F
         assert led_control._info_images['cpu_temp']._value == 212.0
 
 

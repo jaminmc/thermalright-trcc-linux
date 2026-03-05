@@ -87,17 +87,15 @@ def _send_test_frame(protocol, resolution: tuple, fbl: int) -> None:
     print(f"\n  Sending RED test frame ({w}x{h})...")
 
     try:
-        from PIL import Image as PILImage
+        from trcc.services.image import ImageService
 
-        img = PILImage.new('RGB', (w, h), (255, 0, 0))
+        img = ImageService.solid_color(255, 0, 0, w, h)
 
         is_jpeg = fbl in JPEG_MODE_FBLS
         if is_jpeg:
-            from trcc.services.image import ImageService
             data = ImageService.to_jpeg(img)
             print(f"    Encoding: JPEG ({len(data):,} bytes)")
         else:
-            from trcc.services.image import ImageService
             data = ImageService.to_rgb565(img, '<')
             print(f"    Encoding: RGB565 LE ({len(data):,} bytes)")
 

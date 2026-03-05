@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import make_test_surface
 from PIL import Image
 
 from trcc.adapters.infra.data_repository import ThemeDir
@@ -33,9 +35,9 @@ def test_image() -> Image.Image:
 
 
 @pytest.fixture()
-def big_image() -> Image.Image:
-    """320x320 image — same as LCD size."""
-    return Image.new('RGB', (320, 320), (0, 0, 255))
+def big_image() -> Any:
+    """320x320 native surface — same as LCD size."""
+    return make_test_surface(320, 320, (0, 0, 255))
 
 
 def _make_theme_dir(
@@ -505,7 +507,7 @@ class TestLoadReferenceBased:
         assert data.animation_path == video
 
     def test_reference_image_background(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         bg = tmp_path / 'bg.png'
         big_image.save(str(bg))
@@ -614,7 +616,7 @@ class TestLoadReferenceBased:
 class TestLoadCopyBased:
 
     def test_static_bg(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         td = _make_theme_dir(tmp_path, 'Static', has_bg=True)
         work = tmp_path / 'work'
@@ -667,7 +669,7 @@ class TestLoadCopyBased:
         assert str(data.animation_path).endswith('.mp4')
 
     def test_mask_only_theme(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         td = _make_theme_dir(
             tmp_path, 'MaskOnly',
@@ -739,7 +741,7 @@ class TestLoadCopyBased:
         assert data.is_animated is True
 
     def test_mask_loaded_from_working_dir(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         td = _make_theme_dir(
             tmp_path, 'WithMask', has_bg=True, has_mask=True
@@ -757,7 +759,7 @@ class TestLoadCopyBased:
         mock_mask.assert_called_once()
 
     def test_copy_based_mask_with_dc(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         td = _make_theme_dir(
             tmp_path, 'MaskDc', has_bg=True, has_mask=True, has_dc=True
@@ -833,7 +835,7 @@ class TestLoadCopyBased:
 class TestSave:
 
     def test_success_with_image(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         ok, msg = ThemeService.save(
             'MyTheme',
@@ -856,7 +858,7 @@ class TestSave:
         assert config['dc'] == {'elements': []}
 
     def test_already_custom_prefix(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         ok, msg = ThemeService.save(
             'Custom_already',
@@ -883,7 +885,7 @@ class TestSave:
         assert 'No image' in msg
 
     def test_video_path_copied(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         video = tmp_path / 'source.mp4'
         video.write_bytes(b'\x00' * 64)
@@ -907,7 +909,7 @@ class TestSave:
         assert config['background'] == str(saved_video)
 
     def test_video_path_same_as_dest_no_copy(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         """When video source already IS the dest .zt, don't copy over itself."""
         theme_path = tmp_path / 'theme320320' / 'Custom_SameVid'
@@ -926,7 +928,7 @@ class TestSave:
         assert ok is True
 
     def test_video_path_not_exists(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         """video_path provided but file doesn't exist -> background_path is None."""
         ok, msg = ThemeService.save(
@@ -944,7 +946,7 @@ class TestSave:
         assert config['background'] is None
 
     def test_mask_source_saved(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         mask_dir = _make_theme_dir(
             tmp_path, 'MaskSource', has_mask=True, has_bg=False, has_preview=False
@@ -966,7 +968,7 @@ class TestSave:
         assert config['mask'] == str(mask_dir)
 
     def test_mask_position_saved(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         mask_dir = _make_theme_dir(
             tmp_path, 'MaskPos', has_mask=True, has_bg=False, has_preview=False
@@ -989,7 +991,7 @@ class TestSave:
         assert config['mask_position'] == [50, 60]
 
     def test_mask_without_mask_source_file(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         """mask_source directory that doesn't contain 01.png => mask not saved."""
         empty_dir = tmp_path / 'EmptyMask'
@@ -1028,7 +1030,7 @@ class TestSave:
         assert 'Save failed' in msg
 
     def test_no_mask_position_without_mask_path(
-        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Image.Image
+        self, tmp_path: Path, lcd_size: tuple[int, int], big_image: Any
     ) -> None:
         """mask_position should NOT appear in config when mask is None."""
         ok, msg = ThemeService.save(
