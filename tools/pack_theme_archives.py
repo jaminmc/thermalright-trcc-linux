@@ -25,25 +25,42 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / 'src' / 'data'
 WEB_DIR = DATA_DIR / 'Web'
 
-# All LCD resolutions supported by TRCC devices (from FBL_TO_RESOLUTION in hid_device.py)
-# Landscape orientations + portrait variants where Windows ships theme data
+# All LCD resolutions from C# v2.1.2 FormCZTV constants (GifDirectoryWeb*)
+# Landscape + portrait + sub-variants — full parity with Windows TRCC
 RESOLUTIONS = [
+    # Square
     '240240',   # FBL 36/37
-    '240320',   # FBL 50
     '320320',   # FBL 100/101/102
     '360360',   # FBL 54
     '480480',   # FBL 72
+    # Landscape
+    '240320',   # FBL 50
+    '320240',   # FBL 50/58
+    '640172',
     '640480',   # FBL 64
     '800480',   # FBL 224 + PM 12
     '854480',   # FBL 224
+    '960320',
     '960540',   # FBL 224 + PM 10
     '1280480',  # FBL 128 (Trofeo Vision)
     '1600720',  # FBL 114
+    '1600720u',
+    '1600720l',
+    '1920440',
     '1920462',  # FBL 192
     # Portrait variants (rotated displays)
+    '172640',
+    '320960',
+    '4401920',
+    '4621920',
+    '4801280',  # FBL 128 portrait (Trofeo Vision at 90°/270°)
+    '480640',
     '480800',
     '480854',
     '540960',
+    '7201600',
+    '7201600u',
+    '7201600l',
 ]
 DEFAULT_THEMES = [f'Theme{i}' for i in range(1, 6)]
 
