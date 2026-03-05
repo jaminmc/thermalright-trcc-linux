@@ -42,7 +42,7 @@ jobs:
           skipIfReleaseExists: true
 
       - name: Upload dist to actions artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dist-${{ github.ref_name }}
           path: dist/*
