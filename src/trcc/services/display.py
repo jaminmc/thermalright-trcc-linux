@@ -7,6 +7,7 @@ service and fire callbacks.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -463,6 +464,10 @@ class DisplayService:
 
     def save_theme(self, name: str, data_dir: Path) -> Tuple[bool, str]:
         """Save current config as a custom theme."""
+        # Fall back to user-writable dir on system-wide installs (#51)
+        if not os.access(data_dir, os.W_OK):
+            from ..adapters.infra.data_repository import USER_DATA_DIR
+            data_dir = Path(USER_DATA_DIR)
         ok, msg = ThemePersistence.save(
             name, data_dir, self.lcd_size,
             current_image=self.current_image,
@@ -486,6 +491,10 @@ class DisplayService:
 
     def import_config(self, import_path: Path, data_dir: Path) -> Tuple[bool, str]:
         """Import theme from .tr or JSON file."""
+        # Fall back to user-writable dir on system-wide installs (#51)
+        if not os.access(data_dir, os.W_OK):
+            from ..adapters.infra.data_repository import USER_DATA_DIR
+            data_dir = Path(USER_DATA_DIR)
         ok, result = ThemePersistence.import_config(
             import_path, data_dir, self.lcd_size)
         if ok and not isinstance(result, str):

@@ -169,17 +169,18 @@ class ThemeDir:
     def for_resolution(cls, width: int, height: int) -> ThemeDir:
         """Resolve the best theme directory for a resolution.
 
-        Checks package data dir first, then user data dir (~/.trcc/data/).
-        Returns whichever has actual theme content.
+        Prefers user dir (~/.trcc/data/) — always writable, works on
+        system-wide installs (pacman/dnf/apt). Falls back to pkg dir
+        only if user dir has no themes and pkg dir does.
         """
         name = f'theme{width}{height}'
-        pkg_dir = os.path.join(DATA_DIR, name)
-        if ThemeDir.has_themes(pkg_dir):
-            return cls(pkg_dir)
         user_dir = os.path.join(USER_DATA_DIR, name)
         if ThemeDir.has_themes(user_dir):
             return cls(user_dir)
-        return cls(pkg_dir)
+        pkg_dir = os.path.join(DATA_DIR, name)
+        if ThemeDir.has_themes(pkg_dir):
+            return cls(pkg_dir)
+        return cls(user_dir)
 
     @property
     def bg(self):
@@ -231,36 +232,22 @@ class ThemeDir:
 # Data directory resolution (runs at import time)
 # =========================================================================
 
-def _find_data_dir() -> str:
-    """Find the data directory with themes.
+def _find_pkg_data_dir() -> str:
+    """Find the package data directory (for bundled .7z archives in dev mode).
 
-    Search order:
-    1. trcc/data/ (inside package)
-    2. Project root data/ (development fallback)
-    3. ~/.trcc/data/ (user downloads)
+    Only used for locating .7z archives before downloading from GitHub.
     """
-    candidates = [
-        os.path.join(_THIS_DIR, 'data'),
-        os.path.join(PROJECT_ROOT, 'data'),
-        USER_DATA_DIR,
-    ]
-    for candidate in candidates:
+    for candidate in [os.path.join(_THIS_DIR, 'data'),
+                      os.path.join(PROJECT_ROOT, 'data')]:
         if os.path.isdir(candidate):
-            for item in os.listdir(candidate):
-                if item.startswith('theme'):
-                    theme_path = os.path.join(candidate, item)
-                    if ThemeDir.has_themes(theme_path):
-                        log.debug("Data dir: %s (found themes in %s)", candidate, item)
-                        return candidate
-
-    # Prefer user-writable dir as fallback — pkg path may be read-only
-    # on system-wide installs (e.g. pacman → /usr/lib/python3.x/...)
-    fallback = USER_DATA_DIR
-    log.debug("Data dir: %s (fallback — no themes found yet)", fallback)
-    return fallback
+            return candidate
+    return os.path.join(_THIS_DIR, 'data')
 
 
-DATA_DIR = _find_data_dir()
+# All runtime data goes to ~/.trcc/data/ — always writable, works on
+# pip, pipx, pacman, dnf, apt installs. No read-only pkg_dir issues.
+_PKG_DATA_DIR = _find_pkg_data_dir()
+DATA_DIR = USER_DATA_DIR
 THEMES_DIR = DATA_DIR
 
 RESOURCE_SEARCH_PATHS = [RESOURCES_DIR]
@@ -454,30 +441,20 @@ class DataManager:
         return ok
 
     @staticmethod
-    def _fetch_theme_archive(archive_name: str) -> Optional[str]:
-        """Locate or download a Theme .7z archive."""
-        pkg = os.path.join(DATA_DIR, archive_name)
-        if os.path.isfile(pkg):
-            return pkg
-        user = os.path.join(USER_DATA_DIR, archive_name)
-        if os.path.isfile(user):
-            return user
-        url = DataManager.GITHUB_BASE_URL + archive_name
-        if DataManager.download_archive(url, user):
-            return user
-        return None
+    def _fetch_archive(archive_name: str, subdir: str = '') -> Optional[str]:
+        """Locate or download a .7z archive.
 
-    @staticmethod
-    def _fetch_web_archive(archive_name: str) -> Optional[str]:
-        """Locate or download a Web .7z archive."""
-        pkg = os.path.join(DATA_DIR, 'web', archive_name)
-        if os.path.isfile(pkg):
-            return pkg
-        user = os.path.join(USER_DATA_DIR, 'web', archive_name)
-        if os.path.isfile(user):
-            return user
-        url = DataManager.GITHUB_BASE_URL + 'web/' + archive_name
-        if DataManager.download_archive(url, user):
+        Args:
+            archive_name: Filename of the archive (e.g. 'theme320320.7z').
+            subdir: Optional subdirectory (e.g. 'web') under data dirs.
+        """
+        for base in (_PKG_DATA_DIR, USER_DATA_DIR):
+            path = os.path.join(base, subdir, archive_name) if subdir else os.path.join(base, archive_name)
+            if os.path.isfile(path):
+                return path
+        user = os.path.join(USER_DATA_DIR, subdir, archive_name) if subdir else os.path.join(USER_DATA_DIR, archive_name)
+        url_path = f'{subdir}/{archive_name}' if subdir else archive_name
+        if DataManager.download_archive(DataManager.GITHUB_BASE_URL + url_path, user):
             return user
         return None
 
@@ -500,7 +477,7 @@ class DataManager:
             user_dir=os.path.join(USER_DATA_DIR, name),
             archive_name=f'{name}.7z',
             check_fn=ThemeDir.has_themes,
-            fetch_fn=DataManager._fetch_theme_archive,
+            fetch_fn=lambda a: DataManager._fetch_archive(a),
         )
 
     @staticmethod
@@ -513,7 +490,7 @@ class DataManager:
             user_dir=os.path.join(USER_DATA_DIR, 'web', res_key),
             archive_name=f'{res_key}.7z',
             check_fn=DataManager._has_any_content,
-            fetch_fn=DataManager._fetch_web_archive,
+            fetch_fn=lambda a: DataManager._fetch_archive(a, 'web'),
         )
 
     @staticmethod
@@ -526,7 +503,7 @@ class DataManager:
             user_dir=os.path.join(USER_DATA_DIR, 'web', res_key),
             archive_name=f'{res_key}.7z',
             check_fn=ThemeDir.has_themes,
-            fetch_fn=DataManager._fetch_web_archive,
+            fetch_fn=lambda a: DataManager._fetch_archive(a, 'web'),
         )
 
     @staticmethod
@@ -588,32 +565,29 @@ class DataManager:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def get_web_dir(width: int, height: int) -> str:
-        """Get cloud theme Web directory for a resolution.
+    def _resolve_web_subdir(res_key: str, check_fn=None) -> str:
+        """Resolve a web subdirectory, preferring pkg_dir if it has content.
 
-        Returns pkg_dir if it has content, else user_dir if it has content,
-        else user_dir (writable fallback — pkg_dir may be read-only on
-        system-wide installs like pacman).
+        Falls back to user_dir (always writable — safe on system-wide installs).
         """
-        res_key = f'{width}{height}'
+        if check_fn is None:
+            check_fn = DataManager._has_any_content
         pkg_dir = os.path.join(DATA_DIR, 'web', res_key)
-        if os.path.isdir(pkg_dir) and os.listdir(pkg_dir):
+        if check_fn(pkg_dir):
             return pkg_dir
-        user_dir = os.path.join(USER_DATA_DIR, 'web', res_key)
-        return user_dir
+        return os.path.join(USER_DATA_DIR, 'web', res_key)
+
+    @staticmethod
+    def get_web_dir(width: int, height: int) -> str:
+        """Get cloud theme Web directory for a resolution."""
+        return DataManager._resolve_web_subdir(f'{width}{height}')
 
     @staticmethod
     def get_web_masks_dir(width: int, height: int) -> str:
-        """Get cloud masks directory for a resolution.
-
-        Returns pkg_dir if it has themes, else user_dir (writable fallback).
-        """
-        res_key = f'zt{width}{height}'
-        pkg_dir = os.path.join(DATA_DIR, 'web', res_key)
-        if ThemeDir.has_themes(pkg_dir):
-            return pkg_dir
-        user_dir = os.path.join(USER_DATA_DIR, 'web', res_key)
-        return user_dir
+        """Get cloud masks directory for a resolution."""
+        return DataManager._resolve_web_subdir(
+            f'zt{width}{height}', check_fn=ThemeDir.has_themes,
+        )
 
 
 # =========================================================================

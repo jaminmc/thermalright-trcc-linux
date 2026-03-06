@@ -14,7 +14,7 @@ from ..adapters.infra.data_repository import ThemeDir
 from .image import ImageService
 from .media import MediaService
 from .overlay import OverlayService
-from .theme import _copy_flat_files
+from .theme import ThemeService, _copy_flat_files
 
 log = logging.getLogger(__name__)
 
@@ -132,31 +132,14 @@ class ThemeLoader:
         }
 
         # Load background / animation
-        anim_file = display_opts.get('animation_file')
-        if anim_file:
-            anim_path = working_dir / anim_file
-            if anim_path.exists():
-                self._load_and_play_video(anim_path)
-                result['is_animated'] = True
-            elif theme.is_animated and theme.animation_path:
-                self._load_and_play_video(theme.animation_path)
-                result['is_animated'] = True
-        elif theme.is_animated and theme.animation_path:
-            wd_copy = working_dir / Path(theme.animation_path).name
-            load_path = wd_copy if wd_copy.exists() else theme.animation_path
-            self._load_and_play_video(load_path)
+        anim_path, static_path, is_mask_only = ThemeService._resolve_content(
+            theme, display_opts, wd, working_dir)
+        if anim_path:
+            self._load_and_play_video(anim_path)
             result['is_animated'] = True
-        elif wd.zt.exists():
-            self._load_and_play_video(wd.zt)
-            result['is_animated'] = True
-        elif wd.bg.exists():
-            mp4_files = list(working_dir.glob('*.mp4'))
-            if mp4_files:
-                self._load_and_play_video(mp4_files[0])
-                result['is_animated'] = True
-            else:
-                result['image'] = self._load_static_image(wd.bg, lcd_size)
-        elif theme.is_mask_only:
+        elif static_path:
+            result['image'] = self._load_static_image(static_path, lcd_size)
+        elif is_mask_only:
             result['image'] = ImageService.solid_color(0, 0, 0, *lcd_size)
 
         # Load mask from working dir
@@ -244,23 +227,5 @@ class ThemeLoader:
                              mask_w: int, mask_h: int,
                              lcd_size: tuple[int, int]) -> tuple[int, int] | None:
         """Parse mask position from DC file, convert center to top-left coords."""
-        lcd_w, lcd_h = lcd_size
-        if mask_w >= lcd_w and mask_h >= lcd_h:
-            return (0, 0)
-
-        if not dc_path or not Path(dc_path).exists():
-            return None
-
-        try:
-            from ..adapters.infra.dc_config import DcConfig
-            dc = DcConfig(dc_path)
-            if dc.mask_enabled:
-                center_pos = dc.mask_settings.get('mask_position')
-                if center_pos:
-                    return (
-                        center_pos[0] - mask_w // 2,
-                        center_pos[1] - mask_h // 2,
-                    )
-        except Exception:
-            pass
-        return None
+        return ThemeService._parse_mask_position(
+            dc_path, mask_w, mask_h, lcd_size[0], lcd_size[1])

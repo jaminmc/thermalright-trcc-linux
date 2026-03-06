@@ -231,30 +231,14 @@ class ThemeService:
         opts = ThemeService._load_dc_display_options(wd.dc, w, h)
 
         # Determine background / animation
-        anim_file = opts.get('animation_file')
-        if anim_file:
-            anim_path = working_dir / anim_file
-            if anim_path.exists():
-                data.animation_path = anim_path
-                data.is_animated = True
-            elif theme.is_animated and theme.animation_path:
-                data.animation_path = theme.animation_path
-                data.is_animated = True
-        elif theme.is_animated and theme.animation_path:
-            wd_copy = working_dir / Path(theme.animation_path).name
-            data.animation_path = wd_copy if wd_copy.exists() else theme.animation_path
+        anim_path, static_path, is_mask_only = ThemeService._resolve_content(
+            theme, opts, wd, working_dir)
+        if anim_path:
+            data.animation_path = anim_path
             data.is_animated = True
-        elif wd.zt.exists():
-            data.animation_path = wd.zt
-            data.is_animated = True
-        elif wd.bg.exists():
-            mp4_files = list(working_dir.glob('*.mp4'))
-            if mp4_files:
-                data.animation_path = mp4_files[0]
-                data.is_animated = True
-            else:
-                data.background = ThemeService._open_image(wd.bg, w, h)
-        elif theme.is_mask_only:
+        elif static_path:
+            data.background = ThemeService._open_image(static_path, w, h)
+        elif is_mask_only:
             data.background = ThemeService._black_image(w, h)
 
         # Mask from working dir
@@ -264,6 +248,40 @@ class ThemeService:
                 data, wd, w, h, dc_path=wd.dc if wd.dc.exists() else None)
 
         return data
+
+    @staticmethod
+    def _resolve_content(
+        theme: ThemeInfo,
+        opts: dict,
+        wd: ThemeDir,
+        working_dir: Path,
+    ) -> tuple[Path | None, Path | None, bool]:
+        """Resolve animation/background source for a copy-based theme.
+
+        Returns (animation_path, static_bg_path, is_mask_only).
+        At most one of animation_path / static_bg_path is set.
+        """
+        anim_file = opts.get('animation_file')
+        if anim_file:
+            anim_path = working_dir / anim_file
+            if anim_path.exists():
+                return anim_path, None, False
+            if theme.is_animated and theme.animation_path:
+                return Path(theme.animation_path), None, False
+        elif theme.is_animated and theme.animation_path:
+            wd_copy = working_dir / Path(theme.animation_path).name
+            path = wd_copy if wd_copy.exists() else Path(theme.animation_path)
+            return path, None, False
+        elif wd.zt.exists():
+            return wd.zt, None, False
+        elif wd.bg.exists():
+            mp4_files = list(working_dir.glob('*.mp4'))
+            if mp4_files:
+                return mp4_files[0], None, False
+            return None, wd.bg, False
+        elif theme.is_mask_only:
+            return None, None, True
+        return None, None, False
 
     # ── Save ─────────────────────────────────────────────────────────
 
@@ -453,7 +471,8 @@ class ThemeService:
     @staticmethod
     def _parse_mask_position(
         dc_path: Path | None,
-        mask_img: Any,
+        mask_w: int,
+        mask_h: int,
         lcd_w: int,
         lcd_h: int,
     ) -> tuple[int, int] | None:
@@ -462,7 +481,7 @@ class ThemeService:
         DC files store mask_position as center coordinates.
         Full-size masks go at (0, 0).
         """
-        if mask_img.width >= lcd_w and mask_img.height >= lcd_h:
+        if mask_w >= lcd_w and mask_h >= lcd_h:
             return (0, 0)
 
         if not dc_path or not Path(dc_path).exists():
@@ -476,8 +495,8 @@ class ThemeService:
                 center_pos = dc.mask_settings.get('mask_position')
                 if center_pos:
                     return (
-                        center_pos[0] - mask_img.width // 2,
-                        center_pos[1] - mask_img.height // 2,
+                        center_pos[0] - mask_w // 2,
+                        center_pos[1] - mask_h // 2,
                     )
         except Exception:
             pass
@@ -502,7 +521,7 @@ class ThemeService:
                 mask_img.load()
                 position = ThemeService._parse_mask_position(
                     dc_path or (td.dc if td.dc.exists() else None),
-                    mask_img, w, h)
+                    mask_img.width, mask_img.height, w, h)
                 data.mask = mask_img
             data.mask_position = position
             data.mask_source_dir = td.path

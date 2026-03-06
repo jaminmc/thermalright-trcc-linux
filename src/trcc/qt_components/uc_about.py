@@ -25,7 +25,7 @@ from pathlib import Path
 from threading import Thread
 from urllib.request import urlopen
 
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QIntValidator
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QToolTip
 
@@ -355,7 +355,11 @@ class UCAbout(BasePanel):
         self._latest_version: str | None = None
         self._install_method, self._distro = _get_install_info()
 
-        # Check GitHub for updates in background
+        # Check GitHub for updates in background, then every 4 hours
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(
+            lambda: Thread(target=self._check_for_update, daemon=True).start())
+        self._update_timer.start(4 * 60 * 60 * 1000)  # 4 hours
         Thread(target=self._check_for_update, daemon=True).start()
 
     def _show_update_tooltip(self):

@@ -1296,29 +1296,24 @@ class TestLoadDcDisplayOptions:
 class TestParseMaskPosition:
 
     def test_full_size_mask_returns_zero_zero(self) -> None:
-        mask = Image.new('RGBA', (320, 320))
-        pos = ThemeService._parse_mask_position(None, mask, 320, 320)
+        pos = ThemeService._parse_mask_position(None, 320, 320, 320, 320)
         assert pos == (0, 0)
 
     def test_oversized_mask_returns_zero_zero(self) -> None:
-        mask = Image.new('RGBA', (400, 400))
-        pos = ThemeService._parse_mask_position(None, mask, 320, 320)
+        pos = ThemeService._parse_mask_position(None, 400, 400, 320, 320)
         assert pos == (0, 0)
 
     def test_small_mask_no_dc_returns_none(self) -> None:
-        mask = Image.new('RGBA', (100, 100))
-        pos = ThemeService._parse_mask_position(None, mask, 320, 320)
+        pos = ThemeService._parse_mask_position(None, 100, 100, 320, 320)
         assert pos is None
 
     def test_small_mask_dc_not_exists(self, tmp_path: Path) -> None:
-        mask = Image.new('RGBA', (100, 100))
         pos = ThemeService._parse_mask_position(
-            tmp_path / 'nonexistent.dc', mask, 320, 320
+            tmp_path / 'nonexistent.dc', 100, 100, 320, 320
         )
         assert pos is None
 
     def test_small_mask_dc_with_position(self, tmp_path: Path) -> None:
-        mask = Image.new('RGBA', (100, 100))
         dc_path = tmp_path / 'config1.dc'
         dc_path.write_bytes(b'\x00')
 
@@ -1329,13 +1324,12 @@ class TestParseMaskPosition:
         with patch(
             'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
         ):
-            pos = ThemeService._parse_mask_position(dc_path, mask, 320, 320)
+            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         # center_pos=(200,150), mask 100x100 -> top-left = (200-50, 150-50) = (150, 100)
         assert pos == (150, 100)
 
     def test_small_mask_dc_mask_not_enabled(self, tmp_path: Path) -> None:
-        mask = Image.new('RGBA', (100, 100))
         dc_path = tmp_path / 'config1.dc'
         dc_path.write_bytes(b'\x00')
 
@@ -1346,12 +1340,11 @@ class TestParseMaskPosition:
         with patch(
             'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
         ):
-            pos = ThemeService._parse_mask_position(dc_path, mask, 320, 320)
+            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 
     def test_small_mask_dc_no_position_key(self, tmp_path: Path) -> None:
-        mask = Image.new('RGBA', (100, 100))
         dc_path = tmp_path / 'config1.dc'
         dc_path.write_bytes(b'\x00')
 
@@ -1362,12 +1355,11 @@ class TestParseMaskPosition:
         with patch(
             'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
         ):
-            pos = ThemeService._parse_mask_position(dc_path, mask, 320, 320)
+            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 
     def test_dc_parse_exception(self, tmp_path: Path) -> None:
-        mask = Image.new('RGBA', (100, 100))
         dc_path = tmp_path / 'config1.dc'
         dc_path.write_bytes(b'\x00')
 
@@ -1375,7 +1367,7 @@ class TestParseMaskPosition:
             'trcc.adapters.infra.dc_config.DcConfig',
             side_effect=ValueError('corrupt'),
         ):
-            pos = ThemeService._parse_mask_position(dc_path, mask, 320, 320)
+            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 

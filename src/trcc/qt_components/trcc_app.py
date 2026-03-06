@@ -358,7 +358,8 @@ class TRCCApp(QMainWindow):
         self._decorated = decorated
         self._drag_pos = None
         self._force_quit = False
-        self._data_dir = data_dir or Path(__file__).parent.parent / 'data'
+        from ..adapters.infra.data_repository import USER_DATA_DIR
+        self._data_dir = data_dir or Path(USER_DATA_DIR)
 
         self.setWindowTitle("TRCC Linux - Thermalright LCD Control Center")
         self.setFixedSize(Sizes.WINDOW_W, Sizes.WINDOW_H)

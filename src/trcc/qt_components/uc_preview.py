@@ -128,52 +128,21 @@ class UCPreview(BasePanel):
         set_background_pixmap(self.progress_container, Assets.VIDEO_CONTROLS_BG,
                               Sizes.VIDEO_CONTROLS_W, Sizes.VIDEO_CONTROLS_H)
 
-        # Play/Pause button
-        self.play_btn = QPushButton(self.progress_container)
-        self.play_btn.setGeometry(*Layout.PLAY_BTN)
-        play_pix = Assets.load_pixmap(Assets.ICON_PLAY, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
+        # Video control buttons
+        self.play_btn = self._make_video_btn(
+            Layout.PLAY_BTN, Assets.ICON_PLAY, "▶",
+            "Play / Pause", self._on_play_pause)
+        # Store pause icon for toggling
         pause_pix = Assets.load_pixmap(Assets.ICON_PAUSE, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
-        if not play_pix.isNull():
-            self.play_btn.setIcon(QIcon(play_pix))
-            self.play_btn.setIconSize(self.play_btn.size())
-            self.play_btn._img_refs = [play_pix, pause_pix]  # type: ignore[attr-defined]
-        else:
-            self.play_btn.setText("▶")
-        self.play_btn.setFlat(True)
-        self.play_btn.setStyleSheet(Styles.FLAT_BUTTON)
-        self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.play_btn.setToolTip("Play / Pause")
-        self.play_btn.clicked.connect(self._on_play_pause)
+        play_pix = Assets.load_pixmap(Assets.ICON_PLAY, Layout.PLAY_BTN[2], Layout.PLAY_BTN[3])
+        self.play_btn._img_refs = [play_pix, pause_pix]  # type: ignore[attr-defined]
 
-        # Height-fit button (C# buttonTPJCH — P高度适应)
-        self.height_fit_btn = QPushButton(self.progress_container)
-        self.height_fit_btn.setGeometry(*Layout.HEIGHT_FIT_BTN)
-        hf_pix = Assets.load_pixmap('P高度适应', Layout.HEIGHT_FIT_BTN[2], Layout.HEIGHT_FIT_BTN[3])
-        if not hf_pix.isNull():
-            self.height_fit_btn.setIcon(QIcon(hf_pix))
-            self.height_fit_btn.setIconSize(self.height_fit_btn.size())
-        else:
-            self.height_fit_btn.setText("H")
-        self.height_fit_btn.setFlat(True)
-        self.height_fit_btn.setStyleSheet(Styles.FLAT_BUTTON)
-        self.height_fit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.height_fit_btn.setToolTip("Height fit (letterbox/crop)")
-        self.height_fit_btn.clicked.connect(self._on_height_fit)
-
-        # Width-fit button (C# buttonTPJCW — P宽度适应)
-        self.width_fit_btn = QPushButton(self.progress_container)
-        self.width_fit_btn.setGeometry(*Layout.WIDTH_FIT_BTN)
-        wf_pix = Assets.load_pixmap('P宽度适应', Layout.WIDTH_FIT_BTN[2], Layout.WIDTH_FIT_BTN[3])
-        if not wf_pix.isNull():
-            self.width_fit_btn.setIcon(QIcon(wf_pix))
-            self.width_fit_btn.setIconSize(self.width_fit_btn.size())
-        else:
-            self.width_fit_btn.setText("W")
-        self.width_fit_btn.setFlat(True)
-        self.width_fit_btn.setStyleSheet(Styles.FLAT_BUTTON)
-        self.width_fit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.width_fit_btn.setToolTip("Width fit (letterbox/crop)")
-        self.width_fit_btn.clicked.connect(self._on_width_fit)
+        self.height_fit_btn = self._make_video_btn(
+            Layout.HEIGHT_FIT_BTN, 'P高度适应', "H",
+            "Height fit (letterbox/crop)", self._on_height_fit)
+        self.width_fit_btn = self._make_video_btn(
+            Layout.WIDTH_FIT_BTN, 'P宽度适应', "W",
+            "Width fit (letterbox/crop)", self._on_width_fit)
 
         # Time label
         self.time_label = QLabel("00:00 / 00:00", self.progress_container)
@@ -190,6 +159,23 @@ class UCPreview(BasePanel):
         self.progress_slider.sliderMoved.connect(self._on_seek)
 
         layout.addWidget(self.progress_container)
+
+    def _make_video_btn(self, rect, icon_name, fallback, tooltip, handler):
+        """Create a flat video-control button."""
+        btn = QPushButton(self.progress_container)
+        btn.setGeometry(*rect)
+        pix = Assets.load_pixmap(icon_name, rect[2], rect[3])
+        if not pix.isNull():
+            btn.setIcon(QIcon(pix))
+            btn.setIconSize(btn.size())
+        else:
+            btn.setText(fallback)
+        btn.setFlat(True)
+        btn.setStyleSheet(Styles.FLAT_BUTTON)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setToolTip(tooltip)
+        btn.clicked.connect(handler)
+        return btn
 
     def _widget_to_lcd(self, wx: int, wy: int) -> tuple[int, int]:
         """Translate preview widget coordinates to LCD coordinates."""

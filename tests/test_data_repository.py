@@ -13,7 +13,7 @@ from trcc.adapters.infra.data_repository import (
     DataManager,
     Resources,
     ThemeDir,
-    _find_data_dir,
+    _find_pkg_data_dir,
 )
 from trcc.conf import Settings, load_config, save_config
 
@@ -513,6 +513,7 @@ class TestEnsureThemesExtracted(unittest.TestCase):
         """Returns False when no archive and no themes."""
         with tempfile.TemporaryDirectory() as d:
             with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+                 patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
                  patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_themes(320, 320))
@@ -521,10 +522,11 @@ class TestEnsureThemesExtracted(unittest.TestCase):
         """Calls extract_7z when archive exists but themes don't."""
         with tempfile.TemporaryDirectory() as d:
             user_theme_dir = os.path.join(d, 'user', 'theme320320')
-            # Place archive in pkg DATA_DIR
+            # Place archive in pkg _PKG_DATA_DIR
             archive = os.path.join(d, 'theme320320.7z')
             Path(archive).touch()
             with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+                 patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
                  patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
                  patch.object(DataManager, 'extract_7z', return_value=True) as mock_ex:
                 result = DataManager.ensure_themes(320, 320)
@@ -548,6 +550,7 @@ class TestEnsureWebExtracted(unittest.TestCase):
     def test_no_archive(self):
         with tempfile.TemporaryDirectory() as d:
             with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+                 patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
                  patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_web(320, 320))
@@ -560,6 +563,7 @@ class TestEnsureWebExtracted(unittest.TestCase):
             archive = os.path.join(archive_dir, '320320.7z')
             Path(archive).touch()
             with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+                 patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
                  patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
                  patch.object(DataManager, 'extract_7z', return_value=True) as mock_ex:
                 result = DataManager.ensure_web(320, 320)
@@ -583,6 +587,7 @@ class TestEnsureWebMasksExtracted(unittest.TestCase):
     def test_no_archive(self):
         with tempfile.TemporaryDirectory() as d:
             with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+                 patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
                  patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_web_masks(320, 320))
@@ -590,17 +595,16 @@ class TestEnsureWebMasksExtracted(unittest.TestCase):
 
 # -- _find_data_dir ---------------------------------------------------------
 
-class TestFindDataDir(unittest.TestCase):
-    """Test _find_data_dir search logic."""
+class TestFindPkgDataDir(unittest.TestCase):
+    """Test _find_pkg_data_dir search logic."""
 
-    def test_returns_user_data_as_fallback(self):
-        """When no valid themes exist, falls back to USER_DATA_DIR (writable)."""
+    def test_returns_this_dir_data_as_fallback(self):
+        """When no valid dirs exist, falls back to _THIS_DIR/data."""
         with patch('trcc.adapters.infra.data_repository._THIS_DIR', '/fake/src/trcc'), \
              patch('trcc.adapters.infra.data_repository.PROJECT_ROOT', '/fake'), \
-             patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', '/fake/home/.trcc/data'), \
              patch('os.path.isdir', return_value=False):
-            result = _find_data_dir()
-            self.assertEqual(result, '/fake/home/.trcc/data')
+            result = _find_pkg_data_dir()
+            self.assertEqual(result, '/fake/src/trcc/data')
 
 
 # -- Extract 7z CLI edge cases ----------------------------------------------

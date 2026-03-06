@@ -340,9 +340,15 @@ When adding GUI assets:
 - GUI component splits (uc_theme_setting.py → 5 files)
 
 ## Style
-- **KISS** — minimal complexity, but invest in extension points at architectural boundaries. ABCs and clean interfaces at high-variation seams (device protocols, UI panels, parsers) pay for themselves when new implementations arrive. The right balance: simple internals, extensible boundaries.
+
 - **OOP** — classes with clear single responsibilities. `dataclass` for data, `Enum` for categories, classmethods for factory/utility operations.
 - **DRY** — extract helpers for repeated patterns, inline one-off logic. If a pattern appears 3+ times, centralize it. Two duplicates = smell; three = refactor.
+- **SOLID**:
+  - **SRP** — each class has one reason to change. Services own logic, views own rendering, models own data.
+  - **OCP** — `@DeviceProtocolFactory.register()` decorator for self-registering protocols. New devices = new data, not modified logic.
+  - **LSP** — no fake implementations (e.g. `send_image()` returning False on LED devices). If a subclass can't fulfill the contract, it shouldn't inherit it.
+  - **ISP** — `LCDMixin` (send_image, send_pil) + `LEDMixin` (send_led_data) instead of one fat `DeviceProtocol`. Clients depend only on what they use.
+  - **DIP** — inject dependencies at runtime (`get_protocol` param, `set_renderer()`). Core logic never imports concrete adapters.
 - **Single source of truth** — every constant, mapping, and state variable has ONE canonical location. Search before defining.
 - **Type hints** on all public APIs — parameters, return types, class attributes.
 - **No scattered state** — mutable app state lives in `conf.Settings`, not in widget instance variables. Widgets read from the singleton.
