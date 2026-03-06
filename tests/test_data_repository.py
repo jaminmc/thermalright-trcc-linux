@@ -593,14 +593,14 @@ class TestEnsureWebMasksExtracted(unittest.TestCase):
 class TestFindDataDir(unittest.TestCase):
     """Test _find_data_dir search logic."""
 
-    def test_returns_src_data_as_fallback(self):
-        """When no valid themes exist, falls back to trcc/data."""
+    def test_returns_user_data_as_fallback(self):
+        """When no valid themes exist, falls back to USER_DATA_DIR (writable)."""
         with patch('trcc.adapters.infra.data_repository._THIS_DIR', '/fake/src/trcc'), \
              patch('trcc.adapters.infra.data_repository.PROJECT_ROOT', '/fake'), \
              patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', '/fake/home/.trcc/data'), \
              patch('os.path.isdir', return_value=False):
             result = _find_data_dir()
-            self.assertEqual(result, '/fake/src/trcc/data')
+            self.assertEqual(result, '/fake/home/.trcc/data')
 
 
 # -- Extract 7z CLI edge cases ----------------------------------------------

@@ -253,7 +253,9 @@ def _find_data_dir() -> str:
                         log.debug("Data dir: %s (found themes in %s)", candidate, item)
                         return candidate
 
-    fallback = os.path.join(_THIS_DIR, 'data')
+    # Prefer user-writable dir as fallback — pkg path may be read-only
+    # on system-wide installs (e.g. pacman → /usr/lib/python3.x/...)
+    fallback = USER_DATA_DIR
     log.debug("Data dir: %s (fallback — no themes found yet)", fallback)
     return fallback
 
@@ -587,27 +589,31 @@ class DataManager:
 
     @staticmethod
     def get_web_dir(width: int, height: int) -> str:
-        """Get cloud theme Web directory for a resolution."""
+        """Get cloud theme Web directory for a resolution.
+
+        Returns pkg_dir if it has content, else user_dir if it has content,
+        else user_dir (writable fallback — pkg_dir may be read-only on
+        system-wide installs like pacman).
+        """
         res_key = f'{width}{height}'
         pkg_dir = os.path.join(DATA_DIR, 'web', res_key)
         if os.path.isdir(pkg_dir) and os.listdir(pkg_dir):
             return pkg_dir
         user_dir = os.path.join(USER_DATA_DIR, 'web', res_key)
-        if os.path.isdir(user_dir) and os.listdir(user_dir):
-            return user_dir
-        return pkg_dir
+        return user_dir
 
     @staticmethod
     def get_web_masks_dir(width: int, height: int) -> str:
-        """Get cloud masks directory for a resolution."""
+        """Get cloud masks directory for a resolution.
+
+        Returns pkg_dir if it has themes, else user_dir (writable fallback).
+        """
         res_key = f'zt{width}{height}'
         pkg_dir = os.path.join(DATA_DIR, 'web', res_key)
         if ThemeDir.has_themes(pkg_dir):
             return pkg_dir
         user_dir = os.path.join(USER_DATA_DIR, 'web', res_key)
-        if ThemeDir.has_themes(user_dir):
-            return user_dir
-        return pkg_dir
+        return user_dir
 
 
 # =========================================================================
