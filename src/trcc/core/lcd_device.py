@@ -345,19 +345,17 @@ class LCDDevice(Device):
         # Compose capabilities if services are already wired
         if device_svc and display_svc:
             self._compose()
-        else:
-            self.theme: ThemeOps | None = None
 
-        # frame, video, overlay, settings point to self — methods on LCDDevice
+        # All capability accessors point to self — methods are on LCDDevice
+        self.theme: LCDDevice = self  # type: ignore[assignment]
         self.frame: LCDDevice = self  # type: ignore[assignment]
         self.video: LCDDevice = self  # type: ignore[assignment]
         self.overlay: LCDDevice = self  # type: ignore[assignment]
         self.settings: LCDDevice = self  # type: ignore[assignment]
 
     def _compose(self) -> None:
-        """Build capability sub-objects from services."""
-        self.theme = ThemeOps(self._display_svc, self._theme_svc)
-        # overlay + frame ops are inlined on LCDDevice
+        """Wire services — all capability methods are on LCDDevice."""
+        pass  # all ops inlined; services already set in __init__
 
     def _build_services(self, device_svc: Any) -> None:
         """Wire up all services from a DeviceService."""
@@ -695,6 +693,49 @@ class LCDDevice(Device):
             self._theme_svc.load_local_themes((width, height))
         return {"success": True, "resolution": (width, height),
                 "message": f"Resolution: {width}x{height}"}
+
+    # ── Theme ops (loading, saving, import/export) ─────────────
+
+    def select(self, theme: Any) -> dict:
+        """Select and load a theme (local or cloud)."""
+        from .models import ThemeType
+
+        self._theme_svc.select(theme)
+        if not theme:
+            return {"success": False, "error": "No theme provided"}
+
+        if theme.theme_type == ThemeType.CLOUD:
+            result = self._display_svc.load_cloud_theme(theme)
+        else:
+            result = self._display_svc.load_local_theme(theme)
+
+        image = result.get('image')
+        is_animated = result.get('is_animated', False)
+
+        return {
+            "success": True,
+            "image": image,
+            "is_animated": is_animated,
+            "interval": self._display_svc.get_video_interval() if is_animated else 0,
+            "status": result.get('status', ''),
+            "message": f"Theme: {theme.name}" if hasattr(theme, 'name') else "Theme loaded",
+        }
+
+    def load_local(self, resolution: tuple[int, int]) -> dict:
+        themes = self._theme_svc.load_local_themes(resolution)
+        return {"success": True, "themes": themes, "count": len(themes)}
+
+    def save(self, name: str, data_dir: Any) -> dict:
+        ok, msg = self._display_svc.save_theme(name, Path(data_dir))
+        return {"success": ok, "message": msg}
+
+    def export_config(self, path: Any) -> dict:
+        ok, msg = self._display_svc.export_config(Path(path))
+        return {"success": ok, "message": msg}
+
+    def import_config(self, path: Any, data_dir: Any) -> dict:
+        ok, msg = self._display_svc.import_config(Path(path), Path(data_dir))
+        return {"success": ok, "message": msg}
 
     # ── Video playback ──────────────────────────────────────────
 

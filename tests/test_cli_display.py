@@ -12,10 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
-from trcc.core.lcd_device import (
-    LCDDevice,
-    ThemeOps,
-)
+from trcc.core.lcd_device import LCDDevice
 
 # =========================================================================
 # Patch-path constants
@@ -123,7 +120,7 @@ class TestLCDDeviceInit:
         assert lcd_empty.frame is lcd_empty
         assert lcd_empty.overlay is lcd_empty
         assert lcd_empty.video is lcd_empty
-        assert lcd_empty.theme is None
+        assert lcd_empty.theme is lcd_empty
         # settings points to self (methods inlined on LCDDevice)
         assert lcd_empty.settings is lcd_empty
 
@@ -131,7 +128,7 @@ class TestLCDDeviceInit:
         assert lcd.frame is lcd
         assert lcd.overlay is lcd
         assert lcd.video is lcd
-        assert isinstance(lcd.theme, ThemeOps)
+        assert lcd.theme is lcd
         assert lcd.settings is lcd
 
     def test_connected_false_when_no_svc(self, lcd_empty):
