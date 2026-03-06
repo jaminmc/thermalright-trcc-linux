@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-import subprocess
 import sys
 import webbrowser
 from pathlib import Path
@@ -127,12 +126,21 @@ def ensure_autostart():
     return _is_autostart_enabled()
 
 
-def _check_pypi_version() -> str | None:
-    """Fetch the latest trcc-linux version from PyPI. Returns version string or None."""
+_GITHUB_LATEST = (
+    'https://api.github.com/repos/Lexonight1/thermalright-trcc-linux'
+    '/releases/latest'
+)
+
+
+def _check_latest_version() -> str | None:
+    """Fetch the latest version from GitHub releases. Returns version string or None."""
+    from urllib.request import Request
     try:
-        with urlopen('https://pypi.org/pypi/trcc-linux/json', timeout=5) as resp:
+        req = Request(_GITHUB_LATEST, headers={'Accept': 'application/vnd.github+json'})
+        with urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
-            return data['info']['version']
+            tag = data.get('tag_name', '')
+            return tag.lstrip('v') if tag else None
     except Exception:
         return None
 
@@ -140,6 +148,29 @@ def _check_pypi_version() -> str | None:
 def _parse_version(v: str) -> tuple[int, ...]:
     """Parse '3.0.9' into (3, 0, 9) for comparison."""
     return tuple(int(x) for x in v.split('.'))
+
+
+def _detect_install_method() -> str:
+    """Detect how trcc-linux was installed.
+
+    Returns 'pipx', 'pip', 'pacman', 'dnf', or 'apt'.
+    """
+    # pipx installs into its own venv
+    if 'pipx' in sys.prefix:
+        return 'pipx'
+    try:
+        from importlib.metadata import distribution
+        dist = distribution('trcc-linux')
+        installer = (dist.read_text('INSTALLER') or '').strip()
+        if installer == 'pip':
+            return 'pip'
+    except Exception:
+        pass
+    # Detect which package manager installed it
+    for mgr in ('pacman', 'dnf', 'apt'):
+        if shutil.which(mgr):
+            return mgr
+    return 'pip'  # fallback
 
 
 class UCAbout(BasePanel):
@@ -163,6 +194,7 @@ class UCAbout(BasePanel):
     hdd_toggle_changed = Signal(bool)    # HDD info enabled
     refresh_changed = Signal(int)        # refresh interval (seconds)
     _update_available = Signal(str)      # latest version string
+    _upgrade_finished = Signal(bool)     # True=success, False=failure
 
     def __init__(self, parent=None):
         super().__init__(parent, width=Sizes.FORM_W, height=Sizes.FORM_H)
@@ -257,24 +289,34 @@ class UCAbout(BasePanel):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
-        # === Software update area (buttonBCZT — baked into background) ===
-        # Tooltip shown to the right of the button via event override
+        # === Software update area (buttonBCZT — dark icon baked into background) ===
+        # Light overlay shown on top when update is available
         self._update_tooltip = "Running latest"
         self._update_rect = self.rect().__class__(  # QRect
             *Layout.ABOUT_UPDATE_BTN)
 
+        # Overlay label — shows light update icon when update available
+        self._update_overlay = QLabel(self)
+        self._update_overlay.setGeometry(*Layout.ABOUT_UPDATE_BTN)
+        px = Assets.load_pixmap(Assets.UPDATE_BTN, *Layout.ABOUT_UPDATE_BTN[2:])
+        if not px.isNull():
+            self._update_overlay.setPixmap(px)
+        self._update_overlay.hide()
+
+        # Invisible click target (always present over the baked-in dark icon)
         self.update_btn = QPushButton(self)
         self.update_btn.setGeometry(*Layout.ABOUT_UPDATE_BTN)
         self.update_btn.setFlat(True)
         self.update_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.update_btn.hide()
         self.update_btn.installEventFilter(self)
         self.update_btn.clicked.connect(self._on_update_clicked)
         self._update_available.connect(self._on_update_result)
+        self._upgrade_finished.connect(self._on_upgrade_done)
         self._latest_version: str | None = None
+        self._install_method = _detect_install_method()
 
-        # Check PyPI for updates in background
+        # Check GitHub for updates in background
         Thread(target=self._check_for_update, daemon=True).start()
 
     def _show_update_tooltip(self):
@@ -380,38 +422,96 @@ class UCAbout(BasePanel):
 
     # --- Software update ---
 
+    _RELEASE_DL = (
+        'https://github.com/Lexonight1/thermalright-trcc-linux'
+        '/releases/download/v{ver}/'
+    )
+    # Package filename templates per manager
+    _PKG_TEMPLATES: dict[str, str] = {
+        'pacman': 'trcc-linux-{ver}-1-any.pkg.tar.zst',
+        'dnf':    'trcc-linux-{ver}-1.fc43.noarch.rpm',
+        'apt':    'trcc-linux_{ver}-1_all.deb',
+    }
+    # Install commands per manager (pkexec provides the sudo prompt)
+    _PKG_INSTALL: dict[str, list[str]] = {
+        'pacman': ['pkexec', 'pacman', '-U', '--noconfirm'],
+        'dnf':    ['pkexec', 'dnf', 'install', '-y'],
+        'apt':    ['pkexec', 'apt', 'install', '-y'],
+    }
+
     def _check_for_update(self):
-        """Background thread: query PyPI and emit result via signal."""
-        latest = _check_pypi_version()
+        """Background thread: query GitHub releases and emit result via signal."""
+        latest = _check_latest_version()
         if latest:
             self._update_available.emit(latest)
 
     def _on_update_result(self, latest: str):
-        """Handle PyPI version check result (runs on main thread via signal)."""
+        """Handle version check result (runs on main thread via signal)."""
         from trcc.__version__ import __version__
         if _parse_version(latest) > _parse_version(__version__):
             self._latest_version = latest
-            self._update_tooltip = f"Version {latest} available"
-            self.update_btn.show()
+            self._update_tooltip = f"Version {latest} available — click to update"
+            self._update_overlay.show()
             log.info("Update available: %s → %s", __version__, latest)
 
     def _on_update_clicked(self):
-        """Run pip install --upgrade trcc-linux."""
-        self.update_btn.hide()
+        """Perform update based on install method."""
+        if not self._latest_version:
+            return
+
+        self._update_overlay.hide()
         self._update_tooltip = "Updating..."
-        log.info("Starting upgrade to %s", self._latest_version)
+        log.info("Starting %s upgrade to %s",
+                 self._install_method, self._latest_version)
         Thread(target=self._run_upgrade, daemon=True).start()
 
     def _run_upgrade(self):
-        """Background thread: run pip upgrade."""
+        """Background thread: run upgrade via pip/pipx/package manager."""
+        import subprocess
+        import tempfile
+        method = self._install_method
+        ver = self._latest_version or ""
+
+        if method == 'pipx':
+            cmd = ['pipx', 'upgrade', 'trcc-linux']
+        elif method == 'pip':
+            cmd = [sys.executable, '-m', 'pip', 'install',
+                   '--upgrade', 'trcc-linux']
+        elif method in self._PKG_TEMPLATES:
+            # Download package from GitHub release, install via pkexec
+            filename = self._PKG_TEMPLATES[method].format(ver=ver)
+            url = self._RELEASE_DL.format(ver=ver) + filename
+            pkg_path = Path(tempfile.gettempdir()) / filename
+            try:
+                from urllib.request import urlretrieve
+                log.info("Downloading %s", url)
+                urlretrieve(url, pkg_path)
+            except Exception:
+                log.error("Failed to download %s", url)
+                self._upgrade_finished.emit(False)
+                return
+            cmd = [*self._PKG_INSTALL[method], str(pkg_path)]
+        else:
+            log.error("Unknown install method: %s", method)
+            self._upgrade_finished.emit(False)
+            return
+
         try:
-            subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '--upgrade', 'trcc-linux'],
-                check=True, capture_output=True, text=True,
-            )
-            log.info("Upgrade to %s successful", self._latest_version)
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            log.info("Upgrade to %s successful — restart to apply", ver)
+            self._upgrade_finished.emit(True)
         except subprocess.CalledProcessError as e:
             log.error("Upgrade failed: %s", e.stderr)
+            self._upgrade_finished.emit(False)
+
+    def _on_upgrade_done(self, success: bool):
+        """Post-upgrade: show restart message or re-enable button on failure."""
+        if success:
+            self._update_tooltip = "Updated — restart to apply"
+        else:
+            self._update_tooltip = (
+                f"Version {self._latest_version} available — click to retry")
+            self._update_overlay.show()
 
     # --- Close ---
 
