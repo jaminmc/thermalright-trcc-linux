@@ -347,17 +347,16 @@ class LCDDevice(Device):
             self._compose()
         else:
             self.theme: ThemeOps | None = None
-            self.video: VideoOps | None = None
             self.overlay: OverlayOps | None = None
 
-        # frame + settings point to self — methods are on LCDDevice directly
+        # frame, video, settings point to self — methods are on LCDDevice
         self.frame: LCDDevice = self  # type: ignore[assignment]
+        self.video: LCDDevice = self  # type: ignore[assignment]
         self.settings: LCDDevice = self  # type: ignore[assignment]
 
     def _compose(self) -> None:
         """Build capability sub-objects from services."""
         self.theme = ThemeOps(self._display_svc, self._theme_svc)
-        self.video = VideoOps(self._display_svc)
         self.overlay = OverlayOps(self._display_svc)
         # frame ops are inlined on LCDDevice — no FrameOps instance needed
 
@@ -698,10 +697,76 @@ class LCDDevice(Device):
         return {"success": True, "resolution": (width, height),
                 "message": f"Resolution: {width}x{height}"}
 
-    # ── Flat convenience (GUI calls these directly on device) ─────
+    # ── Video playback ──────────────────────────────────────────
+
+    def load(self, path: Any) -> dict:
+        """Load video/GIF for playback."""
+        success = self._display_svc.media.load(Path(path))
+        if success:
+            return {
+                "success": True,
+                "state": self._display_svc.media.state,
+                "message": f"Loaded: {Path(path).name}",
+            }
+        return {"success": False, "error": f"Failed to load: {path}"}
+
+    def play(self) -> dict:
+        self._display_svc.media.play()
+        return {"success": True, "state": "playing", "message": "Playing"}
+
+    def stop(self) -> dict:
+        self._display_svc.media.stop()
+        return {"success": True, "state": "stopped", "message": "Stopped"}
+
+    def pause(self) -> dict:
+        self._display_svc.media.toggle()
+        playing = self._display_svc.media.is_playing
+        return {
+            "success": True,
+            "state": "playing" if playing else "paused",
+            "message": "Playing" if playing else "Paused",
+        }
+
+    def seek(self, percent: float) -> dict:
+        self._display_svc.media.seek(percent)
+        return {"success": True, "message": f"Seek: {percent:.0%}"}
+
+    def tick(self) -> dict | None:
+        return self._display_svc.video_tick()
+
+    def set_fit_mode(self, mode: str) -> dict:
+        image = self._display_svc.set_video_fit_mode(mode)
+        return {"success": True, "image": image, "message": f"Fit mode: {mode}"}
+
+    @property
+    def interval(self) -> int:
+        return self._display_svc.get_video_interval()
+
+    @property
+    def has_frames(self) -> bool:
+        return self._display_svc.media.has_frames if self._display_svc else False
+
+    @property
+    def playing(self) -> bool:
+        return self._display_svc.is_video_playing() if self._display_svc else False
+
+    # ── Flat convenience aliases ──────────────────────────────────
+
+    def load_video(self, path: Any) -> dict:
+        return self.load(path)
+
+    def play_video(self) -> dict:
+        return self.play()
+
+    def stop_video(self) -> dict:
+        return self.stop()
+
+    def video_has_frames(self) -> bool:
+        return self.has_frames
+
+    # ── Overlay convenience (GUI calls these directly on device) ──
 
     def set_overlay_temp_unit(self, unit: int) -> dict:
-        """Set overlay temperature unit (0=C, 1=F)."""
         if self.overlay:
             return self.overlay.set_temp_unit(unit)
         return {"success": False, "error": "No overlay"}
@@ -730,24 +795,6 @@ class LCDDevice(Device):
         if self.overlay:
             return self.overlay.set_mask_visible(visible)
         return {"success": False, "error": "No overlay"}
-
-    def load_video(self, path: Any) -> dict:
-        if self.video:
-            return self.video.load(path)
-        return {"success": False, "error": "No video"}
-
-    def play_video(self) -> dict:
-        if self.video:
-            return self.video.play()
-        return {"success": False, "error": "No video"}
-
-    def stop_video(self) -> dict:
-        if self.video:
-            return self.video.stop()
-        return {"success": False, "error": "No video"}
-
-    def video_has_frames(self) -> bool:
-        return self.video.has_frames if self.video else False
 
     # ── Lifecycle ──────────────────────────────────────────────────
 

@@ -16,7 +16,6 @@ from trcc.core.lcd_device import (
     LCDDevice,
     OverlayOps,
     ThemeOps,
-    VideoOps,
 )
 
 # =========================================================================
@@ -124,7 +123,7 @@ class TestLCDDeviceInit:
     def test_default_no_services(self, lcd_empty):
         assert lcd_empty.frame is lcd_empty
         assert lcd_empty.overlay is None
-        assert lcd_empty.video is None
+        assert lcd_empty.video is lcd_empty
         assert lcd_empty.theme is None
         # settings points to self (methods inlined on LCDDevice)
         assert lcd_empty.settings is lcd_empty
@@ -132,7 +131,7 @@ class TestLCDDeviceInit:
     def test_injected_services_compose(self, lcd):
         assert lcd.frame is lcd
         assert isinstance(lcd.overlay, OverlayOps)
-        assert isinstance(lcd.video, VideoOps)
+        assert lcd.video is lcd
         assert isinstance(lcd.theme, ThemeOps)
         assert lcd.settings is lcd
 
