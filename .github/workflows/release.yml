@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download wheel from release
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: dist-${{ github.ref_name }}
           path: dist/
