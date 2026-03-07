@@ -61,6 +61,7 @@ class DebugReport:
         self._handshakes()
         self._process_usage()
         self._config()
+        self._recent_log()
 
     @property
     def sections(self) -> list[tuple[str, str]]:
@@ -472,6 +473,23 @@ class DebugReport:
                 sec.lines.append(f"    raw[0:64]={result.raw_response[:64].hex()}")
         finally:
             protocol.close()
+
+    def _recent_log(self) -> None:
+        sec = self._add("Recent log (last 50 lines)")
+        log_path = Path.home() / ".trcc" / "trcc.log"
+        if not log_path.exists():
+            sec.lines.append("  (no log file)")
+            return
+        try:
+            lines = log_path.read_text(errors="replace").splitlines()
+            tail = lines[-50:] if len(lines) > 50 else lines
+            if not tail:
+                sec.lines.append("  (empty log)")
+                return
+            for line in tail:
+                sec.lines.append(f"  {line}")
+        except Exception as e:
+            sec.lines.append(f"  Error reading log: {e}")
 
     def _handshake_ly(self, dev, sec: _Section) -> None:
         from trcc.adapters.device.factory import (

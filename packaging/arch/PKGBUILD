@@ -1,6 +1,6 @@
 # Maintainer: TRCC Linux Contributors <noreply@github.com>
 pkgname=trcc-linux
-pkgver=8.1.1
+pkgver=8.1.2
 pkgrel=1
 pkgdesc="Thermalright LCD/LED Control Center for Linux"
 arch=('any')

@@ -814,6 +814,42 @@ class TestLEDHandler:
         assert handler._led is mock_led
         assert handler._active is True
 
+    def test_show_wires_get_protocol(self, handler):
+        """show() must pass get_protocol to LEDDevice — without it, LED
+        hardware never receives data (regression: GitHub #61)."""
+        device = MagicMock()
+        device.model = "AX120_DIGITAL"
+        device.led_style_id = 1
+
+        captured_kwargs: dict = {}
+
+        def capture_led_device(**kwargs):
+            captured_kwargs.update(kwargs)
+            mock_led = MagicMock()
+            mock_led.state = _make_mock_led_state()
+            return mock_led
+
+        mock_style_info = MagicMock()
+        mock_style_info.segment_count = 10
+        mock_style_info.zone_count = 1
+
+        with (
+            patch("trcc.qt_components.trcc_app.LEDDevice",
+                  side_effect=capture_led_device),
+            patch("trcc.services.led.LEDService") as mock_svc,
+            patch.object(handler, "_connect_signals"),
+            patch("trcc.qt_components.trcc_app.settings") as mock_settings,
+        ):
+            mock_svc.resolve_style_id.return_value = 1
+            mock_svc.get_style_info.return_value = mock_style_info
+            mock_settings.temp_unit = 0
+            handler.show(device)
+
+        assert "get_protocol" in captured_kwargs, \
+            "LEDDevice must receive get_protocol — without it no USB data is sent"
+        assert captured_kwargs["get_protocol"] is not None
+        handler.stop()
+
     def test_show_starts_timer(self, handler):
         device = MagicMock()
         device.model = "AX120_DIGITAL"

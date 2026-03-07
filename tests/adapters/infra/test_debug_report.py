@@ -1209,3 +1209,65 @@ class TestStrAndSections:
         assert "Version" in text
         assert "lsusb" in text
         assert "udev" in text
+
+
+class TestRecentLog:
+    """Tests for _recent_log section."""
+
+    def test_no_log_file(self, tmp_path):
+        rpt = DebugReport()
+        with patch("trcc.adapters.infra.debug_report.Path.home",
+                    return_value=tmp_path):
+            rpt._recent_log()
+        body = rpt.sections[-1][1]
+        assert "(no log file)" in body
+
+    def test_empty_log(self, tmp_path):
+        log_dir = tmp_path / ".trcc"
+        log_dir.mkdir()
+        (log_dir / "trcc.log").write_text("")
+        rpt = DebugReport()
+        with patch("trcc.adapters.infra.debug_report.Path.home",
+                    return_value=tmp_path):
+            rpt._recent_log()
+        body = rpt.sections[-1][1]
+        assert "(empty log)" in body
+
+    def test_shows_last_50_lines(self, tmp_path):
+        log_dir = tmp_path / ".trcc"
+        log_dir.mkdir()
+        lines = [f"line {i}" for i in range(100)]
+        (log_dir / "trcc.log").write_text("\n".join(lines))
+        rpt = DebugReport()
+        with patch("trcc.adapters.infra.debug_report.Path.home",
+                    return_value=tmp_path):
+            rpt._recent_log()
+        body = rpt.sections[-1][1]
+        assert "line 50" in body
+        assert "line 99" in body
+        assert "line 49" not in body
+
+    def test_short_log_shows_all(self, tmp_path):
+        log_dir = tmp_path / ".trcc"
+        log_dir.mkdir()
+        (log_dir / "trcc.log").write_text("only line\n")
+        rpt = DebugReport()
+        with patch("trcc.adapters.infra.debug_report.Path.home",
+                    return_value=tmp_path):
+            rpt._recent_log()
+        body = rpt.sections[-1][1]
+        assert "only line" in body
+
+    def test_read_error(self, tmp_path):
+        rpt = DebugReport()
+        with patch("trcc.adapters.infra.debug_report.Path.home",
+                    return_value=tmp_path):
+            log_dir = tmp_path / ".trcc"
+            log_dir.mkdir()
+            log_file = log_dir / "trcc.log"
+            log_file.write_text("data")
+            log_file.chmod(0o000)
+            rpt._recent_log()
+            log_file.chmod(0o644)  # restore for cleanup
+        body = rpt.sections[-1][1]
+        assert "Error reading log" in body

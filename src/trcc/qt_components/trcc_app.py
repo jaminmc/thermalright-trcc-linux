@@ -91,7 +91,9 @@ class LEDHandler:
     def show(self, device: DeviceInfo):
         """Initialize LED device and start animation."""
         if self._led is None:
-            self._led = LEDDevice()
+            from ..adapters.device.factory import DeviceProtocolFactory
+            self._led = LEDDevice(
+                get_protocol=DeviceProtocolFactory.get_protocol)
             self._connect_signals()
 
         from ..services.led import LEDService

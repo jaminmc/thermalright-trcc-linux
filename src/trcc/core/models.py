@@ -723,6 +723,7 @@ class PmRegistry:
         129: PmEntry(10, "LF11", "A1LF11"),
         144: PmEntry(11, "LF15", "A1LF15"),
         160: PmEntry(12, "LF13", "A1LF13"),
+        176: PmEntry(5, "LF25", "A1LF25"),
         208: PmEntry(8, "CZ1", "A1CZ1"),
         # PA120 variants (PMs 17-22, 24-31) all map to style 2.
         **{pm: PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL")
@@ -1340,6 +1341,7 @@ LOCALE_TO_LANG: dict[str, str] = {
     'pt': 'p',       # Portuguese
     'ru': 'e',       # Russian
     'ja': 'r',       # Japanese
+    'ko': 'h',       # Korean
 }
 
 # =============================================================================
@@ -1387,6 +1389,7 @@ FBL_PROFILES: dict[int, DeviceProfile] = {
     102: DeviceProfile(320,  320,  big_endian=True),
     114: DeviceProfile(1600, 720,  jpeg=True, rotate=True),
     128: DeviceProfile(1280, 480,  jpeg=True, rotate=True),
+    129: DeviceProfile(480,  480),                              # alias for 72
     192: DeviceProfile(1920, 462,  jpeg=True, rotate=True),
     224: DeviceProfile(854,  480,  jpeg=True, rotate=True),
 }
@@ -1449,6 +1452,7 @@ _PM_TO_FBL_OVERRIDES: dict[int, int] = {
     17:  224,   # 960x320 (disambiguated in _FBL_224_BY_PM)
     32:  100,   # 320x320
     50:  50,    # 320x240 (SPI mode 2)
+    63:  114,   # 1600x720
     64:  114,   # 1600x720
     65:  192,   # 1920x462
     66:  192,   # 1920x462

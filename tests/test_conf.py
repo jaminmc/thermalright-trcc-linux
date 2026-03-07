@@ -241,9 +241,14 @@ class TestDetectLanguage:
         monkeypatch.delenv("LANG", raising=False)
         assert _detect_language() == "en"
 
+    def test_korean_locale_returns_h(self, monkeypatch):
+        """Korean locale returns 'h' suffix."""
+        monkeypatch.setattr("locale.getlocale", lambda: ("ko_KR", "UTF-8"))
+        assert _detect_language() == "h"
+
     def test_unknown_locale_returns_en(self, monkeypatch):
         """Unrecognized locale with no prefix match returns 'en'."""
-        monkeypatch.setattr("locale.getlocale", lambda: ("ko_KR", "UTF-8"))
+        monkeypatch.setattr("locale.getlocale", lambda: ("sw_KE", "UTF-8"))
         assert _detect_language() == "en"
 
     def test_exception_in_getlocale_returns_en(self, monkeypatch):

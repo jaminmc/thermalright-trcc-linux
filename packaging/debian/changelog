@@ -1,11 +1,11 @@
-trcc-linux (8.1.1-1) unstable; urgency=medium
+trcc-linux (8.1.2-1) unstable; urgency=medium
 
   * Strict DI across all services — full hexagonal SOLID purity
   * CPU optimization: 48% to 6% with MP4 playback
   * DeviceProfile table replaces scattered encoding logic
   * Hexagonal test restructuring (9 directories mirroring src/)
   * 4021 tests, 50 CLI commands, 43 API endpoints
-  * See https://github.com/Lexonight1/thermalright-trcc-linux/releases/tag/v8.1.1
+  * See https://github.com/Lexonight1/thermalright-trcc-linux/releases/tag/v8.1.2
 
  -- TRCC Linux Contributors <noreply@github.com>  Fri, 07 Mar 2026 12:00:00 +0000
 
