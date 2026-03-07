@@ -11,7 +11,7 @@ Windows controls (from UCAbout.cs):
 - buttonF:      (387, 214) 14x14  Fahrenheit radio
 - buttonYP:     (297, 254) 14x14  HDD info checkbox
 - textBoxTimer: (299, 291) 36x16  Refresh interval (1-100)
-- Language checkboxes at y=373/403
+- Language checkboxes at y=413/443 (v2.1.4, shifted for Running Mode row)
 """
 
 from __future__ import annotations
@@ -297,6 +297,15 @@ class UCAbout(BasePanel):
         self.refresh_input.setToolTip("Data refresh interval (seconds)")
         self.refresh_input.editingFinished.connect(self._on_refresh_changed)
 
+        # === Running Mode radio buttons (v2.1.4: buttonSingle / buttonMulti) ===
+        # Visual-only — always multi-threaded on Linux (Qt signals handle threading)
+        self.single_thread_btn = self._make_checkbox(
+            *Layout.ABOUT_SINGLE_THREAD, checked=False)
+        self.single_thread_btn.clicked.connect(lambda: self._set_thread_mode(False))
+        self.multi_thread_btn = self._make_checkbox(
+            *Layout.ABOUT_MULTI_THREAD, checked=True)
+        self.multi_thread_btn.clicked.connect(lambda: self._set_thread_mode(True))
+
         # === Language selection checkboxes ===
         from ..conf import settings
         for x, y, lang_suffix in Layout.ABOUT_LANG_BUTTONS:
@@ -454,6 +463,13 @@ class UCAbout(BasePanel):
     @property
     def refresh_interval(self):
         return self._refresh_interval
+
+    # --- Running Mode ---
+
+    def _set_thread_mode(self, multi: bool):
+        """Toggle running mode radio buttons (visual only, not wired)."""
+        self.single_thread_btn.setChecked(not multi)
+        self.multi_thread_btn.setChecked(multi)
 
     # --- Language ---
 

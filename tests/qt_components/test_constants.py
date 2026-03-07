@@ -99,8 +99,8 @@ class TestLayout(unittest.TestCase):
             self.assertEqual(len(entry), 5)
 
     def test_lang_buttons_list(self):
-        """9 language checkboxes, each is (x, y, suffix)."""
-        self.assertEqual(len(Layout.ABOUT_LANG_BUTTONS), 9)
+        """10 language checkboxes, each is (x, y, suffix)."""
+        self.assertEqual(len(Layout.ABOUT_LANG_BUTTONS), 10)
         for entry in Layout.ABOUT_LANG_BUTTONS:
             self.assertEqual(len(entry), 3)
 

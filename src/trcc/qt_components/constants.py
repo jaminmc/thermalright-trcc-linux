@@ -294,20 +294,25 @@ class Layout:
     ABOUT_REFRESH_INPUT = (299, 291, 36, 16)
     ABOUT_WEBSITE = (94, 726, 353, 43)
     ABOUT_VERSION = (1150, 735, 87, 27)
-    ABOUT_UPDATE_BTN = (297, 328, 48, 26)
+    ABOUT_UPDATE_BTN = (297, 373, 48, 26)
 
-    # Language selection checkboxes (within UCAbout)
+    # Running Mode radio buttons (v2.1.4: buttonSingle / buttonMulti)
+    ABOUT_SINGLE_THREAD = (297, 334, 14, 14)
+    ABOUT_MULTI_THREAD = (567, 334, 14, 14)
+
+    # Language selection checkboxes (within UCAbout) — v2.1.4 coordinates
     ABOUT_LANG_BUTTONS = [
         # (x, y, lang_suffix)
-        (297, 373, 'en'),   # English
-        (387, 373, 'd'),    # Deutsch
-        (477, 373, 'e'),    # Россия
-        (567, 373, 'f'),    # Français
-        (657, 373, 'p'),    # Português
-        (297, 403, 'r'),    # 日本語
-        (387, 403, 'x'),    # Español
-        (477, 403, ''),     # 中文简体
-        (567, 403, 'tc'),   # 中文繁體
+        (297, 413, 'en'),   # English
+        (387, 413, 'd'),    # Deutsch
+        (477, 413, 'e'),    # Россия
+        (567, 413, 'f'),    # Français
+        (657, 413, 'p'),    # Português
+        (297, 443, 'r'),    # 日本語
+        (387, 443, 'x'),    # Español
+        (477, 443, ''),     # 中文简体
+        (567, 443, 'tc'),   # 中文繁體
+        (657, 443, 'h'),    # 한국어
     ]
     ABOUT_CHECKBOX_SIZE = 14
 

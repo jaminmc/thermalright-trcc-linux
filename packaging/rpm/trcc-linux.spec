@@ -3,7 +3,7 @@
 %global srcname trcc-linux
 
 Name:           trcc-linux
-Version:        8.1.2
+Version:        8.1.3
 Release:        1%{?dist}
 Summary:        Thermalright LCD/LED Control Center for Linux
 
@@ -116,7 +116,7 @@ udevadm control --reload-rules 2>/dev/null || :
 %endif
 
 %changelog
-* Fri Mar 07 2026 TRCC Linux Contributors <noreply@github.com> - 8.1.2-1
+* Fri Mar 07 2026 TRCC Linux Contributors <noreply@github.com> - 8.1.3-1
 - Strict DI across all services — full hexagonal SOLID purity
 - CPU optimization: 48%% to 6%% with MP4 playback
 - DeviceProfile table replaces scattered encoding logic
