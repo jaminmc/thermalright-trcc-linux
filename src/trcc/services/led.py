@@ -48,7 +48,7 @@ class LEDService:
         self._metrics: HardwareMetrics = HardwareMetrics()
         self._engine = LEDEffectEngine(self.state, self._metrics)
         self._protocol: Any = None
-        self._get_protocol = get_protocol or self._default_get_protocol
+        self._get_protocol = get_protocol
 
         # Segment display state (styles 1-11 — all digit-display LED devices)
         self._segment_mode = False
@@ -62,11 +62,6 @@ class LEDService:
         # Device identity (for config persistence)
         self._device_key: Optional[str] = None
         self._led_style: int = 1
-
-    @staticmethod
-    def _default_get_protocol(dev: Any) -> Any:
-        from ..adapters.device.factory import DeviceProtocolFactory
-        return DeviceProtocolFactory.get_protocol(dev)
 
     # ── Style resolution (static) ───────────────────────────────────
 
@@ -430,6 +425,8 @@ class LEDService:
         self.configure_for_style(led_style)
 
         try:
+            if self._get_protocol is None:
+                return "LED protocol factory not configured"
             protocol = self._get_protocol(device_info)
             protocol.handshake()  # Cache handshake result for wire remap
             self.set_protocol(protocol)

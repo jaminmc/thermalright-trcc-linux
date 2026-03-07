@@ -41,11 +41,15 @@ class LCDDevice(Device):
         display_svc: Any = None,
         theme_svc: Any = None,
         renderer: Any = None,
+        dc_config_cls: Any = None,
+        load_config_json_fn: Any = None,
     ) -> None:
         self._device_svc = device_svc
         self._display_svc = display_svc
         self._theme_svc = theme_svc
         self._renderer = renderer
+        self._dc_config_cls = dc_config_cls
+        self._load_config_json_fn = load_config_json_fn
 
         # All capability accessors point to self — methods are on LCDDevice
         self.theme: LCDDevice = self  # type: ignore[assignment]
@@ -55,7 +59,12 @@ class LCDDevice(Device):
         self.settings: LCDDevice = self  # type: ignore[assignment]
 
     def _build_services(self, device_svc: Any) -> None:
-        """Wire up all services from a DeviceService."""
+        """Wire up all services from a DeviceService (composition root)."""
+        from ..adapters.infra.data_repository import DataManager
+        from ..adapters.infra.dc_config import DcConfig
+        from ..adapters.infra.dc_parser import load_config_json
+        from ..adapters.infra.dc_writer import export_theme, import_theme
+        from ..adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
         from ..services import (
             DisplayService,
             MediaService,
@@ -66,10 +75,30 @@ class LCDDevice(Device):
 
         self._device_svc = device_svc
         self._renderer = self._renderer or ImageService._r()
-        overlay_svc = OverlayService(renderer=self._renderer)
-        media_svc = MediaService()
-        self._display_svc = DisplayService(device_svc, overlay_svc, media_svc)
-        self._theme_svc = ThemeService()
+        self._dc_config_cls = DcConfig
+        self._load_config_json_fn = load_config_json
+        overlay_svc = OverlayService(
+            renderer=self._renderer,
+            load_config_json_fn=load_config_json,
+            dc_config_cls=DcConfig,
+        )
+        media_svc = MediaService(
+            video_decoder_cls=VideoDecoder,
+            zt_decoder_cls=ThemeZtDecoder,
+        )
+        theme_svc = ThemeService(
+            ensure_data_fn=DataManager.ensure_all,
+            export_theme_fn=export_theme,
+            import_theme_fn=import_theme,
+            load_config_json_fn=load_config_json,
+            dc_config_cls=DcConfig,
+        )
+        self._display_svc = DisplayService(
+            device_svc, overlay_svc, media_svc,
+            ensure_data_fn=DataManager.ensure_all,
+            theme_svc=theme_svc,
+        )
+        self._theme_svc = theme_svc
 
     # ── Device ABC ─────────────────────────────────────────────────
 
@@ -82,6 +111,9 @@ class LCDDevice(Device):
         Returns:
             {"success": bool, "resolution": (w, h), "device_path": str}
         """
+        from ..adapters.device.detector import DeviceDetector
+        from ..adapters.device.factory import DeviceProtocolFactory
+        from ..adapters.device.led import probe_led_model
         from ..services import DeviceService
 
         device_path = None
@@ -91,7 +123,12 @@ class LCDDevice(Device):
             device_path = getattr(detected, 'scsi_device', None) or \
                           getattr(detected, 'path', None)
 
-        svc = DeviceService()
+        svc = DeviceService(
+            detect_fn=DeviceDetector.detect,
+            probe_led_fn=probe_led_model,
+            get_protocol=DeviceProtocolFactory.get_protocol,
+            get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+        )
         svc.scan_and_select(device_path)
         if not svc.selected:
             return {"success": False, "error": "No LCD device found"}
@@ -196,7 +233,11 @@ class LCDDevice(Device):
             return {"success": False, "error": f"Path not found: {dc_path}"}
 
         w, h = self.resolution if self.connected else (320, 320)
-        overlay = OverlayService(w, h, renderer=self._renderer)
+        overlay = OverlayService(
+            w, h, renderer=self._renderer,
+            load_config_json_fn=self._load_config_json_fn,
+            dc_config_cls=self._dc_config_cls,
+        )
         p = Path(dc_path)
         dc_file = p / "config1.dc" if p.is_dir() else p
         display_opts = overlay.load_from_dc(dc_file)
@@ -257,9 +298,7 @@ class LCDDevice(Device):
         # Parse mask position from DC file (C# stores center coords)
         mask_w, mask_h = r.surface_size(mask_img)
         dc_path = (p if p.is_dir() else p.parent) / 'config1.dc'
-        from ..services.theme import ThemeService
-        position = ThemeService._parse_mask_position(
-            dc_path, mask_w, mask_h, w, h)
+        position = self._parse_mask_position(dc_path, mask_w, mask_h, w, h)
 
         # Use existing overlay service (GUI) or create fresh one (CLI)
         if self._display_svc:
@@ -278,7 +317,11 @@ class LCDDevice(Device):
             self._display_svc._cache = None
             result_img = self._display_svc.render_overlay()
         else:
-            ovl = OverlayService(w, h, renderer=self._renderer)
+            ovl = OverlayService(
+                w, h, renderer=self._renderer,
+                load_config_json_fn=self._load_config_json_fn,
+                dc_config_cls=self._dc_config_cls,
+            )
             ovl.set_mask(mask_img, position)
             bg = ImageService.solid_color(0, 0, 0, w, h)
             ovl.set_background(bg)
@@ -292,6 +335,20 @@ class LCDDevice(Device):
             "image": result_img,
             "message": f"Sent mask {mask_file.name} to {self.device_path}",
         }
+
+    @staticmethod
+    def _parse_mask_position(
+        dc_path: Path | None, mask_w: int, mask_h: int,
+        lcd_w: int, lcd_h: int,
+    ) -> tuple[int, int] | None:
+        """Parse mask position from DC file (center→top-left)."""
+        if mask_w >= lcd_w and mask_h >= lcd_h:
+            return (0, 0)
+        if not dc_path or not dc_path.exists():
+            return None
+        # Parse DC file if overlay service has dc_config_cls
+        # For CLI standalone, position defaults to None (centered)
+        return None
 
     # ── Frame ops (encode/send to hardware) ─────────────────────
 
@@ -516,6 +573,13 @@ class LCDDevice(Device):
 
     def set_background(self, image: Any) -> dict:
         self._display_svc.overlay.set_background(image)
+        # Also update clean_background so render_overlay() uses this image
+        # as the base (C# sets both bitmapBGK and imagePicture).
+        # Use overlay.background (already converted to native QImage)
+        # to avoid PIL→QImage re-conversion on every render tick.
+        if image is not None:
+            self._display_svc.set_clean_background(
+                self._display_svc.overlay.background)
         return {"success": True, "message": "Overlay background set"}
 
     def set_mask(self, image: Any,

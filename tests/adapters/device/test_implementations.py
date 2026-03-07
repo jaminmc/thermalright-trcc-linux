@@ -144,59 +144,54 @@ class TestConcreteDevices(unittest.TestCase):
 
 
 class TestDetectResolution(unittest.TestCase):
-    """Resolution auto-detection via DeviceService (SCSI poll byte[0] → fbl_to_resolution)."""
+    """Resolution auto-detection via LCDDriver (SCSI poll byte[0] → fbl_to_resolution).
+
+    LCDDriver._detect_resolution() was moved from DeviceService in the DI refactoring.
+    """
+
+    def _detect(self, poll_response):
+        """Create LCDDriver with mocked SCSI read, return its implementation."""
+        from trcc.adapters.device.lcd import LCDDriver
+        with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=poll_response):
+            driver = LCDDriver(device_path='/dev/sg0')
+        return driver.implementation
 
     def test_detect_success_480x480(self):
         """Poll response byte[0]=72 → FBL 72 → 480x480."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
         poll_response = bytes([72]) + b'\x00' * 0xE0FF
-        with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=poll_response):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0')
-        self.assertTrue(result)
-        self.assertEqual(cfg.width, 480)
-        self.assertEqual(cfg.height, 480)
-        self.assertEqual(cfg.fbl, 72)
-        self.assertTrue(cfg.resolution_detected)
+        impl = self._detect(poll_response)
+        self.assertEqual(impl.width, 480)
+        self.assertEqual(impl.height, 480)
+        self.assertEqual(impl.fbl, 72)
+        self.assertTrue(impl.resolution_detected)
 
     def test_detect_success_320x320(self):
         """Poll response byte[0]=100 → FBL 100 → 320x320."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
         poll_response = bytes([100]) + b'\x00' * 0xE0FF
-        with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=poll_response):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0')
-        self.assertTrue(result)
-        self.assertEqual(cfg.width, 320)
-        self.assertEqual(cfg.height, 320)
-        self.assertEqual(cfg.fbl, 100)
+        impl = self._detect(poll_response)
+        self.assertEqual(impl.width, 320)
+        self.assertEqual(impl.height, 320)
+        self.assertEqual(impl.fbl, 100)
 
     def test_detect_success_240x240(self):
         """Poll response byte[0]=36 → FBL 36 → 240x240."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
         poll_response = bytes([36]) + b'\x00' * 0xE0FF
-        with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=poll_response):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0')
-        self.assertTrue(result)
-        self.assertEqual(cfg.width, 240)
-        self.assertEqual(cfg.height, 240)
+        impl = self._detect(poll_response)
+        self.assertEqual(impl.width, 240)
+        self.assertEqual(impl.height, 240)
 
     def test_detect_empty_response(self):
-        """Empty poll response → returns False."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
-        with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=b''):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0')
-        self.assertFalse(result)
+        """Empty poll response → resolution stays at default."""
+        impl = self._detect(b'')
+        # Default resolution, no resolution_detected flag
+        self.assertFalse(getattr(impl, 'resolution_detected', False))
 
     def test_detect_scsi_error(self):
-        """SCSI read exception → returns False."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
+        """SCSI read exception → resolution stays at default."""
+        from trcc.adapters.device.lcd import LCDDriver
         with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', side_effect=OSError("sg_raw fail")):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0')
-        self.assertFalse(result)
+            driver = LCDDriver(device_path='/dev/sg0')
+        self.assertFalse(getattr(driver.implementation, 'resolution_detected', False))
 
     def test_fbl_defaults_to_none(self):
         cfg = LCDDeviceConfig()
@@ -206,24 +201,20 @@ class TestDetectResolution(unittest.TestCase):
 class TestDetectResolutionEdge(unittest.TestCase):
 
     def test_detect_verbose_success(self):
-        """Verbose mode logs resolution on success."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
+        """Resolution detection works for FBL 72 → 480x480."""
+        from trcc.adapters.device.lcd import LCDDriver
         poll_response = bytes([72]) + b'\x00' * 0xE0FF
         with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', return_value=poll_response):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0', verbose=True)
-        self.assertTrue(result)
-        self.assertEqual(cfg.width, 480)
-        self.assertEqual(cfg.height, 480)
+            driver = LCDDriver(device_path='/dev/sg0')
+        self.assertEqual(driver.implementation.width, 480)
+        self.assertEqual(driver.implementation.height, 480)
 
     def test_detect_verbose_failure(self):
-        """Verbose mode logs warning on failure."""
-        from trcc.services.device import DeviceService
-        cfg = LCDDeviceConfig()
+        """SCSI failure → resolution stays at default."""
+        from trcc.adapters.device.lcd import LCDDriver
         with patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read', side_effect=OSError("fail")):
-            result = DeviceService.detect_lcd_resolution(cfg, '/dev/sg0', verbose=True)
-        self.assertFalse(result)
-        self.assertEqual(cfg.width, 320)  # default unchanged
+            driver = LCDDriver(device_path='/dev/sg0')
+        self.assertEqual(driver.implementation.width, 320)  # default unchanged
 
 
 if __name__ == '__main__':

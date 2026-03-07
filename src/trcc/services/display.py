@@ -37,14 +37,18 @@ class DisplayService:
     def __init__(self,
                  devices: DeviceService,
                  overlay: OverlayService,
-                 media: MediaService) -> None:
+                 media: MediaService,
+                 ensure_data_fn: Any = None,
+                 theme_svc: Any = None) -> None:
         # Sub-services (injected)
         self.devices = devices
         self.overlay = overlay
         self.media = media
+        self._ensure_data_fn = ensure_data_fn
 
         # Theme loader (injected with same sub-services)
-        self._loader = ThemeLoader(overlay, media)
+        self._loader = ThemeLoader(overlay, media, theme_svc=theme_svc)
+        self._persistence = ThemePersistence(theme_svc=theme_svc)
 
         # Working directory (Windows GifDirectory pattern)
         self.working_dir = Path(tempfile.mkdtemp(prefix='trcc_work_'))
@@ -97,8 +101,8 @@ class DisplayService:
 
     def _setup_dirs(self, width: int, height: int) -> None:
         """Extract, locate, and set theme/web/mask directories."""
-        from ..adapters.infra.data_repository import DataManager
-        DataManager.ensure_all(width, height)
+        if self._ensure_data_fn is not None:
+            self._ensure_data_fn(width, height)
         settings._resolve_paths()
 
         td = settings.theme_dir
@@ -265,6 +269,14 @@ class DisplayService:
         """Load a static image file. Returns rendered image or None."""
         self._load_static_image(path)
         return self._render_and_process()
+
+    def set_clean_background(self, image: Any) -> None:
+        """Set both current_image and clean_background to a native surface.
+
+        Used when loading a custom background image (C# imagePicture + bitmapBGK).
+        """
+        self._clean_background = image
+        self.current_image = image
 
     def _load_static_image(self, path: Path) -> None:
         """Load and resize a static image to LCD dimensions."""
@@ -489,7 +501,7 @@ class DisplayService:
 
     def export_config(self, export_path: Path) -> Tuple[bool, str]:
         """Export current theme as .tr or JSON file."""
-        return ThemePersistence.export_config(
+        return self._persistence.export_config(
             export_path, self.current_theme_path,
             self.lcd_width, self.lcd_height,
         )
@@ -500,7 +512,7 @@ class DisplayService:
         if not os.access(data_dir, os.W_OK):
             from ..core.paths import USER_DATA_DIR
             data_dir = Path(USER_DATA_DIR)
-        ok, result = ThemePersistence.import_config(
+        ok, result = self._persistence.import_config(
             import_path, data_dir, self.lcd_size)
         if ok and not isinstance(result, str):
             self.load_local_theme(result)

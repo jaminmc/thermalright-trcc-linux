@@ -17,7 +17,13 @@ log = logging.getLogger(__name__)
 
 
 class ThemePersistence:
-    """Static methods for theme save/export/import."""
+    """Theme save/export/import operations.
+
+    Accepts a ThemeService instance for export/import (hexagonal DI).
+    """
+
+    def __init__(self, theme_svc: ThemeService | None = None) -> None:
+        self._theme_svc = theme_svc
 
     @staticmethod
     def save(
@@ -48,8 +54,8 @@ class ThemePersistence:
             current_theme_path=current_theme_path,
         )
 
-    @staticmethod
     def export_config(
+        self,
         export_path: Path,
         current_theme_path: Path | None,
         lcd_width: int, lcd_height: int,
@@ -59,7 +65,9 @@ class ThemePersistence:
             return False, "No theme loaded"
 
         if str(export_path).endswith('.tr'):
-            return ThemeService.export_tr(current_theme_path, export_path)
+            if self._theme_svc is None:
+                return False, "Export not available (ThemeService not configured)"
+            return self._theme_svc.export_tr(current_theme_path, export_path)
 
         # JSON export
         config = {
@@ -73,8 +81,8 @@ class ThemePersistence:
         except Exception as e:
             return False, f"Export failed: {e}"
 
-    @staticmethod
     def import_config(
+        self,
         import_path: Path, data_dir: Path,
         lcd_size: tuple[int, int],
     ) -> Tuple[bool, Any]:
@@ -84,7 +92,9 @@ class ThemePersistence:
         or an error string.
         """
         if str(import_path).endswith('.tr'):
-            return ThemeService.import_tr(import_path, data_dir, lcd_size)
+            if self._theme_svc is None:
+                return False, "Import not available (ThemeService not configured)"
+            return self._theme_svc.import_tr(import_path, data_dir, lcd_size)
 
         # JSON import
         try:

@@ -16,14 +16,13 @@ from dataclasses import fields
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.conftest import get_pixel, make_test_surface, surface_size
+from tests.conftest import get_pixel, make_device_service, make_test_surface, surface_size
 from trcc.core.models import (
     DeviceInfo,
     ThemeData,
     ThemeInfo,
     VideoState,
 )
-from trcc.services.device import DeviceService
 from trcc.services.display import DisplayService
 from trcc.services.image import ImageService
 from trcc.services.media import MediaService
@@ -43,7 +42,7 @@ class TestDependencyInjection(unittest.TestCase):
 
     def test_display_service_accepts_injected_sub_services(self):
         """DisplayService receives DeviceService, OverlayService, MediaService."""
-        dev = DeviceService()
+        dev = make_device_service()
         ovl = OverlayService(renderer=ImageService._r())
         med = MediaService()
         svc = DisplayService(dev, ovl, med)

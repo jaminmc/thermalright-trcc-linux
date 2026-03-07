@@ -35,12 +35,12 @@ class MediaService:
         self._progress_counter = 0
 
     def _get_decoders(self) -> tuple[Any, Any]:
-        """Return (VideoDecoder, ThemeZtDecoder) classes, lazily importing defaults."""
-        if self._video_decoder_cls and self._zt_decoder_cls:
-            return self._video_decoder_cls, self._zt_decoder_cls
-        from ..adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
-        return (self._video_decoder_cls or VideoDecoder,
-                self._zt_decoder_cls or ThemeZtDecoder)
+        """Return (VideoDecoder, ThemeZtDecoder) classes (must be injected)."""
+        if self._video_decoder_cls is None or self._zt_decoder_cls is None:
+            raise RuntimeError(
+                "MediaService requires video_decoder_cls and zt_decoder_cls. "
+                "Use ControllerBuilder to wire dependencies.")
+        return self._video_decoder_cls, self._zt_decoder_cls
 
     # ── Target size ──────────────────────────────────────────────────
 

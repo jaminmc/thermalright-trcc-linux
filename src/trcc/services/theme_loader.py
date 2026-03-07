@@ -26,8 +26,10 @@ class ThemeLoader:
     state stays in DisplayService.
     """
 
-    def __init__(self, overlay: OverlayService, media: MediaService) -> None:
+    def __init__(self, overlay: OverlayService, media: MediaService,
+                 theme_svc: ThemeService | None = None) -> None:
         self._overlay = overlay
+        self._theme_svc = theme_svc
         self._media = media
 
     def load_local_theme(
@@ -222,10 +224,14 @@ class ThemeLoader:
         except Exception as e:
             log.error("Failed to load mask: %s", e)
 
-    @staticmethod
-    def _parse_mask_position(dc_path: Path | None,
+    def _parse_mask_position(self, dc_path: Path | None,
                              mask_w: int, mask_h: int,
                              lcd_size: tuple[int, int]) -> tuple[int, int] | None:
         """Parse mask position from DC file, convert center to top-left coords."""
-        return ThemeService._parse_mask_position(
+        if self._theme_svc is None:
+            # Fallback: full-size masks at (0,0), no DC parsing
+            if mask_w >= lcd_size[0] and mask_h >= lcd_size[1]:
+                return (0, 0)
+            return None
+        return self._theme_svc._parse_mask_position(
             dc_path, mask_w, mask_h, lcd_size[0], lcd_size[1])

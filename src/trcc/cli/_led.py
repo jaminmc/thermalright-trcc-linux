@@ -202,6 +202,7 @@ def test_led(*, mode: str | None = None, segments: int = 64,
     """Test LED ANSI preview with real system metrics. No device needed."""
     import time
 
+    from trcc.adapters.system.sensors import SensorEnumerator
     from trcc.core.models import LEDMode, LEDState
     from trcc.services.led import LEDService
     from trcc.services.system import SystemService
@@ -222,7 +223,7 @@ def test_led(*, mode: str | None = None, segments: int = 64,
     else:
         run_modes = modes
 
-    sys_svc = SystemService()
+    sys_svc = SystemService(enumerator=SensorEnumerator())
     sys_svc.discover()
     metrics = sys_svc.all_metrics
 
@@ -276,10 +277,11 @@ def test_led(*, mode: str | None = None, segments: int = 64,
 
 def test_lcd(*, cols: int = 60):
     """Test LCD ANSI preview with real system metrics. No device needed."""
+    from trcc.adapters.system.sensors import SensorEnumerator
     from trcc.services.image import ImageService
     from trcc.services.system import SystemService
 
-    sys_svc = SystemService()
+    sys_svc = SystemService(enumerator=SensorEnumerator())
     sys_svc.discover()
     metrics = sys_svc.all_metrics
 

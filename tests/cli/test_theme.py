@@ -105,6 +105,7 @@ class TestListThemes:
 
         data_mgr = MagicMock()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         return settings_mock, data_mgr, theme_svc
 
     def test_local_themes_prints_count(self, capsys):
@@ -331,6 +332,7 @@ class TestLoadTheme:
         svc, themes, img, img_svc, sm, sc = self._patches()
         themes[0].name = "ExactTheme"
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = themes
         pil_mock = MagicMock()
         pil_mock.open.return_value.__enter__ = lambda s: s
@@ -353,6 +355,7 @@ class TestLoadTheme:
         svc, _, img, img_svc, sm, sc = self._patches(themes=[t])
         sm.theme_dir = _make_theme_dir()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = [t]
         pil_mock = MagicMock()
         pil_mock.open.return_value = MagicMock(convert=lambda m: img)
@@ -371,6 +374,7 @@ class TestLoadTheme:
         sm = MagicMock()
         sm.theme_dir = _make_theme_dir()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = [_make_local_theme("Alpha")]
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS, sm), \
@@ -389,6 +393,7 @@ class TestLoadTheme:
         sm = MagicMock()
         sm.theme_dir = _make_theme_dir()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = [animated]
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS, sm), \
@@ -407,6 +412,7 @@ class TestLoadTheme:
         sm = MagicMock()
         sm.theme_dir = _make_theme_dir()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = [t]
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS, sm), \
@@ -422,6 +428,7 @@ class TestLoadTheme:
         sm = MagicMock()
         sm.theme_dir = _make_theme_dir()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = [t]
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS, sm), \
@@ -456,6 +463,7 @@ class TestLoadTheme:
         svc, themes, img, img_svc, sm, sc = self._patches()
         themes[0].name = "PreviewTheme"
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = themes
         pil_mock = MagicMock()
         pil_mock.open.return_value = MagicMock(convert=lambda m: img)
@@ -475,6 +483,7 @@ class TestLoadTheme:
         svc, themes, img, img_svc, sm, sc = self._patches()
         themes[0].name = "Theme"
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = themes
         pil_mock = MagicMock()
         pil_mock.open.return_value = MagicMock(convert=lambda m: img)
@@ -493,6 +502,7 @@ class TestLoadTheme:
         sc.get_device_config.return_value = {"brightness_level": 1, "rotation": 0}
         themes[0].name = "T"
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = themes
         pil_mock = MagicMock()
         pil_mock.open.return_value = MagicMock(convert=lambda m: img)
@@ -511,6 +521,7 @@ class TestLoadTheme:
         themes[0].name = "T"
         themes[0].path = Path("/themes/T")
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.discover_local.return_value = themes
         pil_mock = MagicMock()
         pil_mock.open.return_value = MagicMock(convert=lambda m: img)
@@ -558,6 +569,7 @@ class TestSaveTheme:
         img.resize.return_value = img
 
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved: MyTheme")
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
@@ -610,6 +622,7 @@ class TestSaveTheme:
         img.resize.return_value = img
 
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (False, "Save failed: disk full")
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
@@ -628,6 +641,7 @@ class TestSaveTheme:
         img.resize.return_value = img
 
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved")
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
@@ -648,6 +662,7 @@ class TestSaveTheme:
         img.resize.return_value = img
 
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved")
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
@@ -676,6 +691,9 @@ class TestExportTheme:
         settings_mock.theme_dir = td or _make_theme_dir()
         data_mgr = MagicMock()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
+        # ThemeService(export_theme_fn=...) returns the same mock instance
+        theme_svc.return_value = theme_svc
         if themes is not None:
             theme_svc.discover_local.return_value = themes
         return settings_mock, data_mgr, theme_svc
@@ -783,6 +801,7 @@ class TestImportTheme:
         theme_info = MagicMock()
         theme_info.name = "ImportedTheme"
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, theme_info)
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_THEME_SVC, theme_svc), \
@@ -794,6 +813,7 @@ class TestImportTheme:
     def test_success_with_string_result(self, capsys, tmp_path):
         svc = _make_mock_service()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, "Import successful")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_THEME_SVC, theme_svc), \
@@ -805,6 +825,7 @@ class TestImportTheme:
     def test_failure_returns_1(self, capsys, tmp_path):
         svc = _make_mock_service()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (False, "Invalid .tr file")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_THEME_SVC, theme_svc), \
@@ -824,6 +845,7 @@ class TestImportTheme:
     def test_passes_resolution_to_import_tr(self, tmp_path):
         svc = _make_mock_service(resolution=(640, 480))
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, "ok")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_THEME_SVC, theme_svc), \
@@ -835,6 +857,7 @@ class TestImportTheme:
     def test_passes_correct_file_path(self, tmp_path):
         svc = _make_mock_service()
         theme_svc = MagicMock()
+        theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, "ok")
         file_path = str(tmp_path / "my_theme.tr")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \

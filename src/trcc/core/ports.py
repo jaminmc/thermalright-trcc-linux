@@ -173,10 +173,41 @@ class DeviceProtocol(Protocol):
     """Port: protocol for communicating with a USB device."""
 
     def handshake(self) -> Any: ...
-    def send_image(self, data: bytes, width: int, height: int) -> bool: ...
+    def send_image(self, image_data: bytes, width: int, height: int) -> bool: ...
 
 
 # Type alias for protocol factory callable.
 # Concrete: DeviceProtocolFactory.get_protocol
 GetProtocolFn = Callable[[Any], DeviceProtocol]
+
+# Type alias for protocol info query callable.
+# Concrete: DeviceProtocolFactory.get_protocol_info
+GetProtocolInfoFn = Callable[[Any], Any]
+
+# Type alias for data archive extraction callable.
+# Concrete: DataManager.ensure_all
+EnsureDataFn = Callable[[int, int], None]
+
+# Type alias for DC config file parser factory.
+# Concrete: DcConfig (class itself, called as DcConfig(path))
+DcConfigFactory = Callable[..., Any]
+
+# Type alias for config.json loader.
+# Concrete: dc_parser.load_config_json
+LoadConfigJsonFn = Callable[[str], Any]
+
+# Type alias for theme export callable.
+# Concrete: dc_writer.export_theme
+ExportThemeFn = Callable[[str, str], None]
+
+# Type alias for theme import callable.
+# Concrete: dc_writer.import_theme
+ImportThemeFn = Callable[[str, str], None]
+
+# Type alias for privileged command builder.
+# Concrete: hardware._privileged_cmd
+PrivilegedCmdFn = Callable[[str, list[str]], list[str]]
+
+# Type alias for sensor enumerator (duck-typed — has discover/read_all).
+SensorEnumeratorT = Any
 

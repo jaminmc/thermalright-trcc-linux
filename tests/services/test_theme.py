@@ -164,11 +164,10 @@ class TestState:
 
 class TestSetupDirs:
 
-    @patch('trcc.services.theme.ThemeService.setup_dirs.__wrapped__'
-           if hasattr(ThemeService.setup_dirs, '__wrapped__') else
-           'trcc.adapters.infra.data_repository.DataManager.ensure_all')
-    def test_delegates_to_data_manager(self, mock_ensure: MagicMock) -> None:
-        ThemeService.setup_dirs(320, 320)
+    def test_delegates_to_data_manager(self) -> None:
+        mock_ensure = MagicMock()
+        svc = ThemeService(ensure_data_fn=mock_ensure)
+        svc.setup_dirs(320, 320)
         mock_ensure.assert_called_once_with(320, 320)
 
 
@@ -501,7 +500,7 @@ class TestLoadReferenceBased:
             ThemeService, '_load_dc_display_options',
             return_value={'background_path': str(video)},
         ):
-            data = ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            data = ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         assert data.is_animated is True
         assert data.animation_path == video
@@ -524,7 +523,7 @@ class TestLoadReferenceBased:
         ), patch.object(
             ThemeService, '_open_image', return_value=big_image,
         ):
-            data = ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            data = ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         assert data.background is big_image
         assert data.is_animated is False
@@ -546,7 +545,7 @@ class TestLoadReferenceBased:
             ThemeService, '_load_dc_display_options',
             return_value={'mask_path': str(mask_dir)},
         ), patch.object(ThemeService, '_load_mask_into') as mock_mask:
-            ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         mock_mask.assert_called_once()
 
@@ -564,7 +563,7 @@ class TestLoadReferenceBased:
             ThemeService, '_load_dc_display_options',
             return_value={'background_path': '/nonexistent/bg.png'},
         ):
-            data = ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            data = ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         assert data.background is None
         assert data.is_animated is False
@@ -583,7 +582,7 @@ class TestLoadReferenceBased:
             ThemeService, '_load_dc_display_options',
             return_value={},
         ):
-            data = ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            data = ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         assert data.background is None
         assert data.is_animated is False
@@ -604,7 +603,7 @@ class TestLoadReferenceBased:
             ThemeService, '_load_dc_display_options',
             return_value={'background_path': str(zt)},
         ):
-            data = ThemeService.load(theme, tmp_path / 'work', lcd_size)
+            data = ThemeService().load(theme, tmp_path / 'work', lcd_size)
 
         assert data.is_animated is True
         assert data.animation_path == zt
@@ -627,7 +626,7 @@ class TestLoadCopyBased:
         ), patch.object(
             ThemeService, '_open_image', return_value=big_image,
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.background is big_image
         assert data.is_animated is False
@@ -644,7 +643,7 @@ class TestLoadCopyBased:
         with patch.object(
             ThemeService, '_load_dc_display_options', return_value={},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.is_animated is True
         assert data.animation_path is not None
@@ -662,7 +661,7 @@ class TestLoadCopyBased:
         with patch.object(
             ThemeService, '_load_dc_display_options', return_value={},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.is_animated is True
         assert data.animation_path is not None
@@ -683,7 +682,7 @@ class TestLoadCopyBased:
         ), patch.object(
             ThemeService, '_black_image', return_value=big_image,
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.background is big_image
 
@@ -700,7 +699,7 @@ class TestLoadCopyBased:
             ThemeService, '_load_dc_display_options',
             return_value={'animation_file': 'clip.mp4'},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.is_animated is True
         assert data.animation_path is not None
@@ -720,7 +719,7 @@ class TestLoadCopyBased:
             ThemeService, '_load_dc_display_options',
             return_value={'animation_file': 'missing.mp4'},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.is_animated is True
 
@@ -736,7 +735,7 @@ class TestLoadCopyBased:
         with patch.object(
             ThemeService, '_load_dc_display_options', return_value={},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         assert data.is_animated is True
 
@@ -754,7 +753,7 @@ class TestLoadCopyBased:
         ), patch.object(
             ThemeService, '_open_image', return_value=big_image,
         ), patch.object(ThemeService, '_load_mask_into') as mock_mask:
-            ThemeService.load(theme, work, lcd_size)
+            ThemeService().load(theme, work, lcd_size)
 
         mock_mask.assert_called_once()
 
@@ -772,7 +771,7 @@ class TestLoadCopyBased:
         ), patch.object(
             ThemeService, '_open_image', return_value=big_image,
         ), patch.object(ThemeService, '_load_mask_into') as mock_mask:
-            ThemeService.load(theme, work, lcd_size)
+            ThemeService().load(theme, work, lcd_size)
 
         # dc_path should be passed when dc file exists
         call_kwargs = mock_mask.call_args
@@ -801,7 +800,7 @@ class TestLoadCopyBased:
         with patch.object(
             ThemeService, '_load_dc_display_options', return_value={},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         # wd_copy (work/clip.mp4) doesn't exist, so falls back to theme.animation_path
         assert data.is_animated is True
@@ -821,7 +820,7 @@ class TestLoadCopyBased:
             ThemeService, '_load_dc_display_options',
             return_value={'animation_file': 'gone.mp4'},
         ):
-            data = ThemeService.load(theme, work, lcd_size)
+            data = ThemeService().load(theme, work, lcd_size)
 
         # anim_file block consumed the if-elif chain; both inner conditions False
         # -> no background or animation set
@@ -1122,23 +1121,20 @@ class TestExportImport:
         theme_path.mkdir()
         export_path = tmp_path / 'out.tr'
 
-        with patch(
-            'trcc.adapters.infra.dc_writer.export_theme',
-        ) as mock_export:
-            ok, msg = ThemeService.export_tr(theme_path, export_path)
+        mock_export = MagicMock()
+        svc = ThemeService(export_theme_fn=mock_export)
+        ok, msg = svc.export_tr(theme_path, export_path)
 
         assert ok is True
         assert 'out.tr' in msg
         mock_export.assert_called_once_with(str(theme_path), str(export_path))
 
     def test_export_failure(self, tmp_path: Path) -> None:
-        with patch(
-            'trcc.adapters.infra.dc_writer.export_theme',
-            side_effect=RuntimeError('disk full'),
-        ):
-            ok, msg = ThemeService.export_tr(
-                tmp_path / 'bad', tmp_path / 'out.tr'
-            )
+        mock_export = MagicMock(side_effect=RuntimeError('disk full'))
+        svc = ThemeService(export_theme_fn=mock_export)
+        ok, msg = svc.export_tr(
+            tmp_path / 'bad', tmp_path / 'out.tr'
+        )
 
         assert ok is False
         assert 'Export failed' in msg
@@ -1149,12 +1145,12 @@ class TestExportImport:
 
         fake_theme = ThemeInfo(name='mytheme', resolution=(320, 320))
 
-        with patch(
-            'trcc.adapters.infra.dc_writer.import_theme',
-        ), patch.object(
+        mock_import = MagicMock()
+        svc = ThemeService(import_theme_fn=mock_import)
+        with patch.object(
             ThemeInfo, 'from_directory', return_value=fake_theme,
         ):
-            ok, result = ThemeService.import_tr(import_file, tmp_path, lcd_size)
+            ok, result = svc.import_tr(import_file, tmp_path, lcd_size)
 
         assert ok is True
         assert isinstance(result, ThemeInfo)
@@ -1162,13 +1158,11 @@ class TestExportImport:
     def test_import_failure(
         self, tmp_path: Path, lcd_size: tuple[int, int]
     ) -> None:
-        with patch(
-            'trcc.adapters.infra.dc_writer.import_theme',
-            side_effect=ValueError('bad header'),
-        ):
-            ok, msg = ThemeService.import_tr(
-                tmp_path / 'bad.tr', tmp_path, lcd_size
-            )
+        mock_import = MagicMock(side_effect=ValueError('bad header'))
+        svc = ThemeService(import_theme_fn=mock_import)
+        ok, msg = svc.import_tr(
+            tmp_path / 'bad.tr', tmp_path, lcd_size
+        )
 
         assert ok is False
         assert 'Import failed' in msg
@@ -1183,12 +1177,12 @@ class TestExportImport:
             name='big', resolution=(480, 480)
         )
 
-        with patch(
-            'trcc.adapters.infra.dc_writer.import_theme',
-        ), patch.object(
+        mock_import = MagicMock()
+        svc = ThemeService(import_theme_fn=mock_import)
+        with patch.object(
             ThemeInfo, 'from_directory', return_value=mismatched_theme,
         ), patch('trcc.services.theme.log') as mock_log:
-            ok, result = ThemeService.import_tr(import_file, tmp_path, lcd_size)
+            ok, result = svc.import_tr(import_file, tmp_path, lcd_size)
 
         assert ok is True
         mock_log.warning.assert_called_once()
@@ -1203,12 +1197,12 @@ class TestExportImport:
 
         zero_theme = ThemeInfo(name='zero', resolution=(0, 0))
 
-        with patch(
-            'trcc.adapters.infra.dc_writer.import_theme',
-        ), patch.object(
+        mock_import = MagicMock()
+        svc = ThemeService(import_theme_fn=mock_import)
+        with patch.object(
             ThemeInfo, 'from_directory', return_value=zero_theme,
         ), patch('trcc.services.theme.log') as mock_log:
-            ok, result = ThemeService.import_tr(import_file, tmp_path, lcd_size)
+            ok, result = svc.import_tr(import_file, tmp_path, lcd_size)
 
         assert ok is True
         mock_log.warning.assert_not_called()
@@ -1221,12 +1215,12 @@ class TestExportImport:
 
         matching_theme = ThemeInfo(name='match', resolution=(320, 320))
 
-        with patch(
-            'trcc.adapters.infra.dc_writer.import_theme',
-        ), patch.object(
+        mock_import = MagicMock()
+        svc = ThemeService(import_theme_fn=mock_import)
+        with patch.object(
             ThemeInfo, 'from_directory', return_value=matching_theme,
         ), patch('trcc.services.theme.log') as mock_log:
-            ok, _ = ThemeService.import_tr(import_file, tmp_path, lcd_size)
+            ok, _ = svc.import_tr(import_file, tmp_path, lcd_size)
 
         assert ok is True
         mock_log.warning.assert_not_called()
@@ -1250,9 +1244,12 @@ class TestLoadDcDisplayOptions:
         )
         dc_path = td / 'config1.dc'
 
-        # The real load_config_json returns (overlay_config, display_options)
-        opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
-        # config.json with 'dc' key should return display_options with background_path
+        mock_load = MagicMock(return_value=(
+            {'elements': []},
+            {'background_path': '/some/bg.png'},
+        ))
+        svc = ThemeService(load_config_json_fn=mock_load)
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
         assert 'background_path' in opts
         assert opts['background_path'] == '/some/bg.png'
 
@@ -1267,14 +1264,14 @@ class TestLoadDcDisplayOptions:
         (td / 'config.json').write_text('"just a string"')
         dc_path = td / 'config1.dc'
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig'
-        ) as MockDc:
-            mock_dc = MagicMock()
-            mock_dc.display_options = {'rotation': 90}
-            MockDc.return_value = mock_dc
+        mock_load = MagicMock(return_value=None)
+        MockDcCls = MagicMock()
+        mock_dc = MagicMock()
+        mock_dc.display_options = {'rotation': 90}
+        MockDcCls.return_value = mock_dc
 
-            opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
+        svc = ThemeService(load_config_json_fn=mock_load, dc_config_cls=MockDcCls)
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
 
         assert opts == {'rotation': 90}
 
@@ -1287,17 +1284,14 @@ class TestLoadDcDisplayOptions:
         )
         dc_path = td / 'config1.dc'
 
-        with patch(
-            'trcc.adapters.infra.dc_parser.load_config_json',
-            side_effect=RuntimeError('parse error'),
-        ), patch(
-            'trcc.adapters.infra.dc_config.DcConfig'
-        ) as MockDc:
-            mock_dc = MagicMock()
-            mock_dc.display_options = {'mode': 2}
-            MockDc.return_value = mock_dc
+        mock_load = MagicMock(side_effect=RuntimeError('parse error'))
+        MockDcCls = MagicMock()
+        mock_dc = MagicMock()
+        mock_dc.display_options = {'mode': 2}
+        MockDcCls.return_value = mock_dc
 
-            opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
+        svc = ThemeService(load_config_json_fn=mock_load, dc_config_cls=MockDcCls)
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
 
         assert opts == {'mode': 2}
 
@@ -1309,14 +1303,13 @@ class TestLoadDcDisplayOptions:
         )
         dc_path = td / 'config1.dc'
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig'
-        ) as MockDc:
-            mock_dc = MagicMock()
-            mock_dc.display_options = {'background_display': True}
-            MockDc.return_value = mock_dc
+        MockDcCls = MagicMock()
+        mock_dc = MagicMock()
+        mock_dc.display_options = {'background_display': True}
+        MockDcCls.return_value = mock_dc
 
-            opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
 
         assert opts == {'background_display': True}
 
@@ -1328,11 +1321,9 @@ class TestLoadDcDisplayOptions:
         )
         dc_path = td / 'config1.dc'
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig',
-            side_effect=ValueError('corrupt dc'),
-        ):
-            opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
+        MockDcCls = MagicMock(side_effect=ValueError('corrupt dc'))
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
 
         assert opts == {}
 
@@ -1345,12 +1336,14 @@ class TestLoadDcDisplayOptions:
         dc_path = td / 'config1.dc'
         # dc_path doesn't exist
 
-        opts = ThemeService._load_dc_display_options(dc_path, 320, 320)
+        svc = ThemeService()
+        opts = svc._load_dc_display_options(dc_path, 320, 320)
         assert opts == {}
 
     def test_none_dc_path(self) -> None:
         """dc_path=None -> empty dict."""
-        opts = ThemeService._load_dc_display_options(None, 320, 320)  # type: ignore[arg-type]
+        svc = ThemeService()
+        opts = svc._load_dc_display_options(None, 320, 320)  # type: ignore[arg-type]
         assert opts == {}
 
 
@@ -1360,19 +1353,23 @@ class TestLoadDcDisplayOptions:
 class TestParseMaskPosition:
 
     def test_full_size_mask_returns_zero_zero(self) -> None:
-        pos = ThemeService._parse_mask_position(None, 320, 320, 320, 320)
+        svc = ThemeService()
+        pos = svc._parse_mask_position(None, 320, 320, 320, 320)
         assert pos == (0, 0)
 
     def test_oversized_mask_returns_zero_zero(self) -> None:
-        pos = ThemeService._parse_mask_position(None, 400, 400, 320, 320)
+        svc = ThemeService()
+        pos = svc._parse_mask_position(None, 400, 400, 320, 320)
         assert pos == (0, 0)
 
     def test_small_mask_no_dc_returns_none(self) -> None:
-        pos = ThemeService._parse_mask_position(None, 100, 100, 320, 320)
+        svc = ThemeService()
+        pos = svc._parse_mask_position(None, 100, 100, 320, 320)
         assert pos is None
 
     def test_small_mask_dc_not_exists(self, tmp_path: Path) -> None:
-        pos = ThemeService._parse_mask_position(
+        svc = ThemeService()
+        pos = svc._parse_mask_position(
             tmp_path / 'nonexistent.dc', 100, 100, 320, 320
         )
         assert pos is None
@@ -1385,10 +1382,9 @@ class TestParseMaskPosition:
         mock_dc.mask_enabled = True
         mock_dc.mask_settings = {'mask_position': [200, 150]}
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
-        ):
-            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
+        MockDcCls = MagicMock(return_value=mock_dc)
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        pos = svc._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         # center_pos=(200,150), mask 100x100 -> top-left = (200-50, 150-50) = (150, 100)
         assert pos == (150, 100)
@@ -1401,10 +1397,9 @@ class TestParseMaskPosition:
         mock_dc.mask_enabled = False
         mock_dc.mask_settings = {}
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
-        ):
-            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
+        MockDcCls = MagicMock(return_value=mock_dc)
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        pos = svc._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 
@@ -1416,10 +1411,9 @@ class TestParseMaskPosition:
         mock_dc.mask_enabled = True
         mock_dc.mask_settings = {}  # no 'mask_position' key
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig', return_value=mock_dc
-        ):
-            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
+        MockDcCls = MagicMock(return_value=mock_dc)
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        pos = svc._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 
@@ -1427,11 +1421,9 @@ class TestParseMaskPosition:
         dc_path = tmp_path / 'config1.dc'
         dc_path.write_bytes(b'\x00')
 
-        with patch(
-            'trcc.adapters.infra.dc_config.DcConfig',
-            side_effect=ValueError('corrupt'),
-        ):
-            pos = ThemeService._parse_mask_position(dc_path, 100, 100, 320, 320)
+        MockDcCls = MagicMock(side_effect=ValueError('corrupt'))
+        svc = ThemeService(dc_config_cls=MockDcCls)
+        pos = svc._parse_mask_position(dc_path, 100, 100, 320, 320)
 
         assert pos is None
 
@@ -1448,10 +1440,11 @@ class TestLoadMaskInto:
         td = ThemeDir(mask_dir)
         data = ThemeData()
 
+        svc = ThemeService()
         with patch.object(
-            ThemeService, '_parse_mask_position', return_value=(10, 20),
+            svc, '_parse_mask_position', return_value=(10, 20),
         ):
-            ThemeService._load_mask_into(data, td, 320, 320)
+            svc._load_mask_into(data, td, 320, 320)
 
         assert data.mask is not None
         assert data.mask_position == (10, 20)
@@ -1463,7 +1456,8 @@ class TestLoadMaskInto:
         td = ThemeDir(empty_dir)
         data = ThemeData()
 
-        ThemeService._load_mask_into(data, td, 320, 320)
+        svc = ThemeService()
+        svc._load_mask_into(data, td, 320, 320)
 
         assert data.mask is None
         assert data.mask_position is None
@@ -1477,10 +1471,11 @@ class TestLoadMaskInto:
         data = ThemeData()
         dc_path = mask_dir / 'config1.dc'
 
+        svc = ThemeService()
         with patch.object(
-            ThemeService, '_parse_mask_position', return_value=(5, 5),
+            svc, '_parse_mask_position', return_value=(5, 5),
         ) as mock_parse:
-            ThemeService._load_mask_into(data, td, 320, 320, dc_path=dc_path)
+            svc._load_mask_into(data, td, 320, 320, dc_path=dc_path)
 
         # dc_path should be passed to _parse_mask_position
         assert mock_parse.call_args[0][0] == dc_path
@@ -1493,10 +1488,11 @@ class TestLoadMaskInto:
         td = ThemeDir(mask_dir)
         data = ThemeData()
 
+        svc = ThemeService()
         with patch.object(
-            ThemeService, '_parse_mask_position', return_value=None,
+            svc, '_parse_mask_position', return_value=None,
         ) as mock_parse:
-            ThemeService._load_mask_into(data, td, 320, 320)
+            svc._load_mask_into(data, td, 320, 320)
 
         # dc_path=None, so it should use td.dc since td.dc.exists()
         first_arg = mock_parse.call_args[0][0]
@@ -1510,10 +1506,11 @@ class TestLoadMaskInto:
         td = ThemeDir(mask_dir)
         data = ThemeData()
 
+        svc = ThemeService()
         with patch.object(
-            ThemeService, '_parse_mask_position', return_value=None,
+            svc, '_parse_mask_position', return_value=None,
         ) as mock_parse:
-            ThemeService._load_mask_into(data, td, 320, 320)
+            svc._load_mask_into(data, td, 320, 320)
 
         # dc_path=None and td.dc doesn't exist -> None
         first_arg = mock_parse.call_args[0][0]
@@ -1527,9 +1524,10 @@ class TestLoadMaskInto:
         td = ThemeDir(mask_dir)
         data = ThemeData()
 
+        svc = ThemeService()
         with patch('PIL.Image.open', side_effect=OSError('corrupt')), \
              patch('trcc.services.theme.log') as mock_log:
-            ThemeService._load_mask_into(data, td, 320, 320)
+            svc._load_mask_into(data, td, 320, 320)
 
         assert data.mask is None
         mock_log.error.assert_called_once()

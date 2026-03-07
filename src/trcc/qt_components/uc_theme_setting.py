@@ -1354,7 +1354,7 @@ class UCThemeSetting(BasePanel):
     CMD_VIDEO_TOGGLE = 3
     CMD_MASK_TOGGLE = 96
     CMD_MASK_LOAD = 97
-    CMD_MASK_RESET = 99
+    CMD_MASK_CLOUD = 99  # C# buttonYDMB_Click — navigate to cloud masks panel
     CMD_VIDEO_LOAD = 10
     CMD_OVERLAY_CHANGED = 128
     CMD_EYEDROPPER = 112  # Matches Windows cmd for FormGetColor
@@ -1404,7 +1404,7 @@ class UCThemeSetting(BasePanel):
         self.data_table.text_changed.connect(self._on_text_changed)
 
         # Display mode panels
-        self.mask_panel = DisplayModePanel("mask", ["Load", "Clear"], self)
+        self.mask_panel = DisplayModePanel("mask", ["Load"], self)
         self.mask_panel.move(*Layout.MASK_PANEL)
         self.mask_panel.mode_changed.connect(self._on_mode_changed)
         self.mask_panel.action_requested.connect(self._on_action_requested)
@@ -1534,11 +1534,8 @@ class UCThemeSetting(BasePanel):
         action_map = {
             "Image": self.CMD_BACKGROUND_LOAD_IMAGE,
             "Video": self.CMD_BACKGROUND_LOAD_VIDEO,
-            "GIF": 51,
             "Load": self.CMD_MASK_LOAD,
             "VideoLoad": self.CMD_VIDEO_LOAD,
-            "Clear": self.CMD_MASK_RESET,
-            "Settings": 65,
         }
         cmd = action_map.get(action_name)
         if cmd:

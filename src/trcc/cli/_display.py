@@ -113,6 +113,7 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
             print(f"Error: File not found: {video_path}")
             return 1
 
+        from trcc.adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
         from trcc.services import ImageService, MediaService
 
         svc = _device._get_service(device)
@@ -123,7 +124,10 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
         dev = svc.selected
         w, h = dev.resolution
 
-        media = MediaService()
+        media = MediaService(
+            video_decoder_cls=VideoDecoder,
+            zt_decoder_cls=ThemeZtDecoder,
+        )
         media.set_target_size(w, h)
         if not media.load(Path(video_path)):
             print(f"Error: Failed to load video: {video_path}")
@@ -357,10 +361,18 @@ def resume():
     """Send last-used theme to each detected device (headless, no GUI)."""
     import time
 
+    from trcc.adapters.device.detector import DeviceDetector
+    from trcc.adapters.device.factory import DeviceProtocolFactory
+    from trcc.adapters.device.led import probe_led_model
     from trcc.conf import Settings
     from trcc.services import DeviceService, ImageService
 
-    svc = DeviceService()
+    svc = DeviceService(
+        detect_fn=DeviceDetector.detect,
+        probe_led_fn=probe_led_model,
+        get_protocol=DeviceProtocolFactory.get_protocol,
+        get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+    )
 
     devices: list = []
     for attempt in range(10):

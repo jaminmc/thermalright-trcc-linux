@@ -272,14 +272,20 @@ class LCDHandler:
                 Settings.save_device_setting(self._device_key, 'mask_path', '')
 
     def apply_mask(self, mask_info: Any) -> None:
-        """Apply mask overlay on top of current content."""
+        """Apply mask overlay on top of current content.
+
+        C# ThemeMask case 16: loads 01.png as mask, reads config1.dc
+        via ReadSystemConfiguration, then calls buttonMS_Mode + render.
+        Overlay config from mask is NOT persisted — only theme loads persist.
+        """
         if mask_info.path:
             mask_dir = Path(mask_info.path)
             result = self._lcd.load_mask_standalone(str(mask_dir))
             image = result.get('image')
             if image:
                 self._w['preview'].set_image(image)
-            self._load_theme_overlay_config(mask_dir)
+            # C# reads config1.dc from mask dir (ReadSystemConfiguration)
+            self._load_theme_overlay_config(mask_dir, persist=False)
             # Persist mask path so it survives restart
             if self._device_key:
                 Settings.save_device_setting(
@@ -315,8 +321,15 @@ class LCDHandler:
 
     # ── DC File Loading ────────────────────────────────────────────
 
-    def _load_theme_overlay_config(self, theme_dir: Path) -> None:
-        """Load overlay config from theme's config.json or config1.dc."""
+    def _load_theme_overlay_config(self, theme_dir: Path,
+                                    *, persist: bool = True) -> None:
+        """Load overlay config from theme's config.json or config1.dc.
+
+        Args:
+            theme_dir: Directory containing config.json or config1.dc.
+            persist: If True, save overlay state to config.json (theme loads).
+                     If False, apply but don't persist (mask loads — temporary).
+        """
         overlay_config = None
 
         json_path = theme_dir / 'config.json'
@@ -344,7 +357,7 @@ class LCDHandler:
             # Custom themes without overlay — clear any stale saved overlay
             # so it doesn't reappear on restart (fixes #58).
             self._w['theme_setting'].set_overlay_enabled(False)
-            if self._device_key:
+            if persist and self._device_key:
                 Settings.save_device_setting(self._device_key, 'overlay', {
                     'enabled': False, 'config': {},
                 })
@@ -357,7 +370,7 @@ class LCDHandler:
         self._lcd.overlay.enable(True)
         self._render_and_send()
 
-        if self._device_key:
+        if persist and self._device_key:
             Settings.save_device_setting(self._device_key, 'overlay', {
                 'enabled': True,
                 'config': overlay_config,
@@ -491,17 +504,22 @@ class LCDHandler:
     # ── Background / Screencast Toggles ────────────────────────────
 
     def on_background_toggle(self, enabled: bool) -> None:
-        """Handle background display toggle (C# myBjxs / myMode=0)."""
+        """Handle background display toggle (C# myBjxs / myMode=0).
+
+        C# ThemeSetting case 1: sets myUIMode=1, myMode=0,
+        calls ClosePlayer() and buttonMS_Mode(). Toggle off just
+        stops drawing the background — doesn't resume video.
+        """
         self._background_active = enabled
         if enabled:
             self._animation_timer.stop()
             self._lcd.video.stop()
-            self._render_and_send()
-        else:
-            self._lcd.overlay.set_background(None)
-            self._render_and_send()
+            self._w['preview'].set_playing(False)
+            self._w['preview'].show_video_controls(False)
+        self._render_and_send()
+        kind = "video" if self._lcd.video.has_frames else "image"
         self._w['preview'].set_status(
-            f"Background: {'On' if enabled else 'Off'}")
+            f"Background: {'On' if enabled else 'Off'} ({kind})")
 
     def on_screencast_frame(self, pil_img: Any) -> None:
         """Handle captured screencast frame — preview + send to LCD."""
@@ -600,6 +618,10 @@ class LCDHandler:
     @property
     def is_background_active(self) -> bool:
         return self._background_active
+
+    @is_background_active.setter
+    def is_background_active(self, value: bool) -> None:
+        self._background_active = value
 
     @property
     def brightness_level(self) -> int:

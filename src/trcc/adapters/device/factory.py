@@ -15,7 +15,7 @@ Usage::
     protocol.on_send_complete = lambda ok: print(f"sent: {ok}")
     protocol.on_error = lambda msg: print(f"err: {msg}")
     protocol.send_image(rgb565_data, width, height)      # LCD devices
-    protocol.send_led_data(colors, is_on, True, 100)     # LED devices
+    # LED: LedProtocol.send_led_data(colors, is_on, True, 100)
 """
 
 import logging
@@ -102,20 +102,6 @@ class DeviceProtocol(ABC):
     @abstractmethod
     def is_available(self) -> bool:
         """Whether the required backend (sg_raw / pyusb / hidapi) is installed."""
-
-    def send_led_data(
-        self,
-        led_colors: List[Tuple[int, int, int]],
-        is_on: Optional[List[bool]] = None,
-        global_on: bool = True,
-        brightness: int = 100,
-    ) -> bool:
-        """Send LED color data to an RGB LED device.
-
-        Default implementation returns False (not an LED device).
-        Only LedProtocol overrides this.
-        """
-        return False
 
     def handshake(self) -> Optional[HandshakeResult]:
         """Template Method: perform handshake, cache result, handle errors.

@@ -41,7 +41,12 @@ class ThemeService:
         'y': 'Aesthetic',
     }
 
-    def __init__(self) -> None:
+    def __init__(self,
+                 ensure_data_fn: Any = None,
+                 export_theme_fn: Any = None,
+                 import_theme_fn: Any = None,
+                 load_config_json_fn: Any = None,
+                 dc_config_cls: Any = None) -> None:
         self._themes: list[ThemeInfo] = []
         self._selected: ThemeInfo | None = None
         self._filter_mode: str = 'all'
@@ -49,6 +54,12 @@ class ThemeService:
         self._local_dir: Path | None = None
         self._web_dir: Path | None = None
         self._masks_dir: Path | None = None
+        # Injected adapter callables (hexagonal purity)
+        self._ensure_data_fn = ensure_data_fn
+        self._export_theme_fn = export_theme_fn
+        self._import_theme_fn = import_theme_fn
+        self._load_config_json_fn = load_config_json_fn
+        self._dc_config_cls = dc_config_cls
 
     # ── State ─────────────────────────────────────────────────────────
 
@@ -94,12 +105,10 @@ class ThemeService:
 
     # ── Directory setup ──────────────────────────────────────────────
 
-    @staticmethod
-    def setup_dirs(width: int, height: int) -> None:
+    def setup_dirs(self, width: int, height: int) -> None:
         """Extract all .7z archives for a resolution if needed."""
-        from ..adapters.infra.data_repository import DataManager
-
-        DataManager.ensure_all(width, height)
+        if self._ensure_data_fn is not None:
+            self._ensure_data_fn(width, height)
 
     # ── Discovery ────────────────────────────────────────────────────
 
@@ -179,8 +188,8 @@ class ThemeService:
 
     # ── Load ─────────────────────────────────────────────────────────
 
-    @staticmethod
     def load(
+        self,
         theme: ThemeInfo,
         working_dir: Path,
         lcd_size: tuple[int, int],
@@ -204,11 +213,11 @@ class ThemeService:
 
         # Reference-based theme (config.json exists)
         if td.json.exists():
-            opts = ThemeService._load_dc_display_options(td.dc, w, h)
+            opts = self._load_dc_display_options(td.dc, w, h)
 
             mask_ref = opts.get('mask_path')
             if mask_ref:
-                ThemeService._load_mask_into(data, ThemeDir(mask_ref), w, h)
+                self._load_mask_into(data, ThemeDir(mask_ref), w, h)
 
             bg_ref = opts.get('background_path')
             if bg_ref:
@@ -227,7 +236,7 @@ class ThemeService:
         ThemeService._copy_dir(theme.path, working_dir)
         wd = ThemeDir(working_dir)
 
-        opts = ThemeService._load_dc_display_options(wd.dc, w, h)
+        opts = self._load_dc_display_options(wd.dc, w, h)
 
         # Determine background / animation
         anim_path, static_path, is_mask_only = ThemeService._resolve_content(
@@ -243,7 +252,7 @@ class ThemeService:
         # Mask from working dir
         if wd.mask.exists():
             data.mask_source_dir = theme.path
-            ThemeService._load_mask_into(
+            self._load_mask_into(
                 data, wd, w, h, dc_path=wd.dc if wd.dc.exists() else None)
 
         return data
@@ -368,19 +377,18 @@ class ThemeService:
 
     # ── Export / Import ──────────────────────────────────────────────
 
-    @staticmethod
-    def export_tr(theme_path: Path, export_path: Path) -> tuple[bool, str]:
+    def export_tr(self, theme_path: Path, export_path: Path) -> tuple[bool, str]:
         """Export theme as .tr file."""
+        if self._export_theme_fn is None:
+            return False, "Export not available (dc_writer not injected)"
         try:
-            from ..adapters.infra.dc_writer import export_theme
-
-            export_theme(str(theme_path), str(export_path))
+            self._export_theme_fn(str(theme_path), str(export_path))
             return True, f"Exported: {export_path.name}"
         except Exception as e:
             return False, f"Export failed: {e}"
 
-    @staticmethod
     def import_tr(
+        self,
         import_path: Path,
         data_dir: Path,
         lcd_size: tuple[int, int],
@@ -390,13 +398,13 @@ class ThemeService:
         Returns (success, message_or_theme_info).
         On success, second element is a ThemeInfo that can be loaded.
         """
+        if self._import_theme_fn is None:
+            return False, "Import not available (dc_writer not injected)"
         try:
-            from ..adapters.infra.dc_writer import import_theme
-
             w, h = lcd_size
             name = import_path.stem
             theme_path = data_dir / f'theme{w}{h}' / name
-            import_theme(str(import_path), str(theme_path))
+            self._import_theme_fn(str(import_path), str(theme_path))
             theme = ThemeInfo.from_directory(theme_path)
 
             # Warn if imported theme resolution doesn't match device
@@ -443,15 +451,12 @@ class ThemeService:
         """Create a black background image."""
         return ImageService.solid_color(0, 0, 0, w, h)
 
-    @staticmethod
-    def _load_dc_display_options(dc_path: Path, w: int, h: int) -> dict:
+    def _load_dc_display_options(self, dc_path: Path, w: int, h: int) -> dict:
         """Load DC config and return display_options dict."""
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
-        if json_path and json_path.exists():
+        if json_path and json_path.exists() and self._load_config_json_fn is not None:
             try:
-                from ..adapters.infra.dc_parser import load_config_json
-
-                result = load_config_json(str(json_path))
+                result = self._load_config_json_fn(str(json_path))
                 if result is not None:
                     _, display_options = result
                     return display_options
@@ -460,17 +465,17 @@ class ThemeService:
 
         if not dc_path or not dc_path.exists():
             return {}
+        if self._dc_config_cls is None:
+            return {}
         try:
-            from ..adapters.infra.dc_config import DcConfig
-
-            dc = DcConfig(dc_path)
+            dc = self._dc_config_cls(dc_path)
             return dc.display_options
         except Exception as e:
             log.error("Failed to parse DC file: %s", e)
             return {}
 
-    @staticmethod
     def _parse_mask_position(
+        self,
         dc_path: Path | None,
         mask_w: int,
         mask_h: int,
@@ -488,10 +493,11 @@ class ThemeService:
         if not dc_path or not Path(dc_path).exists():
             return None
 
-        try:
-            from ..adapters.infra.dc_config import DcConfig
+        if self._dc_config_cls is None:
+            return None
 
-            dc = DcConfig(dc_path)
+        try:
+            dc = self._dc_config_cls(dc_path)
             if dc.mask_enabled:
                 center_pos = dc.mask_settings.get('mask_position')
                 if center_pos:
@@ -503,8 +509,8 @@ class ThemeService:
             pass
         return None
 
-    @staticmethod
     def _load_mask_into(
+        self,
         data: ThemeData,
         td: ThemeDir,
         w: int,
@@ -520,7 +526,7 @@ class ThemeService:
 
             with Image.open(mask_file) as mask_img:
                 mask_img.load()
-                position = ThemeService._parse_mask_position(
+                position = self._parse_mask_position(
                     dc_path or (td.dc if td.dc.exists() else None),
                     mask_img.width, mask_img.height, w, h)
                 data.mask = mask_img

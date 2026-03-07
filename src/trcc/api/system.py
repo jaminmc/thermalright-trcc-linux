@@ -17,7 +17,9 @@ def _get_system_svc():
     from trcc.services import SystemService
 
     if api._system_svc is None:
-        api._system_svc = SystemService()
+        from trcc.adapters.system.sensors import SensorEnumerator
+
+        api._system_svc = SystemService(enumerator=SensorEnumerator())
     return api._system_svc
 
 

@@ -6,14 +6,27 @@ from typing import Optional
 from trcc.cli import _cli_handler
 
 
+def _make_device_service():
+    """Create a DeviceService with adapter dependencies wired."""
+    from trcc.adapters.device.detector import DeviceDetector
+    from trcc.adapters.device.factory import DeviceProtocolFactory
+    from trcc.adapters.device.led import probe_led_model
+    from trcc.services import DeviceService
+
+    return DeviceService(
+        detect_fn=DeviceDetector.detect,
+        probe_led_fn=probe_led_model,
+        get_protocol=DeviceProtocolFactory.get_protocol,
+        get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+    )
+
+
 def _get_service(device_path: Optional[str] = None):
     """Create a DeviceService, detect devices, select, and handshake.
 
     Thin wrapper — delegates to DeviceService.scan_and_select().
     """
-    from trcc.services import DeviceService
-
-    svc = DeviceService()
+    svc = _make_device_service()
     svc.scan_and_select(device_path)
     return svc
 
@@ -23,8 +36,8 @@ def discover_resolution(dev) -> None:
 
     Thin wrapper — delegates to DeviceService._discover_resolution().
     """
-    from trcc.services import DeviceService
-    DeviceService()._discover_resolution(dev)
+    svc = _make_device_service()
+    svc._discover_resolution(dev)
 
 
 def _ensure_extracted(driver):

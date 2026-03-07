@@ -113,8 +113,7 @@ def select_device(device_id: int) -> dict:
             if not result["success"]:
                 api._led_dispatcher = None
         else:
-            from trcc.cli._device import discover_resolution
-            discover_resolution(dev)
+            _device_svc._discover_resolution(dev)
 
             from trcc.core.lcd_device import LCDDevice
 

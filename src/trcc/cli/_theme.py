@@ -185,7 +185,15 @@ def export_theme(theme_name, output_path):
         print(f"Theme not found: {theme_name}")
         return 1
 
-    ok, msg = ThemeService.export_tr(match.path, Path(output_path))
+    from trcc.adapters.infra.dc_config import DcConfig
+    from trcc.adapters.infra.dc_parser import load_config_json
+    from trcc.adapters.infra.dc_writer import export_theme as _export_fn
+    theme_svc = ThemeService(
+        export_theme_fn=_export_fn,
+        load_config_json_fn=load_config_json,
+        dc_config_cls=DcConfig,
+    )
+    ok, msg = theme_svc.export_tr(match.path, Path(output_path))
     print(msg)
     return 0 if ok else 1
 
@@ -196,6 +204,9 @@ def import_theme(file_path, *, device=None):
     from pathlib import Path
 
     from trcc.adapters.infra.data_repository import USER_DATA_DIR
+    from trcc.adapters.infra.dc_config import DcConfig
+    from trcc.adapters.infra.dc_parser import load_config_json
+    from trcc.adapters.infra.dc_writer import import_theme as _import_fn
     from trcc.services import ThemeService
 
     svc = _device._get_service(device)
@@ -207,7 +218,12 @@ def import_theme(file_path, *, device=None):
     w, h = dev.resolution
     data_dir = Path(USER_DATA_DIR)
 
-    ok, result = ThemeService.import_tr(
+    theme_svc = ThemeService(
+        import_theme_fn=_import_fn,
+        load_config_json_fn=load_config_json,
+        dc_config_cls=DcConfig,
+    )
+    ok, result = theme_svc.import_tr(
         Path(file_path), data_dir, (w, h))
     if ok and not isinstance(result, str):
         print(f"Imported: {result.name}")

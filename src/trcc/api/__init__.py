@@ -28,6 +28,11 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from trcc.__version__ import __version__
+from trcc.adapters.device.detector import DeviceDetector
+from trcc.adapters.device.factory import DeviceProtocolFactory
+from trcc.adapters.device.led import probe_led_model
+from trcc.adapters.infra.dc_config import DcConfig
+from trcc.adapters.infra.dc_parser import load_config_json
 from trcc.adapters.render.qt import QtRenderer
 from trcc.services import DeviceService, MediaService, OverlayService
 from trcc.services.image import ImageService
@@ -45,7 +50,12 @@ app = FastAPI(title="TRCC Linux", version=__version__)
 
 # ── Shared state ───────────────────────────────────────────────────────
 
-_device_svc = DeviceService()
+_device_svc = DeviceService(
+    detect_fn=DeviceDetector.detect,
+    probe_led_fn=probe_led_model,
+    get_protocol=DeviceProtocolFactory.get_protocol,
+    get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+)
 
 # Lazy-initialized devices (set when device is selected)
 _display_dispatcher = None  # LCDDevice | None
@@ -81,7 +91,11 @@ def start_video_playback(
 
     stop_video_playback()  # Stop any existing playback
 
-    media = MediaService()
+    from trcc.adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
+    media = MediaService(
+        video_decoder_cls=VideoDecoder,
+        zt_decoder_cls=ThemeZtDecoder,
+    )
     media.set_target_size(width, height)
     if not media.load(Path(video_path)):
         return False
@@ -149,7 +163,11 @@ def start_overlay_loop(
 
     stop_overlay_loop()
 
-    overlay = OverlayService(width, height, renderer=_renderer)
+    overlay = OverlayService(
+        width, height, renderer=_renderer,
+        load_config_json_fn=load_config_json,
+        dc_config_cls=DcConfig,
+    )
     overlay.set_background(background)
     overlay.load_from_dc(Path(dc_path))
     overlay.enabled = True

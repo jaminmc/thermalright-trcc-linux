@@ -434,10 +434,11 @@ class TestDeviceServiceFactoryWiring:
     """
 
     def _make_svc(self, device_info):
-        """Create a DeviceService with a selected device."""
+        """Create a DeviceService with a selected device and real factory."""
+        from tests.conftest import make_device_service
+        from trcc.adapters.device.factory import DeviceProtocolFactory
         from trcc.core.models import DeviceInfo
-        from trcc.services import DeviceService
-        svc = DeviceService()
+        svc = make_device_service(get_protocol=DeviceProtocolFactory.get_protocol)
         dev = DeviceInfo(
             name=device_info.name,
             path=device_info.path,
@@ -498,8 +499,8 @@ class TestDeviceServiceFactoryWiring:
         assert result is False
 
     def test_send_returns_false_when_no_device(self):
-        from trcc.services import DeviceService
-        svc = DeviceService()
+        from tests.conftest import make_device_service
+        svc = make_device_service()
         result = svc.send_rgb565(b'\x00', 320, 320)
         assert result is False
 
@@ -686,10 +687,10 @@ class TestDeviceInfoProtocol:
 
     def test_detect_passes_protocol_to_device_info(self):
         """Simulate what happens when detect_devices finds HID hardware."""
+        from tests.conftest import make_device_service
         from trcc.core.models import DeviceInfo
-        from trcc.services import DeviceService
 
-        svc = DeviceService()
+        svc = make_device_service()
         dev = DeviceInfo(
             name="HID ALi", path="hid:0418:5303",
             vid=0x0418, pid=0x5303,
@@ -798,17 +799,22 @@ class TestProtocolInfo:
 class TestDeviceServiceProtocolInfo:
     """Test the protocol info API used by the GUI."""
 
+    def _make(self):
+        from tests.conftest import make_device_service
+        from trcc.adapters.device.factory import DeviceProtocolFactory
+        return make_device_service(
+            get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+        )
+
     def test_no_device_selected(self):
-        from trcc.services.device import DeviceService
-        svc = DeviceService()
+        svc = self._make()
         info = svc.get_protocol_info()
         assert info is not None
         assert info.protocol == "none"
 
     def test_scsi_device_selected(self):
         from trcc.core.models import DeviceInfo
-        from trcc.services.device import DeviceService
-        svc = DeviceService()
+        svc = self._make()
         svc.select(DeviceInfo(
             name="LCD", path="/dev/sg0",
             protocol="scsi", device_type=1,
@@ -819,8 +825,7 @@ class TestDeviceServiceProtocolInfo:
 
     def test_hid_device_selected(self):
         from trcc.core.models import DeviceInfo
-        from trcc.services.device import DeviceService
-        svc = DeviceService()
+        svc = self._make()
         svc.select(DeviceInfo(
             name="HID LCD", path="hid:0416:5302",
             vid=0x0416, pid=0x5302,

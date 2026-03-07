@@ -78,8 +78,8 @@ class TestScanAndSelect:
     """DeviceService.scan_and_select() — selection logic (moved from CLI)."""
 
     def _make_svc(self, devices):
-        from trcc.services import DeviceService
-        svc = DeviceService()
+        from tests.conftest import make_device_service
+        svc = make_device_service()
         svc._devices = devices
         return svc
 

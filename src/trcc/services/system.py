@@ -45,8 +45,9 @@ class SystemService:
 
     def __init__(self, enumerator: Any = None) -> None:
         if enumerator is None:
-            from ..adapters.system.sensors import SensorEnumerator
-            enumerator = SensorEnumerator()
+            raise RuntimeError(
+                "SystemService requires an enumerator. "
+                "Use ControllerBuilder to wire dependencies.")
         self._enumerator = enumerator
         self._discovered = False
         self._defaults: Optional[Dict[str, str]] = None
@@ -429,7 +430,10 @@ class SystemService:
     def _probe_mem_clock(privileged_cmd_fn: Any = None) -> Optional[float]:
         """Actually probe memory clock (called once, result cached)."""
         if privileged_cmd_fn is None:
-            from trcc.adapters.system.hardware import _privileged_cmd as privileged_cmd_fn
+            # Fallback: build command list directly (no sudo wrapper)
+            def _default_cmd(cmd: str, args: list[str]) -> list[str]:
+                return [cmd, *args]
+            privileged_cmd_fn = _default_cmd
         try:
             result = subprocess.run(
                 privileged_cmd_fn('dmidecode', ['-t', 'memory']),
@@ -501,10 +505,13 @@ class SystemService:
 _instance: SystemService | None = None
 
 
+# ── Composition root (adapter import allowed — this is a convenience factory) ──
+
 def _get_instance() -> SystemService:
     global _instance
     if _instance is None:
-        _instance = SystemService()
+        from ..adapters.system.sensors import SensorEnumerator
+        _instance = SystemService(enumerator=SensorEnumerator())
     return _instance
 
 

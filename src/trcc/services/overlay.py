@@ -133,7 +133,6 @@ class OverlayService:
 
         # Convert PIL Image → native surface if needed
         native = self._is_native_surface(image)
-        log.debug("overlay.set_background: type=%s native=%s", type(image).__name__, native)
         if not native:
             image = r.from_pil(image)
 
@@ -142,7 +141,6 @@ class OverlayService:
             return
         img_size = r.surface_size(image)
         target = (self.width, self.height)
-        log.debug("overlay.set_background: size=%s target=%s", img_size, target)
         # Skip resize if already correct size (video frames are pre-sized)
         if img_size == target:
             self.background = image
@@ -205,13 +203,9 @@ class OverlayService:
         from ..core.models import ThemeDir
 
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
-        if json_path and json_path.exists():
+        if json_path and json_path.exists() and self._load_config_json_fn is not None:
             try:
-                _load_json = self._load_config_json_fn
-                if _load_json is None:
-                    from ..adapters.infra.dc_parser import load_config_json
-                    _load_json = load_config_json
-                result = _load_json(str(json_path))
+                result = self._load_config_json_fn(str(json_path))
                 if result is not None:
                     overlay_config, display_options = result
                     self.set_config(overlay_config)
@@ -223,12 +217,11 @@ class OverlayService:
 
         if not dc_path or not dc_path.exists():
             return {}
+        if self._dc_config_cls is None:
+            log.warning("DcConfig class not injected, cannot parse DC file")
+            return {}
         try:
-            _DcConfig = self._dc_config_cls
-            if _DcConfig is None:
-                from ..adapters.infra.dc_config import DcConfig
-                _DcConfig = DcConfig
-            dc = _DcConfig(dc_path)
+            dc = self._dc_config_cls(dc_path)
             overlay_config = dc.to_overlay_config()
             self.set_config(overlay_config)
             self.set_config_resolution(self.width, self.height)
@@ -385,16 +378,10 @@ class OverlayService:
         Returns:
             Native surface (QImage or PIL Image depending on renderer).
         """
-        log.debug("overlay.render: bg_arg=%s stored_bg=%s config_keys=%d",
-                  type(background).__name__ if background else None,
-                  type(self.background).__name__ if self.background else None,
-                  len(self.config) if self.config else 0)
-        if background:
+        if background is not None and background is not self.background:
             self.set_background(background)
         m = metrics if metrics is not None else self._metrics
-        result = self._render_overlay(m)
-        log.debug("overlay.render: result type=%s", type(result).__name__)
-        return result
+        return self._render_overlay(m)
 
     def _render_overlay(self, metrics: HardwareMetrics | None = None) -> Any:
         """Compositing pipeline — background + cached overlay layer.
@@ -414,14 +401,11 @@ class OverlayService:
             or (self.config and isinstance(self.config, dict))
         )
         if not has_overlays and self.background:
-            log.debug("_render_overlay: no overlays, returning bg as-is")
             return self.background
 
         # Check overlay layer cache
         cache_key = self._build_cache_key(metrics)
         overlay_changed = cache_key != self._cache_key or self._overlay_cache is None
-        log.debug("_render_overlay: overlay_changed=%s has_mask=%s config_keys=%d",
-                  overlay_changed, self.theme_mask is not None, len(self.config) if self.config else 0)
         if overlay_changed:
             self._overlay_cache = self._render_overlay_layer(metrics, r)
             self._cache_key = cache_key
@@ -429,7 +413,6 @@ class OverlayService:
 
         # Fast path: overlay layer has no visible content (no mask, no text)
         if not self._overlay_has_content and self.background:
-            log.debug("_render_overlay: no visible content, returning bg")
             return self.background
 
         # Check composite cache — skip copy+paste when nothing changed
@@ -437,11 +420,7 @@ class OverlayService:
         if (self._composite_result is not None
                 and not overlay_changed
                 and bg_id == self._composite_bg_id):
-            log.debug("_render_overlay: composite cache hit")
             return self._composite_result
-
-        log.debug("_render_overlay: compositing bg(%s) + overlay",
-                  type(self.background).__name__ if self.background else None)
         result = self._composite_onto_background(r)
         self._composite_result = result
         self._composite_bg_id = bg_id

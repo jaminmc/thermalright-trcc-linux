@@ -8,8 +8,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from tests.conftest import get_pixel, make_test_surface, surface_size
-from trcc.services.device import DeviceService
+from tests.conftest import get_pixel, make_device_service, make_test_surface, surface_size
 from trcc.services.image import ImageService
 from trcc.services.media import MediaService
 from trcc.services.overlay import OverlayService
@@ -633,7 +632,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
     def test_bulk_sends_jpeg(self):
         """Bulk protocol → ImageService.to_jpeg() path."""
         from trcc.core.models import DeviceInfo
-        svc = DeviceService()
+        svc = make_device_service()
         dev = DeviceInfo(name='bulk', path='bulk:87ad:70db', protocol='bulk')
         svc.select(dev)
 
@@ -648,7 +647,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
     def test_bulk_pm32_sends_rgb565(self):
         """Bulk PM=32 (FBL=100) → ImageService.to_rgb565() path."""
         from trcc.core.models import DeviceInfo
-        svc = DeviceService()
+        svc = make_device_service()
         dev = DeviceInfo(name='bulk', path='bulk:87ad:70db', protocol='bulk',
                          resolution=(320, 320), fbl_code=100)
         svc.select(dev)
@@ -666,7 +665,7 @@ class TestDeviceServiceSendPilBulk(unittest.TestCase):
     def test_scsi_sends_rgb565(self):
         """SCSI protocol → ImageService.to_rgb565() path (not JPEG)."""
         from trcc.core.models import DeviceInfo
-        svc = DeviceService()
+        svc = make_device_service()
         dev = DeviceInfo(name='scsi', path='/dev/sg0', protocol='scsi',
                          resolution=(320, 320))
         svc.select(dev)
@@ -690,7 +689,7 @@ class TestDeviceService(unittest.TestCase):
     """Test device detection and selection."""
 
     def test_initial_state(self):
-        svc = DeviceService()
+        svc = make_device_service()
         self.assertIsNone(svc.selected)
         self.assertEqual(svc.devices, [])
         self.assertFalse(svc.is_busy)
@@ -698,19 +697,19 @@ class TestDeviceService(unittest.TestCase):
     @patch('trcc.services.device.DeviceService.detect')
     def test_detect_returns_list(self, mock_detect):
         mock_detect.return_value = []
-        svc = DeviceService()
+        svc = make_device_service()
         result = svc.detect()
         self.assertIsInstance(result, list)
 
     def test_select(self):
         from trcc.core.models import DeviceInfo
-        svc = DeviceService()
+        svc = make_device_service()
         dev = DeviceInfo(name='test', path='/dev/sg0')
         svc.select(dev)
         self.assertEqual(svc.selected, dev)
 
     def test_is_busy_default_false(self):
-        svc = DeviceService()
+        svc = make_device_service()
         self.assertFalse(svc.is_busy)
 
 

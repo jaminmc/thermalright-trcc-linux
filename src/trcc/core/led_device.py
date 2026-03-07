@@ -29,8 +29,12 @@ class LEDDevice(Device):
         led.initialize(device_info, style)   # GUI: device already detected
     """
 
-    def __init__(self, svc: Any = None) -> None:
+    def __init__(self, svc: Any = None,
+                 get_protocol: Any = None,
+                 device_svc: Any = None) -> None:
         self._svc = svc
+        self._get_protocol = get_protocol
+        self._device_svc = device_svc
         self._init_status: str | None = None
         self._device: Any = None  # DetectedDevice from detection
 
@@ -44,17 +48,30 @@ class LEDDevice(Device):
         if self._svc:
             return {"success": True, "status": self._init_status or ""}
 
-        from ..services import DeviceService, LEDService
+        from ..services import LEDService
 
-        svc = DeviceService()
-        svc.detect()
+        if self._device_svc is None:
+            # Composition root must provide DeviceService
+            from ..adapters.device.detector import DeviceDetector
+            from ..adapters.device.factory import DeviceProtocolFactory
+            from ..adapters.device.led import probe_led_model
+            from ..services import DeviceService
+            self._device_svc = DeviceService(
+                detect_fn=DeviceDetector.detect,
+                probe_led_fn=probe_led_model,
+                get_protocol=DeviceProtocolFactory.get_protocol,
+                get_protocol_info=DeviceProtocolFactory.get_protocol_info,
+            )
+
+        self._device_svc.detect()
         led_dev = next(
-            (d for d in svc.devices if d.implementation == 'hid_led'), None)
+            (d for d in self._device_svc.devices
+             if d.implementation == 'hid_led'), None)
         if not led_dev:
             return {"success": False, "error": "No LED device found"}
 
         self._device = led_dev
-        self._svc = LEDService()
+        self._svc = LEDService(get_protocol=self._get_protocol)
         style_id = led_dev.led_style_id or 1
         self._init_status = self._svc.initialize(led_dev, style_id)
         return {"success": True, "status": self._init_status or ""}
@@ -97,7 +114,7 @@ class LEDDevice(Device):
         """
         if not self._svc:
             from ..services import LEDService
-            self._svc = LEDService()
+            self._svc = LEDService(get_protocol=self._get_protocol)
         self._device = device
         self._init_status = self._svc.initialize(device, led_style)
         return {"success": True, "status": self._init_status or "",

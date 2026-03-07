@@ -306,7 +306,15 @@ async def import_theme(file: UploadFile) -> dict:
         if _display_dispatcher and _display_dispatcher.connected:
             w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
         data_dir = Path(str(ThemeDir.for_resolution(w, h)))
-        ok, result = ThemeService.import_tr(Path(tmp_path), data_dir, (w, h))
+        from trcc.adapters.infra.dc_config import DcConfig
+        from trcc.adapters.infra.dc_parser import load_config_json
+        from trcc.adapters.infra.dc_writer import import_theme as _import_fn
+        theme_svc = ThemeService(
+            import_theme_fn=_import_fn,
+            load_config_json_fn=load_config_json,
+            dc_config_cls=DcConfig,
+        )
+        ok, result = theme_svc.import_tr(Path(tmp_path), data_dir, (w, h))
         if not ok:
             raise HTTPException(status_code=400, detail=str(result))
         return {"success": True, "message": f"Theme imported from {file.filename}"}

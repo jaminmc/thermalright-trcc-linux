@@ -590,23 +590,24 @@ class TRCCApp(QMainWindow):
         self.panel_stack = QStackedWidget(self.form_container)
         self.panel_stack.setGeometry(*Layout.PANEL_STACK)
 
-        self.uc_theme_local = UCThemeLocal()
+        # C# ButtonNewMode order: 1=Local, 2=CloudBG, 3=Settings, 4=CloudMasks
+        self.uc_theme_local = UCThemeLocal()              # panel 0
         self._set_panel_bg(self.uc_theme_local,
             Assets.get_localized(Assets.THEME_LOCAL_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_local)
 
-        self.uc_theme_web = UCThemeWeb()
+        self.uc_theme_web = UCThemeWeb()                  # panel 1
         self._set_panel_bg(self.uc_theme_web,
             Assets.get_localized(Assets.THEME_WEB_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_web)
 
-        self.uc_theme_mask = UCThemeMask()
+        self.uc_theme_setting = UCThemeSetting()          # panel 2
+        self.panel_stack.addWidget(self.uc_theme_setting)
+
+        self.uc_theme_mask = UCThemeMask()                # panel 3
         self._set_panel_bg(self.uc_theme_mask,
             Assets.get_localized(Assets.THEME_MASK_BG, settings.lang))
         self.panel_stack.addWidget(self.uc_theme_mask)
-
-        self.uc_theme_setting = UCThemeSetting()
-        self.panel_stack.addWidget(self.uc_theme_setting)
 
         # Activity sidebar
         self.uc_activity_sidebar = UCActivitySidebar(self.form_container)
@@ -660,11 +661,12 @@ class TRCCApp(QMainWindow):
 
     def _create_mode_tabs(self):
         self.mode_buttons = []
+        # C# visual x-order: BDZT(542)=Local, YDMB(612)=Masks, YDZT(682)=CloudBG, ZTSZ(882)=Settings
         tab_configs = [
             (Layout.TAB_LOCAL, Assets.TAB_LOCAL, Assets.TAB_LOCAL_ACTIVE, 0, "Local themes"),
-            (Layout.TAB_MASK, Assets.TAB_MASK, Assets.TAB_MASK_ACTIVE, 2, "Mask overlays"),
-            (Layout.TAB_CLOUD, Assets.TAB_CLOUD, Assets.TAB_CLOUD_ACTIVE, 1, "Cloud themes"),
-            (Layout.TAB_SETTINGS, Assets.TAB_SETTINGS, Assets.TAB_SETTINGS_ACTIVE, 3, "Settings"),
+            (Layout.TAB_MASK, Assets.TAB_MASK, Assets.TAB_MASK_ACTIVE, 3, "Cloud masks"),
+            (Layout.TAB_CLOUD, Assets.TAB_CLOUD, Assets.TAB_CLOUD_ACTIVE, 1, "Cloud backgrounds"),
+            (Layout.TAB_SETTINGS, Assets.TAB_SETTINGS, Assets.TAB_SETTINGS_ACTIVE, 2, "Settings"),
         ]
         for rect, normal_img, active_img, panel_idx, tooltip in tab_configs:
             x, y, w, h = rect
@@ -791,8 +793,10 @@ class TRCCApp(QMainWindow):
     # ── View Navigation ────────────────────────────────────────────
 
     def _show_panel(self, index):
+        # Panel stack: 0=Local, 1=CloudBG, 2=Settings, 3=Masks
+        # Button order: 0=Local, 1=Masks, 2=CloudBG, 3=Settings
         self.panel_stack.setCurrentIndex(index)
-        panel_to_button = {0: 0, 1: 2, 2: 1, 3: 3}
+        panel_to_button = {0: 0, 1: 2, 2: 3, 3: 1}
         active_btn = panel_to_button.get(index, 0)
         for i, btn in enumerate(self.mode_buttons):
             btn.setChecked(i == active_btn)
@@ -1070,13 +1074,13 @@ class TRCCApp(QMainWindow):
                 self._lcd_handler.display.set_overlay_mask_visible(info)
                 self._lcd_handler._render_and_send()
         elif cmd == UCThemeSetting.CMD_MASK_LOAD:
-            self._show_panel(2)
-        elif cmd == UCThemeSetting.CMD_MASK_RESET:
-            if self._lcd_handler:
-                self._lcd_handler.display.set_overlay_mask(None)
-                self._lcd_handler._render_and_send()
+            self._show_panel(3)
+        elif cmd == UCThemeSetting.CMD_MASK_CLOUD:
+            self._show_panel(3)  # C# buttonYDMB_Click — cloud masks
         elif cmd == UCThemeSetting.CMD_VIDEO_LOAD:
             self._on_load_video_clicked()
+        elif cmd == 51:  # C# buttonYDZT_Click — switch to cloud theme panel
+            self._show_panel(1)
         elif cmd == UCThemeSetting.CMD_VIDEO_TOGGLE:
             self._on_video_display_toggle(info)
         elif cmd == UCThemeSetting.CMD_OVERLAY_CHANGED:
@@ -1097,16 +1101,27 @@ class TRCCApp(QMainWindow):
             self._lcd_handler.set_video_fit_mode('height')
 
     # ── Background / Screencast / Video Toggles ────────────────────
+    # C# mutual exclusion: each mode sets the other two to false.
+    # UI panels already disable each other in _on_mode_changed;
+    # these handlers clean up the backend state of the displaced mode.
 
     def _on_background_toggle(self, enabled: bool):
-        if self._lcd_handler:
-            self._lcd_handler.on_background_toggle(enabled)
-            self._mediator.ensure_running()
+        if not self._lcd_handler:
+            return
+        if enabled:
+            # C# case 1: myTpxs=false, mySpxs=false
+            self._screencast.toggle(False)
+        self._lcd_handler.on_background_toggle(enabled)
+        self._mediator.ensure_running()
 
     def _on_screencast_toggle(self, enabled: bool):
-        if enabled and self._lcd_handler:
+        if not self._lcd_handler:
+            return
+        if enabled:
+            # C# case 2: myBjxs=false, mySpxs=false
             self._lcd_handler.stop_timers()
             self._lcd_handler.display.stop_video()
+            self._lcd_handler.is_background_active = False
             w, h = self._lcd_handler.display.lcd_size
             self._screencast.set_lcd_size(w, h)
         self._screencast.toggle(enabled)
@@ -1117,6 +1132,9 @@ class TRCCApp(QMainWindow):
         if not self._lcd_handler:
             return
         if enabled:
+            # C# case 3: myBjxs=false, myTpxs=false
+            self._screencast.toggle(False)
+            self._lcd_handler.is_background_active = False
             if self._lcd_handler.display.video_has_frames():
                 self._lcd_handler.play_pause()
         else:
@@ -1191,19 +1209,25 @@ class TRCCApp(QMainWindow):
     def _on_image_cut_done(self, result):
         self._hide_cutters()
         if result is not None and self._lcd_handler:
-            self._lcd_handler.display.current_image = result
+            # C# UpDateUCImageCut: kill video, set static image
+            self._lcd_handler.stop_video()
             self._lcd_handler.display.set_overlay_background(result)
             self._lcd_handler._render_and_send()
-            self.uc_preview.set_status("Image cropped and saved")
+            self.uc_preview.set_status("Image loaded")
         else:
             self.uc_preview.set_status("Image crop cancelled")
 
     def _on_video_cut_done(self, zt_path):
         self._hide_cutters()
         if zt_path and self._lcd_handler:
+            # C# UpDateUCVideoCut: load video, start animated playback
             self._lcd_handler.display.load_video(Path(zt_path))
             self._lcd_handler.display.play_video()
-            self.uc_preview.set_status("Video exported and saved")
+            interval = self._lcd_handler.display.video.interval
+            self._lcd_handler._animation_timer.start(interval)
+            self.uc_preview.set_playing(True)
+            self.uc_preview.show_video_controls(True)
+            self.uc_preview.set_status("Video loaded")
         else:
             self.uc_preview.set_status("Video cut cancelled")
 

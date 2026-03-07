@@ -932,13 +932,6 @@ class TestUCThemeSetting:
         settings._on_action_requested("Load")
         assert UCThemeSetting.CMD_MASK_LOAD in received
 
-    def test_action_requested_clear(self, qapp):
-        settings = UCThemeSetting()
-        received = []
-        settings.delegate.connect(lambda cmd, info, data: received.append(cmd))
-        settings._on_action_requested("Clear")
-        assert UCThemeSetting.CMD_MASK_RESET in received
-
     @patch("trcc.conf.Settings")
     def test_format_changed_persists_time(self, mock_settings, qapp, make_config):
         settings = UCThemeSetting()

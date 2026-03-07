@@ -232,3 +232,21 @@ def make_mock_service(device: DeviceInfo | None = None) -> MagicMock:
 def save_test_png(path: str, w: int = 320, h: int = 320) -> None:
     """Write a minimal PNG at path. Used by test_integration."""
     make_test_surface(w, h).save(path, "PNG")
+
+
+def make_device_service(**overrides):
+    """Create a DeviceService with mock adapter deps (no RuntimeError).
+
+    Use this in tests that construct DeviceService directly. All adapter
+    callables default to MagicMock so construction never raises.
+    """
+    from trcc.services import DeviceService
+
+    defaults = {
+        'detect_fn': MagicMock(return_value=[]),
+        'probe_led_fn': MagicMock(return_value=None),
+        'get_protocol': MagicMock(return_value=MagicMock()),
+        'get_protocol_info': MagicMock(return_value=None),
+    }
+    defaults.update(overrides)
+    return DeviceService(**defaults)

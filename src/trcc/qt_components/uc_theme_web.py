@@ -274,6 +274,10 @@ class UCThemeWeb(DownloadableThemeBrowser):
         super()._on_download_complete(theme_id, success)
         if success:
             self.load_themes()
+            # Restart QMovie animations — showEvent won't fire since panel
+            # is already visible, so newly created movies need manual start.
+            if self.isVisible():
+                self._set_movies_running(True)
             # Auto-select the newly downloaded theme
             for item in self.items:
                 if item.id == theme_id:

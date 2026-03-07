@@ -10,28 +10,15 @@ import threading
 from collections import deque
 from typing import Any, Optional
 
-from ..core.models import DetectedDevice, DeviceInfo, LCDDeviceConfig
-from ..core.ports import DetectDevicesFn, GetProtocolFn, ProbeLedModelFn
+from ..core.models import DetectedDevice, DeviceInfo
+from ..core.ports import (
+    DetectDevicesFn,
+    GetProtocolFn,
+    GetProtocolInfoFn,
+    ProbeLedModelFn,
+)
 
 log = logging.getLogger(__name__)
-
-
-def _default_detect() -> list[DetectedDevice]:
-    """Default detection — imports adapter lazily."""
-    from ..adapters.device.detector import DeviceDetector
-    return DeviceDetector.detect()
-
-
-def _default_probe_led(*args: Any, **kwargs: Any) -> Any:
-    """Default LED probe — imports adapter lazily."""
-    from ..adapters.device.led import probe_led_model
-    return probe_led_model(*args, **kwargs)
-
-
-def _default_get_protocol(dev: Any) -> Any:
-    """Default protocol factory — imports adapter lazily."""
-    from ..adapters.device.factory import DeviceProtocolFactory
-    return DeviceProtocolFactory.get_protocol(dev)
 
 
 class DeviceService:
@@ -42,10 +29,16 @@ class DeviceService:
         detect_fn: DetectDevicesFn | None = None,
         probe_led_fn: ProbeLedModelFn | None = None,
         get_protocol: GetProtocolFn | None = None,
+        get_protocol_info: GetProtocolInfoFn | None = None,
     ) -> None:
-        self._detect_fn = detect_fn or _default_detect
-        self._probe_led_fn = probe_led_fn or _default_probe_led
-        self._get_protocol = get_protocol or _default_get_protocol
+        if detect_fn is None or probe_led_fn is None or get_protocol is None:
+            raise RuntimeError(
+                "DeviceService requires detect_fn, probe_led_fn, get_protocol. "
+                "Use ControllerBuilder to wire dependencies.")
+        self._detect_fn = detect_fn
+        self._probe_led_fn = probe_led_fn
+        self._get_protocol = get_protocol
+        self._get_protocol_info = get_protocol_info
         self._devices: list[DeviceInfo] = []
         self._selected: DeviceInfo | None = None
         self._send_lock = threading.Lock()
@@ -192,6 +185,8 @@ class DeviceService:
 
         Thread-safe: only one send at a time.
         """
+        if not self._selected:
+            return False
         with self._send_lock:
             if self._send_busy:
                 log.debug("send_rgb565: already busy, skipping")
@@ -302,47 +297,13 @@ class DeviceService:
 
     # ── LCD resolution detection ────────────────────────────────────
 
-    @staticmethod
-    def detect_lcd_resolution(config: LCDDeviceConfig, device_path: str,
-                              verbose: bool = False) -> bool:
-        """Auto-detect SCSI LCD resolution via poll byte[0] → fbl_to_resolution().
-
-        Mutates config.width/height/fbl/resolution_detected on success.
-        Resolution is now detected in ScsiDevice.handshake() directly,
-        so this is only needed for pre-handshake discovery.
-        """
-        from ..adapters.device.scsi import ScsiDevice
-        from ..core.models import fbl_to_resolution
-
-        try:
-            poll_header = ScsiDevice._build_header(0xF5, 0xE100)
-            response = ScsiDevice._scsi_read(device_path, poll_header[:16], 0xE100)
-            if not response:
-                if verbose:
-                    log.warning("Empty poll response from %s", device_path)
-                return False
-
-            fbl = response[0]
-            width, height = fbl_to_resolution(fbl)
-            config.width = width
-            config.height = height
-            config.fbl = fbl
-            config.resolution_detected = True
-            if verbose:
-                log.info("Auto-detected resolution: %dx%d (FBL=%d)",
-                         width, height, fbl)
-            return True
-        except Exception as e:
-            if verbose:
-                log.warning("Failed to auto-detect resolution: %s", e)
-            return False
-
     # ── Protocol info ────────────────────────────────────────────────
 
     def get_protocol_info(self) -> Optional[Any]:
         """Get protocol/backend info for the selected device."""
+        if self._get_protocol_info is None:
+            return None
         try:
-            from ..adapters.device.factory import DeviceProtocolFactory  # infrastructure query
-            return DeviceProtocolFactory.get_protocol_info(self._selected)
-        except ImportError:
+            return self._get_protocol_info(self._selected)
+        except Exception:
             return None
