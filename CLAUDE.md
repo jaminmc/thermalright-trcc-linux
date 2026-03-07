@@ -120,7 +120,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4157 tests across 56 files. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4022 tests across 53 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -301,7 +301,7 @@ When adding GUI assets:
 - **LCDHandler** (`qt_components/lcd_handler.py`): One per LCD device (C# FormCZTV equivalent). Owns LCDDevice, timers, state.
 - **CLI slimmed**: `_display.py` and `_led.py` are thin print wrappers — `_connect_or_fail()` → call device method → print result.
 - **Deleted**: `core/controllers.py` (LCDDeviceController + LEDDeviceController), backward compat aliases (DisplayDispatcher, LEDDispatcher), 197 dead tests.
-- **Test rewrites**: `test_cli_display.py`, `test_cli_led.py`, `test_qt_main_window.py`, `test_architecture.py`, `hid_testing/test_led_controller.py` — all use proper pytest fixtures.
+- **Test rewrites**: `cli/test_display.py`, `cli/test_led.py`, `qt_components/test_trcc_app.py`, `test_architecture.py`, `services/test_led.py` — all use proper pytest fixtures.
 - 4157 tests passing, ruff clean, pyright clean
 
 ### v7.0.7–v7.0.10: Bug Fixes, Cloud Parity, CI Package Deps
@@ -347,8 +347,14 @@ When adding GUI assets:
 - **data_repository.py DRY**: -139 lines of duplicated archive extraction logic.
 - 48 files changed, -684 net lines, 4159 tests passing, ruff clean, pyright clean
 
+### v8.0.2: Test Restructuring — Hexagonal Directory Layout
+- **Test directory mirrors source**: 53 test files reorganized from flat `tests/` into subdirectories matching `src/trcc/` hexagonal layers: `tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`. Cross-cutting tests (architecture, integration, memory, conf) stay at `tests/` root.
+- **Merged duplicates**: `test_api_ext.py` → `test_api.py`, `test_doctor_ext.py` → `test_doctor.py`, `test_debug_report_ext.py` → `test_debug_report.py`
+- **Dissolved `hid_testing/`**: Tests moved to `adapters/device/`, conftest fixtures merged into `adapters/device/conftest.py`
+- **Deleted 22 mock-wiring tests**: Tests that only verified `mock.assert_called_once_with()` — passed even with broken code
+- 4022 tests passing, ruff clean, pyright clean
+
 ### Future Work
-- Test consolidation (parametrize, merge tiny classes)
 - GUI component splits (uc_theme_setting.py → 5 files)
 
 ## Style

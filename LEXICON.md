@@ -61,7 +61,7 @@ Shared terminology so everyone uses the same names.
 |------|---------|
 | **DATA_DIR** | Package data dir (`src/trcc/data/` or site-packages equivalent) |
 | **USER_DATA_DIR** | User writable data (`~/.trcc/data/`) — primary data location, survives pip upgrades |
-| **Config dir** | Application config (`~/.config/trcc/`) — `config.json` with per-device settings |
+| **Config dir** | Application config (`~/.trcc/`) — `config.json`, `trcc.log`, TLS certs, LED probe cache |
 
 ## Versioning
 | Term | Meaning |

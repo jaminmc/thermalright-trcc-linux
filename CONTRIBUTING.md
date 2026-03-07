@@ -21,11 +21,20 @@ trcc setup-udev         # install udev rules (auto-prompts for sudo)
 ## Running Tests and Linting
 
 ```bash
-PYTHONPATH=src pytest tests/ -x -q   # run tests
+PYTHONPATH=src pytest tests/ -x -q   # run all tests
+PYTHONPATH=src pytest tests/core/    # run domain layer tests only
+PYTHONPATH=src pytest tests/services/  # run service layer tests only
+PYTHONPATH=src pytest tests/adapters/  # run adapter layer tests only
 pytest --cov                         # run with coverage
 ruff check .                         # lint
-npx pyright                          # type check
+python -m pyright                    # type check
 ```
+
+Tests are organized to mirror `src/trcc/` hexagonal layers:
+- `tests/core/` — domain logic (pure unit tests)
+- `tests/services/` — application/use case layer
+- `tests/adapters/{device,infra,system}/` — infrastructure adapters
+- `tests/cli/`, `tests/api/`, `tests/qt_components/` — presentation adapters
 
 All PRs must pass tests, `ruff check`, and `pyright` with 0 errors.
 
