@@ -82,7 +82,7 @@ class LCDDevice(Device):
         Returns:
             {"success": bool, "resolution": (w, h), "device_path": str}
         """
-        from ..cli._device import _get_service
+        from ..services import DeviceService
 
         device_path = None
         if isinstance(detected, str):
@@ -91,7 +91,8 @@ class LCDDevice(Device):
             device_path = getattr(detected, 'scsi_device', None) or \
                           getattr(detected, 'path', None)
 
-        svc = _get_service(device_path)
+        svc = DeviceService()
+        svc.scan_and_select(device_path)
         if not svc.selected:
             return {"success": False, "error": "No LCD device found"}
 
@@ -195,7 +196,7 @@ class LCDDevice(Device):
             return {"success": False, "error": f"Path not found: {dc_path}"}
 
         w, h = self.resolution if self.connected else (320, 320)
-        overlay = OverlayService(w, h)
+        overlay = OverlayService(w, h, renderer=self._renderer)
         p = Path(dc_path)
         dc_file = p / "config1.dc" if p.is_dir() else p
         display_opts = overlay.load_from_dc(dc_file)
@@ -275,7 +276,7 @@ class LCDDevice(Device):
             self._display_svc._cache = None
             result_img = self._display_svc.render_overlay()
         else:
-            ovl = OverlayService(w, h)
+            ovl = OverlayService(w, h, renderer=self._renderer)
             ovl.set_mask(mask_img, position)
             bg = ImageService.solid_color(0, 0, 0, w, h)
             ovl.set_background(bg)

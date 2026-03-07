@@ -28,9 +28,16 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from trcc.__version__ import __version__
+from trcc.adapters.render.qt import QtRenderer
 from trcc.services import DeviceService, MediaService, OverlayService
+from trcc.services.image import ImageService
 
 log = logging.getLogger(__name__)
+
+# ── Renderer (composition root) ───────────────────────────────────────
+
+_renderer = QtRenderer()
+ImageService.set_renderer(_renderer)
 
 # ── App ────────────────────────────────────────────────────────────────
 
@@ -142,7 +149,7 @@ def start_overlay_loop(
 
     stop_overlay_loop()
 
-    overlay = OverlayService(width, height)
+    overlay = OverlayService(width, height, renderer=_renderer)
     overlay.set_background(background)
     overlay.load_from_dc(Path(dc_path))
     overlay.enabled = True

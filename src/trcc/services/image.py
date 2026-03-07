@@ -37,10 +37,11 @@ class ImageService:
 
     @classmethod
     def _r(cls) -> Renderer:
-        """Get the active renderer, defaulting to QtRenderer."""
+        """Get the active renderer (must be set via set_renderer first)."""
         if cls._renderer is None:
-            from ..adapters.render.qt import QtRenderer
-            cls._renderer = QtRenderer()
+            raise RuntimeError(
+                "ImageService.set_renderer() must be called before use. "
+                "Use ControllerBuilder to wire dependencies.")
         return cls._renderer
 
     # ── Encoding (hot path) ───────────────────────────────────────

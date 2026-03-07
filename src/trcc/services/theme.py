@@ -11,8 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from ..adapters.infra.data_repository import ThemeDir
-from ..core.models import ThemeData, ThemeInfo, ThemeType
+from ..core.models import ThemeData, ThemeDir, ThemeInfo, ThemeType
 from .image import ImageService
 
 log = logging.getLogger(__name__)

@@ -44,22 +44,18 @@ class LEDDevice(Device):
         if self._svc:
             return {"success": True, "status": self._init_status or ""}
 
-        from ..adapters.device.detector import detect_devices
-        from ..services import LEDService
+        from ..services import DeviceService, LEDService
 
-        devices = detect_devices()
+        svc = DeviceService()
+        svc.detect()
         led_dev = next(
-            (d for d in devices if d.implementation == 'hid_led'), None)
+            (d for d in svc.devices if d.implementation == 'hid_led'), None)
         if not led_dev:
             return {"success": False, "error": "No LED device found"}
 
         self._device = led_dev
         self._svc = LEDService()
-
-        from ..adapters.device.led import probe_led_model
-        info = probe_led_model(led_dev.vid, led_dev.pid,
-                               usb_path=led_dev.usb_path)
-        style_id = info.style.style_id if (info and info.style) else 1
+        style_id = led_dev.led_style_id or 1
         self._init_status = self._svc.initialize(led_dev, style_id)
         return {"success": True, "status": self._init_status or ""}
 

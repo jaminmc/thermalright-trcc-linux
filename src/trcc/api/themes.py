@@ -259,6 +259,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
         raise HTTPException(status_code=500, detail="Send failed (device busy or error)")
 
     # Start overlay metrics loop if theme has overlay config
+    from trcc.core.models import ThemeDir
     td = ThemeDir(theme_path)
     dc_path = td.dc if td.dc.exists() else None
     if dc_path is None and td.json.exists():

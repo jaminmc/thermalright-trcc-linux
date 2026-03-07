@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from ..adapters.infra.data_repository import ThemeDir
+from ..core.models import ThemeDir
 from .image import ImageService
 from .media import MediaService
 from .overlay import OverlayService

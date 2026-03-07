@@ -14,7 +14,7 @@ SOLID:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Callable, Protocol, runtime_checkable
 
 
 class Renderer(ABC):
@@ -153,4 +153,30 @@ class Device(ABC):
     @abstractmethod
     def cleanup(self) -> None:
         """Release resources on shutdown."""
+
+
+# =========================================================================
+# Infrastructure port types — injected into services via DI
+# =========================================================================
+
+# Type alias for device detection callable.
+# Concrete: DeviceDetector.detect
+DetectDevicesFn = Callable[[], list[Any]]
+
+# Type alias for LED model probe callable.
+# Concrete: probe_led_model
+ProbeLedModelFn = Callable[..., Any]
+
+
+@runtime_checkable
+class DeviceProtocol(Protocol):
+    """Port: protocol for communicating with a USB device."""
+
+    def handshake(self) -> Any: ...
+    def send_image(self, data: bytes, width: int, height: int) -> bool: ...
+
+
+# Type alias for protocol factory callable.
+# Concrete: DeviceProtocolFactory.get_protocol
+GetProtocolFn = Callable[[Any], DeviceProtocol]
 

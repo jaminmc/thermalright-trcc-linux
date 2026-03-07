@@ -70,7 +70,11 @@ class CloudThemeThumbnail(BaseThumbnail):
         return info.preview
 
     def _load_thumbnail(self):
-        """Load thumbnail — animated GIF from MP4 or static PNG."""
+        """Load thumbnail — animated GIF from MP4 or static PNG.
+
+        QMovie is created but NOT started — UCThemeWeb.showEvent()
+        starts animations only when the cloud panel is visible.
+        """
         video = self.item_info.video
         if video and Path(video).exists():
             gif_path = _ensure_thumb_gif(video)
@@ -79,7 +83,6 @@ class CloudThemeThumbnail(BaseThumbnail):
                 self._movie.setScaledSize(
                     QSize(Sizes.THUMB_IMAGE, Sizes.THUMB_IMAGE))
                 self.thumb_label.setMovie(self._movie)
-                self._movie.start()
                 return
         # Fall back to static PNG
         super()._load_thumbnail()
@@ -92,6 +95,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
 
     Windows size: 732x652
     Preview PNGs are bundled; MP4s downloaded on-demand when clicked.
+    GIF thumbnail animations only run while this panel is visible.
     """
 
     CMD_THEME_SELECTED = 16
@@ -102,6 +106,21 @@ class UCThemeWeb(DownloadableThemeBrowser):
         self.web_directory = None
         self._resolution = "320x320"
         super().__init__(parent)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._set_movies_running(True)
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self._set_movies_running(False)
+
+    def _set_movies_running(self, running: bool) -> None:
+        """Start or stop all QMovie animations on cloud thumbnails."""
+        for widget in self.item_widgets:
+            movie = getattr(widget, '_movie', None)
+            if movie:
+                movie.start() if running else movie.stop()
 
     def _create_filter_buttons(self):
         """Seven category buttons matching Windows positions."""

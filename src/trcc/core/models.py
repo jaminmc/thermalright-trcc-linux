@@ -3,13 +3,13 @@ TRCC Models - Pure data classes with no GUI dependencies.
 
 These models can be used by any GUI framework (Tkinter, PyQt6, etc.)
 """
+from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum, auto
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
-
-from ..adapters.infra.data_repository import ThemeDir
 
 # =============================================================================
 # Temperature conversion — single source of truth
@@ -91,6 +91,101 @@ class ThemeData:
     mask: Any = None                     # PIL Image
     mask_position: Optional[Tuple[int, int]] = None
     mask_source_dir: Optional[Path] = None
+
+
+class ThemeDir:
+    """Standard theme directory layout — domain value object.
+
+    Encapsulates theme file naming conventions and path properties.
+    Pure domain knowledge — no infrastructure deps.
+
+    Usage::
+
+        td = ThemeDir(some_path)
+        td.bg.exists()       # 00.png
+        td.mask.exists()     # 01.png
+        td.dc.exists()       # config1.dc
+    """
+
+    __slots__ = ('path',)
+
+    def __init__(self, path: str | os.PathLike):
+        self.path = Path(path)
+
+    @property
+    def bg(self) -> Path:
+        """Background image (00.png)."""
+        return self.path / '00.png'
+
+    @property
+    def mask(self) -> Path:
+        """Mask overlay image (01.png)."""
+        return self.path / '01.png'
+
+    @property
+    def preview(self) -> Path:
+        """Thumbnail preview (Theme.png)."""
+        return self.path / 'Theme.png'
+
+    @property
+    def dc(self) -> Path:
+        """Binary overlay config (config1.dc)."""
+        return self.path / 'config1.dc'
+
+    @property
+    def json(self) -> Path:
+        """JSON config for custom themes (config.json)."""
+        return self.path / 'config.json'
+
+    @property
+    def zt(self) -> Path:
+        """Theme.zt animation file."""
+        return self.path / 'Theme.zt'
+
+    def is_valid(self) -> bool:
+        """Check if directory contains valid theme files."""
+        return self.preview.exists() or self.dc.exists() or self.bg.exists()
+
+    def exists(self) -> bool:
+        """Check if directory exists."""
+        return self.path.exists()
+
+    def __truediv__(self, other: str) -> Path:
+        """Allow ThemeDir / 'subpath' to return a Path."""
+        return self.path / other
+
+    def __str__(self) -> str:
+        return str(self.path)
+
+    @staticmethod
+    def has_themes(theme_dir: str) -> bool:
+        """Check if a Theme* directory has actual theme subfolders with image content."""
+        if not os.path.isdir(theme_dir):
+            return False
+        for item in os.listdir(theme_dir):
+            item_path = os.path.join(theme_dir, item)
+            if (os.path.isdir(item_path)
+                    and not item.startswith('.')
+                    and not item.startswith('Custom_')):
+                if any(f.endswith('.png') for f in os.listdir(item_path)):
+                    return True
+        return False
+
+    @classmethod
+    def for_resolution(cls, width: int, height: int) -> 'ThemeDir':
+        """Resolve the best theme directory for a resolution.
+
+        Lazy-imports infrastructure constants from data_repository.
+        """
+        from ..adapters.infra.data_repository import DATA_DIR, USER_DATA_DIR
+        name = f'theme{width}{height}'
+        user_dir = os.path.join(USER_DATA_DIR, name)
+        if cls.has_themes(user_dir):
+            return cls(user_dir)
+        pkg_dir = os.path.join(DATA_DIR, name)
+        if cls.has_themes(pkg_dir):
+            return cls(pkg_dir)
+        return cls(user_dir)
 
 
 class ThemeType(Enum):
@@ -176,6 +271,34 @@ class ThemeInfo:
             is_animated=True,
             category=category,
         )
+
+
+@dataclass
+class DeviceEntry:
+    """Registry entry describing a known USB device's capabilities."""
+    vendor: str
+    product: str
+    implementation: str
+    model: str = "CZTV"
+    button_image: str = "A1CZTV"
+    protocol: str = "scsi"
+    device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Raw USB Bulk
+
+
+@dataclass
+class DetectedDevice:
+    """Detected USB/SCSI device."""
+    vid: int  # Vendor ID
+    pid: int  # Product ID
+    vendor_name: str
+    product_name: str
+    usb_path: str  # e.g., "2-1.4"
+    scsi_device: Optional[str] = None  # e.g., "/dev/sg0"
+    implementation: str = "generic"  # Device-specific implementation
+    model: str = "CZTV"  # Device model for button image lookup
+    button_image: str = "A1CZTV"  # Button image prefix (without .png)
+    protocol: str = "scsi"  # "scsi" or "hid"
+    device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Bulk, 5=LY
 
 
 @dataclass

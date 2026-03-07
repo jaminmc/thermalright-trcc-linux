@@ -120,7 +120,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4157 tests across 56 files
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4157 tests across 56 files. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -349,6 +349,9 @@ When adding GUI assets:
   - **LSP** — no fake implementations (e.g. `send_image()` returning False on LED devices). If a subclass can't fulfill the contract, it shouldn't inherit it.
   - **ISP** — `LCDMixin` (send_image, send_pil) + `LEDMixin` (send_led_data) instead of one fat `DeviceProtocol`. Clients depend only on what they use.
   - **DIP** — inject dependencies at runtime (`get_protocol` param, `set_renderer()`). Core logic never imports concrete adapters.
+- **Hexagonal Purity** — dependencies point inward ONLY: adapters → services → core. Services and core NEVER import from adapters. Infrastructure deps (USB, filesystem, rendering) are injected via constructor params with lazy defaults in module-level factory functions. Adapter entry points (CLI, GUI, API) are composition roots that wire concrete implementations.
+- **No Fallback Imports** — services must not lazy-import adapter implementations as fallbacks. If a service needs an adapter, it must be injected. `RuntimeError` if not provided. Composition roots (`cli/__init__.py`, `trcc_app.py`, `api/__init__.py`) create and inject concrete adapters.
+- **Re-export Pattern** — when moving code from adapters to core, the adapter file becomes a thin re-export stub. All existing import paths continue working.
 - **Single source of truth** — every constant, mapping, and state variable has ONE canonical location. Search before defining.
 - **Type hints** on all public APIs — parameters, return types, class attributes.
 - **No scattered state** — mutable app state lives in `conf.Settings`, not in widget instance variables. Widgets read from the singleton.

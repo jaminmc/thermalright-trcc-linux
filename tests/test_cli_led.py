@@ -168,8 +168,9 @@ class TestLEDDeviceConnect:
         fake_dev = MagicMock()
         fake_dev.implementation = 'hid_lcd'
 
-        with patch('trcc.adapters.device.detector.detect_devices',
-                   return_value=[fake_dev]), \
+        mock_dev_svc = MagicMock()
+        mock_dev_svc.devices = [fake_dev]
+        with patch('trcc.services.DeviceService', return_value=mock_dev_svc), \
              patch('trcc.services.LEDService'):
             result = dev.connect()
         assert result["success"] is False
@@ -178,8 +179,9 @@ class TestLEDDeviceConnect:
     def test_connect_empty_device_list(self):
         """connect() returns failure when device list is empty."""
         dev = LEDDevice()
-        with patch('trcc.adapters.device.detector.detect_devices',
-                   return_value=[]):
+        mock_dev_svc = MagicMock()
+        mock_dev_svc.devices = []
+        with patch('trcc.services.DeviceService', return_value=mock_dev_svc):
             result = dev.connect()
         assert result["success"] is False
         assert "No LED device" in result["error"]
@@ -189,20 +191,15 @@ class TestLEDDeviceConnect:
         dev = LEDDevice()
         led_dev = MagicMock()
         led_dev.implementation = 'hid_led'
-        led_dev.vid = 0x0416
-        led_dev.pid = 0x8001
-        led_dev.usb_path = "1-2"
+        led_dev.led_style_id = 1
 
         fake_svc = MagicMock()
         fake_svc.initialize.return_value = "AX120"
-        fake_info = MagicMock()
-        fake_info.style.style_id = 1
 
-        with patch('trcc.adapters.device.detector.detect_devices',
-                   return_value=[led_dev]), \
-             patch('trcc.services.LEDService', return_value=fake_svc), \
-             patch('trcc.adapters.device.led.probe_led_model',
-                   return_value=fake_info):
+        mock_dev_svc = MagicMock()
+        mock_dev_svc.devices = [led_dev]
+        with patch('trcc.services.DeviceService', return_value=mock_dev_svc), \
+             patch('trcc.services.LEDService', return_value=fake_svc):
             result = dev.connect()
 
         assert result["success"] is True

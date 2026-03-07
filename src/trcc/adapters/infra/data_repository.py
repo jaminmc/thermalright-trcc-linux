@@ -7,7 +7,7 @@ and system utilities all go through this module.
 
 Classes:
     SysUtils      — cross-distro system utilities (sysfs, sg_raw, 7z)
-    ThemeDir      — standard theme directory layout + resolution lookup
+    ThemeDir      — re-exported from core/models.py + resolution lookup functions
     DataManager   — archive extraction, on-demand downloading, resolution tracking
     Resources     — GUI resource file finding
 
@@ -21,32 +21,19 @@ import shutil
 import subprocess
 from typing import List, Optional
 
+from ...core.models import ThemeDir  # re-export for back-compat
+from ...core.paths import (
+    ASSETS_DIR,  # noqa: F401 — re-export
+    RESOURCES_DIR,  # noqa: F401 — re-export
+    USER_CONFIG_DIR,  # noqa: F401 — re-export
+    USER_DATA_DIR,  # noqa: F401 — re-export
+)
+
 log = logging.getLogger(__name__)
 
-# =========================================================================
-# Module-level path constants (calculated once at import time)
-# =========================================================================
-
-# Navigate from adapters/infra/ back to the trcc package root
-_THIS_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # src/trcc/
-SRC_DIR = os.path.dirname(_THIS_DIR)                     # src/
-PROJECT_ROOT = os.path.dirname(SRC_DIR)                  # project root
-
-# Asset directories (inside trcc package)
-ASSETS_DIR = os.path.join(_THIS_DIR, 'assets')
-RESOURCES_DIR = os.path.join(ASSETS_DIR, 'gui')
-
-# User config directory
-USER_CONFIG_DIR = os.path.expanduser('~/.trcc')
-USER_DATA_DIR = os.path.join(USER_CONFIG_DIR, 'data')
-
-# Theme file conventions (used across models, controllers, theme_downloader, etc.)
-THEME_BG = '00.png'          # Background image
-THEME_MASK = '01.png'        # Mask overlay image
-THEME_PREVIEW = 'Theme.png'  # Thumbnail preview
-THEME_DC = 'config1.dc'      # Binary overlay config
-THEME_JSON = 'config.json'   # JSON config (custom themes)
-
+_THIS_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SRC_DIR = os.path.dirname(_THIS_DIR)
+PROJECT_ROOT = os.path.dirname(SRC_DIR)
 
 # =========================================================================
 # SysUtils — cross-distro system utilities
@@ -124,108 +111,6 @@ class SysUtils:
     def has_7z_support() -> bool:
         """Check if 7z CLI is available."""
         return shutil.which('7z') is not None
-
-
-# =========================================================================
-# ThemeDir — standard theme directory layout
-# =========================================================================
-
-class ThemeDir:
-    """Standard theme directory layout.
-
-    Encapsulates theme file paths, validation, and resolution-based lookup.
-
-    Usage:
-        td = ThemeDir(some_path)       # wrap an existing directory
-        td = ThemeDir.for_resolution(320, 320)  # resolve best dir for resolution
-        td.bg.exists()                 # check if 00.png exists
-    """
-
-    __slots__ = ('path',)
-
-    def __init__(self, path: str | os.PathLike):
-        from pathlib import Path as _Path
-        self.path = _Path(path)
-
-    @staticmethod
-    def has_themes(theme_dir: str) -> bool:
-        """Check if a Theme* directory has actual theme subfolders with image content.
-
-        A valid theme subdir must contain at least one .png file.
-        Skips dotfiles, Custom_* placeholder dirs, and dirs with only config files.
-        """
-        if not os.path.isdir(theme_dir):
-            return False
-        for item in os.listdir(theme_dir):
-            item_path = os.path.join(theme_dir, item)
-            if (os.path.isdir(item_path)
-                    and not item.startswith('.')
-                    and not item.startswith('Custom_')):
-                if any(f.endswith('.png') for f in os.listdir(item_path)):
-                    return True
-        return False
-
-    @classmethod
-    def for_resolution(cls, width: int, height: int) -> ThemeDir:
-        """Resolve the best theme directory for a resolution.
-
-        Prefers user dir (~/.trcc/data/) — always writable, works on
-        system-wide installs (pacman/dnf/apt). Falls back to pkg dir
-        only if user dir has no themes and pkg dir does.
-        """
-        name = f'theme{width}{height}'
-        user_dir = os.path.join(USER_DATA_DIR, name)
-        if ThemeDir.has_themes(user_dir):
-            return cls(user_dir)
-        pkg_dir = os.path.join(DATA_DIR, name)
-        if ThemeDir.has_themes(pkg_dir):
-            return cls(pkg_dir)
-        return cls(user_dir)
-
-    @property
-    def bg(self):
-        """Background image (00.png)."""
-        return self.path / THEME_BG
-
-    @property
-    def mask(self):
-        """Mask overlay image (01.png)."""
-        return self.path / THEME_MASK
-
-    @property
-    def preview(self):
-        """Thumbnail preview (Theme.png)."""
-        return self.path / THEME_PREVIEW
-
-    @property
-    def dc(self):
-        """Binary overlay config (config1.dc)."""
-        return self.path / THEME_DC
-
-    @property
-    def json(self):
-        """JSON config for custom themes (config.json)."""
-        return self.path / THEME_JSON
-
-    @property
-    def zt(self):
-        """Theme.zt animation file."""
-        return self.path / 'Theme.zt'
-
-    def is_valid(self) -> bool:
-        """Check if directory contains valid theme files."""
-        return self.preview.exists() or self.dc.exists() or self.bg.exists()
-
-    def exists(self) -> bool:
-        """Check if directory exists."""
-        return self.path.exists()
-
-    def __truediv__(self, other):
-        """Allow ThemeDir / 'subpath' to return a Path."""
-        return self.path / other
-
-    def __str__(self):
-        return str(self.path)
 
 
 # =========================================================================

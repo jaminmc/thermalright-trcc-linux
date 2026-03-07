@@ -20,7 +20,7 @@ from trcc.core.lcd_device import LCDDevice
 _IMG_SVC = "trcc.services.ImageService"
 _OVL_SVC = "trcc.services.OverlayService"
 _METRICS = "trcc.services.system.get_all_metrics"
-_GET_SVC = "trcc.cli._device._get_service"
+_DEV_SVC = "trcc.services.DeviceService"
 _CONNECT = "trcc.cli._display._connect_or_fail"
 _SETTINGS_KEY = "trcc.conf.Settings.device_config_key"
 _SETTINGS_SAVE = "trcc.conf.Settings.save_device_setting"
@@ -176,7 +176,7 @@ class TestLCDDeviceConnect:
         svc.selected = dev
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             result = lcd.connect()
 
         assert result["success"] is True
@@ -188,7 +188,7 @@ class TestLCDDeviceConnect:
         svc.selected = None
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             result = lcd.connect()
 
         assert result["success"] is False
@@ -202,10 +202,10 @@ class TestLCDDeviceConnect:
         svc.selected = dev
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc) as mock_gs:
+        with patch(_DEV_SVC, return_value=svc):
             lcd.connect("/dev/sg1")
 
-        mock_gs.assert_called_once_with("/dev/sg1")
+        svc.scan_and_select.assert_called_once_with("/dev/sg1")
 
     def test_connect_builds_capabilities(self):
         svc = MagicMock()
@@ -216,7 +216,7 @@ class TestLCDDeviceConnect:
 
         lcd = LCDDevice()
         assert lcd.frame is lcd  # frame always points to self
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             lcd.connect()
         assert lcd.frame is lcd  # still self after connect
 
@@ -574,7 +574,7 @@ class TestCLIHelpers:
         dev.path = "/dev/sg0"
         svc.selected = dev
 
-        with patch(_GET_SVC, return_value=svc), \
+        with patch(_DEV_SVC, return_value=svc), \
              patch("trcc.ipc.IPCClient.available", return_value=False):
             lcd, rc = _connect_or_fail()
 
@@ -588,7 +588,7 @@ class TestCLIHelpers:
         svc = MagicMock()
         svc.selected = None
 
-        with patch(_GET_SVC, return_value=svc), \
+        with patch(_DEV_SVC, return_value=svc), \
              patch("trcc.ipc.IPCClient.available", return_value=False):
             lcd, rc = _connect_or_fail()
 
@@ -603,10 +603,10 @@ class TestCLIHelpers:
         dev.path = "/dev/sg2"
         svc.selected = dev
 
-        with patch(_GET_SVC, return_value=svc) as mock_gs:
+        with patch(_DEV_SVC, return_value=svc):
             _connect_or_fail("/dev/sg2")
 
-        mock_gs.assert_called_once_with("/dev/sg2")
+        svc.scan_and_select.assert_called_once_with("/dev/sg2")
 
     def test_print_result_success(self, capsys):
         from trcc.cli._display import _print_result
@@ -957,7 +957,7 @@ class TestCLIVideoStatus:
 
         svc = MagicMock()
         svc.selected = MagicMock()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             rc = video_status()
 
         assert rc == 0
@@ -968,7 +968,7 @@ class TestCLIVideoStatus:
 
         svc = MagicMock()
         svc.selected = None
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             rc = video_status()
 
         assert rc == 1

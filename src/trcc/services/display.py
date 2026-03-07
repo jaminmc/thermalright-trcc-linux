@@ -13,9 +13,9 @@ import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
-from ..adapters.infra.data_repository import RESOURCES_DIR, DataManager
 from ..conf import settings
 from ..core.models import SPLIT_MODE_RESOLUTIONS, SPLIT_OVERLAY_MAP
+from ..core.paths import RESOURCES_DIR
 from .device import DeviceService
 from .image import ImageService
 from .media import MediaService
@@ -97,6 +97,7 @@ class DisplayService:
 
     def _setup_dirs(self, width: int, height: int) -> None:
         """Extract, locate, and set theme/web/mask directories."""
+        from ..adapters.infra.data_repository import DataManager
         DataManager.ensure_all(width, height)
         settings._resolve_paths()
 
@@ -466,7 +467,7 @@ class DisplayService:
         """Save current config as a custom theme."""
         # Fall back to user-writable dir on system-wide installs (#51)
         if not os.access(data_dir, os.W_OK):
-            from ..adapters.infra.data_repository import USER_DATA_DIR
+            from ..core.paths import USER_DATA_DIR
             data_dir = Path(USER_DATA_DIR)
         ok, msg = ThemePersistence.save(
             name, data_dir, self.lcd_size,
@@ -493,7 +494,7 @@ class DisplayService:
         """Import theme from .tr or JSON file."""
         # Fall back to user-writable dir on system-wide installs (#51)
         if not os.access(data_dir, os.W_OK):
-            from ..adapters.infra.data_repository import USER_DATA_DIR
+            from ..core.paths import USER_DATA_DIR
             data_dir = Path(USER_DATA_DIR)
         ok, result = ThemePersistence.import_config(
             import_path, data_dir, self.lcd_size)

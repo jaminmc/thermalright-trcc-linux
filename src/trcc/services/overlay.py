@@ -33,12 +33,17 @@ class OverlayService:
     BASE_RESOLUTION = 320
 
     def __init__(self, width: int = 320, height: int = 320,
-                 renderer: Renderer | None = None) -> None:
-        # Rendering backend (Strategy pattern)
+                 renderer: Renderer | None = None,
+                 load_config_json_fn: Any = None,
+                 dc_config_cls: Any = None) -> None:
+        # Rendering backend (Strategy pattern) — must be injected
         if renderer is None:
-            from ..adapters.render.qt import QtRenderer
-            renderer = QtRenderer()
+            raise RuntimeError(
+                "OverlayService requires a Renderer instance. "
+                "Use ControllerBuilder to wire dependencies.")
         self._renderer: Renderer = renderer
+        self._load_config_json_fn = load_config_json_fn
+        self._dc_config_cls = dc_config_cls
 
         # Rendering state (public — tests + callers access these directly)
         self.width = width
@@ -197,14 +202,16 @@ class OverlayService:
         Returns:
             display_options dict (may contain 'animation_file', etc.).
         """
-        from ..adapters.infra.data_repository import ThemeDir
+        from ..core.models import ThemeDir
 
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
         if json_path and json_path.exists():
             try:
-                from ..adapters.infra.dc_parser import load_config_json
-
-                result = load_config_json(str(json_path))
+                _load_json = self._load_config_json_fn
+                if _load_json is None:
+                    from ..adapters.infra.dc_parser import load_config_json
+                    _load_json = load_config_json
+                result = _load_json(str(json_path))
                 if result is not None:
                     overlay_config, display_options = result
                     self.set_config(overlay_config)
@@ -217,9 +224,11 @@ class OverlayService:
         if not dc_path or not dc_path.exists():
             return {}
         try:
-            from ..adapters.infra.dc_config import DcConfig
-
-            dc = DcConfig(dc_path)
+            _DcConfig = self._dc_config_cls
+            if _DcConfig is None:
+                from ..adapters.infra.dc_config import DcConfig
+                _DcConfig = DcConfig
+            dc = _DcConfig(dc_path)
             overlay_config = dc.to_overlay_config()
             self.set_config(overlay_config)
             self.set_config_resolution(self.width, self.height)

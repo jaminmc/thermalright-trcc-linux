@@ -25,11 +25,20 @@ import typer
 # CLI error handler decorator (imported by submodules via circular import)
 # =========================================================================
 
+def _ensure_renderer() -> None:
+    """Initialize ImageService renderer for CLI (once)."""
+    from trcc.services.image import ImageService
+    if ImageService._renderer is None:
+        from trcc.adapters.render.qt import QtRenderer
+        ImageService.set_renderer(QtRenderer())
+
+
 def _cli_handler(func):
     """Decorator: catches Exception, prints error, returns 1."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
+            _ensure_renderer()
             return func(*args, **kwargs)
         except KeyboardInterrupt:
             print("\nInterrupted.")

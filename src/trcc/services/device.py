@@ -10,15 +10,42 @@ import threading
 from collections import deque
 from typing import Any, Optional
 
-from ..core.models import DeviceInfo, LCDDeviceConfig
+from ..core.models import DetectedDevice, DeviceInfo, LCDDeviceConfig
+from ..core.ports import DetectDevicesFn, GetProtocolFn, ProbeLedModelFn
 
 log = logging.getLogger(__name__)
+
+
+def _default_detect() -> list[DetectedDevice]:
+    """Default detection — imports adapter lazily."""
+    from ..adapters.device.detector import DeviceDetector
+    return DeviceDetector.detect()
+
+
+def _default_probe_led(*args: Any, **kwargs: Any) -> Any:
+    """Default LED probe — imports adapter lazily."""
+    from ..adapters.device.led import probe_led_model
+    return probe_led_model(*args, **kwargs)
+
+
+def _default_get_protocol(dev: Any) -> Any:
+    """Default protocol factory — imports adapter lazily."""
+    from ..adapters.device.factory import DeviceProtocolFactory
+    return DeviceProtocolFactory.get_protocol(dev)
 
 
 class DeviceService:
     """Device lifecycle: detect, select, handshake, send."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        detect_fn: DetectDevicesFn | None = None,
+        probe_led_fn: ProbeLedModelFn | None = None,
+        get_protocol: GetProtocolFn | None = None,
+    ) -> None:
+        self._detect_fn = detect_fn or _default_detect
+        self._probe_led_fn = probe_led_fn or _default_probe_led
+        self._get_protocol = get_protocol or _default_get_protocol
         self._devices: list[DeviceInfo] = []
         self._selected: DeviceInfo | None = None
         self._send_lock = threading.Lock()
@@ -40,10 +67,9 @@ class DeviceService:
     def detect(self) -> list[DeviceInfo]:
         """Scan for all connected LCD/LED/Bulk devices via device_detector."""
         log.debug("DeviceService: scanning for devices...")
+        raw: list[DetectedDevice] = []
         try:
-            from ..adapters.device.detector import DetectedDevice, DeviceDetector
-
-            raw: list[DetectedDevice] = DeviceDetector.detect()
+            raw = self._detect_fn()
             self._devices = [
                 DeviceInfo(
                     name=f"{d.vendor_name} {d.product_name}",
@@ -75,8 +101,7 @@ class DeviceService:
 
         return self._devices
 
-    @staticmethod
-    def _enrich_led_device(device: DeviceInfo, usb_path: str) -> None:
+    def _enrich_led_device(self, device: DeviceInfo, usb_path: str) -> None:
         """Probe LED device to resolve PM → style and model name.
 
         Without this, all 0416:8001 devices start as generic "LED_DIGITAL"
@@ -84,8 +109,7 @@ class DeviceService:
         multi-segment devices like PA120 (84), LF8 (93), etc.
         """
         try:
-            from ..adapters.device.led import probe_led_model
-            info = probe_led_model(device.vid, device.pid, usb_path=usb_path)
+            info = self._probe_led_fn(device.vid, device.pid, usb_path=usb_path)
             if info and info.style:
                 device.led_style_id = info.style.style_id
                 device.model = info.style.model_name
@@ -110,6 +134,57 @@ class DeviceService:
         """List of detected devices."""
         return self._devices
 
+    def scan_and_select(self, device_path: str | None = None) -> DeviceInfo | None:
+        """Detect, select best match, and handshake.
+
+        Selection priority: explicit path > saved preference > first device.
+        Returns selected DeviceInfo or None if no device found.
+        """
+        self.detect()
+
+        if device_path:
+            match = next((d for d in self._devices if d.path == device_path), None)
+            if match:
+                self.select(match)
+            elif self._devices:
+                self.select(self._devices[0])
+        elif not self._selected:
+            from ..conf import Settings
+            saved = Settings.get_selected_device()
+            matched = False
+            if saved:
+                match = next((d for d in self._devices if d.path == saved), None)
+                if match:
+                    self.select(match)
+                    matched = True
+            if not matched and self._devices:
+                self.select(self._devices[0])
+
+        if self._selected:
+            self._discover_resolution(self._selected)
+
+        return self._selected
+
+    def _discover_resolution(self, dev: DeviceInfo) -> None:
+        """Run protocol handshake to discover resolution + FBL.
+
+        Mutates dev in-place. No-op if resolution already known.
+        """
+        if dev.resolution != (0, 0):
+            return
+        try:
+            protocol = self._get_protocol(dev)
+            result = protocol.handshake()
+            if result:
+                res = getattr(result, 'resolution', None)
+                if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
+                    dev.resolution = res
+                fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
+                if fbl:
+                    dev.fbl_code = fbl
+        except Exception:
+            pass
+
     # ── Send ─────────────────────────────────────────────────────────
 
     def send_rgb565(self, data: bytes, width: int, height: int) -> bool:
@@ -124,9 +199,7 @@ class DeviceService:
             self._send_busy = True
 
         try:
-            from ..adapters.device.factory import DeviceProtocolFactory
-
-            protocol = DeviceProtocolFactory.get_protocol(self._selected)
+            protocol = self._get_protocol(self._selected)
             success = protocol.send_image(data, width, height)
             return success
         except Exception as e:
@@ -269,8 +342,7 @@ class DeviceService:
     def get_protocol_info(self) -> Optional[Any]:
         """Get protocol/backend info for the selected device."""
         try:
-            from ..adapters.device.factory import DeviceProtocolFactory
-
+            from ..adapters.device.factory import DeviceProtocolFactory  # infrastructure query
             return DeviceProtocolFactory.get_protocol_info(self._selected)
         except ImportError:
             return None
