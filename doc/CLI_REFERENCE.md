@@ -903,8 +903,7 @@ trcc uninstall --yes       # skip all prompts (for scripts / GUI)
 
 | Item | Path |
 |------|------|
-| Config directory | `~/.config/trcc/` |
-| Downloaded data | `~/.trcc/` |
+| Config + data directory | `~/.trcc/` |
 | Autostart entry | `~/.config/autostart/trcc*.desktop` |
 | Desktop shortcut | `~/.local/share/applications/trcc*.desktop` |
 | Udev rules (root) | `/etc/udev/rules.d/99-trcc-lcd.rules` |

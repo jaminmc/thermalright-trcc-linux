@@ -1,5 +1,21 @@
 # Changelog
 
+## v8.1.0
+
+### Architecture
+- **Strict Dependency Injection**: All service constructors now raise `RuntimeError` if required adapter dependencies are not provided. No lazy fallback imports in services — hexagonal purity enforced.
+- **Composition roots fully wired**: `builder.py`, `cli/` functions, `api/__init__.py`, and `lcd_device.py:_build_services()` explicitly inject all adapter deps (detector, factory, decoders, DC config, data repository).
+- **Services never import adapters**: Only one accepted exception — `SystemService._get_instance()` acts as a mini composition root for the convenience singleton.
+- **LCDDevice stores DC deps**: `dc_config_cls` and `load_config_json_fn` injected at construction, used by `render_overlay_from_dc()` and `load_mask_standalone()` without adapter imports.
+- **CLI call sites fixed**: `_display.py`, `_led.py`, `_theme.py` all inject concrete adapter deps instead of bare service construction.
+- **API call sites fixed**: `api/__init__.py` and `api/themes.py` inject DC deps into OverlayService and ThemeService.
+- **LEDDevice wiring**: `led_device.py:initialize()` passes `get_protocol` to LEDService.
+- **conftest fixtures**: Shared DI-wired service fixtures in `tests/services/conftest.py`.
+- 4021 tests across 56 files in 9 directories
+
+### Bug Fixes
+- **Fixed**: Cloud theme thumbnail blank after download — `_on_download_complete()` now calls `_set_movies_running(True)` when panel is visible (QMovie lifecycle fix).
+
 ## v8.0.1
 
 ### Bug Fixes

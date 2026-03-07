@@ -440,6 +440,32 @@ src/trcc/
 ├── ipc.py                       # Unix socket IPC daemon (GUI-as-server)
 ├── conf.py                      # Settings singleton + persistence helpers
 ├── __version__.py               # Version info
+├── core/                        # Domain layer — pure Python, zero I/O
+│   ├── models.py                # Domain constants, dataclasses, enums, resolution pipeline
+│   ├── ports.py                 # Device ABC, Renderer ABC, protocol type aliases
+│   ├── lcd_device.py            # LCDDevice(Device) — direct methods, delegates to services
+│   ├── led_device.py            # LEDDevice(Device) — LED control methods
+│   ├── builder.py               # ControllerBuilder — fluent builder with full DI wiring
+│   ├── color.py                 # ColorEngine — HSV/RGB conversion, LED color math
+│   ├── encoding.py              # Frame encoding helpers
+│   ├── led_segment.py           # SegmentDisplay ABC + 10 subclasses (domain data)
+│   └── paths.py                 # Path constants
+├── services/                    # Application layer — business logic, no framework deps
+│   ├── __init__.py              # Re-exports service classes
+│   ├── device.py                # DeviceService — detect, select, send_pil, send_rgb565
+│   ├── image.py                 # ImageService — facade over active Renderer
+│   ├── display.py               # DisplayService — high-level display orchestration
+│   ├── led.py                   # LEDService — LED RGB control via LedProtocol
+│   ├── led_config.py            # LED config persistence (Memento pattern)
+│   ├── led_effects.py           # LEDEffectEngine — strategy pattern for LED effects
+│   ├── media.py                 # MediaService — GIF/video frame extraction
+│   ├── overlay.py               # OverlayService — overlay rendering
+│   ├── renderer.py              # Renderer ABC — Strategy port for compositing backends
+│   ├── system.py                # SystemService — system sensor access and monitoring
+│   ├── theme.py                 # ThemeService — theme orchestration
+│   ├── theme_loader.py          # Theme loading logic
+│   ├── theme_persistence.py     # Theme save/export/import
+│   └── video_cache.py           # VideoFrameCache — lazy per-frame encoding
 ├── adapters/
 │   ├── device/                  # USB device protocol handlers
 │   │   ├── frame.py             # UsbDevice / FrameDevice ABCs
@@ -447,7 +473,7 @@ src/trcc/
 │   │   ├── hid.py               # HID USB transport (PyUSB)
 │   │   ├── led.py               # LED RGB protocol (effects, HID sender)
 │   │   ├── led_kvm.py           # KVM LED backend
-│   │   ├── led_segment.py       # Segment display renderer (10 styles)
+│   │   ├── led_segment.py       # Segment display re-export (delegates to core/)
 │   │   ├── bulk.py              # Raw USB bulk protocol
 │   │   ├── ly.py                # LY USB bulk protocol (0416:5408/5409)
 │   │   ├── lcd.py               # SCSI RGB565 frame send
@@ -455,14 +481,15 @@ src/trcc/
 │   │   ├── factory.py           # Protocol factory (SCSI/HID/LED/Bulk/LY routing)
 │   │   └── _usb_helpers.py      # Shared USB utility functions
 │   ├── render/                  # Rendering backends (Strategy pattern)
-│   │   └── pil.py               # PilRenderer — CPU-only PIL/Pillow backend
+│   │   ├── qt.py                # QtRenderer — QImage/QPainter (primary, hot path)
+│   │   └── pil.py               # PilRenderer — PIL/Pillow (fallback)
 │   ├── system/                  # System integration
 │   │   ├── sensors.py           # Hardware sensor discovery + collection
 │   │   ├── hardware.py          # Hardware info (CPU, GPU, RAM, disk)
 │   │   ├── info.py              # Dashboard panel config
 │   │   └── config.py            # Dashboard config persistence
 │   └── infra/                   # Infrastructure (I/O, files, network)
-│       ├── data_repository.py   # XDG paths, on-demand download
+│       ├── data_repository.py   # User data paths, on-demand download
 │       ├── binary_reader.py     # Binary data reader
 │       ├── dc_parser.py         # Parse config1.dc overlay configs
 │       ├── dc_writer.py         # Write config1.dc files
@@ -476,26 +503,10 @@ src/trcc/
 ├── install/                     # Standalone setup wizard
 │   ├── __init__.py
 │   └── gui.py                   # PySide6 setup wizard GUI
-├── services/                    # Core hexagon — pure Python, no framework deps
-│   ├── __init__.py              # Re-exports service classes
-│   ├── device.py                # DeviceService — detect, select, send_pil, send_rgb565
-│   ├── image.py                 # ImageService — solid_color, resize, brightness, rotation
-│   ├── display.py               # DisplayService — high-level display orchestration
-│   ├── led.py                   # LEDService — LED RGB control via LedProtocol
-│   ├── led_config.py            # LED config persistence (Memento pattern)
-│   ├── led_effects.py           # LEDEffectEngine — strategy pattern for LED effects
-│   ├── media.py                 # MediaService — GIF/video frame extraction
-│   ├── overlay.py               # OverlayService — overlay rendering
-│   ├── renderer.py              # Renderer ABC — Strategy port for compositing backends
-│   ├── system.py                # SystemService — system sensor access and monitoring
-│   ├── theme.py                 # ThemeService — theme orchestration
-│   ├── theme_loader.py          # Theme loading logic
-│   └── theme_persistence.py     # Theme save/export/import
-├── core/
-│   ├── models.py                # Domain constants, dataclasses, enums, resolution pipeline
-│   └── controllers.py           # LCDDeviceController, LEDDeviceController (Facades)
 └── qt_components/               # PySide6 GUI adapter
-    ├── qt_app_mvc.py            # Main window (1454x800)
+    ├── trcc_app.py              # TRCCApp — thin QMainWindow shell, entry point
+    ├── lcd_handler.py           # LCDHandler — one per LCD device (owns LCDDevice, timers)
+    ├── metrics_mediator.py      # MetricsMediator — single polling authority for sensors
     ├── base.py                  # BasePanel, BaseThemeBrowser, pil_to_pixmap
     ├── constants.py             # Layout coords, sizes, colors, styles
     ├── assets.py                # Asset loader with lru_cache
@@ -559,7 +570,7 @@ The Linux port matches Windows behavior by using FFmpeg via subprocess for frame
 
 ## Configuration
 
-Settings stored in `~/.config/trcc/config.json`.
+Settings stored in `~/.trcc/config.json`.
 
 ### Global settings
 

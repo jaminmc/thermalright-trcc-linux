@@ -76,5 +76,7 @@ Shared terminology so everyone uses the same names.
 | **adapters/device/** | USB device protocol handlers (SCSI, HID, LED, Bulk) |
 | **adapters/system/** | System integration (sensors, dashboard config) |
 | **adapters/infra/** | Infrastructure I/O (data repo, fonts, media, themes, doctor) |
-| **services/** | Core hexagon — pure Python business logic, no framework deps |
+| **services/** | Core hexagon — pure Python business logic, no framework deps. Strict DI — RuntimeError if deps not injected. |
 | **install/** | Standalone setup wizard (works without trcc installed) |
+| **Composition root** | Code that imports adapters and injects them into services. Only `builder.py`, `lcd_device.py:_build_services()`, CLI functions, and `api/__init__.py` may import adapters. |
+| **Strict DI** | Service constructors raise `RuntimeError` if required adapter dependencies are missing. No lazy fallback imports. |

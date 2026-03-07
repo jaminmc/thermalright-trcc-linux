@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.0.3 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 8.0.1
+**Current version:** 8.1.0
 **Branch:** `main`
-**Tests:** 4022 across 53 files in 9 hexagonal directories
+**Tests:** 4021 across 56 files in 9 hexagonal directories
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable
@@ -23,7 +23,7 @@ All features are tested and working on the `main` branch:
 - **IPC daemon** — GUI owns device exclusively; CLI auto-routes through Unix socket when GUI is running
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **4022 tests** across 53 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,qt_components}/`)
+- **4021 tests** across 56 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,qt_components}/`)
 
 ### Supported Devices
 
@@ -62,7 +62,7 @@ All features are tested and working on the `main` branch:
 | # | Item | Status |
 |---|------|--------|
 | 1 | Full GUI port of Windows TRCC 2.0.3 | Done |
-| 2 | Test coverage | Done (4022 tests, 53 files, hexagonal layout) |
+| 2 | Test coverage | Done (4021 tests, 56 files, hexagonal layout) |
 | 3 | CI/CD (GitHub Actions) | Done |
 | 4 | Type checking (pyright basic) | Done |
 | 5 | Cross-distro compatibility | Done |
@@ -96,6 +96,7 @@ All features are tested and working on the `main` branch:
 | 33 | Device ABCs (replace controller layer) | Done — LCDDevice/LEDDevice with composed capabilities, ControllerBuilder |
 | 34 | Cloud theme resolution parity | Done — all 32 C# v2.1.2 resolutions (landscape + portrait + u/l variants) |
 | 35 | CI distro package dependencies | Done — full dep lists in RPM, DEB, Arch inline specs |
+| 36 | Strict DI (hexagonal purity) | Done — all service constructors strict, composition roots wire all deps |
 
 ## Reporting Issues
 

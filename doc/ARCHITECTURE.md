@@ -83,9 +83,9 @@ src/trcc/
 ├── core/
 │   ├── models.py                # Domain constants, dataclasses, enums, resolution pipeline
 │   ├── ports.py                 # Device ABC (4 methods), Renderer ABC
-│   ├── lcd_device.py            # LCDDevice(Device) + ThemeOps, VideoOps, OverlayOps, FrameOps, DisplaySettings
+│   ├── lcd_device.py            # LCDDevice(Device) — direct methods, delegates to services
 │   ├── led_device.py            # LEDDevice(Device) — set_color, set_mode, tick, zone/segment ops
-│   ├── builder.py               # ControllerBuilder — fluent builder, returns LCDDevice/LEDDevice
+│   ├── builder.py               # ControllerBuilder — fluent builder, full DI wiring
 │   └── encoding.py              # Encoding utilities
 └── qt_components/               # PySide6 GUI adapter
     ├── trcc_app.py              # TRCCApp — thin QMainWindow shell (C# Form1 equivalent)
@@ -119,7 +119,18 @@ src/trcc/
 
 ### Hexagonal / Device ABCs
 
-`LCDDevice` and `LEDDevice` in `core/` are the single entry point for all adapters. `LCDDevice` composes capabilities (ThemeOps, VideoOps, OverlayOps, FrameOps, DisplaySettings) that delegate to services. `LEDDevice` has direct methods. CLI, GUI, and API all import from `core/` — never adapter→adapter. Law of Demeter: Adapter→Device→Services only.
+`LCDDevice` and `LEDDevice` in `core/` are the single entry point for all adapters. `LCDDevice` has direct methods (capabilities inlined in v8.0.0) that delegate to services. `LEDDevice` has direct methods. CLI, GUI, and API all import from `core/` — never adapter→adapter. Law of Demeter: Adapter→Device→Services only.
+
+### Strict Dependency Injection (v8.1.0)
+
+All service constructors are strict — `RuntimeError` if required adapter dependencies are not provided. Services never import from adapters. Adapter wiring happens exclusively in **composition roots**:
+
+- **`core/builder.py`** — `ControllerBuilder.build_lcd()` / `build_led()` — full DI for GUI path
+- **`core/lcd_device.py:_build_services()`** — called from `connect()`, mirrors builder wiring for CLI/API
+- **`cli/` functions** — each CLI command imports and injects concrete adapters
+- **`api/__init__.py`** — module-level adapter wiring for REST API
+
+One accepted exception: `SystemService._get_instance()` acts as a mini composition root for the convenience singleton (used by GUI widgets via `get_all_metrics()`).
 
 ### Metrics Observer
 

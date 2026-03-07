@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](https://github.com/Lexonight1/thermalright-trcc-linux)
 
 [![CI](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-4014_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-4021_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-69%25-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://python.org)
 [![Code Style](https://img.shields.io/badge/code_style-ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
@@ -69,7 +69,7 @@ Run `trcc report` and [paste the output in an issue](https://github.com/Lexonigh
 | **Multi-device** | Per-device config, auto-detect, multi-device with device selection |
 | **Security** | udev rules, polkit policy, SELinux support, no root required after setup |
 
-**Under the hood**: 103 source files, ~38K lines of Python, 4157 tests across 56 test files. Hexagonal architecture — GUI, CLI, and API all talk to the same core services. 6 USB protocols reverse-engineered from the Windows C# app.
+**Under the hood**: 106 source files, ~38K lines of Python, 4021 tests across 56 test files. Hexagonal architecture with strict dependency injection — GUI, CLI, and API all talk to the same core services. 6 USB protocols reverse-engineered from the Windows C# app.
 
 ## Supported Devices
 

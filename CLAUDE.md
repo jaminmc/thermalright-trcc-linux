@@ -120,7 +120,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4022 tests across 53 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4021 tests across 56 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
@@ -345,7 +345,16 @@ When adding GUI assets:
 - **Merged duplicates**: `test_api_ext.py` → `test_api.py`, `test_doctor_ext.py` → `test_doctor.py`, `test_debug_report_ext.py` → `test_debug_report.py`
 - **Dissolved `hid_testing/`**: Tests moved to `adapters/device/`, conftest fixtures merged into `adapters/device/conftest.py`
 - **Deleted 22 mock-wiring tests**: Tests that only verified `mock.assert_called_once_with()` — passed even with broken code
-- 4022 tests passing, ruff clean, pyright clean
+- 4021 tests passing, ruff clean, pyright clean
+
+### v8.1.0: Strict Dependency Injection
+- **All service constructors strict**: `RuntimeError` if required adapter deps not provided. No lazy fallback imports in services.
+- **Composition roots fully wired**: `builder.py`, CLI functions, `api/__init__.py`, `lcd_device.py:_build_services()` all inject concrete adapter deps.
+- **Services never import adapters**: One accepted exception — `SystemService._get_instance()` (convenience singleton, composition root).
+- **LCDDevice stores DC deps**: `dc_config_cls` and `load_config_json_fn` injected at construction for overlay/mask methods.
+- **Cloud thumbnail blank fix**: `_on_download_complete()` calls `_set_movies_running(True)` when panel is visible.
+- **conftest fixtures**: `tests/services/conftest.py` with shared DI-wired service fixtures.
+- 4021 tests across 56 files
 
 ### Future Work
 - GUI component splits (uc_theme_setting.py → 5 files)
@@ -437,7 +446,7 @@ Current FBL table (16 entries, full C# parity):
 1. **Hexagonal architecture** — CLI, GUI, and API all adapt to the same core services. Adding the API took hours, not weeks. Device protocols slot in as new adapter subclasses.
 2. **C# as ground truth** — every bug we fixed was traced back to "our code doesn't match C#". The decompiled source eliminated guesswork.
 3. **Data-driven design** — FBL tables, wire remap tables, LED style configs, segment display layouts are all data. Logic operates on data. New devices = new data, not new logic.
-4. **Test suite (4022 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
+4. **Test suite (4021 tests)** — catches regressions immediately. Every fix includes tests. Mock USB devices for protocol testing.
 5. **`trcc report` diagnostic** — users paste one command output and we get VID:PID, PM, FBL, resolution, raw handshake bytes, permissions, SELinux status. Eliminates back-and-forth.
 6. **GoF patterns applied pragmatically** — Facade (controllers), Flyweight+Strategy (segment displays), Template Method (protocol handshakes), Memento (LED config), Observer (metrics), Command (dispatchers). Each pattern solved a real problem, not applied for theory.
 
@@ -462,6 +471,7 @@ Current FBL table (16 entries, full C# parity):
 - **v6.6** — LCD preview stream (WebSocket), overlay metrics loop, video playback background thread, MetricsMediator
 - **v7.0** — GoF file renames, SOLID refactoring (ISP/LSP/DIP/SRP/OCP), QtRenderer (eliminate PIL from hot path), SOLID Device ABCs (LCDDevice/LEDDevice replace controller layer), cloud theme resolution parity (all 32 C# resolutions), CI distro package dep fixes
 - **v8.0** — Hexagonal purification, CPU optimization (-684 lines, 48%→6% CPU), capability classes inlined, DeviceProfile table, test restructuring (hexagonal directory layout)
+- **v8.1** — Strict DI (all service constructors RuntimeError without deps), composition roots fully wired, cloud thumbnail blank fix
 
 ### Applying This to TR-VISION HOME
 The next project controls Thermalright water-cooling LED screens. What carries forward:
