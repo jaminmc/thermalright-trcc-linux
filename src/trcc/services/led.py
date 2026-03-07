@@ -42,11 +42,13 @@ class LEDService:
         '_tick_temp_linked_for', '_tick_load_linked_for', '_next_sync_zone',
     })
 
-    def __init__(self, state: LEDState | None = None) -> None:
+    def __init__(self, state: LEDState | None = None,
+                 get_protocol: Any = None) -> None:
         self.state = state or LEDState()
         self._metrics: HardwareMetrics = HardwareMetrics()
         self._engine = LEDEffectEngine(self.state, self._metrics)
         self._protocol: Any = None
+        self._get_protocol = get_protocol or self._default_get_protocol
 
         # Segment display state (styles 1-11 — all digit-display LED devices)
         self._segment_mode = False
@@ -61,6 +63,11 @@ class LEDService:
         self._device_key: Optional[str] = None
         self._led_style: int = 1
 
+    @staticmethod
+    def _default_get_protocol(dev: Any) -> Any:
+        from ..adapters.device.factory import DeviceProtocolFactory
+        return DeviceProtocolFactory.get_protocol(dev)
+
     # ── Style resolution (static) ───────────────────────────────────
 
     @staticmethod
@@ -69,7 +76,7 @@ class LEDService:
 
         Replaces the view-layer iteration over LED_STYLES.
         """
-        from ..adapters.device.led import LED_STYLES
+        from ..core.models import LED_STYLES
         for style_id, style in LED_STYLES.items():
             if style.model_name == model_name:
                 return style_id
@@ -78,7 +85,7 @@ class LEDService:
     @staticmethod
     def get_style_info(style_id: int) -> Any:
         """Get LedDeviceStyle for a style_id."""
-        from ..adapters.device.led import LED_STYLES
+        from ..core.models import LED_STYLES
         return LED_STYLES.get(style_id)
 
     # ── State mutators ──────────────────────────────────────────────
@@ -228,8 +235,8 @@ class LEDService:
         Sets up LED segment counts/zones from the style registry and
         activates segment display rotation for digit-display styles (1-11).
         """
-        from ..adapters.device.led import LED_STYLES
-        from ..adapters.device.led_segment import get_display
+        from ..core.led_segment import get_display
+        from ..core.models import LED_STYLES
 
         self._led_style = style_id
         style = LED_STYLES.get(style_id)
@@ -423,8 +430,7 @@ class LEDService:
         self.configure_for_style(led_style)
 
         try:
-            from ..adapters.device.factory import DeviceProtocolFactory
-            protocol = DeviceProtocolFactory.get_protocol(device_info)
+            protocol = self._get_protocol(device_info)
             protocol.handshake()  # Cache handshake result for wire remap
             self.set_protocol(protocol)
         except Exception as e:
@@ -433,7 +439,7 @@ class LEDService:
 
         self.load_config()
 
-        from ..adapters.device.led import LED_STYLES
+        from ..core.models import LED_STYLES
         style = LED_STYLES.get(led_style)
         name = style.model_name if style else f"Style {led_style}"
         led_count = style.led_count if style else 0

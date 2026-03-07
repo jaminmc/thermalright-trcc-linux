@@ -428,7 +428,9 @@ class TRCCApp(QMainWindow):
 
     def _build_lcd_handler(self) -> None:
         """Build LCDDevice + LCDHandler for initial resolution."""
+        from ..adapters.render.qt import QtRenderer
         display = (ControllerBuilder()
+            .with_renderer(QtRenderer())
             .with_data_dir(self._data_dir)
             .build_lcd())
 
@@ -443,7 +445,8 @@ class TRCCApp(QMainWindow):
             'rotation_combo': self.rotation_combo,
         }
         self._lcd_handler = LCDHandler(
-            display, widgets, self._make_timer, self._data_dir)
+            display, widgets, self._make_timer, self._data_dir,
+            is_visible_fn=lambda: not self.isMinimized())
 
     # ── Timers ─────────────────────────────────────────────────────
 
@@ -931,7 +934,6 @@ class TRCCApp(QMainWindow):
             # Show info module if configured
             if Settings.show_info_module():
                 self.uc_info_module.setVisible(True)
-                self.uc_info_module.start_updates(3000)
             self._mediator.ensure_running()
 
     def _start_handshake(self, device: DeviceInfo):
@@ -1210,12 +1212,11 @@ class TRCCApp(QMainWindow):
     def _on_overlay_add_requested(self):
         self.uc_activity_sidebar.setVisible(True)
         self.uc_activity_sidebar.raise_()
-        self.uc_activity_sidebar.start_updates()
+        self._mediator.ensure_running()
 
     def _on_sensor_element_add(self, config):
         self.uc_theme_setting.overlay_grid.add_element(config)
         self.uc_activity_sidebar.setVisible(False)
-        self.uc_activity_sidebar.stop_updates()
 
     def _on_overlay_toggle(self, enabled):
         if self._lcd_handler:

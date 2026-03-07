@@ -18,7 +18,10 @@ from conftest import get_pixel, surface_size
 from PIL import Image
 
 from trcc.core.models import HardwareMetrics
+from trcc.services.image import ImageService
 from trcc.services.overlay import OverlayService as OverlayRenderer
+
+_R = ImageService._r  # shorthand for renderer injection
 
 # QtRenderer needs QApplication for font operations (QPainter, QFontDatabase)
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -32,7 +35,7 @@ class TestOverlayRendererInit(unittest.TestCase):
 
     def test_default_initialization(self):
         """Test default 320x320 initialization."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         self.assertEqual(renderer.width, 320)
         self.assertEqual(renderer.height, 320)
         self.assertEqual(renderer.config, {})
@@ -42,19 +45,19 @@ class TestOverlayRendererInit(unittest.TestCase):
 
     def test_custom_resolution(self):
         """Test custom resolution initialization."""
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         self.assertEqual(renderer.width, 480)
         self.assertEqual(renderer.height, 480)
 
     def test_rectangular_resolution(self):
         """Test rectangular resolution initialization."""
-        renderer = OverlayRenderer(width=1600, height=720)
+        renderer = OverlayRenderer(width=1600, height=720, renderer=_R())
         self.assertEqual(renderer.width, 1600)
         self.assertEqual(renderer.height, 720)
 
     def test_default_format_options(self):
         """Test default format options."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         self.assertEqual(renderer.time_format, 0)
         self.assertEqual(renderer.date_format, 0)
         self.assertEqual(renderer.temp_unit, 0)
@@ -65,14 +68,14 @@ class TestSetResolution(unittest.TestCase):
 
     def test_change_resolution(self):
         """Test changing resolution."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_resolution(480, 480)
         self.assertEqual(renderer.width, 480)
         self.assertEqual(renderer.height, 480)
 
     def test_clears_background_on_change(self):
         """Test that background is cleared on resolution change."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_background(Image.new('RGB', (320, 320), 'red'))
         renderer.set_resolution(480, 480)
         self.assertIsNone(renderer.background)
@@ -83,7 +86,7 @@ class TestFormatOptions(unittest.TestCase):
 
     def test_set_temp_unit_updates_attribute(self):
         """Test setting temp unit via set_temp_unit."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_temp_unit(1)
         self.assertEqual(renderer.temp_unit, 1)
         self.assertEqual(renderer.time_format, 0)  # Default unchanged
@@ -91,13 +94,13 @@ class TestFormatOptions(unittest.TestCase):
 
     def test_set_temp_unit(self):
         """Test set_temp_unit method."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_temp_unit(1)  # Fahrenheit
         self.assertEqual(renderer.temp_unit, 1)
 
     def test_set_temp_unit_celsius(self):
         """Test setting Celsius (0)."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_temp_unit(1)  # First set to Fahrenheit
         renderer.set_temp_unit(0)  # Then back to Celsius
         self.assertEqual(renderer.temp_unit, 0)
@@ -108,13 +111,13 @@ class TestSetConfig(unittest.TestCase):
 
     def test_set_empty_config(self):
         """Test setting empty config."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({})
         self.assertEqual(renderer.config, {})
 
     def test_set_config_with_elements(self):
         """Test setting config with elements."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         config = {
             'cpu_temp': {
                 'x': 100, 'y': 50,
@@ -128,7 +131,7 @@ class TestSetConfig(unittest.TestCase):
 
     def test_config_is_replaced(self):
         """Test that config is replaced, not merged."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({'a': 1})
         renderer.set_config({'b': 2})
         self.assertNotIn('a', renderer.config)
@@ -140,7 +143,7 @@ class TestSetBackground(unittest.TestCase):
 
     def test_set_background_image(self):
         """Test setting background image."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         img = Image.new('RGB', (100, 100), 'blue')
         renderer.set_background(img)
         self.assertIsNotNone(renderer.background)
@@ -148,21 +151,21 @@ class TestSetBackground(unittest.TestCase):
 
     def test_set_background_none(self):
         """Test clearing background with None."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_background(Image.new('RGB', (320, 320)))
         renderer.set_background(None)
         self.assertIsNone(renderer.background)
 
     def test_background_is_resized(self):
         """Test that background is resized to LCD dimensions."""
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         img = Image.new('RGB', (200, 200), 'green')
         renderer.set_background(img)
         self.assertEqual(surface_size(renderer.background), (480, 480))
 
     def test_background_is_copied(self):
         """Test that background image is copied, not referenced."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         img = Image.new('RGB', (320, 320), 'red')
         renderer.set_background(img)
         # Modify original
@@ -176,7 +179,7 @@ class TestSetThemeMask(unittest.TestCase):
 
     def test_set_mask_none(self):
         """Test clearing mask with None."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_theme_mask(Image.new('RGBA', (320, 320)))
         renderer.set_theme_mask(None)
         self.assertIsNone(renderer.theme_mask)
@@ -184,7 +187,7 @@ class TestSetThemeMask(unittest.TestCase):
 
     def test_set_mask_with_explicit_position(self):
         """Test setting mask with explicit position."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         mask = Image.new('RGBA', (320, 320), (255, 0, 0, 128))
         renderer.set_theme_mask(mask, position=(10, 20))
         self.assertIsNotNone(renderer.theme_mask)
@@ -192,7 +195,7 @@ class TestSetThemeMask(unittest.TestCase):
 
     def test_mask_auto_position_partial(self):
         """Test auto-positioning partial mask at top-left (C# default)."""
-        renderer = OverlayRenderer(width=320, height=320)
+        renderer = OverlayRenderer(width=320, height=320, renderer=_R())
         # Partial mask (height < display height)
         mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
         renderer.set_theme_mask(mask)
@@ -201,14 +204,14 @@ class TestSetThemeMask(unittest.TestCase):
 
     def test_mask_auto_position_full(self):
         """Test auto-positioning full-size mask at origin."""
-        renderer = OverlayRenderer(width=320, height=320)
+        renderer = OverlayRenderer(width=320, height=320, renderer=_R())
         mask = Image.new('RGBA', (320, 320), (255, 0, 0, 128))
         renderer.set_theme_mask(mask)
         self.assertEqual(renderer.theme_mask_position, (0, 0))
 
     def test_rgb_mask_converted_to_rgba(self):
         """Test that RGB mask is converted to RGBA (no error on conversion)."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         mask = Image.new('RGB', (320, 320), 'red')
         renderer.set_theme_mask(mask)
         self.assertIsNotNone(renderer.theme_mask)
@@ -219,14 +222,14 @@ class TestRender(unittest.TestCase):
 
     def test_render_empty_config(self):
         """Test rendering with empty config."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         img = renderer.render()
         self.assertEqual(surface_size(img), (320, 320))
         self.assertIsNotNone(img)
 
     def test_render_with_background(self):
         """Test rendering with background."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         bg = Image.new('RGB', (320, 320), 'blue')
         renderer.set_background(bg)
         img = renderer.render()
@@ -234,7 +237,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_with_mask(self):
         """Test rendering with mask overlay."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         bg = Image.new('RGB', (320, 320), 'blue')
         mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
         renderer.set_background(bg)
@@ -244,7 +247,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_static_text(self):
         """Test rendering static text element."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'label': {
                 'x': 160, 'y': 160,
@@ -259,7 +262,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_metric_element(self):
         """Test rendering metric element."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'cpu_temp': {
                 'x': 100, 'y': 100,
@@ -275,7 +278,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_disabled_element_skipped(self):
         """Test that disabled elements are skipped."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'hidden': {
                 'x': 100, 'y': 100,
@@ -290,7 +293,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_missing_metric_shows_na(self):
         """Test that missing metric shows N/A."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'missing': {
                 'x': 100, 'y': 100,
@@ -305,7 +308,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_with_format_options(self):
         """Test rendering respects format options."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.time_format = 1
         renderer.date_format = 2
         renderer.temp_unit = 1
@@ -323,7 +326,7 @@ class TestRender(unittest.TestCase):
 
     def test_render_with_per_element_temp_unit(self):
         """Test per-element temp_unit override."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_temp_unit(0)  # Global: Celsius
         renderer.set_config({
             'temp1': {
@@ -340,14 +343,14 @@ class TestRender(unittest.TestCase):
 
     def test_render_none_config(self):
         """Test rendering with None config."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.config = None
         img = renderer.render()
         self.assertEqual(surface_size(img), (320, 320))
 
     def test_render_non_dict_config(self):
         """Test rendering with non-dict config."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.config = "invalid"
         img = renderer.render()
         self.assertEqual(surface_size(img), (320, 320))
@@ -358,7 +361,7 @@ class TestClear(unittest.TestCase):
 
     def test_clear_resets_all(self):
         """Test that clear resets all settings."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({'key': 'value'})
         renderer.set_background(Image.new('RGB', (320, 320)))
         renderer.set_theme_mask(Image.new('RGBA', (320, 100)))
@@ -372,14 +375,14 @@ class TestClear(unittest.TestCase):
 
     def test_clear_preserves_resolution(self):
         """Test that clear preserves resolution."""
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.clear()
         self.assertEqual(renderer.width, 480)
         self.assertEqual(renderer.height, 480)
 
     def test_clear_preserves_format_options(self):
         """Test that clear preserves format options."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.time_format = 1
         renderer.date_format = 2
         renderer.temp_unit = 1
@@ -395,7 +398,7 @@ class TestRenderIntegration(unittest.TestCase):
 
     def test_full_render_workflow(self):
         """Test complete rendering workflow."""
-        renderer = OverlayRenderer(width=320, height=320)
+        renderer = OverlayRenderer(width=320, height=320, renderer=_R())
 
         # Set background
         bg = Image.new('RGB', (320, 320), (30, 30, 30))
@@ -442,7 +445,7 @@ class TestRenderIntegration(unittest.TestCase):
 
     def test_render_without_metrics(self):
         """Test rendering when no metrics provided."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'cpu_temp': {
                 'x': 100, 'y': 100,
@@ -456,7 +459,7 @@ class TestRenderIntegration(unittest.TestCase):
 
     def test_render_transparent_background(self):
         """Test rendering with no background starts from black (RGBA→RGB conversion)."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         # Don't set background - creates transparent RGBA then converts to RGB
         renderer.set_config({
             'label': {
@@ -478,7 +481,7 @@ class TestConfigElements(unittest.TestCase):
 
     def test_element_without_font_config(self):
         """Test element with no font config uses defaults."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'simple': {
                 'x': 100, 'y': 100,
@@ -493,7 +496,7 @@ class TestConfigElements(unittest.TestCase):
 
     def test_element_with_non_dict_font(self):
         """Test element with non-dict font config uses default size."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'simple': {
                 'x': 100, 'y': 100,
@@ -508,7 +511,7 @@ class TestConfigElements(unittest.TestCase):
 
     def test_element_without_x_y_uses_defaults(self):
         """Test element without x/y uses default position."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'no_position': {
                 'text': 'Test',
@@ -522,7 +525,7 @@ class TestConfigElements(unittest.TestCase):
 
     def test_non_dict_element_skipped(self):
         """Test that non-dict elements are skipped."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'valid': {
                 'x': 100, 'y': 100,
@@ -542,30 +545,30 @@ class TestConfigResolution(unittest.TestCase):
     """Test set_config_resolution, set_scale_enabled, _get_scale_factor."""
 
     def test_set_config_resolution(self):
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.set_config_resolution(320, 320)
         self.assertEqual(renderer._config_resolution, (320, 320))
 
     def test_scale_factor_default(self):
         """Same config and display resolution → 1.0."""
-        renderer = OverlayRenderer(width=320, height=320)
+        renderer = OverlayRenderer(width=320, height=320, renderer=_R())
         self.assertAlmostEqual(renderer._get_scale_factor(), 1.0)
 
     def test_scale_factor_upscale(self):
         """Config 320 on display 480 → 1.5."""
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.set_config_resolution(320, 320)
         self.assertAlmostEqual(renderer._get_scale_factor(), 1.5)
 
     def test_scale_factor_disabled(self):
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.set_config_resolution(320, 320)
         renderer.set_scale_enabled(False)
         self.assertAlmostEqual(renderer._get_scale_factor(), 1.0)
 
     def test_scale_factor_zero_config(self):
         """cfg_size <= 0 → 1.0."""
-        renderer = OverlayRenderer(width=320, height=320)
+        renderer = OverlayRenderer(width=320, height=320, renderer=_R())
         renderer._config_resolution = (0, 0)
         self.assertAlmostEqual(renderer._get_scale_factor(), 1.0)
 
@@ -576,7 +579,7 @@ class TestRenderMaskScaling(unittest.TestCase):
 
     def test_mask_scales_with_factor(self):
         """Lines 332-338: mask is scaled when scale_factor != 1."""
-        renderer = OverlayRenderer(width=480, height=480)
+        renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.set_config_resolution(320, 320)
         renderer.set_background(Image.new('RGB', (480, 480), 'blue'))
         mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
@@ -593,7 +596,7 @@ class TestRenderFlashSkip(unittest.TestCase):
 
     def test_flash_skip_skips_element(self):
         """Lines 363: flash_skip_index skips the element."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.flash_skip_index = 0
         renderer.set_config({
             'label': {
@@ -613,7 +616,7 @@ class TestRenderMetricPaths(unittest.TestCase):
 
     def test_render_with_no_text_no_metric_skips(self):
         """Lines 391: element with neither text nor metric → continue."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'empty': {
                 'x': 100, 'y': 100,
@@ -627,7 +630,7 @@ class TestRenderMetricPaths(unittest.TestCase):
 
     def test_render_with_font_name(self):
         """Render element with custom font_name."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({
             'label': {
                 'x': 100, 'y': 100,
@@ -646,7 +649,7 @@ class TestRenderMetricPaths(unittest.TestCase):
 class TestSetMaskVisible(unittest.TestCase):
 
     def test_toggle_mask_visibility(self):
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_mask_visible(False)
         self.assertFalse(renderer.theme_mask_visible)
         renderer.set_mask_visible(True)
@@ -654,7 +657,7 @@ class TestSetMaskVisible(unittest.TestCase):
 
     def test_render_with_mask_hidden(self):
         """Mask set but not visible → not composited."""
-        renderer = OverlayRenderer()
+        renderer = OverlayRenderer(renderer=_R())
         renderer.set_background(Image.new('RGB', (320, 320), 'blue'))
         renderer.set_theme_mask(Image.new('RGBA', (320, 100), (255, 0, 0, 200)))
         renderer.set_mask_visible(False)

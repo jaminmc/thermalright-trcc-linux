@@ -1,8 +1,8 @@
 """Tests for LCDDevice (core/lcd_device.py) + CLI display wrappers (_display.py).
 
 Fixtures build mock services and inject them into LCDDevice. Tests verify
-capability classes (FrameOps, DisplaySettings, OverlayOps) return correct
-result dicts, and CLI wrappers print/exit correctly.
+LCDDevice methods return correct result dicts, and CLI wrappers
+print/exit correctly.
 """
 from __future__ import annotations
 
@@ -12,14 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
-from trcc.core.lcd_device import (
-    DisplaySettings,
-    FrameOps,
-    LCDDevice,
-    OverlayOps,
-    ThemeOps,
-    VideoOps,
-)
+from trcc.core.lcd_device import LCDDevice
 
 # =========================================================================
 # Patch-path constants
@@ -27,7 +20,7 @@ from trcc.core.lcd_device import (
 _IMG_SVC = "trcc.services.ImageService"
 _OVL_SVC = "trcc.services.OverlayService"
 _METRICS = "trcc.services.system.get_all_metrics"
-_GET_SVC = "trcc.cli._device._get_service"
+_DEV_SVC = "trcc.services.DeviceService"
 _CONNECT = "trcc.cli._display._connect_or_fail"
 _SETTINGS_KEY = "trcc.conf.Settings.device_config_key"
 _SETTINGS_SAVE = "trcc.conf.Settings.save_device_setting"
@@ -124,18 +117,19 @@ def _make_png(path: Path, w=10, h=10, color=(255, 0, 0)) -> Path:
 
 class TestLCDDeviceInit:
     def test_default_no_services(self, lcd_empty):
-        assert lcd_empty.frame is None
-        assert lcd_empty.settings is None
-        assert lcd_empty.overlay is None
-        assert lcd_empty.video is None
-        assert lcd_empty.theme is None
+        assert lcd_empty.frame is lcd_empty
+        assert lcd_empty.overlay is lcd_empty
+        assert lcd_empty.video is lcd_empty
+        assert lcd_empty.theme is lcd_empty
+        # settings points to self (methods inlined on LCDDevice)
+        assert lcd_empty.settings is lcd_empty
 
     def test_injected_services_compose(self, lcd):
-        assert isinstance(lcd.frame, FrameOps)
-        assert isinstance(lcd.settings, DisplaySettings)
-        assert isinstance(lcd.overlay, OverlayOps)
-        assert isinstance(lcd.video, VideoOps)
-        assert isinstance(lcd.theme, ThemeOps)
+        assert lcd.frame is lcd
+        assert lcd.overlay is lcd
+        assert lcd.video is lcd
+        assert lcd.theme is lcd
+        assert lcd.settings is lcd
 
     def test_connected_false_when_no_svc(self, lcd_empty):
         assert lcd_empty.connected is False
@@ -182,7 +176,7 @@ class TestLCDDeviceConnect:
         svc.selected = dev
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             result = lcd.connect()
 
         assert result["success"] is True
@@ -194,7 +188,7 @@ class TestLCDDeviceConnect:
         svc.selected = None
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             result = lcd.connect()
 
         assert result["success"] is False
@@ -208,10 +202,10 @@ class TestLCDDeviceConnect:
         svc.selected = dev
 
         lcd = LCDDevice()
-        with patch(_GET_SVC, return_value=svc) as mock_gs:
+        with patch(_DEV_SVC, return_value=svc):
             lcd.connect("/dev/sg1")
 
-        mock_gs.assert_called_once_with("/dev/sg1")
+        svc.scan_and_select.assert_called_once_with("/dev/sg1")
 
     def test_connect_builds_capabilities(self):
         svc = MagicMock()
@@ -221,10 +215,10 @@ class TestLCDDeviceConnect:
         svc.selected = dev
 
         lcd = LCDDevice()
-        assert lcd.frame is None  # before connect
-        with patch(_GET_SVC, return_value=svc):
+        assert lcd.frame is lcd  # frame always points to self
+        with patch(_DEV_SVC, return_value=svc):
             lcd.connect()
-        assert lcd.frame is not None  # after connect
+        assert lcd.frame is lcd  # still self after connect
 
 
 # =========================================================================
@@ -580,7 +574,7 @@ class TestCLIHelpers:
         dev.path = "/dev/sg0"
         svc.selected = dev
 
-        with patch(_GET_SVC, return_value=svc), \
+        with patch(_DEV_SVC, return_value=svc), \
              patch("trcc.ipc.IPCClient.available", return_value=False):
             lcd, rc = _connect_or_fail()
 
@@ -594,7 +588,7 @@ class TestCLIHelpers:
         svc = MagicMock()
         svc.selected = None
 
-        with patch(_GET_SVC, return_value=svc), \
+        with patch(_DEV_SVC, return_value=svc), \
              patch("trcc.ipc.IPCClient.available", return_value=False):
             lcd, rc = _connect_or_fail()
 
@@ -609,10 +603,10 @@ class TestCLIHelpers:
         dev.path = "/dev/sg2"
         svc.selected = dev
 
-        with patch(_GET_SVC, return_value=svc) as mock_gs:
+        with patch(_DEV_SVC, return_value=svc):
             _connect_or_fail("/dev/sg2")
 
-        mock_gs.assert_called_once_with("/dev/sg2")
+        svc.scan_and_select.assert_called_once_with("/dev/sg2")
 
     def test_print_result_success(self, capsys):
         from trcc.cli._display import _print_result
@@ -963,7 +957,7 @@ class TestCLIVideoStatus:
 
         svc = MagicMock()
         svc.selected = MagicMock()
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             rc = video_status()
 
         assert rc == 0
@@ -974,7 +968,7 @@ class TestCLIVideoStatus:
 
         svc = MagicMock()
         svc.selected = None
-        with patch(_GET_SVC, return_value=svc):
+        with patch(_DEV_SVC, return_value=svc):
             rc = video_status()
 
         assert rc == 1

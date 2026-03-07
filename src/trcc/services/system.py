@@ -17,13 +17,22 @@ import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ..adapters.infra.data_repository import SysUtils
 from ..core.models import DATE_FORMATS, TIME_FORMATS, WEEKDAYS, HardwareMetrics
 
 if TYPE_CHECKING:
     from ..core.models import SensorInfo
 
 log = logging.getLogger(__name__)
+
+
+def _read_sysfs(path: str) -> Optional[str]:
+    """Safely read a sysfs/proc file, return stripped content or None."""
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
 
 # Module-level cache: memory clock never changes at runtime.
 # _SENTINEL distinguishes "not yet queried" from "queried, returned None".
@@ -34,10 +43,11 @@ _mem_clock_cache: object | float | None = _SENTINEL
 class SystemService:
     """Unified system monitoring: sensor discovery, metrics, panel config."""
 
-    def __init__(self) -> None:
-        from ..adapters.system.sensors import SensorEnumerator
-
-        self._enumerator = SensorEnumerator()
+    def __init__(self, enumerator: Any = None) -> None:
+        if enumerator is None:
+            from ..adapters.system.sensors import SensorEnumerator
+            enumerator = SensorEnumerator()
+        self._enumerator = enumerator
         self._discovered = False
         self._defaults: Optional[Dict[str, str]] = None
         # Cached fallback values — computed once, reused on subsequent calls
@@ -102,8 +112,9 @@ class SystemService:
         """Get legacy metric key → sensor_id mapping (cached)."""
         self._ensure_discovered()
         if self._defaults is None:
-            self._defaults = self._enumerator.map_defaults()
-        return self._defaults
+            self._defaults = self._enumerator.map_defaults() or {}
+        defaults: Dict[str, str] = self._defaults  # type: ignore[assignment]
+        return defaults
 
     def _read_metric(self, legacy_key: str) -> Optional[float]:
         """Read a single metric by legacy key via the enumerator."""
@@ -334,7 +345,7 @@ class SystemService:
             return None
         for i in range(20):
             hwmon_path = f"{hwmon_base}/hwmon{i}"
-            sensor_name = SysUtils.read_sysfs(f"{hwmon_path}/name")
+            sensor_name = _read_sysfs(f"{hwmon_path}/name")
             if sensor_name and name.lower() in sensor_name.lower():
                 return hwmon_path
         return None
@@ -360,7 +371,7 @@ class SystemService:
     def _fallback_cpu_usage() -> Optional[float]:
         """CPU usage via /proc/loadavg."""
         try:
-            loadavg = SysUtils.read_sysfs('/proc/loadavg')
+            loadavg = _read_sysfs('/proc/loadavg')
             if loadavg:
                 load = float(loadavg.split()[0])
                 return min(100.0, load * 10)
@@ -415,12 +426,13 @@ class SystemService:
         return value
 
     @staticmethod
-    def _probe_mem_clock() -> Optional[float]:
+    def _probe_mem_clock(privileged_cmd_fn: Any = None) -> Optional[float]:
         """Actually probe memory clock (called once, result cached)."""
-        from trcc.adapters.system.hardware import _privileged_cmd
+        if privileged_cmd_fn is None:
+            from trcc.adapters.system.hardware import _privileged_cmd as privileged_cmd_fn
         try:
             result = subprocess.run(
-                _privileged_cmd('dmidecode', ['-t', 'memory']),
+                privileged_cmd_fn('dmidecode', ['-t', 'memory']),
                 capture_output=True, text=True, timeout=5,
             )
             if result.returncode == 0:
@@ -453,7 +465,7 @@ class SystemService:
         if os.path.exists(mc_path):
             try:
                 for mc in os.listdir(mc_path):
-                    content = SysUtils.read_sysfs(f"{mc_path}/{mc}/dimm_info")
+                    content = _read_sysfs(f"{mc_path}/{mc}/dimm_info")
                     if content:
                         match = re.search(r'(\d+)\s*MHz', content)
                         if match:

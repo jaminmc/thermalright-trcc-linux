@@ -9,67 +9,22 @@ from trcc.cli import _cli_handler
 def _get_service(device_path: Optional[str] = None):
     """Create a DeviceService, detect devices, select, and handshake.
 
-    Args:
-        device_path: SCSI path (/dev/sgX) or None to use saved selection.
-
-    Returns:
-        DeviceService with a selected device (resolution discovered).
+    Thin wrapper — delegates to DeviceService.scan_and_select().
     """
     from trcc.services import DeviceService
 
     svc = DeviceService()
-    svc.detect()
-
-    if device_path:
-        # Select by explicit path
-        match = next((d for d in svc.devices if d.path == device_path), None)
-        if match:
-            svc.select(match)
-        elif svc.devices:
-            svc.select(svc.devices[0])
-    elif not svc.selected:
-        # Fall back to saved selection, then first device
-        from trcc.conf import Settings
-        saved = Settings.get_selected_device()
-        matched = False
-        if saved:
-            match = next((d for d in svc.devices if d.path == saved), None)
-            if match:
-                svc.select(match)
-                matched = True
-        if not matched and svc.devices:
-            svc.select(svc.devices[0])
-
-    # Discover resolution + FBL via handshake if not yet known
-    dev = svc.selected
-    if dev:
-        discover_resolution(dev)
-
+    svc.scan_and_select(device_path)
     return svc
 
 
 def discover_resolution(dev) -> None:
-    """Run protocol handshake to discover resolution + FBL if still unknown.
+    """Run protocol handshake to discover resolution + FBL.
 
-    Mutates dev in-place: sets resolution, fbl_code, use_jpeg.
-    Safe to call multiple times — no-op if resolution already known.
+    Thin wrapper — delegates to DeviceService._discover_resolution().
     """
-    if dev.resolution != (0, 0):
-        return
-    try:
-        from trcc.adapters.device.factory import DeviceProtocolFactory
-        protocol = DeviceProtocolFactory.get_protocol(dev)
-        result = protocol.handshake()
-        if result:
-            res = getattr(result, 'resolution', None)
-            if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
-                dev.resolution = res
-            # Propagate FBL code — use_jpeg is computed from protocol + fbl
-            fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
-            if fbl:
-                dev.fbl_code = fbl
-    except Exception:
-        pass  # Handshake may fail if device not ready
+    from trcc.services import DeviceService
+    DeviceService()._discover_resolution(dev)
 
 
 def _ensure_extracted(driver):

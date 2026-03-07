@@ -1,4 +1,4 @@
-"""Tests for VideoFrameCache — pre-baked video frame encoding."""
+"""Tests for VideoFrameCache — lazy per-frame encoding (C#-matching)."""
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -35,7 +35,7 @@ def _make_overlay_svc(w: int = 32, h: int = 32):
 class TestBuild:
     """Test full cache build at video load."""
 
-    def test_build_creates_encoded_frames(self):
+    def test_build_creates_active_cache(self):
         frames = _make_frames(5, 32, 32)
         cache = VideoFrameCache()
         cache.build(
@@ -46,9 +46,11 @@ class TestBuild:
             fbl=None, use_jpeg=False,
         )
         assert cache.active
-        assert len(cache._encoded_frames) == 5
+        # Lazy encoding: get_encoded produces correct bytes on access
+        data = cache.get_encoded(0)
+        assert isinstance(data, bytes)
         # RGB565: 32*32*2 = 2048 bytes per frame
-        assert all(len(f) == 2048 for f in cache._encoded_frames)
+        assert len(data) == 2048
 
     def test_build_with_mask_composites(self):
         frames = _make_frames(3, 32, 32)
@@ -146,12 +148,42 @@ class TestAccess:
         cache = VideoFrameCache()
         assert cache.get_preview(0) is None
 
+    def test_cache_hit_same_frame(self):
+        """Accessing same frame twice reuses cached encoding."""
+        frames = _make_frames(3, 32, 32)
+        cache = VideoFrameCache()
+        cache.build(
+            frames=frames, mask=None, mask_position=(0, 0),
+            overlay_svc=None, metrics=HardwareMetrics(),
+            brightness=100, rotation=0,
+            protocol='scsi', resolution=(32, 32),
+            fbl=None, use_jpeg=False,
+        )
+        data1 = cache.get_encoded(1)
+        data2 = cache.get_encoded(1)
+        assert data1 is data2  # Same object, not re-encoded
+
+    def test_different_frames_different_data(self):
+        """Different frame indices produce different encoded data."""
+        frames = _make_frames(3, 32, 32)
+        cache = VideoFrameCache()
+        cache.build(
+            frames=frames, mask=None, mask_position=(0, 0),
+            overlay_svc=None, metrics=HardwareMetrics(),
+            brightness=100, rotation=0,
+            protocol='scsi', resolution=(32, 32),
+            fbl=None, use_jpeg=False,
+        )
+        data0 = cache.get_encoded(0)
+        data1 = cache.get_encoded(1)
+        # Frames have different colors, so encodings should differ
+        assert data0 != data1
+
 
 class TestRebuild:
     """Test partial cache rebuilds."""
 
     def test_rebuild_from_brightness(self):
-        # Use bright white frames so brightness change is visible in encoding
         frames = [make_test_surface(32, 32, (255, 255, 255)) for _ in range(3)]
         cache = VideoFrameCache()
         cache.build(
@@ -161,12 +193,12 @@ class TestRebuild:
             protocol='scsi', resolution=(32, 32),
             fbl=None, use_jpeg=False,
         )
-        original_encoded = cache._encoded_frames[0]
+        original_encoded = cache.get_encoded(0)
 
         cache.rebuild_from_brightness(50)
         assert cache._brightness == 50
-        # Encoded data should differ (brightness applied)
-        assert cache._encoded_frames[0] != original_encoded
+        # Next access should re-encode with new brightness
+        assert cache.get_encoded(0) != original_encoded
 
     def test_brightness_100_keeps_encoding(self):
         """Full brightness produces same encoding as original build."""
@@ -179,11 +211,11 @@ class TestRebuild:
             protocol='scsi', resolution=(32, 32),
             fbl=None, use_jpeg=False,
         )
-        original_encoded = cache._encoded_frames[0]
+        original_encoded = cache.get_encoded(0)
 
         # Rebuild at same brightness — encoding should not change
         cache.rebuild_from_brightness(100)
-        assert cache._encoded_frames[0] == original_encoded
+        assert cache.get_encoded(0) == original_encoded
 
     def test_brightness_50_changes_encoding(self):
         """50% brightness produces different encoding than 100%."""
@@ -196,18 +228,15 @@ class TestRebuild:
             protocol='scsi', resolution=(32, 32),
             fbl=None, use_jpeg=False,
         )
-        original_encoded = cache._encoded_frames[0]
+        original_encoded = cache.get_encoded(0)
 
         cache.rebuild_from_brightness(50)
-        assert cache._encoded_frames[0] != original_encoded
+        assert cache.get_encoded(0) != original_encoded
 
     def test_rebuild_from_rotation(self):
-        # Use non-uniform frames: different colors in each quadrant
-        # so rotation produces different byte patterns
         from trcc.services.image import ImageService
         r = ImageService._r()
         base = r.create_surface(32, 32, (0, 0, 0))
-        # Paint top-left quadrant red so rotation changes pixel layout
         red_quad = r.create_surface(16, 16, (255, 0, 0))
         base = r.composite(base, red_quad, (0, 0))
         frames = [r.copy_surface(base) for _ in range(3)]
@@ -219,11 +248,11 @@ class TestRebuild:
             protocol='scsi', resolution=(32, 32),
             fbl=None, use_jpeg=False,
         )
-        original_encoded = cache._encoded_frames[0]
+        original_encoded = cache.get_encoded(0)
 
         cache.rebuild_from_rotation(90)
         assert cache._rotation == 90
-        assert cache._encoded_frames[0] != original_encoded
+        assert cache.get_encoded(0) != original_encoded
 
     def test_rebuild_from_metrics(self):
         frames = _make_frames(3, 32, 32)
@@ -241,13 +270,13 @@ class TestRebuild:
         new_text = make_test_surface(32, 32, (255, 0, 0, 128))
         overlay_svc.render_text_only.return_value = (new_text, ('key', 2))
 
-        original_encoded = cache._encoded_frames[0]
+        original_encoded = cache.get_encoded(0)
         cache.rebuild_from_metrics(overlay_svc, HardwareMetrics())
-        # New cache key should have triggered rebuild
-        assert cache._encoded_frames[0] != original_encoded
+        # New cache key should produce different encoding on next access
+        assert cache.get_encoded(0) != original_encoded
 
     def test_rebuild_from_metrics_same_key_skips(self):
-        """When text cache key hasn't changed, skip L4 rebuild."""
+        """When text cache key hasn't changed, encoding stays the same."""
         frames = _make_frames(3, 32, 32)
         overlay_svc = _make_overlay_svc(32, 32)
         cache = VideoFrameCache()
@@ -259,10 +288,10 @@ class TestRebuild:
             fbl=None, use_jpeg=False,
         )
 
-        # Same key returned — should not rebuild L4
-        original_encoded = list(cache._encoded_frames)
+        # Same key returned — encoding should be identical
+        original_encoded = cache.get_encoded(0)
         cache.rebuild_from_metrics(overlay_svc, HardwareMetrics())
-        assert cache._encoded_frames == original_encoded
+        assert cache.get_encoded(0) == original_encoded
 
 
 class TestInactiveCache:

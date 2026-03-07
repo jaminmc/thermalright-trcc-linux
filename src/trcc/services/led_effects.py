@@ -151,7 +151,7 @@ class LEDEffectEngine:
 
     def _tick_rainbow_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """CHMS_Timer: 768-entry RGB table with per-segment offset."""
-        from ..adapters.device.led import ColorEngine
+        from ..core.color import ColorEngine
         table = ColorEngine.get_table()
         timer = self._state.rgb_timer
         table_len = len(table)
@@ -167,7 +167,7 @@ class LEDEffectEngine:
 
     def _tick_temp_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """WDLD_Timer: color from temperature thresholds."""
-        from ..adapters.device.led import ColorEngine
+        from ..core.color import ColorEngine
 
         source = self._state.temp_source
         temp = getattr(self._metrics, f"{source}_temp", 0)
@@ -176,7 +176,7 @@ class LEDEffectEngine:
 
     def _tick_load_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
         """FZLD_Timer: color from CPU/GPU load thresholds."""
-        from ..adapters.device.led import ColorEngine
+        from ..core.color import ColorEngine
 
         source = self._state.load_source
         load = self._metrics.cpu_percent if source == "cpu" else self._metrics.gpu_usage

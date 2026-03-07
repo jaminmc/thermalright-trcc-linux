@@ -562,7 +562,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir", return_value=td), \
+             patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
              patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
@@ -597,7 +597,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir", return_value=td), \
+             patch("trcc.core.models.ThemeDir", return_value=td), \
              patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
             rc = save_theme("MyTheme")
         assert rc == 1
@@ -614,7 +614,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir", return_value=td), \
+             patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
              patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
@@ -632,7 +632,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir", return_value=td), \
+             patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
              patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
@@ -652,7 +652,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir", return_value=td), \
+             patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
              patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):

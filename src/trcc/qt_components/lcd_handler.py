@@ -48,10 +48,12 @@ class LCDHandler:
         widgets: dict[str, Any],
         make_timer: Any,
         data_dir: Path,
+        is_visible_fn: Any = None,
     ) -> None:
         self._lcd = lcd
         self._w = widgets  # preview, theme_setting, theme_local, etc.
         self._data_dir = data_dir
+        self._is_visible = is_visible_fn or (lambda: True)
 
         # Per-device state
         self._device_key = ''
@@ -392,9 +394,12 @@ class LCDHandler:
         result = self._lcd.video.tick()
         if not result:
             return
-        preview = result.get('preview')
-        if preview is not None:
-            self._w['preview'].set_image(preview, fast=True)
+
+        # Skip preview update when window is minimized
+        if self._is_visible():
+            preview = result.get('preview')
+            if preview is not None:
+                self._w['preview'].set_image(preview, fast=True)
 
         # Pre-encoded path
         encoded = result.get('encoded')
@@ -550,7 +555,8 @@ class LCDHandler:
         image = result.get('image')
         if not image or not self._lcd.auto_send:
             return
-        self._w['preview'].set_image(image)
+        if self._is_visible():
+            self._w['preview'].set_image(image)
         if skip_if_video and self._lcd.video.playing:
             return
         self._lcd.frame.send(image)

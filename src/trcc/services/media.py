@@ -20,7 +20,10 @@ class MediaService:
     # LCD send interval: send every Nth frame.
     LCD_SEND_INTERVAL = 1
 
-    def __init__(self) -> None:
+    def __init__(self, video_decoder_cls: Any = None,
+                 zt_decoder_cls: Any = None) -> None:
+        self._video_decoder_cls = video_decoder_cls
+        self._zt_decoder_cls = zt_decoder_cls
         self._state = VideoState()
         self._frames: list[Any] = []
         self._delays: list[int] = []  # Per-frame delays (ms), for .zt files
@@ -30,6 +33,14 @@ class MediaService:
         self._decoder: Any = None
         self._frame_counter = 0
         self._progress_counter = 0
+
+    def _get_decoders(self) -> tuple[Any, Any]:
+        """Return (VideoDecoder, ThemeZtDecoder) classes, lazily importing defaults."""
+        if self._video_decoder_cls and self._zt_decoder_cls:
+            return self._video_decoder_cls, self._zt_decoder_cls
+        from ..adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
+        return (self._video_decoder_cls or VideoDecoder,
+                self._zt_decoder_cls or ThemeZtDecoder)
 
     # ── Target size ──────────────────────────────────────────────────
 
@@ -75,7 +86,7 @@ class MediaService:
         self._delays.clear()
 
         try:
-            from ..adapters.infra.media_player import ThemeZtDecoder, VideoDecoder
+            VideoDecoder, ThemeZtDecoder = self._get_decoders()
 
             suffix = path.suffix.lower()
             if suffix == '.zt':

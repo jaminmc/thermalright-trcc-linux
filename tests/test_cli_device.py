@@ -58,115 +58,105 @@ def _make_mock_service(devices=None, selected=None) -> MagicMock:
 # =============================================================================
 
 class TestGetService:
-    """_get_service() — DeviceService creation with path/saved/fallback selection."""
+    """_get_service() — thin wrapper around DeviceService.scan_and_select()."""
 
-    def test_explicit_path_match_selects_device(self):
-        """When device_path matches a device, that device is selected."""
-        dev = _make_detected_device(path="/dev/sg1", scsi_device="/dev/sg1")
-        svc = _make_mock_service(devices=[dev], selected=None)
-
-        def _select_side_effect(d):
-            svc.selected = d
-
-        svc.select.side_effect = _select_side_effect
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
-             patch("trcc.cli._device.discover_resolution"):
+    def test_delegates_to_scan_and_select(self):
+        svc = _make_mock_service()
+        with patch("trcc.services.DeviceService", return_value=svc):
             result = _get_service(device_path="/dev/sg1")
-
-        svc.detect.assert_called_once()
-        svc.select.assert_called_once_with(dev)
+        svc.scan_and_select.assert_called_once_with("/dev/sg1")
         assert result is svc
 
-    def test_explicit_path_no_match_falls_back_to_first(self):
-        """When device_path doesn't match, the first device is selected."""
+    def test_no_path_passes_none(self):
+        svc = _make_mock_service()
+        with patch("trcc.services.DeviceService", return_value=svc):
+            _get_service()
+        svc.scan_and_select.assert_called_once_with(None)
+
+
+class TestScanAndSelect:
+    """DeviceService.scan_and_select() — selection logic (moved from CLI)."""
+
+    def _make_svc(self, devices):
+        from trcc.services import DeviceService
+        svc = DeviceService()
+        svc._devices = devices
+        return svc
+
+    def test_explicit_path_match(self):
+        dev = _make_detected_device(path="/dev/sg1")
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select("/dev/sg1")
+        assert svc.selected is dev
+
+    def test_explicit_path_no_match_falls_back(self):
         dev = _make_detected_device(path="/dev/sg0")
-        svc = _make_mock_service(devices=[dev], selected=None)
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select("/dev/sg99")
+        assert svc.selected is dev
 
-        with patch("trcc.services.DeviceService", return_value=svc), \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service(device_path="/dev/sg99")
+    def test_explicit_path_no_devices(self):
+        svc = self._make_svc([])
+        with patch.object(svc, 'detect'), \
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select("/dev/sg0")
+        assert svc.selected is None
 
-        svc.select.assert_called_once_with(dev)
-
-    def test_explicit_path_no_match_no_devices_does_not_select(self):
-        """When device_path doesn't match and no devices, select is never called."""
-        svc = _make_mock_service(devices=[], selected=None)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service(device_path="/dev/sg0")
-
-        svc.select.assert_not_called()
-
-    def test_no_path_uses_saved_selection(self):
-        """When no device_path, saved device path is used to find and select the device."""
+    def test_no_path_uses_saved(self):
         dev = _make_detected_device(path="/dev/sg2")
-        svc = _make_mock_service(devices=[dev], selected=None)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
              patch("trcc.conf.Settings.get_selected_device", return_value="/dev/sg2"), \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service()
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select()
+        assert svc.selected is dev
 
-        svc.select.assert_called_once_with(dev)
-
-    def test_no_path_saved_device_not_in_list(self):
-        """Saved device path not found — falls back to first device."""
+    def test_no_path_saved_not_found(self):
         dev = _make_detected_device(path="/dev/sg0")
-        svc = _make_mock_service(devices=[dev], selected=None)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
              patch("trcc.conf.Settings.get_selected_device", return_value="/dev/sg99"), \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service()
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select()
+        assert svc.selected is dev
 
-        svc.select.assert_called_once_with(dev)
-
-    def test_no_path_no_saved_device_selects_first(self):
-        """No path, no saved device — selects first device."""
+    def test_no_path_no_saved_selects_first(self):
         dev = _make_detected_device()
-        svc = _make_mock_service(devices=[dev], selected=None)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
              patch("trcc.conf.Settings.get_selected_device", return_value=None), \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service()
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select()
+        assert svc.selected is dev
 
-        svc.select.assert_called_once_with(dev)
-
-    def test_already_selected_skips_saved_lookup(self):
-        """When svc.selected is already set, saved-device lookup is skipped."""
+    def test_already_selected_skips_saved(self):
         dev = _make_detected_device()
-        svc = _make_mock_service(devices=[dev], selected=dev)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
+        svc = self._make_svc([dev])
+        svc._selected = dev
+        with patch.object(svc, 'detect'), \
              patch("trcc.conf.Settings.get_selected_device") as mock_get, \
-             patch("trcc.cli._device.discover_resolution"):
-            _get_service()
-
+             patch.object(svc, '_discover_resolution'):
+            svc.scan_and_select()
         mock_get.assert_not_called()
 
-    def test_discover_resolution_called_when_device_selected(self):
-        """discover_resolution is called on the selected device."""
-        dev = _make_detected_device(path="/dev/sg0")
-        svc = _make_mock_service(devices=[dev], selected=dev)
+    def test_discover_called_when_selected(self):
+        dev = _make_detected_device()
+        svc = self._make_svc([dev])
+        with patch.object(svc, 'detect'), \
+             patch.object(svc, '_discover_resolution') as mock_disc:
+            svc.scan_and_select()
+        mock_disc.assert_called_once_with(dev)
 
-        with patch("trcc.services.DeviceService", return_value=svc), \
-             patch("trcc.cli._device.discover_resolution") as mock_discover:
-            _get_service()
-
-        mock_discover.assert_called_once_with(dev)
-
-    def test_discover_resolution_not_called_when_no_device(self):
-        """discover_resolution is not called when no device is selected."""
-        svc = _make_mock_service(devices=[], selected=None)
-
-        with patch("trcc.services.DeviceService", return_value=svc), \
-             patch("trcc.cli._device.discover_resolution") as mock_discover:
-            _get_service()
-
-        mock_discover.assert_not_called()
+    def test_discover_not_called_when_empty(self):
+        svc = self._make_svc([])
+        with patch.object(svc, 'detect'), \
+             patch.object(svc, '_discover_resolution') as mock_disc:
+            svc.scan_and_select()
+        mock_disc.assert_not_called()
 
 
 # =============================================================================

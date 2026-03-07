@@ -250,7 +250,7 @@ class TestLEDServiceStateMutations:
 class TestLEDServiceConfigureForStyle:
     """Test configure_for_style() sets LED/segment counts from registry."""
 
-    @patch("trcc.adapters.device.led.LED_STYLES", {
+    @patch("trcc.core.models.LED_STYLES", {
         1: MagicMock(style_id=1, led_count=30, segment_count=10, zone_count=1),
         2: MagicMock(style_id=2, led_count=84, segment_count=18, zone_count=4),
     })
@@ -263,7 +263,7 @@ class TestLEDServiceConfigureForStyle:
         assert len(led_svc.state.segment_on) == 10
         assert led_svc.state.zones == []
 
-    @patch("trcc.adapters.device.led.LED_STYLES", {
+    @patch("trcc.core.models.LED_STYLES", {
         2: MagicMock(style_id=2, led_count=84, segment_count=18, zone_count=4),
     })
     def test_configure_multi_zone_style(self, led_svc):
@@ -271,7 +271,7 @@ class TestLEDServiceConfigureForStyle:
         assert led_svc.state.zone_count == 4
         assert len(led_svc.state.zones) == 4
 
-    @patch("trcc.adapters.device.led.LED_STYLES", {})
+    @patch("trcc.core.models.LED_STYLES", {})
     def test_configure_unknown_style(self, led_svc):
         """Unknown style_id does nothing (LED_STYLES.get returns None)."""
         original_count = led_svc.state.segment_count

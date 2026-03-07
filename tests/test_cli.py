@@ -220,11 +220,16 @@ class TestSendColor(unittest.TestCase):
 
     def test_valid_hex_with_hash(self):
         """Hex with leading '#' is stripped."""
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc):
+        mock_lcd = MagicMock()
+        mock_lcd.frame = mock_lcd
+        mock_lcd.send_color.return_value = {
+            "success": True, "image": MagicMock(),
+            "message": "Sent color #ff0000"}
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(mock_lcd, 0)):
             result = send_color('#ff0000')
         self.assertEqual(result, 0)
-        svc.send_pil.assert_called_once()
+        mock_lcd.send_color.assert_called_once_with(255, 0, 0)
 
 
 class TestShowInfo(unittest.TestCase):
@@ -361,19 +366,22 @@ class TestSendImage(unittest.TestCase):
         self.assertEqual(result, 1)
 
     def test_send_success(self):
-        svc = _mock_service()
+        mock_lcd = MagicMock()
+        mock_lcd.frame = mock_lcd
+        mock_lcd.send_image.return_value = {
+            "success": True, "image": MagicMock(), "message": "Sent image"}
         with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
-            # Create a tiny valid PNG
             from PIL import Image
             img = Image.new('RGB', (10, 10), (255, 0, 0))
             img.save(f, format='PNG')
             tmp_path = f.name
 
         try:
-            with patch('trcc.cli._device._get_service', return_value=svc):
+            with patch('trcc.cli._display._connect_or_fail',
+                       return_value=(mock_lcd, 0)):
                 result = send_image(tmp_path)
             self.assertEqual(result, 0)
-            svc.send_pil.assert_called_once()
+            mock_lcd.send_image.assert_called_once_with(tmp_path)
         finally:
             os.unlink(tmp_path)
 
@@ -490,15 +498,19 @@ class TestResetDevice(unittest.TestCase):
     """Test reset_device() command."""
 
     def test_reset_success(self):
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc):
+        mock_lcd = MagicMock()
+        mock_lcd.frame = mock_lcd
+        mock_lcd.reset.return_value = {
+            "success": True, "image": MagicMock(), "message": "Device reset"}
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(mock_lcd, 0)):
             result = reset_device()
         self.assertEqual(result, 0)
-        svc.send_pil.assert_called_once()
+        mock_lcd.reset.assert_called_once()
 
     def test_reset_error(self):
-        with patch('trcc.cli._device._get_service',
-                          side_effect=RuntimeError('fail')):
+        with patch('trcc.cli._display._connect_or_fail',
+                   side_effect=RuntimeError('fail')):
             result = reset_device()
         self.assertEqual(result, 1)
 
@@ -777,8 +789,8 @@ class TestSendImageEdge(unittest.TestCase):
 class TestSendColorEdge(unittest.TestCase):
 
     def test_exception_returns_1(self):
-        with patch('trcc.cli._device._get_service',
-                          side_effect=RuntimeError("fail")):
+        with patch('trcc.cli._display._connect_or_fail',
+                   side_effect=RuntimeError("fail")):
             result = send_color('ff0000')
         self.assertEqual(result, 1)
 
@@ -1533,91 +1545,31 @@ class TestReport(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestGetService(unittest.TestCase):
-    """Tests for _get_service() helper."""
+    """Tests for _get_service() — thin wrapper over DeviceService.scan_and_select().
 
-    def test_selects_by_path(self):
-        """Explicit device_path selects matching device."""
-        dev = _make_device_info(path='/dev/sg1')
+    Detailed selection/handshake logic is tested in test_cli_device.py::TestScanAndSelect.
+    """
+
+    def test_delegates_with_path(self):
+        """Explicit device_path passed to scan_and_select."""
         svc = MagicMock()
-        svc.devices = [dev]
-        svc.selected = None
-        svc.detect.return_value = [dev]
         with patch('trcc.services.DeviceService', return_value=svc):
             _get_service(device_path='/dev/sg1')
-        svc.select.assert_called_once_with(dev)
+        svc.scan_and_select.assert_called_once_with('/dev/sg1')
 
-    def test_falls_back_to_saved(self):
-        """No explicit path -> uses saved selection."""
-        dev = _make_device_info(path='/dev/sg0')
+    def test_delegates_without_path(self):
+        """No path -> scan_and_select(None)."""
         svc = MagicMock()
-        svc.devices = [dev]
-        svc.selected = None
-        svc.detect.return_value = [dev]
-        with patch('trcc.services.DeviceService', return_value=svc), \
-             patch('trcc.conf.Settings.get_selected_device', return_value='/dev/sg0'):
-            _get_service()
-        svc.select.assert_called_once_with(dev)
-
-    def test_no_match_selects_first(self):
-        """Explicit path not found -> selects first device."""
-        dev = _make_device_info(path='/dev/sg0')
-        svc = MagicMock()
-        svc.devices = [dev]
-        svc.selected = None
-        svc.detect.return_value = [dev]
         with patch('trcc.services.DeviceService', return_value=svc):
-            _get_service(device_path='/dev/sg99')
-        svc.select.assert_called_once_with(dev)
-
-    def test_handshake_sets_fbl_code_hid(self):
-        """HID handshake propagates fbl_code to device."""
-        dev = _make_device_info(
-            path='hid:0416:5302', protocol='hid', resolution=(0, 0),
-            device_type=2, implementation='hid_type2',
-        )
-        svc = MagicMock()
-        svc.devices = [dev]
-        svc.selected = dev
-        svc.detect.return_value = [dev]
-
-        mock_result = MagicMock()
-        mock_result.resolution = (1280, 480)
-        mock_result.fbl = 128
-        mock_result.model_id = 128
-
-        mock_protocol = MagicMock()
-        mock_protocol.handshake.return_value = mock_result
-
-        with patch('trcc.services.DeviceService', return_value=svc), \
-             patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
-                   return_value=mock_protocol):
             _get_service()
+        svc.scan_and_select.assert_called_once_with(None)
 
-        self.assertEqual(dev.resolution, (1280, 480))
-        self.assertEqual(dev.fbl_code, 128)
-
-    def test_handshake_sets_fbl_code_scsi(self):
-        """SCSI handshake propagates model_id as fbl_code."""
-        dev = _make_device_info(path='/dev/sg0', resolution=(0, 0))
+    def test_returns_service(self):
+        """Returns the DeviceService instance."""
         svc = MagicMock()
-        svc.devices = [dev]
-        svc.selected = dev
-        svc.detect.return_value = [dev]
-
-        mock_result = MagicMock(spec=[])  # no .fbl attribute
-        mock_result.resolution = (320, 240)
-        mock_result.model_id = 50
-
-        mock_protocol = MagicMock()
-        mock_protocol.handshake.return_value = mock_result
-
-        with patch('trcc.services.DeviceService', return_value=svc), \
-             patch('trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol',
-                   return_value=mock_protocol):
-            _get_service()
-
-        self.assertEqual(dev.resolution, (320, 240))
-        self.assertEqual(dev.fbl_code, 50)
+        with patch('trcc.services.DeviceService', return_value=svc):
+            result = _get_service()
+        self.assertIs(result, svc)
 
 
 # ---------------------------------------------------------------------------
@@ -1720,20 +1672,21 @@ class TestSetBrightness(unittest.TestCase):
 
     def test_no_device(self):
         """No device returns 1."""
-        svc = _mock_service()
-        svc.selected = None
-        with patch('trcc.cli._device._get_service', return_value=svc):
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(MagicMock(), 1)):
             self.assertEqual(_display.set_brightness(2), 1)
 
     def test_success(self):
         """Valid level persists to config."""
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('trcc.conf.Settings.device_config_key', return_value='0:87cd_70db'), \
-             patch('trcc.conf.Settings.save_device_setting') as mock_save:
+        mock_lcd = MagicMock()
+        mock_lcd.settings = mock_lcd
+        mock_lcd.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 50%"}
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(mock_lcd, 0)):
             result = _display.set_brightness(2)
             self.assertEqual(result, 0)
-            mock_save.assert_called_once_with('0:87cd_70db', 'brightness_level', 2)
+            mock_lcd.set_brightness.assert_called_once_with(2)
 
 
 class TestSetRotation(unittest.TestCase):
@@ -1746,20 +1699,21 @@ class TestSetRotation(unittest.TestCase):
 
     def test_no_device(self):
         """No device returns 1."""
-        svc = _mock_service()
-        svc.selected = None
-        with patch('trcc.cli._device._get_service', return_value=svc):
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(MagicMock(), 1)):
             self.assertEqual(_display.set_rotation(90), 1)
 
     def test_success(self):
         """Valid rotation persists to config."""
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('trcc.conf.Settings.device_config_key', return_value='0:87cd_70db'), \
-             patch('trcc.conf.Settings.save_device_setting') as mock_save:
+        mock_lcd = MagicMock()
+        mock_lcd.settings = mock_lcd
+        mock_lcd.set_rotation.return_value = {
+            "success": True, "message": "Rotation set to 180°"}
+        with patch('trcc.cli._display._connect_or_fail',
+                   return_value=(mock_lcd, 0)):
             result = _display.set_rotation(180)
             self.assertEqual(result, 0)
-            mock_save.assert_called_once_with('0:87cd_70db', 'rotation', 180)
+            mock_lcd.set_rotation.assert_called_once_with(180)
 
 
 # ---------------------------------------------------------------------------
@@ -1801,10 +1755,9 @@ class TestLoadMask(unittest.TestCase):
 
     def test_no_device(self):
         """No device returns 1."""
-        svc = _mock_service()
-        svc.selected = None
         with patch('os.path.exists', return_value=True), \
-             patch('trcc.cli._device._get_service', return_value=svc):
+             patch('trcc.cli._display._connect_or_fail',
+                   return_value=(MagicMock(), 1)):
             self.assertEqual(_display.load_mask('/tmp/mask.png'), 1)
 
     def test_success_file(self):

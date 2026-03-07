@@ -28,44 +28,15 @@ import logging
 import os
 import re
 import subprocess
-from dataclasses import dataclass
 from typing import List, Optional
 
 from trcc.adapters.infra.data_repository import SysUtils
+from trcc.core.models import (
+    DetectedDevice,  # noqa: F401 — re-export
+    DeviceEntry,  # noqa: F401 — re-export
+)
 
 log = logging.getLogger(__name__)
-
-
-# =========================================================================
-# Data classes
-# =========================================================================
-
-@dataclass
-class DeviceEntry:
-    """Registry entry describing a known USB device's capabilities."""
-    vendor: str
-    product: str
-    implementation: str
-    model: str = "CZTV"
-    button_image: str = "A1CZTV"
-    protocol: str = "scsi"
-    device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Raw USB Bulk
-
-
-@dataclass
-class DetectedDevice:
-    """Detected USB/SCSI device"""
-    vid: int  # Vendor ID
-    pid: int  # Product ID
-    vendor_name: str
-    product_name: str
-    usb_path: str  # e.g., "2-1.4"
-    scsi_device: Optional[str] = None  # e.g., "/dev/sg0"
-    implementation: str = "generic"  # Device-specific implementation
-    model: str = "CZTV"  # Device model for button image lookup
-    button_image: str = "A1CZTV"  # Button image prefix (without .png)
-    protocol: str = "scsi"  # "scsi" or "hid"
-    device_type: int = 1  # 1=SCSI, 2=HID Type 2 ("H"), 3=HID Type 3 ("ALi")
 
 
 # =========================================================================

@@ -33,13 +33,9 @@ from pathlib import Path
 from typing import Optional
 
 from .__version__ import __version__
-from .adapters.infra.data_repository import (
-    USER_CONFIG_DIR,
-    USER_DATA_DIR,
-    DataManager,
-    ThemeDir,
-)
+from .adapters.infra.data_repository import DataManager, ThemeDir
 from .core.models import LOCALE_TO_LANG
+from .core.paths import USER_CONFIG_DIR, USER_DATA_DIR
 
 log = logging.getLogger(__name__)
 

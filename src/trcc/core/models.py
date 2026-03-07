@@ -3,13 +3,13 @@ TRCC Models - Pure data classes with no GUI dependencies.
 
 These models can be used by any GUI framework (Tkinter, PyQt6, etc.)
 """
+from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum, auto
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
-
-from ..adapters.infra.data_repository import ThemeDir
 
 # =============================================================================
 # Temperature conversion — single source of truth
@@ -91,6 +91,101 @@ class ThemeData:
     mask: Any = None                     # PIL Image
     mask_position: Optional[Tuple[int, int]] = None
     mask_source_dir: Optional[Path] = None
+
+
+class ThemeDir:
+    """Standard theme directory layout — domain value object.
+
+    Encapsulates theme file naming conventions and path properties.
+    Pure domain knowledge — no infrastructure deps.
+
+    Usage::
+
+        td = ThemeDir(some_path)
+        td.bg.exists()       # 00.png
+        td.mask.exists()     # 01.png
+        td.dc.exists()       # config1.dc
+    """
+
+    __slots__ = ('path',)
+
+    def __init__(self, path: str | os.PathLike):
+        self.path = Path(path)
+
+    @property
+    def bg(self) -> Path:
+        """Background image (00.png)."""
+        return self.path / '00.png'
+
+    @property
+    def mask(self) -> Path:
+        """Mask overlay image (01.png)."""
+        return self.path / '01.png'
+
+    @property
+    def preview(self) -> Path:
+        """Thumbnail preview (Theme.png)."""
+        return self.path / 'Theme.png'
+
+    @property
+    def dc(self) -> Path:
+        """Binary overlay config (config1.dc)."""
+        return self.path / 'config1.dc'
+
+    @property
+    def json(self) -> Path:
+        """JSON config for custom themes (config.json)."""
+        return self.path / 'config.json'
+
+    @property
+    def zt(self) -> Path:
+        """Theme.zt animation file."""
+        return self.path / 'Theme.zt'
+
+    def is_valid(self) -> bool:
+        """Check if directory contains valid theme files."""
+        return self.preview.exists() or self.dc.exists() or self.bg.exists()
+
+    def exists(self) -> bool:
+        """Check if directory exists."""
+        return self.path.exists()
+
+    def __truediv__(self, other: str) -> Path:
+        """Allow ThemeDir / 'subpath' to return a Path."""
+        return self.path / other
+
+    def __str__(self) -> str:
+        return str(self.path)
+
+    @staticmethod
+    def has_themes(theme_dir: str) -> bool:
+        """Check if a Theme* directory has actual theme subfolders with image content."""
+        if not os.path.isdir(theme_dir):
+            return False
+        for item in os.listdir(theme_dir):
+            item_path = os.path.join(theme_dir, item)
+            if (os.path.isdir(item_path)
+                    and not item.startswith('.')
+                    and not item.startswith('Custom_')):
+                if any(f.endswith('.png') for f in os.listdir(item_path)):
+                    return True
+        return False
+
+    @classmethod
+    def for_resolution(cls, width: int, height: int) -> 'ThemeDir':
+        """Resolve the best theme directory for a resolution.
+
+        Lazy-imports infrastructure constants from data_repository.
+        """
+        from ..adapters.infra.data_repository import DATA_DIR, USER_DATA_DIR
+        name = f'theme{width}{height}'
+        user_dir = os.path.join(USER_DATA_DIR, name)
+        if cls.has_themes(user_dir):
+            return cls(user_dir)
+        pkg_dir = os.path.join(DATA_DIR, name)
+        if cls.has_themes(pkg_dir):
+            return cls(pkg_dir)
+        return cls(user_dir)
 
 
 class ThemeType(Enum):
@@ -179,6 +274,34 @@ class ThemeInfo:
 
 
 @dataclass
+class DeviceEntry:
+    """Registry entry describing a known USB device's capabilities."""
+    vendor: str
+    product: str
+    implementation: str
+    model: str = "CZTV"
+    button_image: str = "A1CZTV"
+    protocol: str = "scsi"
+    device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Raw USB Bulk
+
+
+@dataclass
+class DetectedDevice:
+    """Detected USB/SCSI device."""
+    vid: int  # Vendor ID
+    pid: int  # Product ID
+    vendor_name: str
+    product_name: str
+    usb_path: str  # e.g., "2-1.4"
+    scsi_device: Optional[str] = None  # e.g., "/dev/sg0"
+    implementation: str = "generic"  # Device-specific implementation
+    model: str = "CZTV"  # Device model for button image lookup
+    button_image: str = "A1CZTV"  # Button image prefix (without .png)
+    protocol: str = "scsi"  # "scsi" or "hid"
+    device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Bulk, 5=LY
+
+
+@dataclass
 class DeviceInfo:
     """
     Information about a connected LCD device.
@@ -232,30 +355,31 @@ class DeviceInfo:
         return f"{self.resolution[0]}x{self.resolution[1]}"
 
     @property
+    def profile(self) -> 'DeviceProfile':
+        """Device profile derived from FBL code."""
+        return get_profile(self.fbl_code) if self.fbl_code is not None else _DEFAULT_PROFILE
+
+    @property
     def use_jpeg(self) -> bool:
         """Whether this device uses JPEG encoding.
 
-        Computed from protocol + fbl_code — no mutable state, no propagation.
-        C# FormCZTVInit: bulk PM=32 (FBL=100) → myDeviceMode=4 (RGB565).
-        All other bulk PMs → myDeviceMode=2 (JPEG).
-        LY devices always JPEG.  SCSI/HID default RGB565.
+        Bulk/LY: JPEG unless FBL is RGB565-only (e.g. FBL 100).
+        HID: JPEG if profile says so. SCSI: always RGB565.
         """
         if self.protocol in ('bulk', 'ly'):
             return self.fbl_code not in BULK_RGB565_FBLS
-        return False
+        return self.profile.jpeg if self.protocol == 'hid' else False
 
     @property
     def encoding_params(self) -> tuple:
         """Encoding params for ImageService.encode_for_device().
 
         Returns (protocol, resolution, fbl, use_jpeg).
-        Resolution (0,0) means handshake hasn't set it yet — fall back to
-        fbl_to_resolution(fbl_code) or default (320, 320).
         """
         res = self.resolution
         fbl = self.fbl_code
         if res == (0, 0):
-            res = fbl_to_resolution(fbl) if fbl is not None else (320, 320)
+            res = self.profile.resolution
         return (self.protocol, res, fbl, self.use_jpeg)
 
 
@@ -1218,40 +1342,93 @@ LOCALE_TO_LANG: dict[str, str] = {
     'ja': 'r',       # Japanese
 }
 
-# FBL → Resolution mapping (from FormCZTV.cs lines 811-821)
-# FBL (Frame Buffer Layout) byte determines LCD resolution.
+# =============================================================================
+# Device Profile — single source of truth for all FBL-derived properties.
+# Replaces FBL_TO_RESOLUTION, JPEG_MODE_FBLS, BULK_RGB565_FBLS,
+# byte_order_for(), _SQUARE_NO_ROTATE.
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class DeviceProfile:
+    """Everything needed to talk to a device, derived from its FBL code.
+
+    One lookup replaces 5 scattered constants/functions.
+    """
+    width: int
+    height: int
+    jpeg: bool = False           # JPEG encoding (vs RGB565)
+    big_endian: bool = False     # RGB565 byte order (> vs <)
+    rotate: bool = False         # Pre-rotate 90° CW for non-square portrait panels
+
+    @property
+    def resolution(self) -> tuple[int, int]:
+        return (self.width, self.height)
+
+    @property
+    def byte_order(self) -> str:
+        return '>' if self.big_endian else '<'
+
+
+# fmt: off
+FBL_PROFILES: dict[int, DeviceProfile] = {
+    #          W      H     jpeg    BE      rotate
+    36:  DeviceProfile(240,  240),
+    37:  DeviceProfile(240,  240),
+    50:  DeviceProfile(320,  240,  rotate=True),
+    51:  DeviceProfile(320,  240,  big_endian=True, rotate=True),   # SPIMode=2
+    53:  DeviceProfile(320,  240,  big_endian=True, rotate=True),   # SPIMode=2
+    54:  DeviceProfile(360,  360,  jpeg=True),
+    58:  DeviceProfile(320,  240,  rotate=True),
+    64:  DeviceProfile(640,  480,  rotate=True),
+    72:  DeviceProfile(480,  480),
+    100: DeviceProfile(320,  320,  big_endian=True),
+    101: DeviceProfile(320,  320,  big_endian=True),
+    102: DeviceProfile(320,  320,  big_endian=True),
+    114: DeviceProfile(1600, 720,  jpeg=True, rotate=True),
+    128: DeviceProfile(1280, 480,  jpeg=True, rotate=True),
+    192: DeviceProfile(1920, 462,  jpeg=True, rotate=True),
+    224: DeviceProfile(854,  480,  jpeg=True, rotate=True),
+}
+# fmt: on
+
+_DEFAULT_PROFILE = DeviceProfile(320, 320, big_endian=True)
+
+
+def get_profile(fbl: int, pm: int = 0) -> DeviceProfile:
+    """Get device profile for an FBL code.
+
+    For FBL 224/192, PM disambiguates the resolution (same encoding props).
+    """
+    profile = FBL_PROFILES.get(fbl, _DEFAULT_PROFILE)
+    if fbl == 224:
+        w, h = _FBL_224_BY_PM.get(pm, (854, 480))
+        return DeviceProfile(w, h, jpeg=profile.jpeg,
+                             big_endian=profile.big_endian, rotate=profile.rotate)
+    if fbl == 192:
+        w, h = _FBL_192_BY_PM.get(pm, (1920, 462))
+        return DeviceProfile(w, h, jpeg=profile.jpeg,
+                             big_endian=profile.big_endian, rotate=profile.rotate)
+    return profile
+
+
+# --- Backward compatibility aliases (remove after migration) ---
+
 FBL_TO_RESOLUTION: dict[int, tuple[int, int]] = {
-    36:  (240, 240),
-    37:  (240, 240),
-    50:  (320, 240),
-    51:  (320, 240),
-    54:  (360, 360),
-    53:  (320, 240),
-    58:  (320, 240),
-    64:  (640, 480),
-    72:  (480, 480),
-    100: (320, 320),
-    101: (320, 320),
-    102: (320, 320),
-    114: (1600, 720),
-    128: (1280, 480),
-    192: (1920, 462),
-    224: (854, 480),
+    fbl: p.resolution for fbl, p in FBL_PROFILES.items()
 }
 
-# FBL values that trigger JPEG encoding for HID Type 2 (C# myDeviceMode == 2).
-# C# FormCZTV: these resolutions use ImageToJpg() instead of ImageTo565().
-# Header byte[6] = 0x00 (JPEG) vs 0x01 (RGB565), with actual width/height.
-JPEG_MODE_FBLS: frozenset[int] = frozenset({54, 114, 128, 192, 224})
+JPEG_MODE_FBLS: frozenset[int] = frozenset(
+    fbl for fbl, p in FBL_PROFILES.items() if p.jpeg
+)
 
-# Bulk FBL values that use RGB565 instead of JPEG (C# myDeviceMode == 4).
-# C# FormCZTVInit: PM=32 → myDeviceMode=4 → ImageTo565() with cmd=3 header.
-# All other bulk PMs use myDeviceMode=2 → ImageToJpg() with cmd=2 header.
-BULK_RGB565_FBLS: frozenset[int] = frozenset({100})  # PM=32 → FBL=100 → 320x320
+BULK_RGB565_FBLS: frozenset[int] = frozenset(
+    fbl for fbl, p in FBL_PROFILES.items() if not p.jpeg and p.big_endian
+)
 
 # Reverse lookup: resolution → PM/FBL (first match wins)
 RESOLUTION_TO_PM: dict[tuple[int, int], int] = {
-    res: fbl for fbl, res in FBL_TO_RESOLUTION.items()
+    p.resolution: fbl for fbl, p in FBL_PROFILES.items()
     if fbl not in (37, 101, 102, 224)
 }
 
@@ -1304,19 +1481,8 @@ _PM_SUB_TO_FBL: dict[tuple[int, int], int] = {
 
 
 def fbl_to_resolution(fbl: int, pm: int = 0) -> tuple[int, int]:
-    """Map FBL byte to (width, height).
-
-    Used by all protocols: SCSI (poll byte[0] = FBL directly),
-    HID (PM → pm_to_fbl → FBL), and Bulk (PM → pm_to_fbl → FBL).
-
-    For FBL 224 and 192, the PM byte disambiguates the actual resolution.
-    Returns (320, 320) as default if FBL is unknown.
-    """
-    if fbl == 224:
-        return _FBL_224_BY_PM.get(pm, (854, 480))
-    if fbl == 192:
-        return _FBL_192_BY_PM.get(pm, (1920, 462))
-    return FBL_TO_RESOLUTION.get(fbl, (320, 320))
+    """Map FBL byte to (width, height). Delegates to get_profile()."""
+    return get_profile(fbl, pm).resolution
 
 
 def pm_to_fbl(pm: int, sub: int = 0) -> int:

@@ -44,7 +44,7 @@ class TestDependencyInjection(unittest.TestCase):
     def test_display_service_accepts_injected_sub_services(self):
         """DisplayService receives DeviceService, OverlayService, MediaService."""
         dev = DeviceService()
-        ovl = OverlayService()
+        ovl = OverlayService(renderer=ImageService._r())
         med = MediaService()
         svc = DisplayService(dev, ovl, med)
         self.assertIs(svc.devices, dev)
@@ -57,7 +57,7 @@ class TestDependencyInjection(unittest.TestCase):
         from trcc.core.builder import ControllerBuilder
         from trcc.core.lcd_device import LCDDevice
 
-        lcd = ControllerBuilder().build_lcd()
+        lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
         self.assertIsInstance(lcd, LCDDevice)
 
 

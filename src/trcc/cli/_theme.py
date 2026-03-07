@@ -131,7 +131,7 @@ def save_theme(name, *, device=None, video=None):
 
     bg = None
     if theme_path:
-        from trcc.adapters.infra.data_repository import ThemeDir as TDir
+        from trcc.core.models import ThemeDir as TDir
         td = TDir(theme_path)
         if td.bg.exists():
             bg = ImageService.open_and_resize(td.bg, w, h)

@@ -37,10 +37,11 @@ class ImageService:
 
     @classmethod
     def _r(cls) -> Renderer:
-        """Get the active renderer, defaulting to QtRenderer."""
+        """Get the active renderer (must be set via set_renderer first)."""
         if cls._renderer is None:
-            from ..adapters.render.qt import QtRenderer
-            cls._renderer = QtRenderer()
+            raise RuntimeError(
+                "ImageService.set_renderer() must be called before use. "
+                "Use ControllerBuilder to wire dependencies.")
         return cls._renderer
 
     # ── Encoding (hot path) ───────────────────────────────────────
@@ -100,11 +101,7 @@ class ImageService:
     @staticmethod
     def apply_device_rotation(image: Any,
                               resolution: tuple[int, int]) -> Any:
-        """Apply device-level pre-rotation for non-square displays.
-
-        Square (240x240, 320x320, 480x480): no rotation.
-        Non-square: +90° CW before encoding.
-        """
+        """Apply device-level pre-rotation for non-square displays."""
         if resolution in ImageService._SQUARE_NO_ROTATE:
             return image
         return ImageService._r().apply_rotation(image, 90)
@@ -115,15 +112,16 @@ class ImageService:
                           fbl: int | None,
                           use_jpeg: bool) -> bytes:
         """Encode surface for LCD device — JPEG or RGB565."""
-        from ..core.models import JPEG_MODE_FBLS, PROTOCOL_TRAITS
+        from ..core.models import get_profile
 
-        traits = PROTOCOL_TRAITS.get(protocol)
-        if (traits and traits.supports_jpeg and use_jpeg) or (
-                protocol == 'hid' and fbl in JPEG_MODE_FBLS):
+        profile = get_profile(fbl) if fbl is not None else None
+
+        if use_jpeg or (profile and profile.jpeg):
             return ImageService.to_jpeg(img)
 
-        img = ImageService.apply_device_rotation(img, resolution)
-        byte_order = ImageService.byte_order_for(protocol, resolution, fbl)
+        if profile and profile.rotate:
+            img = ImageService._r().apply_rotation(img, 90)
+        byte_order = profile.byte_order if profile else '<'
         return ImageService.to_rgb565(img, byte_order)
 
     # ── ANSI preview (CLI cold path — still uses PIL directly) ────

@@ -16,8 +16,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
+from trcc.adapters.render.qt import QtRenderer
 from trcc.core.models import DeviceInfo
 from trcc.services.image import ImageService
+
+# ── Renderer initialization (once per test session) ─────────────────────
+# Services no longer auto-create a renderer — tests must set it explicitly.
+ImageService.set_renderer(QtRenderer())
 
 # =========================================================================
 # Surface helpers — create/inspect native renderer surfaces in tests

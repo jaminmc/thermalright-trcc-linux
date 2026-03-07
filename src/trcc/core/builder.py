@@ -62,11 +62,12 @@ class ControllerBuilder:
         from ..services.image import ImageService
         from .lcd_device import LCDDevice
 
-        # Default renderer
+        # Renderer must be injected via with_renderer()
         renderer = self._renderer
         if renderer is None:
-            from ..adapters.render.qt import QtRenderer
-            renderer = QtRenderer()
+            raise RuntimeError(
+                "ControllerBuilder.with_renderer() must be called before "
+                "build_lcd(). Adapters create the renderer.")
 
         # Wire renderer into ImageService (global facade)
         ImageService.set_renderer(renderer)

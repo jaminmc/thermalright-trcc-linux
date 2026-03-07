@@ -114,7 +114,7 @@ class LCDPanelTestHarness(QWidget):
         self._width, self._height = 320, 320
         self._rotation = 0
         self._brightness = 100
-        self._overlay_svc = OverlayService()
+        self._overlay_svc = OverlayService(renderer=ImageService._r())
         self._overlay_enabled = _start_with_overlay
         self._current_bg: QImage | None = None
         self._themes: list[ThemeInfo] = []

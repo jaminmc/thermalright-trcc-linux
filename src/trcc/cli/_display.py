@@ -334,7 +334,6 @@ def reset(device=None, *, preview=False):
     lcd, rc = _connect_or_fail(device)
     if rc:
         return rc
-    assert lcd.frame is not None
     print(f"  Device: {lcd.device_path}")
     return _print_result(lcd.frame.reset(), preview=preview)
 
