@@ -10,7 +10,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](https://github.com/Lexonight1/thermalright-trcc-linux)
 
 [![CI](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-4105_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-4112_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-70%25-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://python.org)
 [![Code Style](https://img.shields.io/badge/code_style-ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
@@ -70,7 +70,7 @@ Run `trcc report` and [paste the output in an issue](https://github.com/Lexonigh
 | **Multi-device** | Per-device config, auto-detect, multi-device with device selection |
 | **Security** | udev rules, polkit policy, SELinux support, no root required after setup |
 
-**Under the hood**: 106 source files, ~38K lines of Python, 4021 tests across 56 test files in 9 directories. Hexagonal architecture with strict dependency injection — GUI, CLI, and API all talk to the same core services. 6 USB protocols reverse-engineered from the Windows C# app.
+**Under the hood**: 106 source files, ~38K lines of Python, 4112 tests across 57 test files in 9 directories. Hexagonal architecture with strict dependency injection — GUI, CLI, and API all talk to the same core services. 6 USB protocols reverse-engineered from the Windows C# app.
 
 ## Supported Devices
 
@@ -339,19 +339,22 @@ A big thanks to everyone who has contributed invaluable reports to this project:
 - **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** — Frozen Warframe Pro bulk protocol testing
 - **[Mr-Renegade](https://github.com/Mr-Renegade)** — Peerless Vision LY protocol testing & portrait rotation feedback
 - **[Reborn627](https://github.com/Reborn627)** — GrandVision 360 AIO HiDPI scaling & CachyOS testing
-- **[tensaiteki](https://github.com/tensaiteki)** — Elite Vision 360 SCSI detection on CachyOS (sg module bug)
+- **[tensaiteki](https://github.com/tensaiteki)** — Elite Vision 360 SCSI detection on CachyOS (sg module bug) & Bazzite RPM shebang fix
 - **[wrightbyname](https://github.com/wrightbyname)** — CLI compatibility testing & bug report
 - **[Scifiguygaming](https://github.com/Scifiguygaming)** — Frozen Warframe HID testing on CachyOS
 - **[mog199](https://github.com/mog199)** — HID Type 2 permission error bug report
 - **[ravensvoice](https://github.com/ravensvoice)** — Trofeo Vision portrait cloud theme feature request
 - **[rhuggins573-crypto](https://github.com/rhuggins573-crypto)** — Assassin X 120R Digital ARGB LED bug report on Bazzite
 - **[knappstar](https://github.com/knappstar)** — Scrambled display bug report & SCSI permission troubleshooting
+- **[jezzaw007](https://github.com/jezzaw007)** — Preview rotation & overlay resume bug reports
+- **[Pewful2021](https://github.com/Pewful2021)** — PA120 LED troubleshooting
+- **[lallemandgianni-boop](https://github.com/lallemandgianni-boop)** — PA120 DIGITAL LCD PID investigation
 
 ## Stargazers
 
 Thanks to everyone who took a moment to star this project — it means the world.
 
-**[alessa-lara](https://github.com/alessa-lara)** · **[ArcaneCoder404](https://github.com/ArcaneCoder404)** · **[betolink](https://github.com/betolink)** · **[BrunoLeguizamon05](https://github.com/BrunoLeguizamon05)** · **[cancos1](https://github.com/cancos1)** · **[codeflitting](https://github.com/codeflitting)** · **[dabombUSA](https://github.com/dabombUSA)** · **[damachine](https://github.com/damachine)** · **[emaspa](https://github.com/emaspa)** · **[honjow](https://github.com/honjow)** · **[jezzaw007](https://github.com/jezzaw007)** · **[jhlasnik](https://github.com/jhlasnik)** · **[jmo808](https://github.com/jmo808)** · **[ligmaSec](https://github.com/ligmaSec)** · **[mgaruccio](https://github.com/mgaruccio)** · **[michael-spinelli](https://github.com/michael-spinelli)** · **[nathanielhernandez](https://github.com/nathanielhernandez)** · **[oddajpierscien](https://github.com/oddajpierscien)** · **[Pikarz](https://github.com/Pikarz)** · **[Rehaell](https://github.com/Rehaell)** · **[rslater](https://github.com/rslater)** · **[Smokemic](https://github.com/Smokemic)** · **[spiritofjon](https://github.com/spiritofjon)** · **[Vydon](https://github.com/Vydon)** · **[Xentrino](https://github.com/Xentrino)** · **[Ziusz](https://github.com/Ziusz)**
+**[alessa-lara](https://github.com/alessa-lara)** · **[ArcaneCoder404](https://github.com/ArcaneCoder404)** · **[betolink](https://github.com/betolink)** · **[bive242](https://github.com/bive242)** · **[BrunoLeguizamon05](https://github.com/BrunoLeguizamon05)** · **[cancos1](https://github.com/cancos1)** · **[codeflitting](https://github.com/codeflitting)** · **[dabombUSA](https://github.com/dabombUSA)** · **[damachine](https://github.com/damachine)** · **[emaspa](https://github.com/emaspa)** · **[honjow](https://github.com/honjow)** · **[jezzaw007](https://github.com/jezzaw007)** · **[jhlasnik](https://github.com/jhlasnik)** · **[jmo808](https://github.com/jmo808)** · **[mgaruccio](https://github.com/mgaruccio)** · **[michael-spinelli](https://github.com/michael-spinelli)** · **[mkogut](https://github.com/mkogut)** · **[nathanielhernandez](https://github.com/nathanielhernandez)** · **[oddajpierscien](https://github.com/oddajpierscien)** · **[Pewful2021](https://github.com/Pewful2021)** · **[Pikarz](https://github.com/Pikarz)** · **[Rehaell](https://github.com/Rehaell)** · **[rslater](https://github.com/rslater)** · **[Smokemic](https://github.com/Smokemic)** · **[spiritofjon](https://github.com/spiritofjon)** · **[Vydon](https://github.com/Vydon)** · **[Xentrino](https://github.com/Xentrino)** · **[Ziusz](https://github.com/Ziusz)**
 
 ## Faulkers
 
