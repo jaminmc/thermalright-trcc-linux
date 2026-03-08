@@ -1015,6 +1015,7 @@ class TRCCApp(QMainWindow):
                 if device.implementation == 'hid_led':
                     self._led.show(device)
                     self._show_view('led')
+                    self._mediator.ensure_running()
                 else:
                     self._on_device_selected(device)
 

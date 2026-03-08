@@ -1112,3 +1112,52 @@ class TestCategoryData:
     def test_category_images_are_png(self, qapp):
         for img in CATEGORY_IMAGES.values():
             assert img.endswith(".png")
+
+
+# =========================================================================
+# Device poll — LED auto-select must start metrics mediator
+# =========================================================================
+
+
+class TestDevicePollLEDAutoSelect:
+    """_on_device_poll auto-selects LED devices and must start the mediator.
+
+    Regression test for #61: on autostart (--last-one), LED device was
+    auto-selected but MetricsMediator.ensure_running() was never called,
+    so the display showed all zeros until the user manually clicked the
+    device button.
+    """
+
+    def test_auto_select_led_calls_ensure_running(self, qapp):
+        """When _on_device_poll auto-selects an LED device, ensure_running
+        must be called so metrics flow to the LED display."""
+        from trcc.qt_components.trcc_app import TRCCApp
+
+        mock_device = {
+            'vid': 0x0416, 'pid': 0x8001,
+            'protocol': 'hid', 'implementation': 'hid_led',
+            'device_type': 0, 'device_index': 0,
+            'product_name': 'LED Controller', 'vendor': 'Winbond',
+            'usb_path': '1-7', 'scsi_device': None,
+            'resolution': (0, 0), 'model': 'PA120_DIGITAL',
+            'led_style_id': 2,
+        }
+
+        with patch.object(TRCCApp, '__init__', lambda self, *a, **kw: None):
+            app = TRCCApp.__new__(TRCCApp)
+            # Wire up minimal state for _on_device_poll
+            app._lcd_handler = None
+            app._led = MagicMock()
+            app._led.active = False  # Not yet active → triggers auto-select
+            app._mediator = MagicMock()
+            app._device_timer = MagicMock()
+            app.uc_device = MagicMock()
+
+            app._show_view = MagicMock()
+
+            with patch('trcc.qt_components.trcc_app.find_lcd_devices',
+                       return_value=[mock_device]):
+                app._on_device_poll()
+
+            app._led.show.assert_called_once()
+            app._mediator.ensure_running.assert_called_once()
