@@ -90,10 +90,12 @@ def load_config() -> dict:
 
 
 def save_config(config: dict):
-    """Save user config to disk."""
+    """Save user config to disk (fsync'd for durability across shutdowns)."""
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
 
 
 # =========================================================================
