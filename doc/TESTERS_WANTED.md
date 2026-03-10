@@ -6,11 +6,7 @@ If you have a device listed below, testing takes about 2 minutes. Your help dire
 
 ## How to Test
 
-1. Install TRCC Linux:
-```bash
-pip install trcc-linux
-sudo trcc setup-udev
-```
+1. Install TRCC Linux (see [README](../README.md#native-packages-recommended) for your distro)
 2. Run this one command and copy the output:
 ```bash
 trcc report
@@ -48,6 +44,7 @@ These devices have been tested on real Linux hardware by contributors:
 | Frozen Warframe Pro | `87AD:70DB` | Bulk | [loosethoughts19-hash](https://github.com/loosethoughts19-hash) |
 | Elite Vision 360 ARGB Black | `0402:3922` | SCSI | [tensaiteki](https://github.com/tensaiteki) |
 | GrandVision 360 AIO | `87AD:70DB` | Bulk | [Reborn627](https://github.com/Reborn627) |
+| Peerless Assassin 120 Digital ARGB (LED) | `0416:8001` | HID LED | [Pewful2021](https://github.com/Pewful2021) |
 
 ## Need Testers — HID LCD Devices
 
@@ -75,7 +72,7 @@ These use PID `0416:8001` for RGB LED ring control. The device model is auto-det
 | Device | PM Byte | LED Style | Status |
 |--------|---------|-----------|--------|
 | AX120 DIGITAL | 3 | Style 1 (30 LEDs, 10 segments) | Confirmed working |
-| PA120 DIGITAL | 16 | Style 2 (84 LEDs, 18 segments) | LED detected, untested style |
+| PA120 DIGITAL ARGB | 16 | Style 2 (84 LEDs, 18 segments) | Confirmed working |
 | Peerless Assassin 120 DIGITAL | — | — | LED detected, handshake failed |
 | RK120 DIGITAL | 23 | Style 2 | Untested |
 | AK120 DIGITAL | 32 | Style 3 (64 LEDs, 10 segments) | Untested |
