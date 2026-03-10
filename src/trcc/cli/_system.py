@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import site
 import subprocess
 import sys
@@ -274,7 +275,6 @@ def setup_selinux():
     Required on SELinux-enforcing systems (Bazzite, Silverblue) where
     detach_kernel_driver() is silently blocked.
     """
-    import shutil
     import tempfile
 
     # Must be root
@@ -331,12 +331,11 @@ def setup_selinux():
     # Compile and install in temp directory
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            import shutil as sh
             te_path = os.path.join(tmp, 'trcc_usb.te')
             mod_path = os.path.join(tmp, 'trcc_usb.mod')
             pp_path = os.path.join(tmp, 'trcc_usb.pp')
 
-            sh.copy2(te_src, te_path)
+            shutil.copy2(te_src, te_path)
 
             # checkmodule -M -m -o trcc_usb.mod trcc_usb.te
             r = subprocess.run(
@@ -379,8 +378,6 @@ def install_desktop():
     Reads the shipped .desktop file from the package assets directory.
     Works from both pip install and git clone.
     """
-    import shutil
-
     home = Path.home()
     app_dir = home / ".local" / "share" / "applications"
 
@@ -437,8 +434,6 @@ def setup_polkit():
     active desktop sessions can run dmidecode and smartctl without a
     password prompt. Requires root.
     """
-    import shutil
-
     if os.geteuid() != 0:
         return _sudo_reexec("setup-polkit")
 
@@ -494,9 +489,37 @@ def setup_polkit():
     return 0
 
 
+def _detect_install_method() -> str:
+    """Detect how trcc-linux was installed.
+
+    Returns 'pipx', 'pip', 'pacman', 'dnf', or 'apt'.
+    """
+    if 'pipx' in sys.prefix:
+        return 'pipx'
+    try:
+        from importlib.metadata import distribution
+        dist = distribution('trcc-linux')
+        installer = (dist.read_text('INSTALLER') or '').strip()
+        if installer == 'pip':
+            return 'pip'
+    except Exception:
+        pass
+    for mgr in ('pacman', 'dnf', 'apt'):
+        if shutil.which(mgr):
+            return mgr
+    return 'pip'
+
+
+def _is_externally_managed() -> bool:
+    """Check if the Python environment has PEP 668 EXTERNALLY-MANAGED marker."""
+    # The marker file lives next to the stdlib, e.g.
+    # /usr/lib/python3.12/EXTERNALLY-MANAGED
+    stdlib = Path(os.__file__).parent
+    return (stdlib / "EXTERNALLY-MANAGED").exists()
+
+
 def uninstall(*, yes: bool = False):
     """Remove all TRCC config, udev rules, autostart, and desktop files."""
-    import shutil
 
     from trcc.conf import Settings
 
@@ -560,12 +583,37 @@ def uninstall(*, yes: bool = False):
         subprocess.run(["udevadm", "control", "--reload-rules"], check=False)
         subprocess.run(["udevadm", "trigger"], check=False)
 
-    # Uninstall the pip package itself
-    print("\nUninstalling trcc-linux pip package...")
-    pip_cmd = [sys.executable, "-m", "pip", "uninstall", "trcc-linux"]
-    if yes:
-        pip_cmd.append("--yes")
-    subprocess.run(pip_cmd, check=False)
+    # Detect install method and uninstall the package accordingly
+    install_info = Settings.get_install_info()
+    method = install_info.get('method', _detect_install_method())
+
+    if method in ('pacman', 'dnf', 'apt'):
+        # System package — tell user to remove via their package manager
+        pkg_cmds = {
+            'pacman': 'sudo pacman -R trcc-linux',
+            'dnf': 'sudo dnf remove trcc-linux',
+            'apt': 'sudo apt remove trcc-linux',
+        }
+        print(f"\nInstalled via {method} — remove with:")
+        print(f"  {pkg_cmds[method]}")
+    elif method == 'pipx':
+        print("\nUninstalling trcc-linux via pipx...")
+        subprocess.run(["pipx", "uninstall", "trcc-linux"], check=False)
+    else:
+        # pip install — may need --break-system-packages on PEP 668 distros
+        print("\nUninstalling trcc-linux pip package...")
+        pip_cmd = [sys.executable, "-m", "pip", "uninstall", "trcc-linux"]
+        if yes:
+            pip_cmd.append("--yes")
+        if _is_externally_managed():
+            pip_cmd.append("--break-system-packages")
+        subprocess.run(pip_cmd, check=False)
+
+    # Clean stale shadow binary from old pip/pipx installs
+    stale_bin = Path.home() / ".local" / "bin" / "trcc"
+    if stale_bin.exists():
+        stale_bin.unlink()
+        print(f"Removed stale binary: {stale_bin}")
 
     return 0
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.2.4
+
+### Bug Fixes
+- **Fixed**: `trcc uninstall` fails with PEP 668 `externally-managed-environment` on Arch/CachyOS (#63) — now detects install method (pacman/dnf/apt/pipx/pip), only runs pip when appropriate, adds `--break-system-packages` on PEP 668 distros
+- **Fixed**: `trcc uninstall` cleans stale `~/.local/bin/trcc` shadow binary from old pip/pipx installs
+- **Cleanup**: Removed redundant local `import shutil` statements in `_system.py` — single module-level import
+
 ## v8.2.3
 
 ### Security
