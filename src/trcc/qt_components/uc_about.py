@@ -48,7 +48,6 @@ def _get_trcc_exec() -> str:
     1. shutil.which('trcc') — pip-installed entry point on PATH
     2. PYTHONPATH=<src> python3 -m trcc.cli — git clone fallback
     """
-    import sys
     trcc_path = shutil.which('trcc')
     if trcc_path:
         return trcc_path

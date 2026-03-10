@@ -256,5 +256,79 @@ class TestServiceStatelessness(unittest.TestCase):
         self.assertEqual(len(svc.__dict__), 0)
 
 
+# =============================================================================
+# Hexagonal Boundary — core/ never imports from services/ or adapters/
+# =============================================================================
+
+
+CORE_DIR = Path(__file__).resolve().parent.parent / 'src' / 'trcc' / 'core'
+
+
+class TestHexagonalBoundary(unittest.TestCase):
+    """Core layer must not import from services or adapters at module level.
+
+    Deferred imports inside functions/methods are fine — that's how
+    lcd_device.py, led_device.py, and builder.py wire dependencies
+    at call time (they're application facades, not domain objects).
+    """
+
+    # Files that are application facades / composition roots living in core/
+    # for import convenience. They use deferred imports intentionally.
+    _FACADE_FILES = {'lcd_device.py', 'led_device.py', 'builder.py'}
+
+    def _get_module_level_imports(self, filepath: Path) -> list[tuple[str, int]]:
+        """Return (module_name, lineno) for top-level imports only.
+
+        Skips imports inside functions, methods, or if TYPE_CHECKING blocks.
+        """
+        source = filepath.read_text()
+        tree = ast.parse(source)
+        results = []
+        for node in ast.iter_child_nodes(tree):
+            # Only look at module-level statements
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    results.append((alias.name, node.lineno))
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                results.append((node.module, node.lineno))
+            elif isinstance(node, ast.If):
+                # Skip TYPE_CHECKING blocks
+                test = node.test
+                if isinstance(test, ast.Name) and test.id == 'TYPE_CHECKING':
+                    continue
+                if isinstance(test, ast.Attribute) and test.attr == 'TYPE_CHECKING':
+                    continue
+                # Check imports inside non-TYPE_CHECKING if blocks
+                for child in ast.walk(node):
+                    if isinstance(child, ast.Import):
+                        for alias in child.names:
+                            results.append((alias.name, child.lineno))
+                    elif isinstance(child, ast.ImportFrom) and child.module:
+                        results.append((child.module, child.lineno))
+        return results
+
+    def test_core_no_module_level_service_imports(self):
+        """core/ files never import from services/ at module level."""
+        violations = []
+        for py_file in CORE_DIR.glob('*.py'):
+            if py_file.name in self._FACADE_FILES:
+                continue
+            for module, lineno in self._get_module_level_imports(py_file):
+                if '.services' in module or module.startswith('trcc.services'):
+                    violations.append(f"{py_file.name}:{lineno} imports {module}")
+        self.assertEqual(violations, [], f"core/ → services/ violations: {violations}")
+
+    def test_core_no_module_level_adapter_imports(self):
+        """core/ files never import from adapters/ at module level."""
+        violations = []
+        for py_file in CORE_DIR.glob('*.py'):
+            if py_file.name in self._FACADE_FILES:
+                continue
+            for module, lineno in self._get_module_level_imports(py_file):
+                if '.adapters' in module or module.startswith('trcc.adapters'):
+                    violations.append(f"{py_file.name}:{lineno} imports {module}")
+        self.assertEqual(violations, [], f"core/ → adapters/ violations: {violations}")
+
+
 if __name__ == '__main__':
     unittest.main()

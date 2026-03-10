@@ -177,7 +177,7 @@ class ThemeDir:
 
         Lazy-imports infrastructure constants from data_repository.
         """
-        from ..adapters.infra.data_repository import DATA_DIR, USER_DATA_DIR
+        from .paths import DATA_DIR, USER_DATA_DIR
         name = f'theme{width}{height}'
         user_dir = os.path.join(USER_DATA_DIR, name)
         if cls.has_themes(user_dir):

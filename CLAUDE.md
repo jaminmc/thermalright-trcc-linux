@@ -5,8 +5,9 @@
 ### Layer Map
 - **Models** (`core/models.py`): Pure dataclasses, enums, domain constants — zero logic, zero I/O, zero framework deps
 - **Services** (`services/`): Core hexagon — all business logic, pure Python. `ImageService` is a thin facade delegating to the active `Renderer` (QtRenderer by default). `OverlayService` uses injected Renderer for compositing/text.
-- **Devices** (`core/lcd_device.py`, `core/led_device.py`): `LCDDevice(Device)` with direct methods (capabilities inlined) + `LEDDevice(Device)` with direct methods. Delegate to services, return result dicts. No business logic.
-- **Builder** (`core/builder.py`): `ControllerBuilder` — fluent builder, assembles devices with DI, returns `LCDDevice`/`LEDDevice`.
+- **Paths** (`core/paths.py`): Application path constants and directory resolution — `DATA_DIR`, `USER_DATA_DIR`, `get_web_dir()`, `get_web_masks_dir()`. Zero project imports, safe from any module. Pure path logic only.
+- **Devices** (`core/lcd_device.py`, `core/led_device.py`): Application-layer facades living in `core/` for import convenience. `LCDDevice`/`LEDDevice` use deferred imports from services and adapters at method call time (not module load). They delegate to services and return result dicts. Not domain objects — they're composition roots that wire services together per operation.
+- **Builder** (`core/builder.py`): `ControllerBuilder` — fluent builder, assembles devices with DI, returns `LCDDevice`/`LEDDevice`. Composition root: imports adapters to inject into services.
 - **Views** (`qt_components/`): PySide6 GUI adapter. `TRCCApp` (thin shell) + `LCDHandler`/`LEDHandler` (one per device).
 - **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 7 submodules). Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
 - **API** (`api/`): FastAPI REST adapter (package: `__init__.py` + 7 submodules). 43 endpoints covering devices, display, LED, themes, and system metrics. Includes WebSocket live preview stream + cloud theme download. Uses `LCDDevice`/`LEDDevice` from core/. `_current_image` tracks last frame sent for preview endpoints.
@@ -289,8 +290,8 @@ When the user says one bare word — `patch`, `minor`, or `major` — execute th
 - **Delegate pattern**: Settings tab communicates via `invoke_delegate(CMD_*, data)` to main window
 - **`_update_selected(**fields)`**: Single entry point for all element property changes (color, position, font, format, text)
 
-### Future Work
-- GUI component splits (uc_theme_setting.py → 5 files)
+### Completed Splits
+- `uc_theme_setting.py` split into 5 files: `overlay_element.py`, `overlay_grid.py`, `color_and_add_panels.py`, `display_mode_panels.py`, + thin orchestrator `uc_theme_setting.py` (re-exports all public names)
 
 ## Style
 
@@ -304,6 +305,7 @@ When the user says one bare word — `patch`, `minor`, or `major` — execute th
   - **DIP** — inject dependencies at runtime (`get_protocol` param, `set_renderer()`). Core logic never imports concrete adapters.
 - **Hexagonal Purity** — dependencies point inward ONLY: adapters → services → core. Services and core NEVER import from adapters. Infrastructure deps (USB, filesystem, rendering) are injected via constructor params with lazy defaults in module-level factory functions. Adapter entry points (CLI, GUI, API) are composition roots that wire concrete implementations.
 - **No Fallback Imports** — services must not lazy-import adapter implementations as fallbacks. If a service needs an adapter, it must be injected. `RuntimeError` if not provided. Composition roots (`cli/__init__.py`, `trcc_app.py`, `api/__init__.py`) create and inject concrete adapters.
+- **Accepted Exceptions** — `services/system.py` has a module-level `_get_instance()` convenience factory that imports `SensorEnumerator` from adapters. This acts as a mini composition root — the module-level functions (`get_all_metrics`, `set_poll_interval`, `get_cached_metrics`) are called from ~10 sites. Moving it would be massive churn for no gain. Documented, not a bug.
 - **Re-export Pattern** — when moving code from adapters to core, the adapter file becomes a thin re-export stub. All existing import paths continue working.
 - **Single source of truth** — every constant, mapping, and state variable has ONE canonical location. Search before defining.
 - **Type hints** on all public APIs — parameters, return types, class attributes.

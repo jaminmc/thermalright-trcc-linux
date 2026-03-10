@@ -62,9 +62,16 @@ def _patch_theme_assets(qapp):
         return QPixmap()
 
     with (
-        patch("trcc.qt_components.uc_theme_setting.Assets.load_pixmap",
+        patch("trcc.qt_components.overlay_element.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.uc_theme_setting.set_background_pixmap"),
+        patch("trcc.qt_components.overlay_grid.Assets.load_pixmap",
+              side_effect=_null_pixmap),
+        patch("trcc.qt_components.color_and_add_panels.Assets.load_pixmap",
+              side_effect=_null_pixmap),
+        patch("trcc.qt_components.display_mode_panels.Assets.load_pixmap",
+              side_effect=_null_pixmap),
+        patch("trcc.qt_components.display_mode_panels.set_background_pixmap"),
+        patch("trcc.qt_components.color_and_add_panels.set_background_pixmap"),
         patch("trcc.qt_components.uc_theme_local.Assets.load_pixmap",
               side_effect=_null_pixmap),
         patch("trcc.qt_components.base.set_background_pixmap"),

@@ -358,7 +358,6 @@ class DisplayService:
     @staticmethod
     def _load_split_overlay(asset_name: str) -> Any | None:
         """Load a split overlay PNG from assets/gui/ as native surface."""
-        import os
         try:
             path = os.path.join(RESOURCES_DIR, asset_name)
             if os.path.exists(path):

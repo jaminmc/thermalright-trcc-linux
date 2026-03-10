@@ -7,11 +7,14 @@ from pathlib import Path
 import pytest
 
 from trcc.core.models import (
+    FBL_PROFILES,
     DeviceInfo,
+    DeviceProfile,
     ThemeInfo,
     ThemeType,
     VideoState,
     fbl_to_resolution,
+    get_profile,
     parse_hex_color,
     pm_to_fbl,
 )
@@ -148,16 +151,30 @@ class TestPmToFbl(unittest.TestCase):
 class TestFblToResolution(unittest.TestCase):
     """FBL byte → (width, height) mapping."""
 
-    def test_basic_fbl_table(self):
-        """Core FBL entries from FBL_TO_RESOLUTION."""
-        self.assertEqual(fbl_to_resolution(36), (240, 240))
-        self.assertEqual(fbl_to_resolution(50), (320, 240))
-        self.assertEqual(fbl_to_resolution(54), (360, 360))
-        self.assertEqual(fbl_to_resolution(64), (640, 480))
-        self.assertEqual(fbl_to_resolution(72), (480, 480))
-        self.assertEqual(fbl_to_resolution(100), (320, 320))
-        self.assertEqual(fbl_to_resolution(114), (1600, 720))
-        self.assertEqual(fbl_to_resolution(128), (1280, 480))
+    def test_every_fbl_resolution(self):
+        """Every FBL in FBL_PROFILES resolves to the correct resolution."""
+        expected = {
+            36:  (240, 240),
+            37:  (240, 240),
+            50:  (320, 240),
+            51:  (320, 240),
+            53:  (320, 240),
+            54:  (360, 360),
+            58:  (320, 240),
+            64:  (640, 480),
+            72:  (480, 480),
+            100: (320, 320),
+            101: (320, 320),
+            102: (320, 320),
+            114: (1600, 720),
+            128: (1280, 480),
+            129: (480, 480),
+            192: (1920, 462),
+            224: (854, 480),
+        }
+        for fbl, res in expected.items():
+            with self.subTest(fbl=fbl):
+                self.assertEqual(fbl_to_resolution(fbl), res)
 
     def test_unknown_fbl_defaults_320x320(self):
         self.assertEqual(fbl_to_resolution(999), (320, 320))
@@ -251,6 +268,182 @@ class TestEndToEndResolutionPipeline(unittest.TestCase):
 
     def test_pm1_sub49_1920x462(self):
         self.assertEqual(self._resolve(1, sub=49), (1920, 462))
+
+
+# =============================================================================
+# DeviceProfile — encoding properties per FBL
+# =============================================================================
+
+
+class TestDeviceProfileCompleteness(unittest.TestCase):
+    """Every FBL in FBL_PROFILES has correct encoding properties."""
+
+    def test_all_fbls_accounted_for(self):
+        """FBL_PROFILES contains exactly the expected 17 device entries."""
+        expected_fbls = {36, 37, 50, 51, 53, 54, 58, 64, 72,
+                         100, 101, 102, 114, 128, 129, 192, 224}
+        self.assertEqual(set(FBL_PROFILES.keys()), expected_fbls)
+
+    def test_jpeg_fbls(self):
+        """Only JPEG FBLs are flagged as JPEG."""
+        jpeg_fbls = {fbl for fbl, p in FBL_PROFILES.items() if p.jpeg}
+        self.assertEqual(jpeg_fbls, {54, 114, 128, 192, 224})
+
+    def test_big_endian_fbls(self):
+        """Only big-endian FBLs are flagged as big-endian."""
+        be_fbls = {fbl for fbl, p in FBL_PROFILES.items() if p.big_endian}
+        self.assertEqual(be_fbls, {51, 53, 100, 101, 102})
+
+    def test_rotate_fbls(self):
+        """Only portrait/landscape-rotated FBLs are flagged."""
+        rot_fbls = {fbl for fbl, p in FBL_PROFILES.items() if p.rotate}
+        self.assertEqual(rot_fbls, {50, 51, 53, 58, 64, 114, 128, 192, 224})
+
+    def test_byte_order_property(self):
+        """byte_order returns '>' for big-endian, '<' for little-endian."""
+        for fbl, profile in FBL_PROFILES.items():
+            with self.subTest(fbl=fbl):
+                expected = '>' if profile.big_endian else '<'
+                self.assertEqual(profile.byte_order, expected)
+
+    def test_resolution_property(self):
+        """resolution property returns (width, height) tuple."""
+        for fbl, profile in FBL_PROFILES.items():
+            with self.subTest(fbl=fbl):
+                self.assertEqual(profile.resolution, (profile.width, profile.height))
+
+    def test_get_profile_returns_profile_for_every_fbl(self):
+        """get_profile() returns a DeviceProfile for every known FBL."""
+        for fbl in FBL_PROFILES:
+            with self.subTest(fbl=fbl):
+                p = get_profile(fbl)
+                self.assertIsInstance(p, DeviceProfile)
+                self.assertEqual(p.resolution, FBL_PROFILES[fbl].resolution)
+
+    def test_get_profile_unknown_fbl_defaults_320x320(self):
+        """Unknown FBL defaults to 320x320 big-endian."""
+        p = get_profile(999)
+        self.assertEqual(p.resolution, (320, 320))
+        self.assertTrue(p.big_endian)
+        self.assertFalse(p.jpeg)
+
+
+class TestDeviceProfilePerFbl(unittest.TestCase):
+    """Per-FBL encoding property tests — one test per device type."""
+
+    def test_fbl_36_240x240_rgb565_le(self):
+        p = get_profile(36)
+        self.assertEqual(p.resolution, (240, 240))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+        self.assertFalse(p.rotate)
+
+    def test_fbl_37_240x240_rgb565_le(self):
+        """FBL 37 is an alias for 36 — same device, same encoding."""
+        p = get_profile(37)
+        self.assertEqual(p.resolution, (240, 240))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+
+    def test_fbl_50_320x240_rgb565_le_rotated(self):
+        p = get_profile(50)
+        self.assertEqual(p.resolution, (320, 240))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_51_320x240_rgb565_be_spimode2(self):
+        """FBL 51 SPIMode=2 — big-endian RGB565."""
+        p = get_profile(51)
+        self.assertEqual(p.resolution, (320, 240))
+        self.assertFalse(p.jpeg)
+        self.assertTrue(p.big_endian)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_53_320x240_rgb565_be_spimode2(self):
+        """FBL 53 SPIMode=2 — big-endian RGB565."""
+        p = get_profile(53)
+        self.assertEqual(p.resolution, (320, 240))
+        self.assertFalse(p.jpeg)
+        self.assertTrue(p.big_endian)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_54_360x360_jpeg(self):
+        p = get_profile(54)
+        self.assertEqual(p.resolution, (360, 360))
+        self.assertTrue(p.jpeg)
+        self.assertFalse(p.rotate)
+
+    def test_fbl_58_320x240_rgb565_le_rotated(self):
+        p = get_profile(58)
+        self.assertEqual(p.resolution, (320, 240))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_64_640x480_rgb565_le_rotated(self):
+        p = get_profile(64)
+        self.assertEqual(p.resolution, (640, 480))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_72_480x480_rgb565_le(self):
+        p = get_profile(72)
+        self.assertEqual(p.resolution, (480, 480))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+        self.assertFalse(p.rotate)
+
+    def test_fbl_100_320x320_rgb565_be(self):
+        p = get_profile(100)
+        self.assertEqual(p.resolution, (320, 320))
+        self.assertFalse(p.jpeg)
+        self.assertTrue(p.big_endian)
+        self.assertFalse(p.rotate)
+
+    def test_fbl_101_320x320_rgb565_be(self):
+        """FBL 101 is an alias for 100."""
+        p = get_profile(101)
+        self.assertEqual(p.resolution, (320, 320))
+        self.assertTrue(p.big_endian)
+
+    def test_fbl_102_320x320_rgb565_be(self):
+        """FBL 102 is an alias for 100."""
+        p = get_profile(102)
+        self.assertEqual(p.resolution, (320, 320))
+        self.assertTrue(p.big_endian)
+
+    def test_fbl_114_1600x720_jpeg_rotated(self):
+        p = get_profile(114)
+        self.assertEqual(p.resolution, (1600, 720))
+        self.assertTrue(p.jpeg)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_128_1280x480_jpeg_rotated(self):
+        p = get_profile(128)
+        self.assertEqual(p.resolution, (1280, 480))
+        self.assertTrue(p.jpeg)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_129_480x480_rgb565_le(self):
+        """FBL 129 is an alias for 72."""
+        p = get_profile(129)
+        self.assertEqual(p.resolution, (480, 480))
+        self.assertFalse(p.jpeg)
+        self.assertFalse(p.big_endian)
+
+    def test_fbl_192_1920x462_jpeg_rotated(self):
+        p = get_profile(192)
+        self.assertEqual(p.resolution, (1920, 462))
+        self.assertTrue(p.jpeg)
+        self.assertTrue(p.rotate)
+
+    def test_fbl_224_854x480_jpeg_rotated(self):
+        p = get_profile(224)
+        self.assertEqual(p.resolution, (854, 480))
+        self.assertTrue(p.jpeg)
+        self.assertTrue(p.rotate)
 
 
 # =============================================================================

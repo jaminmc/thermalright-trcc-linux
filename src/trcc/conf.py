@@ -33,9 +33,8 @@ from pathlib import Path
 from typing import Optional
 
 from .__version__ import __version__
-from .adapters.infra.data_repository import DataManager, ThemeDir
-from .core.models import LOCALE_TO_LANG
-from .core.paths import USER_CONFIG_DIR, USER_DATA_DIR
+from .core.models import LOCALE_TO_LANG, ThemeDir
+from .core.paths import USER_CONFIG_DIR, USER_DATA_DIR, get_web_dir, get_web_masks_dir
 
 log = logging.getLogger(__name__)
 
@@ -408,8 +407,8 @@ class Settings:
         """Resolve theme/web/mask directories for current resolution."""
         w, h = self._width, self._height
         self.theme_dir = ThemeDir.for_resolution(w, h)
-        self.web_dir = Path(DataManager.get_web_dir(w, h))
-        self.masks_dir = Path(DataManager.get_web_masks_dir(w, h))
+        self.web_dir = Path(get_web_dir(w, h))
+        self.masks_dir = Path(get_web_masks_dir(w, h))
 
     def resolve_cloud_dirs(self, rotation: int = 0) -> None:
         """Re-resolve cloud background/mask dirs for rotation.
@@ -421,8 +420,8 @@ class Settings:
         w, h = self._width, self._height
         if w != h and rotation in (90, 270):
             w, h = h, w
-        self.web_dir = Path(DataManager.get_web_dir(w, h))
-        self.masks_dir = Path(DataManager.get_web_masks_dir(w, h))
+        self.web_dir = Path(get_web_dir(w, h))
+        self.masks_dir = Path(get_web_masks_dir(w, h))
 
 
 # Module-level singleton — import and use directly

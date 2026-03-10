@@ -21,9 +21,10 @@ import shutil
 import subprocess
 from typing import List, Optional
 
-from ...core.models import ThemeDir  # re-export for back-compat
+from ...core.models import ThemeDir  # noqa: F401 — re-export for back-compat
 from ...core.paths import (
     ASSETS_DIR,  # noqa: F401 — re-export
+    DATA_DIR,  # noqa: F401 — re-export
     RESOURCES_DIR,  # noqa: F401 — re-export
     USER_CONFIG_DIR,  # noqa: F401 — re-export
     USER_DATA_DIR,  # noqa: F401 — re-export
@@ -132,8 +133,6 @@ def _find_pkg_data_dir() -> str:
 # All runtime data goes to ~/.trcc/data/ — always writable, works on
 # pip, pipx, pacman, dnf, apt installs. No read-only pkg_dir issues.
 _PKG_DATA_DIR = _find_pkg_data_dir()
-DATA_DIR = USER_DATA_DIR
-THEMES_DIR = DATA_DIR
 
 RESOURCE_SEARCH_PATHS = [RESOURCES_DIR]
 
@@ -450,29 +449,16 @@ class DataManager:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_web_subdir(res_key: str, check_fn=None) -> str:
-        """Resolve a web subdirectory, preferring pkg_dir if it has content.
-
-        Falls back to user_dir (always writable — safe on system-wide installs).
-        """
-        if check_fn is None:
-            check_fn = DataManager._has_any_content
-        pkg_dir = os.path.join(DATA_DIR, 'web', res_key)
-        if check_fn(pkg_dir):
-            return pkg_dir
-        return os.path.join(USER_DATA_DIR, 'web', res_key)
-
-    @staticmethod
     def get_web_dir(width: int, height: int) -> str:
         """Get cloud theme Web directory for a resolution."""
-        return DataManager._resolve_web_subdir(f'{width}{height}')
+        from ...core.paths import get_web_dir
+        return get_web_dir(width, height)
 
     @staticmethod
     def get_web_masks_dir(width: int, height: int) -> str:
         """Get cloud masks directory for a resolution."""
-        return DataManager._resolve_web_subdir(
-            f'zt{width}{height}', check_fn=ThemeDir.has_themes,
-        )
+        from ...core.paths import get_web_masks_dir
+        return get_web_masks_dir(width, height)
 
 
 # =========================================================================

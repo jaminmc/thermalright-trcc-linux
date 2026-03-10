@@ -2004,5 +2004,423 @@ class TestParseHexOr400:
             parse_hex_or_400("")
 
 
+# =============================================================================
+# Display happy-path tests — verify success responses for all control endpoints
+# =============================================================================
+
+
+class TestDisplayHappyPaths(unittest.TestCase):
+    """POST /display/* success paths — device connected, operations succeed."""
+
+    def setUp(self) -> None:
+        configure_auth(None)
+        self.client = TestClient(app)
+        self.mock_lcd = MagicMock()
+        self.mock_lcd.connected = True
+        self.mock_lcd.resolution = (320, 320)
+        self.mock_lcd.device_path = "/dev/sg0"
+        api_module._display_dispatcher = self.mock_lcd
+
+    def tearDown(self) -> None:
+        api_module._display_dispatcher = None
+
+    @patch('trcc.api.stop_overlay_loop')
+    @patch('trcc.api.stop_video_playback')
+    def test_set_color_success(self, _sv, _so) -> None:
+        self.mock_lcd.frame.send_color.return_value = {
+            "success": True, "message": "Sent color (255, 0, 0)"}
+        resp = self.client.post("/display/color", json={"hex": "ff0000"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_lcd.frame.send_color.assert_called_once_with(255, 0, 0)
+
+    @patch('trcc.api.stop_overlay_loop')
+    @patch('trcc.api.stop_video_playback')
+    def test_set_color_with_hash_prefix(self, _sv, _so) -> None:
+        self.mock_lcd.frame.send_color.return_value = {
+            "success": True, "message": "Sent"}
+        resp = self.client.post("/display/color", json={"hex": "#00ff00"})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_lcd.frame.send_color.assert_called_once_with(0, 255, 0)
+
+    def test_set_brightness_level_1(self) -> None:
+        self.mock_lcd.settings.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 25%"}
+        resp = self.client.post("/display/brightness", json={"level": 1})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_lcd.settings.set_brightness.assert_called_once_with(1)
+
+    def test_set_brightness_level_3(self) -> None:
+        self.mock_lcd.settings.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 100%"}
+        resp = self.client.post("/display/brightness", json={"level": 3})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_rotation_0(self) -> None:
+        self.mock_lcd.settings.set_rotation.return_value = {
+            "success": True, "message": "Rotation set to 0°"}
+        resp = self.client.post("/display/rotation", json={"degrees": 0})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_rotation_90(self) -> None:
+        self.mock_lcd.settings.set_rotation.return_value = {
+            "success": True, "message": "Rotation set to 90°"}
+        resp = self.client.post("/display/rotation", json={"degrees": 90})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_rotation_180(self) -> None:
+        self.mock_lcd.settings.set_rotation.return_value = {
+            "success": True, "message": "Rotation set to 180°"}
+        resp = self.client.post("/display/rotation", json={"degrees": 180})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_rotation_270(self) -> None:
+        self.mock_lcd.settings.set_rotation.return_value = {
+            "success": True, "message": "Rotation set to 270°"}
+        resp = self.client.post("/display/rotation", json={"degrees": 270})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_split_mode_0(self) -> None:
+        self.mock_lcd.settings.set_split_mode.return_value = {
+            "success": True, "message": "Split mode off"}
+        resp = self.client.post("/display/split", json={"mode": 0})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_split_mode_1(self) -> None:
+        self.mock_lcd.settings.set_split_mode.return_value = {
+            "success": True, "message": "Split mode 1"}
+        resp = self.client.post("/display/split", json={"mode": 1})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_lcd.settings.set_split_mode.assert_called_once_with(1)
+
+    @patch('trcc.api.stop_overlay_loop')
+    @patch('trcc.api.stop_video_playback')
+    def test_reset_success(self, _sv, _so) -> None:
+        self.mock_lcd.frame.reset.return_value = {
+            "success": True, "message": "Device reset"}
+        resp = self.client.post("/display/reset")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_lcd.frame.reset.assert_called_once()
+
+    def test_mask_upload_success(self) -> None:
+        self.mock_lcd.load_mask_standalone.return_value = {
+            "success": True, "message": "Mask applied"}
+        # Small valid PNG-like data (under 10MB)
+        png_data = io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        resp = self.client.post(
+            "/display/mask",
+            files={"image": ("mask.png", png_data, "image/png")},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_lcd.load_mask_standalone.assert_called_once()
+
+    def test_overlay_success(self) -> None:
+        from trcc.core.paths import USER_DATA_DIR
+        self.mock_lcd.render_overlay_from_dc.return_value = {
+            "success": True, "message": "Overlay rendered"}
+        safe_dc = f"{USER_DATA_DIR}/themes/config1.dc"
+        resp = self.client.post(f"/display/overlay?dc_path={safe_dc}&send=true")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_video_stop_success(self) -> None:
+        resp = self.client.post("/display/video/stop")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    @patch('trcc.api.stop_overlay_loop')
+    @patch('trcc.api.stop_video_playback')
+    def test_color_stops_video_and_overlay(self, mock_sv, mock_so) -> None:
+        """Sending color stops any running video/overlay."""
+        self.mock_lcd.frame.send_color.return_value = {
+            "success": True, "message": "Sent"}
+        self.client.post("/display/color", json={"hex": "0000ff"})
+        mock_sv.assert_called_once()
+        mock_so.assert_called_once()
+
+    def test_brightness_response_contains_message(self) -> None:
+        self.mock_lcd.settings.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 50%"}
+        resp = self.client.post("/display/brightness", json={"level": 2})
+        self.assertIn("message", resp.json())
+
+
+# =============================================================================
+# LED happy-path tests — verify success responses for all control endpoints
+# =============================================================================
+
+
+class TestLEDHappyPaths(unittest.TestCase):
+    """POST /led/* success paths — device connected, operations succeed."""
+
+    def setUp(self) -> None:
+        configure_auth(None)
+        self.client = TestClient(app)
+        self.mock_led = MagicMock()
+        self.mock_led.connected = True
+        self.mock_led.status = "AX120 Digital (style 1)"
+        api_module._led_dispatcher = self.mock_led
+
+    def tearDown(self) -> None:
+        api_module._led_dispatcher = None
+
+    # ── Global operations ──────────────────────────────────────────────
+
+    def test_set_color_success(self) -> None:
+        self.mock_led.set_color.return_value = {
+            "success": True, "message": "Color set to (255, 0, 0)"}
+        resp = self.client.post("/led/color", json={"hex": "ff0000"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_color.assert_called_once_with(255, 0, 0)
+
+    def test_set_color_with_hash(self) -> None:
+        self.mock_led.set_color.return_value = {
+            "success": True, "message": "Color set"}
+        resp = self.client.post("/led/color", json={"hex": "#00ff00"})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_color.assert_called_once_with(0, 255, 0)
+
+    def test_set_mode_static(self) -> None:
+        self.mock_led.set_mode.return_value = {
+            "success": True, "message": "Mode set to static"}
+        resp = self.client.post("/led/mode", json={"mode": "static"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_mode.assert_called_once_with("static")
+
+    def test_set_mode_breathing(self) -> None:
+        self.mock_led.set_mode.return_value = {
+            "success": True, "message": "Mode set to breathing"}
+        resp = self.client.post("/led/mode", json={"mode": "breathing"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_mode_rainbow(self) -> None:
+        self.mock_led.set_mode.return_value = {
+            "success": True, "message": "Mode set to rainbow"}
+        resp = self.client.post("/led/mode", json={"mode": "rainbow"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_brightness_0(self) -> None:
+        self.mock_led.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 0%"}
+        resp = self.client.post("/led/brightness", json={"level": 0})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_brightness.assert_called_once_with(0)
+
+    def test_set_brightness_100(self) -> None:
+        self.mock_led.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 100%"}
+        resp = self.client.post("/led/brightness", json={"level": 100})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    def test_set_brightness_50(self) -> None:
+        self.mock_led.set_brightness.return_value = {
+            "success": True, "message": "Brightness set to 50%"}
+        resp = self.client.post("/led/brightness", json={"level": 50})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_brightness.assert_called_once_with(50)
+
+    def test_off_success(self) -> None:
+        self.mock_led.off.return_value = {
+            "success": True, "message": "LEDs turned off"}
+        resp = self.client.post("/led/off")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.off.assert_called_once()
+
+    def test_set_sensor_cpu(self) -> None:
+        self.mock_led.set_sensor_source.return_value = {
+            "success": True, "message": "Sensor source set to cpu"}
+        resp = self.client.post("/led/sensor", json={"source": "cpu"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_sensor_source.assert_called_once_with("cpu")
+
+    def test_set_sensor_gpu(self) -> None:
+        self.mock_led.set_sensor_source.return_value = {
+            "success": True, "message": "Sensor source set to gpu"}
+        resp = self.client.post("/led/sensor", json={"source": "gpu"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    # ── Zone operations ────────────────────────────────────────────────
+
+    def test_zone_color_success(self) -> None:
+        self.mock_led.set_zone_color.return_value = {
+            "success": True, "message": "Zone 0 color set"}
+        resp = self.client.post("/led/zones/0/color", json={"hex": "ff0000"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_zone_color.assert_called_once_with(0, 255, 0, 0)
+
+    def test_zone_color_zone_1(self) -> None:
+        self.mock_led.set_zone_color.return_value = {
+            "success": True, "message": "Zone 1 color set"}
+        resp = self.client.post("/led/zones/1/color", json={"hex": "00ff00"})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_zone_color.assert_called_once_with(1, 0, 255, 0)
+
+    def test_zone_mode_success(self) -> None:
+        self.mock_led.set_zone_mode.return_value = {
+            "success": True, "message": "Zone 0 mode set to breathing"}
+        resp = self.client.post("/led/zones/0/mode", json={"mode": "breathing"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_zone_mode.assert_called_once_with(0, "breathing")
+
+    def test_zone_mode_zone_2(self) -> None:
+        self.mock_led.set_zone_mode.return_value = {
+            "success": True, "message": "Zone 2 mode set"}
+        resp = self.client.post("/led/zones/2/mode", json={"mode": "rainbow"})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_zone_mode.assert_called_once_with(2, "rainbow")
+
+    def test_zone_brightness_success(self) -> None:
+        self.mock_led.set_zone_brightness.return_value = {
+            "success": True, "message": "Zone 0 brightness set to 75%"}
+        resp = self.client.post("/led/zones/0/brightness", json={"level": 75})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_zone_brightness.assert_called_once_with(0, 75)
+
+    def test_zone_brightness_zone_3(self) -> None:
+        self.mock_led.set_zone_brightness.return_value = {
+            "success": True, "message": "Zone 3 brightness set"}
+        resp = self.client.post("/led/zones/3/brightness", json={"level": 100})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_zone_brightness.assert_called_once_with(3, 100)
+
+    def test_zone_toggle_on(self) -> None:
+        self.mock_led.toggle_zone.return_value = {
+            "success": True, "message": "Zone 0 enabled"}
+        resp = self.client.post("/led/zones/0/toggle", json={"on": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.toggle_zone.assert_called_once_with(0, True)
+
+    def test_zone_toggle_off(self) -> None:
+        self.mock_led.toggle_zone.return_value = {
+            "success": True, "message": "Zone 0 disabled"}
+        resp = self.client.post("/led/zones/0/toggle", json={"on": False})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.toggle_zone.assert_called_once_with(0, False)
+
+    def test_sync_enabled(self) -> None:
+        self.mock_led.set_zone_sync.return_value = {
+            "success": True, "message": "Zone sync enabled"}
+        resp = self.client.post("/led/sync", json={"enabled": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_zone_sync.assert_called_once_with(True, None)
+
+    def test_sync_with_interval(self) -> None:
+        self.mock_led.set_zone_sync.return_value = {
+            "success": True, "message": "Zone sync enabled with interval 500ms"}
+        resp = self.client.post("/led/sync", json={"enabled": True, "interval": 500})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_zone_sync.assert_called_once_with(True, 500)
+
+    def test_sync_disabled(self) -> None:
+        self.mock_led.set_zone_sync.return_value = {
+            "success": True, "message": "Zone sync disabled"}
+        resp = self.client.post("/led/sync", json={"enabled": False})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+    # ── Segment operations ─────────────────────────────────────────────
+
+    def test_segment_toggle_on(self) -> None:
+        self.mock_led.toggle_segment.return_value = {
+            "success": True, "message": "Segment 0 enabled"}
+        resp = self.client.post("/led/segments/0/toggle", json={"on": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.toggle_segment.assert_called_once_with(0, True)
+
+    def test_segment_toggle_off(self) -> None:
+        self.mock_led.toggle_segment.return_value = {
+            "success": True, "message": "Segment 0 disabled"}
+        resp = self.client.post("/led/segments/0/toggle", json={"on": False})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.toggle_segment.assert_called_once_with(0, False)
+
+    def test_clock_24h(self) -> None:
+        self.mock_led.set_clock_format.return_value = {
+            "success": True, "message": "Clock format set to 24h"}
+        resp = self.client.post("/led/clock", json={"is_24h": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_clock_format.assert_called_once_with(True)
+
+    def test_clock_12h(self) -> None:
+        self.mock_led.set_clock_format.return_value = {
+            "success": True, "message": "Clock format set to 12h"}
+        resp = self.client.post("/led/clock", json={"is_24h": False})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_clock_format.assert_called_once_with(False)
+
+    def test_temp_unit_celsius(self) -> None:
+        self.mock_led.set_temp_unit.return_value = {
+            "success": True, "message": "Temperature unit set to C"}
+        resp = self.client.post("/led/temp-unit", json={"unit": "C"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        self.mock_led.set_temp_unit.assert_called_once_with("C")
+
+    def test_temp_unit_fahrenheit(self) -> None:
+        self.mock_led.set_temp_unit.return_value = {
+            "success": True, "message": "Temperature unit set to F"}
+        resp = self.client.post("/led/temp-unit", json={"unit": "F"})
+        self.assertEqual(resp.status_code, 200)
+        self.mock_led.set_temp_unit.assert_called_once_with("F")
+
+    # ── Dispatch failure paths ─────────────────────────────────────────
+
+    def test_color_failure_returns_400(self) -> None:
+        self.mock_led.set_color.return_value = {
+            "success": False, "error": "Protocol error"}
+        resp = self.client.post("/led/color", json={"hex": "ff0000"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_mode_failure_returns_400(self) -> None:
+        self.mock_led.set_mode.return_value = {
+            "success": False, "error": "Unknown mode"}
+        resp = self.client.post("/led/mode", json={"mode": "invalid"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_zone_color_failure_returns_400(self) -> None:
+        self.mock_led.set_zone_color.return_value = {
+            "success": False, "error": "Zone 99 out of range"}
+        resp = self.client.post("/led/zones/99/color", json={"hex": "ff0000"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_zone_mode_failure_returns_400(self) -> None:
+        self.mock_led.set_zone_mode.return_value = {
+            "success": False, "error": "Zone 99 out of range"}
+        resp = self.client.post("/led/zones/99/mode", json={"mode": "static"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_zone_brightness_failure_returns_400(self) -> None:
+        self.mock_led.set_zone_brightness.return_value = {
+            "success": False, "error": "Zone 99 out of range"}
+        resp = self.client.post("/led/zones/99/brightness", json={"level": 50})
+        self.assertEqual(resp.status_code, 400)
+
+
 if __name__ == '__main__':
     unittest.main()

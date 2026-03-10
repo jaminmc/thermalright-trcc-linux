@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.2.5
+
+### Internal
+- **Tests**: Added 184 service-level unit tests across 6 new test files (`test_led_config.py`, `test_led_effects.py`, `test_media.py`, `test_device.py`, `test_system.py`, `test_theme_loader.py`) — 4660 total tests
+- **Refactor**: Split `uc_theme_setting.py` (1563 lines, 8 classes) into 5 SRP-focused modules: `overlay_element.py`, `overlay_grid.py`, `color_and_add_panels.py`, `display_mode_panels.py`, + thin orchestrator with backward-compatible re-exports
+
 ## v8.2.4
 
 ### Bug Fixes
