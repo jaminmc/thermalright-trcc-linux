@@ -121,7 +121,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 4112 tests across 57 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
+- **Tests**: `pytest` with `PYTHONPATH=src`; 4660 tests across 57+ files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest.
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Security**: Zero tolerance for CodeQL / OWASP findings — see **Security** section below
 - **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.

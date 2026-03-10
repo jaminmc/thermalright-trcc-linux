@@ -32,7 +32,14 @@ Shared terminology so everyone uses the same names.
 | **UCThemeLocal** | Local themes browser (tab 1) |
 | **UCThemeWeb** | Cloud themes browser (tab 2) |
 | **UCThemeMask** | Cloud masks browser (tab 3) |
-| **UCThemeSetting** | Overlay editor / display mode panels |
+| **UCThemeSetting** | Overlay editor / display mode panels (thin orchestrator + re-exports) |
+| **OverlayElementWidget** | Single 60x60 overlay grid cell (`overlay_element.py`) |
+| **OverlayGridPanel** | 7x6 grid managing overlay elements (`overlay_grid.py`) |
+| **ColorPickerPanel** | RGB color picker, XY position, font selector (`color_and_add_panels.py`) |
+| **AddElementPanel** | Create new overlay elements by type (`color_and_add_panels.py`) |
+| **DataTablePanel** | Context-sensitive format controls (`display_mode_panels.py`) |
+| **DisplayModePanel** | Toggle + action buttons for display modes (`display_mode_panels.py`) |
+| **ScreenCastPanel** | Screen capture with coordinate inputs (`display_mode_panels.py`) |
 | **UCDevice** | Device sidebar with detection and selection |
 | **UCLedControl** | LED RGB control panel (all LED styles 1-13, inc. HR10) |
 | **UCScreenLED** | LED segment visualization (colored circles) |
