@@ -52,6 +52,10 @@ Native Linux port of the Thermalright LCD Control Center (Windows TRCC 2.1.2). C
 
 Run `trcc report` and [paste the output in an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) — takes 30 seconds. See the **[full list of devices that need testers](doc/TESTERS_WANTED.md)**.
 
+### Something not working?
+
+**[Open a GitHub issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new)** — that's the only place I see bug reports. I don't monitor Reddit, forums, or Discussions. Run `trcc report`, paste the output, and I'll get back to you.
+
 ![TRCC Linux GUI](doc/screenshots/screenshot.png)
 
 ## Features
