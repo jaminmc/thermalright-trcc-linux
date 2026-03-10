@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.1.2 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 8.1.1
+**Current version:** 8.2.3
 **Branch:** `main`
-**Tests:** 4021 across 56 files in 9 hexagonal directories
+**Tests:** 4112 across 57 files in 9 hexagonal directories
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable
@@ -23,7 +23,7 @@ All features are tested and working on the `main` branch:
 - **IPC daemon** — GUI owns device exclusively; CLI auto-routes through Unix socket when GUI is running
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **4021 tests** across 56 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,qt_components}/`)
+- **4112 tests** across 57 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,qt_components}/`)
 
 ### Supported Devices
 
@@ -62,7 +62,7 @@ All features are tested and working on the `main` branch:
 | # | Item | Status |
 |---|------|--------|
 | 1 | Full GUI port of Windows TRCC 2.1.2 | Done |
-| 2 | Test coverage | Done (4021 tests, 56 files, hexagonal layout) |
+| 2 | Test coverage | Done (4112 tests, 57 files, hexagonal layout) |
 | 3 | CI/CD (GitHub Actions) | Done |
 | 4 | Type checking (pyright basic) | Done |
 | 5 | Cross-distro compatibility | Done |
@@ -112,6 +112,7 @@ If something breaks:
 - [DEVICE_TESTING.md](DEVICE_TESTING.md) — how to help test devices
 - [INSTALL_GUIDE.md](INSTALL_GUIDE.md) — installation for all distros
 - [CLI_REFERENCE.md](CLI_REFERENCE.md) — all 50 commands
+- [API_REFERENCE.md](API_REFERENCE.md) — all 43 REST API endpoints
 - [USBLCD_PROTOCOL.md](audit/USBLCD_PROTOCOL.md) — SCSI protocol (from USBLCD.exe reverse engineering)
 - [USBLCDNEW_PROTOCOL.md](audit/USBLCDNEW_PROTOCOL.md) — USB bulk protocol (from USBLCDNEW.exe reverse engineering)
 - [USBLED_PROTOCOL.md](audit/USBLED_PROTOCOL.md) — HID LED protocol (from FormLED.cs reverse engineering)

@@ -167,6 +167,13 @@ trcc gui
 
 That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
 
+> **`python3-pyside6` not found?** On some Ubuntu versions it's in the `universe` repository:
+> ```bash
+> sudo add-apt-repository universe
+> sudo apt update
+> sudo apt-get install -f
+> ```
+
 ---
 
 ### Arch / CachyOS / Manjaro / EndeavourOS / Garuda
@@ -556,7 +563,26 @@ These distros have read-only root filesystems. Standard package installation wor
 
 Covers: Bazzite, Aurora, Bluefin, Fedora Silverblue, Fedora Kinoite, and all Universal Blue / Fedora Atomic desktops
 
-These use an immutable root filesystem — you can't `sudo dnf install` like normal Fedora. Instead:
+These use an immutable root filesystem — you can't `sudo dnf install` like normal Fedora.
+
+**Option A — Native RPM (recommended):**
+
+```bash
+# Step 1: Download the .rpm from the latest release
+cd ~/Downloads
+
+# Step 2: Install with rpm-ostree (requires reboot)
+rpm-ostree install ./trcc-linux-*.noarch.rpm
+systemctl reboot
+
+# Step 3: Unplug and replug the USB cable, then launch
+trcc gui
+```
+
+> If you have a bulk USB device, you may also need SELinux policy: `trcc setup-selinux`
+> (if `checkmodule` is not found: `rpm-ostree install checkpolicy` and reboot first)
+
+**Option B — pip in a venv (if RPM doesn't work):**
 
 ```bash
 # Step 1: Layer sg3_utils (needed for SCSI USB devices — requires reboot)
@@ -577,14 +603,7 @@ pip install trcc-linux
 # Step 4: Set up device permissions
 trcc setup-udev
 
-# Step 5: If you have a bulk USB device, install SELinux policy
-trcc setup-selinux
-```
-
-> If `checkmodule` is not found: `sudo dnf install checkpolicy`
-
-```bash
-# Step 6: Unplug and replug the USB cable, then launch
+# Step 5: Unplug and replug the USB cable, then launch
 trcc gui
 ```
 
@@ -932,6 +951,8 @@ Quick fixes for the most common issues:
 | externally-managed-environment | Use `--break-system-packages` or a venv (see your distro's section above) |
 | NixOS: setup-udev fails | Add udev rules to `configuration.nix` (see [NixOS section](#nixos)) |
 | HID handshake None | Upgrade to latest version, power-cycle USB, run `trcc hid-debug` |
+| Old pip/pipx `trcc` shadows system package | `rm ~/.local/bin/trcc` (or `pipx uninstall trcc-linux`) then open a new terminal |
+| `python3-pyside6` not found (Ubuntu) | `sudo add-apt-repository universe && sudo apt update && sudo apt-get install -f` |
 
 ### Wayland screen capture
 

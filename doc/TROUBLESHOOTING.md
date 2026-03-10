@@ -45,6 +45,26 @@ fish_add_path ~/.local/bin
 
 ---
 
+## Old pip/pipx install shadows the system package
+
+**Cause:** You previously installed TRCC via pip or pipx, then switched to a native package (`.deb`, `.rpm`, `.pkg.tar.zst`). The old `~/.local/bin/trcc` takes priority over `/usr/bin/trcc`, so you're running the old version — or it fails because the old venv is broken.
+
+**Symptoms:** Wrong version, missing modules, or strange errors after upgrading to a native package.
+
+**Fix:**
+
+```bash
+# Remove the old pip/pipx install
+pipx uninstall trcc-linux 2>/dev/null
+rm -f ~/.local/bin/trcc
+
+# Verify the system package is being used
+which trcc    # should show /usr/bin/trcc
+trcc --version
+```
+
+---
+
 ## No compatible TRCC LCD device detected
 
 **Cause:** The LCD isn't showing up as a SCSI device.

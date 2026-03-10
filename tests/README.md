@@ -1,6 +1,6 @@
 # TRCC Linux — Test Suite
 
-4021 tests across 56 files, organized to mirror `src/trcc/` hexagonal layers.
+4112 tests across 57 files, organized to mirror `src/trcc/` hexagonal layers.
 
 ## Running Tests
 
@@ -68,7 +68,8 @@ tests/
 │   ├── test_system.py
 │   └── test_theme.py
 ├── api/                         # REST API adapter
-│   └── test_api.py
+│   ├── test_api.py
+│   └── test_api_security.py
 ├── qt_components/               # GUI adapter
 │   ├── test_base.py
 │   ├── test_base_panel.py

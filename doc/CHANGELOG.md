@@ -1,5 +1,20 @@
 # Changelog
 
+## v8.2.3
+
+### Security
+- **Fixed**: CodeQL `py/path-injection` alert (#15) in `/display/overlay` — replaced `pathlib.resolve()`/`is_relative_to()` with `os.path.realpath()`/`startswith()` sanitizer pattern that CodeQL recognizes
+
+## v8.2.2
+
+### Bug Fixes
+- **Fixed**: Config writes now use `fsync` to survive unexpected shutdowns
+
+## v8.2.1
+
+### Bug Fixes
+- **Fixed**: RPM shebang normalization — `release.yml` uses `find + sed` to fix non-standard shebangs from build containers (e.g. `/usr/sbin/python3` on immutable distros)
+
 ## v8.2.0
 
 ### Security
@@ -33,7 +48,7 @@
 - **API call sites fixed**: `api/__init__.py` and `api/themes.py` inject DC deps into OverlayService and ThemeService.
 - **LEDDevice wiring**: `led_device.py:initialize()` passes `get_protocol` to LEDService.
 - **conftest fixtures**: Shared DI-wired service fixtures in `tests/services/conftest.py`.
-- 4021 tests across 56 files in 9 directories
+- 4112 tests across 57 files in 9 directories
 
 ### Bug Fixes
 - **Fixed**: Cloud theme thumbnail blank after download — `_on_download_complete()` now calls `_set_movies_running(True)` when panel is visible (QMovie lifecycle fix).

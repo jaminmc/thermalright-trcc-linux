@@ -269,6 +269,7 @@ curl -X POST http://localhost:9876/led/color \
 |----------|-------------|
 | [Install Guide](doc/INSTALL_GUIDE.md) | Installation for all major distros |
 | [CLI Reference](doc/CLI_REFERENCE.md) | All CLI commands with options and examples |
+| [API Reference](doc/API_REFERENCE.md) | All 43 REST API endpoints with request/response models |
 | [Troubleshooting](doc/TROUBLESHOOTING.md) | Common issues and fixes |
 | [New to Linux](doc/NEW_TO_LINUX.md) | Guide for Linux beginners |
 | [Changelog](doc/CHANGELOG.md) | Version history |
