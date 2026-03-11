@@ -92,7 +92,9 @@ class LCDHandler:
             self._w['image_cut'].set_resolution(w, h)
             self._w['video_cut'].set_resolution(w, h)
             self._w['theme_setting'].set_resolution(w, h)
-            self._update_theme_directories()
+
+        # Always refresh — first run downloads themes after widget init
+        self._update_theme_directories()
 
         # Restore per-device settings
         cfg = Settings.get_device_config(self._device_key)
