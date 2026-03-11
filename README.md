@@ -125,12 +125,14 @@ Pre-built packages are available for every major distro. No pip, no venv, no PEP
 sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.2.10-1.fc43.noarch.rpm
 ```
 
-**Ubuntu / Debian / Mint / Pop!_OS / Zorin:**
+**Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS 24.04+ / Zorin 17+:**
 ```bash
 curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.2.10-1_all.deb
 sudo dpkg -i trcc-linux_8.2.10-1_all.deb
 sudo apt-get install -f    # pulls in any missing dependencies
 ```
+
+> **Older versions** (Ubuntu 22.04, Mint 21.x, etc.) don't have `python3-pyside6` and other deps in their repos. Use `pipx` instead — see [PyPI install](#pypi) below.
 
 **Arch / CachyOS / Manjaro / EndeavourOS / Garuda:**
 ```bash
@@ -171,9 +173,16 @@ If you see `OK` next to your package — it's clean. Source code is GPL-3.0, ful
 
 ### PyPI
 
+Best option for older distros (Ubuntu 22.04, Mint 21.x, Debian 11/12) or if you prefer Python packaging.
+
 ```bash
+# Install system dependencies first
+sudo apt install pipx libusb-1.0-0 sg3-utils p7zip-full libxcb-cursor0  # Debian/Ubuntu/Mint
+sudo dnf install pipx libusb-1.0.0 sg3_utils p7zip                      # Fedora
+
+# Install trcc-linux
 pipx install trcc-linux
-trcc setup        # interactive wizard — deps, udev, desktop entry
+trcc setup        # interactive wizard — udev rules, desktop entry
 ```
 
 Then **unplug and replug the USB cable** and run `trcc gui`.

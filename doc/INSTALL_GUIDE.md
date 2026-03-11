@@ -143,7 +143,9 @@ That's it! If your device isn't detected, run `trcc detect --all` to see what's 
 
 ### Ubuntu / Debian / Mint / Pop!_OS / Zorin
 
-Covers: Ubuntu 22.04+, Debian 12+, Linux Mint 21+, Pop!_OS 22.04+, Zorin OS 17+, elementary OS 7+, KDE neon, Kubuntu, Xubuntu, Lubuntu
+Covers: Ubuntu 24.04+, Debian 13+, Linux Mint 22+, Pop!_OS 24.04+, Zorin OS 17+, KDE neon, Kubuntu, Xubuntu, Lubuntu
+
+> **Older versions** (Ubuntu 22.04, Mint 21.x, Debian 11/12, Pop!_OS 22.04, elementary OS 7) don't have `python3-pyside6` and other deps in their repos. The `.deb` package won't work — use the [PyPI install](#ubuntu--debian--mint--pop_os--zorin-pip) instead.
 
 **Step 1 — Download** the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
 
@@ -167,7 +169,7 @@ trcc gui
 
 That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
 
-> **`python3-pyside6` not found?** On some Ubuntu versions it's in the `universe` repository:
+> **`python3-pyside6` not found?** On Ubuntu 24.04 it may be in the `universe` repository:
 > ```bash
 > sudo add-apt-repository universe
 > sudo apt update
@@ -330,10 +332,12 @@ trcc gui
 
 ### Ubuntu / Debian / Mint / Pop!_OS / Zorin (pip)
 
+> **Recommended for older distros** (Ubuntu 22.04, Mint 21.x, Debian 11/12, elementary OS 7) where the `.deb` package won't work because `python3-pyside6` and other deps aren't in the repos. `pipx` creates its own isolated environment and handles all Python dependencies automatically.
+
 ```bash
 # Step 1: Install system dependencies
 sudo apt update
-sudo apt install pipx sg3-utils python3-pyside6 ffmpeg
+sudo apt install pipx libusb-1.0-0 sg3-utils p7zip-full libxcb-cursor0 ffmpeg
 
 # Step 2: Install optional extras (hardware sensors, Wayland screen capture)
 sudo apt install lm-sensors grim python3-gi python3-dbus python3-gst-1.0
@@ -350,7 +354,7 @@ trcc gui
 
 > To upgrade later: `pipx upgrade trcc-linux`
 
-> **Older Ubuntu/Debian without pipx?** If `pipx` isn't available (Ubuntu 22.04, Debian 11), fall back to pip:
+> **`pipx` not available?** On very old systems (Ubuntu 20.04, Debian 10), fall back to pip:
 > ```bash
 > sudo apt install python3-pip python3-venv
 > pip install trcc-linux
@@ -918,7 +922,8 @@ Quick fixes for the most common issues:
 | NixOS: setup-udev fails | Add udev rules to `configuration.nix` (see [NixOS section](#nixos)) |
 | HID handshake None | Upgrade to latest version, power-cycle USB, run `trcc hid-debug` |
 | Old pip/pipx `trcc` shadows system package | `rm ~/.local/bin/trcc` (or `pipx uninstall trcc-linux`) then open a new terminal |
-| `python3-pyside6` not found (Ubuntu) | `sudo add-apt-repository universe && sudo apt update && sudo apt-get install -f` |
+| `python3-pyside6` not found (Ubuntu 22.04 / Mint 21.x) | Use `pipx install trcc-linux` instead of the `.deb` — see [PyPI install](#ubuntu--debian--mint--pop_os--zorin-pip) |
+| `python3-pyside6` not found (Ubuntu 24.04) | `sudo add-apt-repository universe && sudo apt update && sudo apt-get install -f` |
 
 ### Wayland screen capture
 
