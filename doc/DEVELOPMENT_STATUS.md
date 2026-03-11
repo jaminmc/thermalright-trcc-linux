@@ -107,12 +107,11 @@ If something breaks:
 
 ## See Also
 
-- [SUPPORTED_DEVICES.md](SUPPORTED_DEVICES.md) — full device list with USB IDs
+- [REFERENCE_DEVICES.md](REFERENCE_DEVICES.md) — full device list with USB IDs
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [DEVICE_TESTING.md](DEVICE_TESTING.md) — how to help test devices
-- [INSTALL_GUIDE.md](INSTALL_GUIDE.md) — installation for all distros
-- [CLI_REFERENCE.md](CLI_REFERENCE.md) — all 50 commands
-- [API_REFERENCE.md](API_REFERENCE.md) — all 43 REST API endpoints
-- [USBLCD_PROTOCOL.md](audit/USBLCD_PROTOCOL.md) — SCSI protocol (from USBLCD.exe reverse engineering)
-- [USBLCDNEW_PROTOCOL.md](audit/USBLCDNEW_PROTOCOL.md) — USB bulk protocol (from USBLCDNEW.exe reverse engineering)
-- [USBLED_PROTOCOL.md](audit/USBLED_PROTOCOL.md) — HID LED protocol (from FormLED.cs reverse engineering)
+- [GUIDE_DEVICE_TESTING.md](GUIDE_DEVICE_TESTING.md) — how to help test devices
+- [GUIDE_INSTALL.md](GUIDE_INSTALL.md) — installation for all distros
+- [REFERENCE_CLI.md](REFERENCE_CLI.md) — all 50 commands
+- [REFERENCE_API.md](REFERENCE_API.md) — all 43 REST API endpoints
+- [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md) — USB bulk protocol (from USBLCDNEW.exe reverse engineering)
+- [PROTOCOL_USBLED.md](PROTOCOL_USBLED.md) — HID LED protocol (from FormLED.cs reverse engineering)

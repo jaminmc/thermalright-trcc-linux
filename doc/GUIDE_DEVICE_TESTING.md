@@ -28,7 +28,7 @@ After setup finishes: **unplug and replug the USB cable**, then **open a new ter
 
 > **Already have TRCC installed?** Just run `pip install pyusb` and then `trcc gui` (HID is auto-detected).
 
-For per-distro manual install commands, see the [Install Guide](INSTALL_GUIDE.md).
+For per-distro manual install commands, see the [Install Guide](GUIDE_INSTALL.md).
 
 ## Step 1: Run Detection
 

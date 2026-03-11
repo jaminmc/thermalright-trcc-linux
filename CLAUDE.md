@@ -316,6 +316,6 @@ When the user says one bare word — `patch`, `minor`, or `major` — execute th
 - **Import from canonical location** — `from .core.models import X`, not re-defining X locally. Re-exports are fine for convenience (e.g., `constants.py` re-exporting from models).
 
 ## Reference Docs
-- **Architecture history** (GoF refactoring, SOLID evolution, v6.0–v8.1): `doc/ARCHITECTURE_HISTORY.md`
-- **Project history** (reverse engineering journey, protocols, lessons learned): `doc/PROJECT_HISTORY.md`
+- **Architecture history** (GoF refactoring, SOLID evolution, v6.0–v8.1): `doc/HISTORY_ARCHITECTURE.md`
+- **Project history** (reverse engineering journey, protocols, lessons learned): `doc/HISTORY_PROJECT.md`
 - **Changelog** (per-version release notes): `doc/CHANGELOG.md`

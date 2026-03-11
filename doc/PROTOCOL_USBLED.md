@@ -3,7 +3,7 @@
 Reverse-engineered from `FormLED.cs`, `UCDevice.cs`, and `UCScreenLED.cs` (TRCC 2.1.2, .NET/ILSpy decompilation). This covers the **HID LED protocol** used by RGB LED devices (VID:PID `0416:8001`).
 
 For SCSI LCD devices, see [USBLCD_PROTOCOL.md](USBLCD_PROTOCOL.md).
-For HID LCD devices, see [USBLCDNEW_PROTOCOL.md](USBLCDNEW_PROTOCOL.md).
+For HID LCD devices, see [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md).
 
 ## Overview
 
@@ -481,5 +481,5 @@ Cache keys include the USB bus path (e.g. `2-1.4`) to disambiguate multiple devi
 ## See Also
 
 - [USBLCD_PROTOCOL.md](USBLCD_PROTOCOL.md) — SCSI protocol from USBLCD.exe
-- [USBLCDNEW_PROTOCOL.md](USBLCDNEW_PROTOCOL.md) — USB bulk protocol from USBLCDNEW.exe
-- [TECHNICAL_REFERENCE.md](TECHNICAL_REFERENCE.md) — Full project technical reference
+- [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md) — USB bulk protocol from USBLCDNEW.exe
+- [REFERENCE_TECHNICAL.md](REFERENCE_TECHNICAL.md) — Full project technical reference

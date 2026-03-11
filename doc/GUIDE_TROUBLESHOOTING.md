@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Quick reference for common TRCC Linux issues. For full installation instructions, see the [Install Guide](INSTALL_GUIDE.md).
+Quick reference for common TRCC Linux issues. For full installation instructions, see the [Install Guide](GUIDE_INSTALL.md).
 
 ---
 

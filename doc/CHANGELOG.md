@@ -64,7 +64,7 @@
 - **Fixed**: Sub-screen mask overlays (000a, 000b, 000d, etc.) placed at top-left (0,0) instead of correct position. `LCDDevice._parse_mask_position()` never read the DC file's center coordinates; `ThemeService._parse_mask_position()` returned `None` instead of centering as fallback. Both now read DC `mask_position` and convert center→top-left, or center the mask by default (matching C# `ThemeMask` panel behavior).
 
 ### Docs
-- **Added**: `doc/API_REFERENCE.md` — full reference for all 43 REST API endpoints (devices, display, LED, themes, system, WebSocket preview stream).
+- **Added**: `doc/REFERENCE_API.md` — full reference for all 43 REST API endpoints (devices, display, LED, themes, system, WebSocket preview stream).
 
 ## v8.1.0
 
@@ -964,7 +964,7 @@
 - Complete SCSI protocol reference from USBLCD.exe (Ghidra decompilation)
 - Complete USB bulk protocol reference from USBLCDNEW.exe (.NET/ILSpy)
 - Documented all CDB commands, handshake sequences, frame transfer formats
-- New docs: [USBLCD_PROTOCOL.md](USBLCD_PROTOCOL.md), [USBLCDNEW_PROTOCOL.md](USBLCDNEW_PROTOCOL.md)
+- New docs: [USBLCD_PROTOCOL.md](USBLCD_PROTOCOL.md), [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md)
 
 ### LCD Blink Mitigation
 - SCSI init now checks poll response for `0xA1A2A3A4` boot signature (matching USBLCD.exe)
@@ -1014,9 +1014,9 @@
 - Fixed CI workflow missing libEGL and QT_QPA_PLATFORM for PyQt6 tests
 
 ### Documentation
-- Added [Supported Devices](SUPPORTED_DEVICES.md) page with all USB IDs
+- Added [Supported Devices](REFERENCE_DEVICES.md) page with all USB IDs
 - Added [Development Status](DEVELOPMENT_STATUS.md) tracking page
-- Expanded [Technical Reference](TECHNICAL_REFERENCE.md) with full SCSI command table
+- Expanded [Technical Reference](REFERENCE_TECHNICAL.md) with full SCSI command table
 - Removed `--testing-hid` references from all docs (HID is auto-detected)
 
 ### Testing
@@ -1063,9 +1063,9 @@
 - Added HID device PIDs (`0416:5302`, `0418:5303`, `0418:5304`) to supported devices
 - Split README device tables into SCSI (stable) and HID (testing) sections with USB IDs
 - Added `lsusb` example to help users identify their device
-- Created [Device Testing Guide](DEVICE_TESTING.md) with install, switch, and reporting instructions
+- Created [Device Testing Guide](GUIDE_DEVICE_TESTING.md) with install, switch, and reporting instructions
 - Added CI badge to README
-- Added [CLI Reference](CLI_REFERENCE.md) with all commands, options, and troubleshooting
+- Added [CLI Reference](REFERENCE_CLI.md) with all commands, options, and troubleshooting
 - Updated Documentation table on all branches
 
 ### Autostart on Login

@@ -2,7 +2,7 @@
 
 A step-by-step guide for every major Linux distro. Each section is self-contained — find your distro, copy-paste the commands, done.
 
-> **New to Linux?** See [New to Linux?](NEW_TO_LINUX.md) for a quick primer on terminals, package managers, and other concepts used here.
+> **New to Linux?** See [New to Linux?](GUIDE_NEW_TO_LINUX.md) for a quick primer on terminals, package managers, and other concepts used here.
 
 ---
 
@@ -906,7 +906,7 @@ If you see `OK` next to your package — it's clean. Source code is GPL-3.0, ful
 
 ## Troubleshooting
 
-For the full troubleshooting guide, see **[Troubleshooting](TROUBLESHOOTING.md)**.
+For the full troubleshooting guide, see **[Troubleshooting](GUIDE_TROUBLESHOOTING.md)**.
 
 Quick fixes for the most common issues:
 
@@ -966,5 +966,5 @@ rm -f ~/.local/share/applications/trcc*.desktop
 
 - Run `trcc doctor` to check your system for missing dependencies
 - Run `trcc report` and [paste the output in an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) — this gives us everything we need to help you
-- Check the [Troubleshooting guide](TROUBLESHOOTING.md) for more solutions
+- Check the [Troubleshooting guide](GUIDE_TROUBLESHOOTING.md) for more solutions
 - For verbose output: `trcc gui -v` (or `trcc gui -vv` for debug)

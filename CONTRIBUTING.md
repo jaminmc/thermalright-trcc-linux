@@ -50,5 +50,5 @@ All PRs must pass tests, `ruff check`, and `pyright` with 0 errors.
 
 - **Bug fixes** — Reproduce, write a test, fix it
 - **Device support** — Add new Thermalright USB VID:PID mappings to `adapters/device/detector.py`
-- **Hardware testing** — Own a HID device? See [doc/DEVICE_TESTING.md](doc/DEVICE_TESTING.md) for how to help validate support
+- **Hardware testing** — Own a HID device? See [doc/GUIDE_DEVICE_TESTING.md](doc/GUIDE_DEVICE_TESTING.md) for how to help validate support
 - **Documentation** — Install guides, troubleshooting tips, translations

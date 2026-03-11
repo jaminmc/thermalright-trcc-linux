@@ -110,7 +110,7 @@ Run `lsusb` to find your USB ID (`xxxx:xxxx` after `ID`), then match it below.
 |--------|---------|
 | `0416:8001` | AX120 DIGITAL, PA120 DIGITAL, Peerless Assassin 120 DIGITAL ARGB White, Assassin X 120R Digital ARGB, Phantom Spirit 120 Digital EVO, HR10 2280 PRO Digital, and others (model auto-detected via handshake) |
 
-> See the [full device list with protocol details](doc/SUPPORTED_DEVICES.md) and the [Device Testing Guide](doc/DEVICE_TESTING.md) if you have an untested device.
+> See the [full device list with protocol details](doc/REFERENCE_DEVICES.md) and the [Device Testing Guide](doc/GUIDE_DEVICE_TESTING.md) if you have an untested device.
 
 ## Install
 
@@ -187,7 +187,7 @@ trcc setup        # interactive wizard — udev rules, desktop entry
 
 Then **unplug and replug the USB cable** and run `trcc gui`.
 
-> `pipx` not installed? `sudo apt install pipx` (Debian/Ubuntu), `sudo dnf install pipx` (Fedora), `sudo pacman -S python-pipx` (Arch). See the **[Install Guide](doc/INSTALL_GUIDE.md)** for your distro.
+> `pipx` not installed? `sudo apt install pipx` (Debian/Ubuntu), `sudo dnf install pipx` (Fedora), `sudo pacman -S python-pipx` (Arch). See the **[Install Guide](doc/GUIDE_INSTALL.md)** for your distro.
 
 ### Automatic (git clone)
 
@@ -205,7 +205,7 @@ Fedora, Nobara, Ubuntu, Debian, Mint, Pop!_OS, Zorin, elementary OS, Arch, Manja
 
 > **`trcc: command not found`?** Open a new terminal — pip installs to `~/.local/bin` which needs a new shell session to appear on PATH.
 
-> See the **[Install Guide](doc/INSTALL_GUIDE.md)** for distro-specific instructions and troubleshooting.
+> See the **[Install Guide](doc/GUIDE_INSTALL.md)** for distro-specific instructions and troubleshooting.
 
 ## Usage
 
@@ -238,7 +238,7 @@ trcc setup                # Interactive setup wizard
 trcc uninstall            # Remove TRCC completely
 ```
 
-50 commands total — see the **[CLI Reference](doc/CLI_REFERENCE.md)** for the full list.
+50 commands total — see the **[CLI Reference](doc/REFERENCE_CLI.md)** for the full list.
 
 ### REST API
 
@@ -267,25 +267,25 @@ curl -X POST http://localhost:9876/led/color \
 
 | Document | Description |
 |----------|-------------|
-| [Install Guide](doc/INSTALL_GUIDE.md) | Installation for all major distros |
-| [CLI Reference](doc/CLI_REFERENCE.md) | All CLI commands with options and examples |
-| [API Reference](doc/API_REFERENCE.md) | All 43 REST API endpoints with request/response models |
-| [Troubleshooting](doc/TROUBLESHOOTING.md) | Common issues and fixes |
-| [New to Linux](doc/NEW_TO_LINUX.md) | Guide for Linux beginners |
+| [Install Guide](doc/GUIDE_INSTALL.md) | Installation for all major distros |
+| [CLI Reference](doc/REFERENCE_CLI.md) | All CLI commands with options and examples |
+| [API Reference](doc/REFERENCE_API.md) | All 43 REST API endpoints with request/response models |
+| [Troubleshooting](doc/GUIDE_TROUBLESHOOTING.md) | Common issues and fixes |
+| [New to Linux](doc/GUIDE_NEW_TO_LINUX.md) | Guide for Linux beginners |
 | [Changelog](doc/CHANGELOG.md) | Version history |
-| [Supported Devices](doc/SUPPORTED_DEVICES.md) | Full device list with USB IDs and protocols |
+| [Supported Devices](doc/REFERENCE_DEVICES.md) | Full device list with USB IDs and protocols |
 | [Testers Wanted](doc/TESTERS_WANTED.md) | Devices that need hardware validation |
-| [Device Testing Guide](doc/DEVICE_TESTING.md) | How to test and report device compatibility |
-| [Architecture](doc/ARCHITECTURE.md) | Project layout and design |
-| [Technical Reference](doc/TECHNICAL_REFERENCE.md) | SCSI protocol and file formats |
+| [Device Testing Guide](doc/GUIDE_DEVICE_TESTING.md) | How to test and report device compatibility |
+| [Architecture](doc/GUIDE_ARCHITECTURE.md) | Project layout and design |
+| [Technical Reference](doc/REFERENCE_TECHNICAL.md) | SCSI protocol and file formats |
 
 ### Protocol documentation (reverse-engineered from Windows TRCC)
 
 | Document | Description |
 |----------|-------------|
 | [USBLCD Protocol](doc/audit/USBLCD_PROTOCOL.md) | SCSI frame transfer protocol |
-| [USBLCDNEW Protocol](doc/audit/USBLCDNEW_PROTOCOL.md) | USB bulk/LY frame transfer protocol |
-| [USBLED Protocol](doc/audit/USBLED_PROTOCOL.md) | HID LED segment display protocol |
+| [USBLCDNEW Protocol](doc/PROTOCOL_USBLCDNEW.md) | USB bulk/LY frame transfer protocol |
+| [USBLED Protocol](doc/PROTOCOL_USBLED.md) | HID LED segment display protocol |
 
 ## Architecture
 

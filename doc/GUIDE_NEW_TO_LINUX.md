@@ -1,6 +1,6 @@
 # New to Linux?
 
-If you're coming from Windows or Mac, here's a quick primer on the Linux concepts you'll see in the [Install Guide](INSTALL_GUIDE.md).
+If you're coming from Windows or Mac, here's a quick primer on the Linux concepts you'll see in the [Install Guide](GUIDE_INSTALL.md).
 
 ## Key Concepts
 
