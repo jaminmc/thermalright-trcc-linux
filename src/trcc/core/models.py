@@ -1384,8 +1384,8 @@ FBL_PROFILES: dict[int, DeviceProfile] = {
     36:  DeviceProfile(240,  240),
     37:  DeviceProfile(240,  240),
     50:  DeviceProfile(320,  240,  rotate=True),
-    51:  DeviceProfile(320,  240,  big_endian=True, rotate=True),   # SPIMode=2
-    53:  DeviceProfile(320,  240,  big_endian=True, rotate=True),   # SPIMode=2
+    51:  DeviceProfile(320,  240,  rotate=True),                     # HID Type 2 → SPIMode=1
+    53:  DeviceProfile(320,  240,  rotate=True),                     # HID Type 2 → SPIMode=1
     54:  DeviceProfile(360,  360,  jpeg=True),
     58:  DeviceProfile(320,  240,  rotate=True),
     64:  DeviceProfile(640,  480,  rotate=True),

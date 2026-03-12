@@ -137,9 +137,9 @@ class TestImageServiceByteOrder(unittest.TestCase):
     def test_320x320_scsi_big_endian(self):
         self.assertEqual(ImageService.byte_order_for('scsi', (320, 320)), '>')
 
-    def test_320x240_scsi_fbl51_big_endian(self):
-        """SCSI 320x240 FBL 51 uses SPIMode=2 → big-endian."""
-        self.assertEqual(ImageService.byte_order_for('scsi', (320, 240), fbl=51), '>')
+    def test_320x240_scsi_fbl51_little_endian(self):
+        """HID Type 2 FBL 51 → little-endian (SPIMode=2 only for SPI mode 1)."""
+        self.assertEqual(ImageService.byte_order_for('scsi', (320, 240), fbl=51), '<')
 
     def test_320x240_scsi_fbl50_little_endian(self):
         """SCSI 320x240 FBL 50 does NOT trigger SPIMode=2 → little-endian."""

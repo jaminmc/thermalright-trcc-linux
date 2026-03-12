@@ -1,5 +1,10 @@
 # Changelog
 
+## v8.3.5
+
+### Bug Fixes
+- **Fixed**: Frozen Warframe 240 (FBL 51/53, PM=51) showing wrong/inverted colors — byte order was incorrectly set to big-endian (SPIMode=2) but HID Type 2 devices use little-endian. C# only sets SPIMode=2 for SPI mode 1 devices (not supported on Linux). Affects Frozen Warframe 240 and LF20 variants (#65, #67)
+
 ## v8.3.4
 
 ### Bug Fixes

@@ -21,12 +21,13 @@ class TestByteOrderFor(unittest.TestCase):
     def test_fbl_102_big_endian(self):
         self.assertEqual(byte_order_for('scsi', (320, 320), fbl=102), '>')
 
-    def test_fbl_51_big_endian(self):
-        """FBL 51 SPIMode=2 → big-endian."""
-        self.assertEqual(byte_order_for('scsi', (320, 240), fbl=51), '>')
+    def test_fbl_51_little_endian(self):
+        """FBL 51 HID Type 2 → little-endian (SPIMode=2 only for SPI mode 1)."""
+        self.assertEqual(byte_order_for('scsi', (320, 240), fbl=51), '<')
 
-    def test_fbl_53_big_endian(self):
-        self.assertEqual(byte_order_for('scsi', (320, 240), fbl=53), '>')
+    def test_fbl_53_little_endian(self):
+        """FBL 53 HID Type 2 → little-endian."""
+        self.assertEqual(byte_order_for('scsi', (320, 240), fbl=53), '<')
 
     def test_fbl_36_little_endian(self):
         """FBL 36 (240x240) → little-endian."""
@@ -69,13 +70,13 @@ class TestByteOrderFor(unittest.TestCase):
 
     def test_all_big_endian_fbls(self):
         """Every big-endian FBL returns '>'."""
-        for fbl in (51, 53, 100, 101, 102):
+        for fbl in (100, 101, 102):
             with self.subTest(fbl=fbl):
                 self.assertEqual(byte_order_for('hid', (0, 0), fbl=fbl), '>')
 
     def test_all_little_endian_fbls(self):
         """Every non-BE, non-JPEG FBL returns '<'."""
-        for fbl in (36, 37, 50, 58, 64, 72, 129):
+        for fbl in (36, 37, 50, 51, 53, 58, 64, 72, 129):
             with self.subTest(fbl=fbl):
                 self.assertEqual(byte_order_for('hid', (0, 0), fbl=fbl), '<')
 

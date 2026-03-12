@@ -292,7 +292,7 @@ class TestDeviceProfileCompleteness(unittest.TestCase):
     def test_big_endian_fbls(self):
         """Only big-endian FBLs are flagged as big-endian."""
         be_fbls = {fbl for fbl, p in FBL_PROFILES.items() if p.big_endian}
-        self.assertEqual(be_fbls, {51, 53, 100, 101, 102})
+        self.assertEqual(be_fbls, {100, 101, 102})
 
     def test_rotate_fbls(self):
         """Only portrait/landscape-rotated FBLs are flagged."""
@@ -352,20 +352,20 @@ class TestDeviceProfilePerFbl(unittest.TestCase):
         self.assertFalse(p.big_endian)
         self.assertTrue(p.rotate)
 
-    def test_fbl_51_320x240_rgb565_be_spimode2(self):
-        """FBL 51 SPIMode=2 — big-endian RGB565."""
+    def test_fbl_51_320x240_rgb565_le(self):
+        """FBL 51 HID Type 2 — little-endian RGB565 (SPIMode=2 only for SPI mode 1)."""
         p = get_profile(51)
         self.assertEqual(p.resolution, (320, 240))
         self.assertFalse(p.jpeg)
-        self.assertTrue(p.big_endian)
+        self.assertFalse(p.big_endian)
         self.assertTrue(p.rotate)
 
-    def test_fbl_53_320x240_rgb565_be_spimode2(self):
-        """FBL 53 SPIMode=2 — big-endian RGB565."""
+    def test_fbl_53_320x240_rgb565_le(self):
+        """FBL 53 HID Type 2 — little-endian RGB565."""
         p = get_profile(53)
         self.assertEqual(p.resolution, (320, 240))
         self.assertFalse(p.jpeg)
-        self.assertTrue(p.big_endian)
+        self.assertFalse(p.big_endian)
         self.assertTrue(p.rotate)
 
     def test_fbl_54_360x360_jpeg(self):
