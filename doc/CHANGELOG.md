@@ -1,5 +1,10 @@
 # Changelog
 
+## v8.3.4
+
+### Bug Fixes
+- **Fixed**: `POST /themes/init` downloads theme data but static file mounts (`/static/themes/`, `/static/web/`, `/static/masks/`) return 404 — `mount_static_dirs()` was not called after `DataManager.ensure_all()`. Now remounts FastAPI static directories immediately after download
+
 ## v8.3.3
 
 ### Features

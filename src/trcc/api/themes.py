@@ -56,6 +56,10 @@ def init_theme_data(resolution: str = "320x320") -> dict:
     from trcc.adapters.infra.data_repository import DataManager
     DataManager.ensure_all(w, h)
 
+    # Remount static dirs now that data exists on disk
+    from trcc.api import mount_static_dirs
+    mount_static_dirs(w, h)
+
     return {"success": True, "resolution": f"{w}x{h}"}
 
 
