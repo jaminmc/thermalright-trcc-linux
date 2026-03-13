@@ -1108,10 +1108,10 @@ class TRCCApp(QMainWindow):
     def _apply_settings_backgrounds(self):
         s = self.uc_theme_setting
         for panel, bg_name in [
-            (s.mask_panel, 'Panel_base.png'),
-            (s.background_panel, 'Panel_base.png'),
-            (s.screencast_panel, 'Panel_base.png'),
-            (s.video_panel, 'Panel_base.png'),
+            (s.mask_panel, 'Panel_background.png'),
+            (s.background_panel, 'Panel_background.png'),
+            (s.screencast_panel, 'Panel_background.png'),
+            (s.video_panel, 'Panel_background.png'),
             (s.overlay_grid, 'Panel_overlay.png'),
             (s.color_panel, 'Panel_params.png'),
         ]:
