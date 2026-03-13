@@ -1,4 +1,4 @@
 """TRCC Linux version information. History in doc/CHANGELOG.md."""
 
-__version__ = "8.3.8"
+__version__ = "8.3.9"
 __version_info__ = tuple(int(x) for x in __version__.split("."))

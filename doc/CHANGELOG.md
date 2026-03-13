@@ -1,5 +1,15 @@
 # Changelog
 
+## v8.3.9
+
+### Features
+- **Standard i18n architecture**: Restructured `core/i18n.py` from 44 separate per-string translation dicts to standard `TRANSLATIONS[lang_code][english_key]` pattern — `tr('Layer Mask', lang)` instead of `tr(MASK_TITLE, lang)`
+- **8 new languages**: Bengali, Urdu, Farsi, Tagalog, Tamil, Punjabi, Swahili, Burmese — 38 languages total, covering major and secondary world languages
+
+### Internal
+- **Simplified call sites**: `trcc_app.py` and `display_mode_panels.py` use English string keys directly — no more importing 44 dict constants
+- **Cleaner `_i18n_labels`**: Stores `str | None` (English key) instead of `dict[str, str] | None` (entire translation table reference)
+
 ## v8.3.8
 
 ### Features

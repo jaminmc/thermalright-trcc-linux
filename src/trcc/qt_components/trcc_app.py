@@ -749,72 +749,54 @@ class TRCCApp(QMainWindow):
             self._pixmap_refs.append(pix)
 
     def _create_i18n_overlays(self) -> None:
-        """Add red QLabel overlays for every i18n text position (preview only)."""
+        """Add QLabel overlays for every i18n text position."""
         from ..core.i18n import (
-            BACKGROUND_LOAD_IMG,
+            ABOUT_AUTOSTART_POS,
+            ABOUT_HDD_POS,
+            ABOUT_HDD_WARN_POS,
+            ABOUT_LANG_POS,
+            ABOUT_MULTI_THREAD_POS,
+            ABOUT_REFRESH_POS,
+            ABOUT_RUNNING_MODE_POS,
+            ABOUT_SINGLE_THREAD_POS,
+            ABOUT_UNIT_POS,
+            ABOUT_UPDATE_POS,
+            ABOUT_VERSION_POS,
             BACKGROUND_LOAD_IMG_POS,
-            BACKGROUND_LOAD_VIDEO,
             BACKGROUND_LOAD_VIDEO_POS,
-            BACKGROUND_TITLE,
-            DISPLAY_ANGLE,
             DISPLAY_ANGLE_POS,
-            EXPORT_IMPORT,
             EXPORT_IMPORT_POS,
-            GALLERY_AESTHETIC,
-            GALLERY_ALL,
-            GALLERY_LIGHT,
-            GALLERY_NATURE,
-            GALLERY_OTHER,
             GALLERY_TAB_FONT,
             GALLERY_TAB_H,
             GALLERY_TAB_Y,
-            GALLERY_TECH,
-            GALLERY_TITLE,
             GALLERY_TITLE_POS,
-            LOCAL_THEME,
+            LANGUAGE_NAMES,
             LOCAL_THEME_POS,
             MASK_DESC_POS,
-            MASK_DESCRIPTION,
-            MASK_LOAD,
             MASK_LOAD_POS,
-            MASK_TITLE,
-            MASK_UPLOAD,
             MASK_UPLOAD_POS,
-            MEDIA_PLAYER_LOAD,
             MEDIA_PLAYER_LOAD_POS,
-            MEDIA_PLAYER_TITLE,
-            ONLINE_THEME,
             ONLINE_THEME_POS,
-            OVERLAY_GRID_HINT,
             OVERLAY_GRID_HINT_POS,
-            OVERLAY_GRID_TITLE,
             OVERLAY_GRID_TITLE_POS,
-            PARAM_COLOUR,
             PARAM_COLOUR_POS,
-            PARAM_COORDINATE,
             PARAM_COORDINATE_POS,
-            PARAM_FONT,
             PARAM_FONT_POS,
-            SAVE_AS,
             SAVE_AS_POS,
-            SCREENCAST_TITLE,
+            SYSINFO_NAME_POS,
+            SYSINFO_VALUE_POS,
             TITLE_BAR_POS,
             TITLE_BAR_TEXT,
             tr,
         )
         lang = settings.lang
-        self._i18n_labels: list[tuple[QLabel, dict[str, str] | None]] = []
+        self._i18n_labels: list[tuple[QLabel, str | None]] = []
 
         def _lbl(parent: QWidget, text: str, x: int, y: int, w: int, h: int,
-                 pt: int, table: dict[str, str] | None = None,
+                 pt: int, key: str | None = None,
                  bold: bool = False, color: str = 'white',
-                 wrap: bool = False) -> QLabel:
-            """Place a QLabel at PNG pixel coords — auto-adjusts for font metrics.
-
-            i18n.py stores raw PNG pixel positions (where text actually appears
-            in the image). QLabel renders text a few px below its top edge due to
-            font ascent/leading, so we shift y up to compensate.
-            """
+                 wrap: bool = False, center: bool = False) -> QLabel:
+            """Place a QLabel at PNG pixel coords — auto-adjusts for font metrics."""
             y_offset = max(2, pt // 4)
             lbl = QLabel(text, parent)
             lbl.setGeometry(x, y - y_offset, w, h)
@@ -825,8 +807,10 @@ class TRCCApp(QMainWindow):
             )
             if wrap:
                 lbl.setWordWrap(True)
+            if center:
+                lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             lbl.raise_()
-            self._i18n_labels.append((lbl, table))
+            self._i18n_labels.append((lbl, key))
             return lbl
 
         # Gold title bar — on form_container
@@ -834,138 +818,112 @@ class TRCCApp(QMainWindow):
         _lbl(self.form_container, TITLE_BAR_TEXT, x, y, w, h, pt, bold=True, color='#434343')
 
         # Main view bottom — on form_container
-        for table, pos in [
-            (DISPLAY_ANGLE, DISPLAY_ANGLE_POS),
-            (SAVE_AS, SAVE_AS_POS),
-            (EXPORT_IMPORT, EXPORT_IMPORT_POS),
+        for key, pos in [
+            ('Display Angle', DISPLAY_ANGLE_POS),
+            ('Save As', SAVE_AS_POS),
+            ('Export/Import', EXPORT_IMPORT_POS),
         ]:
             x, y, w, h, pt = pos
-            _lbl(self.form_container, tr(table, lang), x, y, w, h, pt, table)
+            _lbl(self.form_container, tr(key, lang), x, y, w, h, pt, key)
 
         # Overlay grid — on uc_theme_setting.data_table
         grid = self.uc_theme_setting.data_table
-        for tbl, pos in [
-            (OVERLAY_GRID_TITLE, OVERLAY_GRID_TITLE_POS),
-            (OVERLAY_GRID_HINT, OVERLAY_GRID_HINT_POS),
+        for key, pos in [
+            ('Text/Value', OVERLAY_GRID_TITLE_POS),
+            ('Double-click to delete card', OVERLAY_GRID_HINT_POS),
         ]:
             x, y, w, h, pt = pos
-            _lbl(grid, tr(tbl, lang), x, y, w, h, pt, tbl)
+            _lbl(grid, tr(key, lang), x, y, w, h, pt, key)
 
         # Parameter panel — on uc_theme_setting.right_stack
         rpanel = self.uc_theme_setting.right_stack
-        for tbl, pos in [
-            (PARAM_COORDINATE, PARAM_COORDINATE_POS),
-            (PARAM_FONT, PARAM_FONT_POS),
-            (PARAM_COLOUR, PARAM_COLOUR_POS),
+        for key, pos in [
+            ('Coordinate', PARAM_COORDINATE_POS),
+            ('Font', PARAM_FONT_POS),
+            ('Colour', PARAM_COLOUR_POS),
         ]:
             x, y, w, h, pt = pos
-            _lbl(rpanel, tr(tbl, lang), x, y, w, h, pt, tbl)
+            _lbl(rpanel, tr(key, lang), x, y, w, h, pt, key)
 
         # Display mode panel titles — set directly on each panel's built-in label
         s = self.uc_theme_setting
-        s.mask_panel.set_title(tr(MASK_TITLE, lang))
-        s.background_panel.set_title(tr(BACKGROUND_TITLE, lang))
-        s.screencast_panel.set_title(tr(SCREENCAST_TITLE, lang))
-        s.video_panel.set_title(tr(MEDIA_PLAYER_TITLE, lang))
+        s.mask_panel.set_title(tr('Layer Mask', lang))
+        s.background_panel.set_title(tr('Background', lang))
+        s.screencast_panel.set_title(tr('Screencast', lang))
+        s.video_panel.set_title(tr('Media Player', lang))
         self._i18n_panel_tables = [
-            (s.mask_panel, MASK_TITLE),
-            (s.background_panel, BACKGROUND_TITLE),
-            (s.screencast_panel, SCREENCAST_TITLE),
-            (s.video_panel, MEDIA_PLAYER_TITLE),
+            (s.mask_panel, 'Layer Mask'),
+            (s.background_panel, 'Background'),
+            (s.screencast_panel, 'Screencast'),
+            (s.video_panel, 'Media Player'),
         ]
 
         # Mask panel sub-labels — on uc_theme_setting.mask_panel
         mp = s.mask_panel
         x, y, w, h, pt = MASK_LOAD_POS
-        _lbl(mp, tr(MASK_LOAD, lang), x, y, w, h, pt, MASK_LOAD)
+        _lbl(mp, tr('Masks', lang), x, y, w, h, pt, 'Masks', center=True)
         x, y, w, h, pt = MASK_UPLOAD_POS
-        _lbl(mp, tr(MASK_UPLOAD, lang), x, y, w, h, pt, MASK_UPLOAD)
+        _lbl(mp, tr('Upload', lang), x, y, w, h, pt, 'Upload', center=True)
         x, y, w, h, pt = MASK_DESC_POS
-        _lbl(mp, tr(MASK_DESCRIPTION, lang), x, y, w, h, pt, MASK_DESCRIPTION,
-             wrap=True)
+        _lbl(mp, tr('PNG format, resolution must not exceed screen resolution', lang),
+             x, y, w, h, pt,
+             'PNG format, resolution must not exceed screen resolution', wrap=True)
 
         # Background panel sub-labels
         bp = s.background_panel
-        for tbl, pos in [
-            (BACKGROUND_LOAD_IMG, BACKGROUND_LOAD_IMG_POS),
-            (BACKGROUND_LOAD_VIDEO, BACKGROUND_LOAD_VIDEO_POS),
+        for key, pos in [
+            ('Load Image', BACKGROUND_LOAD_IMG_POS),
+            ('Load Video', BACKGROUND_LOAD_VIDEO_POS),
         ]:
             x, y, w, h, pt = pos
-            _lbl(bp, tr(tbl, lang), x, y, w, h, pt, tbl)
+            _lbl(bp, tr(key, lang), x, y, w, h, pt, key)
 
         # Video/Media player panel sub-labels
         vp = s.video_panel
         x, y, w, h, pt = MEDIA_PLAYER_LOAD_POS
-        _lbl(vp, tr(MEDIA_PLAYER_LOAD, lang), x, y, w, h, pt, MEDIA_PLAYER_LOAD)
+        _lbl(vp, tr('Load Video', lang), x, y, w, h, pt, 'Load Video')
 
         # Local theme browser
         x, y, w, h, pt = LOCAL_THEME_POS
-        _lbl(self.uc_theme_local, tr(LOCAL_THEME, lang), x, y, w, h, pt,
-             LOCAL_THEME)
+        _lbl(self.uc_theme_local, tr('Local Theme', lang), x, y, w, h, pt,
+             'Local Theme')
 
         # Online/Mask theme browser
         x, y, w, h, pt = ONLINE_THEME_POS
-        _lbl(self.uc_theme_mask, tr(ONLINE_THEME, lang), x, y, w, h, pt,
-             ONLINE_THEME)
+        _lbl(self.uc_theme_mask, tr('Online Theme', lang), x, y, w, h, pt,
+             'Online Theme')
 
         # Gallery (cloud backgrounds) — title + category tabs
         x, y, w, h, pt = GALLERY_TITLE_POS
-        _lbl(self.uc_theme_web, tr(GALLERY_TITLE, lang), x, y, w, h, pt,
-             GALLERY_TITLE)
+        _lbl(self.uc_theme_web, tr('Gallery', lang), x, y, w, h, pt, 'Gallery')
         tab_x_positions = [45, 135, 235, 335, 430, 525, 635]
-        tab_tables = [
-            GALLERY_ALL, GALLERY_TECH, None,
-            GALLERY_LIGHT, GALLERY_NATURE, GALLERY_AESTHETIC, GALLERY_OTHER,
+        tab_keys: list[str | None] = [
+            'All', 'Tech', None, 'Light', 'Nature', 'Aesthetic', 'Other',
         ]
-        for tx, tbl in zip(tab_x_positions, tab_tables):
-            text = 'HUD' if tbl is None else tr(tbl, lang)
+        for tx, key in zip(tab_x_positions, tab_keys):
+            text = 'HUD' if key is None else tr(key, lang)
             _lbl(self.uc_theme_web, text,
-                 tx, GALLERY_TAB_Y, 90, GALLERY_TAB_H, GALLERY_TAB_FONT, tbl)
+                 tx, GALLERY_TAB_Y, 90, GALLERY_TAB_H, GALLERY_TAB_FONT, key)
 
         # About panel
-        from ..core.i18n import (
-            ABOUT_AUTOSTART,
-            ABOUT_AUTOSTART_POS,
-            ABOUT_HDD,
-            ABOUT_HDD_POS,
-            ABOUT_HDD_WARN_POS,
-            ABOUT_HDD_WARNING,
-            ABOUT_LANG_POS,
-            ABOUT_LANG_SELECT,
-            ABOUT_MULTI_THREAD,
-            ABOUT_MULTI_THREAD_POS,
-            ABOUT_REFRESH_POS,
-            ABOUT_REFRESH_TIME,
-            ABOUT_RUNNING_MODE,
-            ABOUT_RUNNING_MODE_POS,
-            ABOUT_SINGLE_THREAD,
-            ABOUT_SINGLE_THREAD_POS,
-            ABOUT_UNIT,
-            ABOUT_UNIT_POS,
-            ABOUT_UPDATE,
-            ABOUT_UPDATE_POS,
-            ABOUT_VERSION_LABEL,
-            ABOUT_VERSION_POS,
-        )
-        about_items: list[tuple[dict[str, str], tuple[int, ...]]] = [
-            (ABOUT_AUTOSTART, ABOUT_AUTOSTART_POS),
-            (ABOUT_UNIT, ABOUT_UNIT_POS),
-            (ABOUT_HDD, ABOUT_HDD_POS),
-            (ABOUT_HDD_WARNING, ABOUT_HDD_WARN_POS),
-            (ABOUT_REFRESH_TIME, ABOUT_REFRESH_POS),
-            (ABOUT_RUNNING_MODE, ABOUT_RUNNING_MODE_POS),
-            (ABOUT_SINGLE_THREAD, ABOUT_SINGLE_THREAD_POS),
-            (ABOUT_MULTI_THREAD, ABOUT_MULTI_THREAD_POS),
-            (ABOUT_UPDATE, ABOUT_UPDATE_POS),
-            (ABOUT_LANG_SELECT, ABOUT_LANG_POS),
-            (ABOUT_VERSION_LABEL, ABOUT_VERSION_POS),
+        about_items: list[tuple[str, tuple[int, ...]]] = [
+            ('Start automatically', ABOUT_AUTOSTART_POS),
+            ('Unit', ABOUT_UNIT_POS),
+            ('Hard disk information', ABOUT_HDD_POS),
+            ('Reading hard disk information may cause some mechanical hard drives to read and write frequently. If you encounter this issue, please close the project.', ABOUT_HDD_WARN_POS),
+            ('Data refresh time', ABOUT_REFRESH_POS),
+            ('Running Mode', ABOUT_RUNNING_MODE_POS),
+            ('Single-threaded (low resource usage)', ABOUT_SINGLE_THREAD_POS),
+            ('Multi-threaded (high resource usage)', ABOUT_MULTI_THREAD_POS),
+            ('Software Update', ABOUT_UPDATE_POS),
+            ('Language selection', ABOUT_LANG_POS),
+            ('Software version:', ABOUT_VERSION_POS),
         ]
-        for table, pos in about_items:
+        for key, pos in about_items:
             x, y, w, h, pt = pos
-            _lbl(self.uc_about, tr(table, lang), x, y, w, h, pt, table)
+            _lbl(self.uc_about, tr(key, lang), x, y, w, h, pt, key)
 
-        # Language dropdown preview (red overlay — replaces 10 checkboxes)
-        from ..core.i18n import LANGUAGE_NAMES
+        # Language dropdown preview — replaces 10 checkboxes
         lang_combo = QComboBox(self.uc_about)
         lang_combo.setGeometry(297, 413, 200, 28)
         for code in sorted(LANGUAGE_NAMES, key=lambda c: LANGUAGE_NAMES[c]):
@@ -982,31 +940,25 @@ class TRCCApp(QMainWindow):
         )
         lang_combo.raise_()
 
-        # Wire combo to update all red overlay labels live
+        # Wire combo to update all overlay labels live
         def _on_preview_lang(index: int) -> None:
             new_lang = lang_combo.itemData(index)
-            for lbl, tbl in self._i18n_labels:
-                if tbl is not None:
-                    lbl.setText(tr(tbl, new_lang))
-            for panel, tbl in self._i18n_panel_tables:
-                panel.set_title(tr(tbl, new_lang))
+            for lbl, key in self._i18n_labels:
+                if key is not None:
+                    lbl.setText(tr(key, new_lang))
+            for panel, key in self._i18n_panel_tables:
+                panel.set_title(tr(key, new_lang))
             self.uc_about._on_lang_clicked(new_lang)
 
         lang_combo.currentIndexChanged.connect(_on_preview_lang)
 
         # System Info panel
-        from ..core.i18n import (
-            SYSINFO_NAME,
-            SYSINFO_NAME_POS,
-            SYSINFO_VALUE,
-            SYSINFO_VALUE_POS,
-        )
-        for tbl, pos in [
-            (SYSINFO_NAME, SYSINFO_NAME_POS),
-            (SYSINFO_VALUE, SYSINFO_VALUE_POS),
+        for key, pos in [
+            ('NAME', SYSINFO_NAME_POS),
+            ('Value', SYSINFO_VALUE_POS),
         ]:
             x, y, w, h, pt = pos
-            _lbl(self.uc_system_info, tr(tbl, lang), x, y, w, h, pt, tbl)
+            _lbl(self.uc_system_info, tr(key, lang), x, y, w, h, pt, key)
 
     def _create_mode_tabs(self):
         self.mode_buttons = []

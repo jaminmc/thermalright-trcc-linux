@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from ..core.i18n import MASK_TITLE, tr
+from ..core.i18n import tr
 from ..core.models import OverlayMode
 from .assets import Assets
 from .base import set_background_pixmap
@@ -460,7 +460,7 @@ class MaskPanel(DisplayModePanel):
 
     def apply_language(self, lang: str) -> None:
         """Update title label for current language."""
-        self._title_lbl.setText(tr(MASK_TITLE, lang))
+        self._title_lbl.setText(tr('Layer Mask', lang))
 
 
 class ScreenCastPanel(DisplayModePanel):
