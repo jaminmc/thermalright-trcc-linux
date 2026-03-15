@@ -1,6 +1,6 @@
 # Changelog
 
-## v8.4.9
+## v8.4.10
 
 ### Fixes
 - **Windows: GUI crash on AF_UNIX/SIGUSR1**: `run_app()` used `socket.AF_UNIX` and `signal.SIGUSR1` unconditionally — both don't exist on Windows. Guarded with platform check
