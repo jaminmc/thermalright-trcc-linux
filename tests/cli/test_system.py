@@ -1975,7 +1975,7 @@ class TestReportDiagnosticOutput:
             ),
             # Block device detection
             "detect": patch(
-                "trcc.adapters.device.detector.DeviceDetector.detect",
+                "trcc.adapters.device.detector.detect_devices",
                 return_value=[],
             ),
             # Block config loading
@@ -2001,7 +2001,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2026,7 +2026,7 @@ class TestReportDiagnosticOutput:
                    str(rules_file)), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2045,7 +2045,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2062,7 +2062,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2084,7 +2084,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2101,7 +2101,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2136,7 +2136,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[mock_dev]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2158,7 +2158,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2207,7 +2207,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    side_effect=_fake_subprocess), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",
@@ -2227,7 +2227,7 @@ class TestReportDiagnosticOutput:
                    str(tmp_path / "nonexistent")), \
              patch("trcc.adapters.infra.debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
-             patch("trcc.adapters.device.detector.DeviceDetector.detect",
+             patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
              patch("trcc.adapters.infra.debug_report.os.listdir",

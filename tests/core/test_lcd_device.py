@@ -673,7 +673,7 @@ class TestLCDDeviceProxyRouting:
             find_active_fn=lambda: None,
             proxy_factory_fn=lambda kind: MagicMock(),
         )
-        with patch("trcc.adapters.device.detector.DeviceDetector.detect"), \
+        with patch("trcc.adapters.device.detector.detect_devices"), \
              patch("trcc.services.DeviceService", return_value=svc):
             result = lcd.connect()
         assert not result["success"]  # No device found
@@ -684,7 +684,7 @@ class TestLCDDeviceProxyRouting:
         svc = MagicMock()
         svc.selected = None
         lcd = LCDDevice()
-        with patch("trcc.adapters.device.detector.DeviceDetector.detect"), \
+        with patch("trcc.adapters.device.detector.detect_devices"), \
              patch("trcc.services.DeviceService", return_value=svc):
             result = lcd.connect()
         assert not result["success"]
@@ -710,7 +710,7 @@ class TestLCDDeviceProxyRouting:
             find_active_fn=find_fn,
             proxy_factory_fn=MagicMock(),
         )
-        with patch("trcc.adapters.device.detector.DeviceDetector.detect"), \
+        with patch("trcc.adapters.device.detector.detect_devices"), \
              patch("trcc.services.DeviceService", return_value=svc):
             lcd.connect("/dev/sg0")
         find_fn.assert_not_called()

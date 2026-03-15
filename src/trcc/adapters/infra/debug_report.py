@@ -21,6 +21,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from trcc.core.platform import LINUX
+
 log = logging.getLogger(__name__)
 
 # All known Thermalright VIDs (lowercase hex, no prefix)
@@ -51,13 +53,15 @@ class DebugReport:
     def collect(self) -> None:
         """Gather all diagnostic sections."""
         self._version()
-        self._lsusb()
-        self._udev_rules()
-        self._selinux()
-        self._rapl_permissions()
+        if LINUX:
+            self._lsusb()
+            self._udev_rules()
+            self._selinux()
+            self._rapl_permissions()
         self._dependencies()
         self._devices()
-        self._device_permissions()
+        if LINUX:
+            self._device_permissions()
         self._handshakes()
         self._process_usage()
         self._config()
@@ -99,7 +103,9 @@ class DebugReport:
 
     @staticmethod
     def _distro_name() -> str:
-        """Get Linux distro name (e.g. 'Fedora 43', 'Ubuntu 24.04')."""
+        """Get OS/distro name (e.g. 'Fedora 43', 'Windows 11')."""
+        if not LINUX:
+            return platform.platform()
         try:
             # Python 3.10+ — pyright may not know about this on older stubs
             info: dict[str, str] = platform.freedesktop_os_release()  # type: ignore[attr-defined]
@@ -189,9 +195,9 @@ class DebugReport:
     def _devices(self) -> None:
         sec = self._add("Detected devices")
         try:
-            from trcc.adapters.device.detector import DeviceDetector
+            from trcc.adapters.device.detector import detect_devices
 
-            devices = DeviceDetector.detect()
+            devices = detect_devices()
             self._detected_devices = devices
             if not devices:
                 sec.lines.append("  (none)")

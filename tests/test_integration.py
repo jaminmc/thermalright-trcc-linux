@@ -108,7 +108,7 @@ class TestCLISendPipeline(unittest.TestCase):
     """CLI send_image()/send_color() → DeviceService → DeviceProtocolFactory."""
 
     @patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol")
-    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.detect_devices")
     def test_cli_send_image(self, mock_detect, mock_get_protocol):
         """trcc send image.png end-to-end via DeviceService."""
         from trcc.cli import send_image
@@ -140,7 +140,7 @@ class TestCLISendPipeline(unittest.TestCase):
         self.assertEqual(result, 1)
 
     @patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol")
-    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.detect_devices")
     def test_cli_send_color(self, mock_detect, mock_get_protocol):
         """trcc color ff0000 end-to-end via DeviceService."""
         from trcc.cli import send_color
@@ -174,7 +174,7 @@ class TestCLIResumePipeline(unittest.TestCase):
 
     @patch("trcc.services.device.DeviceService.send_pil_async")
     @patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol")
-    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.detect_devices")
     @patch("trcc.conf.Settings.get_device_config")
     @patch("trcc.conf.Settings.device_config_key")
     def test_resume_with_saved_theme(self, mock_key, mock_cfg, mock_detect,
@@ -207,7 +207,7 @@ class TestCLIResumePipeline(unittest.TestCase):
             image = mock_send_async.call_args[0][0]
             self.assertIsNotNone(image)
 
-    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.detect_devices")
     def test_resume_no_devices(self, mock_detect):
         """resume() with no devices returns 1."""
         from trcc.cli import resume
@@ -215,7 +215,7 @@ class TestCLIResumePipeline(unittest.TestCase):
         result = resume()
         self.assertEqual(result, 1)
 
-    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    @patch("trcc.adapters.device.detector.detect_devices")
     @patch("trcc.conf.Settings.get_device_config")
     @patch("trcc.conf.Settings.device_config_key")
     def test_resume_no_saved_theme(self, mock_key, mock_cfg, mock_detect):
