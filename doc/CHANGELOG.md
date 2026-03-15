@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.5.6
+
+### Improvements
+- **Windows/macOS: ffmpeg bundled**: Video playback works out of the box — no manual ffmpeg install. Windows uses gyan.dev essentials build, macOS uses Homebrew
+- **`ffmpeg_install_help()` on PlatformSetup ABC**: Each platform adapter provides its own install instructions — no hardcoded Linux messages
+- **CI verifies ffmpeg in bundle**: Build fails if ffmpeg missing from installer package
+
 ## v8.5.5
 
 ### Improvements
