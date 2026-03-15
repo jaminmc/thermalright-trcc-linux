@@ -178,9 +178,13 @@ class DataManager:
                 capture_output=True, text=True, timeout=30,
             )
             if listing.returncode == 0:
+                archive_norm = os.path.normpath(archive)
                 for line in listing.stdout.splitlines():
-                    if line.startswith('Path = ') and line != f'Path = {archive}':
+                    if line.startswith('Path = '):
                         member = line[7:]
+                        # Skip the archive path itself (7z lists it first)
+                        if os.path.normpath(member) == archive_norm:
+                            continue
                         if not DataManager.is_safe_archive_member(member):
                             log.warning("Blocked unsafe archive member: %s", member)
                             return False

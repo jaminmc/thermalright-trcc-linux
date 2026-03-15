@@ -1,5 +1,10 @@
 # Changelog
 
+## v8.5.7
+
+### Fixes
+- **Windows: 7z extraction blocked by zip-slip check**: Archive path comparison failed due to forward/backslash mismatch — `os.path.normpath` normalizes both sides
+
 ## v8.5.6
 
 ### Improvements
