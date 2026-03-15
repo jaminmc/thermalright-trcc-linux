@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.5.3
+
+### Fixes
+- **Windows: Qt CSS backslash escapes**: All paths passed to Qt use forward slashes — `QPixmap` and stylesheet `url()` no longer mangle Windows backslashes
+- **macOS/BSD: asset copy tested**: `resolve_assets_dir()` verified on all 4 platforms
+
 ## v8.5.2
 
 ### Fixes

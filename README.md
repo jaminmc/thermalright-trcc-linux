@@ -60,13 +60,13 @@ Pre-built packages are available for every major distro. No pip, no venv, no PEP
 
 **Fedora / openSUSE / Nobara:**
 ```bash
-sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.5.2-1.fc43.noarch.rpm
+sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.5.3-1.fc43.noarch.rpm
 ```
 
 **Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS 24.04+ / Zorin 17+:**
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.5.2-1_all.deb
-sudo dpkg -i trcc-linux_8.5.2-1_all.deb
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.5.3-1_all.deb
+sudo dpkg -i trcc-linux_8.5.3-1_all.deb
 sudo apt-get install -f    # pulls in any missing dependencies
 ```
 
@@ -74,8 +74,8 @@ sudo apt-get install -f    # pulls in any missing dependencies
 
 **Arch / CachyOS / Manjaro / EndeavourOS / Garuda:**
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.5.2-1-any.pkg.tar.zst
-sudo pacman -U trcc-linux-8.5.2-1-any.pkg.tar.zst
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.5.3-1-any.pkg.tar.zst
+sudo pacman -U trcc-linux-8.5.3-1-any.pkg.tar.zst
 ```
 
 **NixOS** — add to your `flake.nix` inputs:
@@ -100,7 +100,7 @@ That's it! If your device isn't detected, run `trcc detect --all` to see what's 
 
 ### Windows (experimental)
 
-Download `trcc-8.5.2-setup.exe` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer. It installs both the GUI and CLI:
+Download `trcc-8.5.3-setup.exe` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer. It installs both the GUI and CLI:
 
 - **TRCC** shortcut in Start Menu — launches the GUI
 - **`trcc`** command in Command Prompt/PowerShell — CLI access (installer adds it to PATH)
@@ -109,7 +109,7 @@ Download `trcc-8.5.2-setup.exe` from the [latest release](https://github.com/Lex
 
 ### macOS (experimental)
 
-Download `trcc-8.5.2-macos.dmg` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
+Download `trcc-8.5.3-macos.dmg` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
 
 > Requires macOS 11+. Install `libusb` first: `brew install libusb`. LCD devices using SCSI (most models) need `sudo` to detach the kernel driver — HID devices work without root. On Apple Silicon Macs, sensor reading requires `sudo` for `powermetrics` access.
 

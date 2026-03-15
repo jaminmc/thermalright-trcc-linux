@@ -140,9 +140,13 @@ class Assets:
 
     @classmethod
     def get(cls, name: str) -> str | None:
-        """Return asset path as string if it exists, else None."""
+        """Return asset path as string if it exists, else None.
+
+        Uses forward slashes — Qt stylesheets interpret backslashes
+        as CSS escapes (C:\\Users → C:Users).
+        """
         p = _resolve(name)
-        return str(p) if p.exists() else None
+        return p.as_posix() if p.exists() else None
 
     @classmethod
     def exists(cls, name: str) -> bool:
@@ -169,7 +173,9 @@ class Assets:
             log.warning("Asset not found: %s", name)
             return QPixmap()
 
-        pixmap = QPixmap(str(p))
+        # Use forward slashes — Qt handles them on all platforms,
+        # avoids Windows backslash issues with sandboxed Python paths.
+        pixmap = QPixmap(p.as_posix())
         if width and height:
             pixmap = pixmap.scaled(
                 width, height,

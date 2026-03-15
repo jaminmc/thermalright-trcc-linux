@@ -151,7 +151,7 @@ class BasePanel(QFrame):
 
         path = self._resource_dir / name
         if path.exists():
-            return QPixmap(str(path))
+            return QPixmap(path.as_posix())
         return None
 
     def invoke_delegate(self, cmd, info=None, data=None):

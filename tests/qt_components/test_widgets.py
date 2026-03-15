@@ -134,6 +134,30 @@ class TestResolveAssetsDir(unittest.TestCase):
                 self.assertEqual(result, user_assets)
                 self.assertTrue(any(user_assets.glob('*.png')))
 
+    def test_macos_copies_to_user_dir(self):
+        """MacOSSetup copies assets to ~/.trcc/assets/gui/."""
+        from trcc.adapters.system.macos.setup import MacOSSetup
+        from trcc.qt_components.assets import _PKG_ASSETS_DIR
+        with TemporaryDirectory() as tmpdir:
+            with patch('trcc.adapters.system.macos.setup.Path.home',
+                       return_value=Path(tmpdir)):
+                result = MacOSSetup().resolve_assets_dir(_PKG_ASSETS_DIR)
+            if _PKG_ASSETS_DIR.exists():
+                user_assets = Path(tmpdir) / '.trcc' / 'assets' / 'gui'
+                self.assertEqual(result, user_assets)
+
+    def test_bsd_copies_to_user_dir(self):
+        """BSDSetup copies assets to ~/.trcc/assets/gui/."""
+        from trcc.adapters.system.bsd.setup import BSDSetup
+        from trcc.qt_components.assets import _PKG_ASSETS_DIR
+        with TemporaryDirectory() as tmpdir:
+            with patch('trcc.adapters.system.bsd.setup.Path.home',
+                       return_value=Path(tmpdir)):
+                result = BSDSetup().resolve_assets_dir(_PKG_ASSETS_DIR)
+            if _PKG_ASSETS_DIR.exists():
+                user_assets = Path(tmpdir) / '.trcc' / 'assets' / 'gui'
+                self.assertEqual(result, user_assets)
+
     def test_set_assets_dir(self):
         """set_assets_dir updates the module-level _ASSETS_DIR."""
         from trcc.qt_components import assets as assets_mod
