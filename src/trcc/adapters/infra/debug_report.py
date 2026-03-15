@@ -97,9 +97,26 @@ class DebugReport:
         sec = self._add("Version")
         sec.lines.append(f"  trcc-linux:  {__version__}")
         sec.lines.append(f"  Python:      {platform.python_version()}")
+        sec.lines.append(f"  Installed:   {self._install_method()}")
         sec.lines.append(f"  Distro:      {self._distro_name()}")
         sec.lines.append(f"  OS:          {platform.platform()}")
         sec.lines.append(f"  Kernel:      {platform.release()}")
+
+    @staticmethod
+    def _install_method() -> str:
+        """Detect how trcc-linux was installed."""
+        try:
+            from trcc.conf import Settings
+            info = Settings.get_install_info()
+            if info and info.get('method'):
+                return info['method']
+        except Exception:
+            pass
+        try:
+            from trcc.cli._system import _detect_install_method
+            return _detect_install_method()
+        except Exception:
+            return "unknown"
 
     @staticmethod
     def _distro_name() -> str:
