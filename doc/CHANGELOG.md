@@ -1,5 +1,10 @@
 # Changelog
 
+## v8.4.9
+
+### Fixes
+- **Windows: GUI silent exit**: Instance lock used `/tmp` (doesn't exist on Windows) — `open()` failed, app thought another instance was running and exited silently with code 0. Now uses `%TEMP%` on Windows
+
 ## v8.4.8
 
 ### Fixes
