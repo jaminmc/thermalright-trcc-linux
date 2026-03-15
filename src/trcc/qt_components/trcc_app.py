@@ -1927,10 +1927,9 @@ class TRCCApp(QMainWindow):
 # =============================================================================
 
 def _lock_path() -> Path:
-    from ..core.platform import WINDOWS
-    if WINDOWS:
-        return Path(os.environ.get("TEMP", os.environ.get("TMP", "."))) / "trcc-linux.lock"
-    return Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "trcc-linux.lock"
+    lock_dir = Path.home() / '.trcc'
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    return lock_dir / "trcc-linux.lock"
 
 
 def _acquire_instance_lock() -> object | None:
