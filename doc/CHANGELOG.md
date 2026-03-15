@@ -1,5 +1,11 @@
 # Changelog
 
+## v8.5.5
+
+### Improvements
+- **Windows/macOS installers bundle libusb**: pyusb loads libusb via ctypes — PyInstaller misses it. Now bundled in both `.exe` and `.dmg`
+- **CI verifies bundles**: Build fails if 7z, libusb, or app executables missing from installer package
+
 ## v8.5.4
 
 ### Improvements
