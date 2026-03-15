@@ -1,6 +1,6 @@
 # TRCC Linux
 
-> **Looking for testers!** We need **Linux**, **Windows**, and **macOS** testers. If you have a Thermalright LCD or LED device on any platform, grab the latest [release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and [let us know how it goes](https://github.com/Lexonight1/thermalright-trcc-linux/issues) — run `trcc report` and paste the output in an issue. Every test report helps, even if nothing works yet!
+> **Looking for testers!** We need **Linux**, **Windows**, **macOS**, and **BSD** testers. If you have a Thermalright LCD or LED device on any platform, grab the latest [release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and [let us know how it goes](https://github.com/Lexonight1/thermalright-trcc-linux/issues) — run `trcc report` and paste the output in an issue. Every test report helps, even if nothing works yet!
 
 > **Solo hobbyist project** — built in my spare time, one device, no corporate backing. Just a Linux user who got tired of waiting for Thermalright to support us. If something breaks, please be patient — I do this for free because I like helping people. If this project helps you, consider [buying me a beer](https://buymeacoffee.com/Lexonight1) 🍺 or [Ko-fi](https://ko-fi.com/lexonight1) ☕
 
