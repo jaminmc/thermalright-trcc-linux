@@ -84,6 +84,20 @@ jobs:
             Copy-Item -Path "${{ steps.libusb.outputs.LIBUSB_PATH }}" -Destination dist/trcc/ -Force
           }
 
+      - name: Verify bundled dependencies
+        run: |
+          $missing = @()
+          if (-not (Test-Path "dist/trcc/trcc.exe")) { $missing += "trcc.exe" }
+          if (-not (Test-Path "dist/trcc/trcc-gui.exe")) { $missing += "trcc-gui.exe" }
+          if (-not (Test-Path "dist/trcc/7z.exe")) { $missing += "7z.exe" }
+          $libusb = Get-ChildItem "dist/trcc/libusb*" -ErrorAction SilentlyContinue
+          if (-not $libusb) { $missing += "libusb-1.0.dll" }
+          if ($missing.Count -gt 0) {
+            Write-Error "Missing from bundle: $($missing -join ', ')"
+            exit 1
+          }
+          Write-Host "Bundle verified: trcc.exe, trcc-gui.exe, 7z.exe, libusb OK"
+
       - name: Extract version
         id: version
         run: |

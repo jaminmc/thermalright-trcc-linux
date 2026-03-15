@@ -80,6 +80,18 @@ jobs:
             cp "$LIBUSB_DYLIB" dist/TRCC.app/Contents/Frameworks/
           fi
 
+      - name: Verify bundled dependencies
+        run: |
+          missing=()
+          [ -f "dist/TRCC.app/Contents/MacOS/TRCC" ] || missing+=("TRCC")
+          [ -f "dist/TRCC.app/Contents/MacOS/7z" ] || missing+=("7z")
+          [ -f "dist/TRCC.app/Contents/Frameworks/libusb-1.0.dylib" ] || missing+=("libusb-1.0.dylib")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing from bundle: ${missing[*]}"
+            exit 1
+          fi
+          echo "Bundle verified: TRCC, 7z, libusb OK"
+
       - name: Create DMG
         run: |
           create-dmg \
