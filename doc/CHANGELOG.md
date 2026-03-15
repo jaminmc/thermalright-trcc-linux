@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.4.8
+
+### Fixes
+- **Windows: GUI not showing**: `run_app()` used `socket.AF_UNIX` and `signal.SIGUSR1` unconditionally — both don't exist on Windows. The window was created but crashed before `window.show()` was reached. Guarded with platform check
+- **Windows: bare LEDDevice in IPC**: `run_app()` created `LEDDevice()` without dependencies for IPC server. Now uses `ControllerBuilder.build_led()`
+- **Windows: SIGUSR1 in raise_existing_instance**: Skipped on Windows (no Unix signals)
+
 ## v8.4.7
 
 ### Fixes
