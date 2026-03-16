@@ -1,5 +1,16 @@
 # Changelog
 
+## v8.7.2
+
+### Fixes
+- **Windows exe requests admin elevation (UAC manifest)**: C# TRCC uses `requireAdministrator` for SCSI passthrough. Added `--uac-admin` to PyInstaller builds so both `trcc.exe` and `trcc-gui.exe` auto-prompt for elevation
+- **Windows SCSI persistent transport**: Keep `DeviceIoControl` handle open across frames instead of open/close per frame — eliminates theme blinking
+- **Windows SCSI handshake read timeout**: Increased poll timeout to 15s for VM/USB latency. Graceful fallback to FBL=100 (320x320) if poll returns empty
+- **Windows installer kills running processes**: `PrepareToInstall` callback force-kills `trcc-gui.exe`/`trcc.exe` via taskkill before overwriting files. `CloseApplications` alone was unreliable
+- **Windows installer uninstall cleanup**: `[UninstallRun]` kills processes before file removal. `[UninstallDelete]` removes autostart desktop entry
+- **Windows `tzdata` dependency**: Added conditional dep for timezone data (Linux provides via OS, Windows needs the package)
+- **Build script auto-PATH**: `build_windows.ps1` auto-adds Python Scripts dir to PATH for `pyinstaller`
+
 ## v8.7.1
 
 ### Fixes
