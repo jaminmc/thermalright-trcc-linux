@@ -339,11 +339,24 @@ class WindowsScsiProtocol(DeviceProtocol):
 
     Uses WindowsScsiTransport instead of Linux sg_raw/SG_IO.
     The device_path is a PhysicalDrive path (e.g. \\\\.\\PhysicalDrive1).
+    Keeps the transport handle open for the lifetime of the protocol.
     """
 
     def __init__(self, device_path: str):
         super().__init__()
         self._path = device_path
+        self._transport: Any = None
+
+    def _get_transport(self):
+        """Get or create persistent WindowsScsiTransport handle."""
+        if self._transport is None or self._transport._handle is None:
+            from .windows.scsi import WindowsScsiTransport
+            self._transport = WindowsScsiTransport(self._path)
+            if not self._transport.open():
+                log.error("Failed to open Windows SCSI device %s", self._path)
+                self._transport = None
+                return None
+        return self._transport
 
     def _do_handshake(self) -> Optional[HandshakeResult]:
         """Poll Windows SCSI device to discover FBL → resolution."""
@@ -356,11 +369,9 @@ class WindowsScsiProtocol(DeviceProtocol):
             _BOOT_WAIT_SECONDS,
             _POST_INIT_DELAY,
         )
-        from .windows.scsi import WindowsScsiTransport
 
-        transport = WindowsScsiTransport(self._path)
-        if not transport.open():
-            log.error("Failed to open Windows SCSI device %s", self._path)
+        transport = self._get_transport()
+        if transport is None:
             return None
 
         try:
@@ -370,12 +381,16 @@ class WindowsScsiProtocol(DeviceProtocol):
             # Poll with boot state check
             response = b''
             for attempt in range(_BOOT_MAX_RETRIES):
-                response = transport.read_cdb(cdb, 0xE100)
+                response = transport.read_cdb(cdb, 0xE100, timeout=15)
                 if len(response) >= 8 and response[4:8] == _BOOT_SIGNATURE:
                     log.info("Device %s still booting (attempt %d/%d)",
                              self._path, attempt + 1, _BOOT_MAX_RETRIES)
                     time.sleep(_BOOT_WAIT_SECONDS)
+                elif response:
+                    break
                 else:
+                    log.warning("Windows SCSI poll returned empty, "
+                                "defaulting FBL=100")
                     break
 
             fbl = response[0] if response else 100
@@ -400,15 +415,12 @@ class WindowsScsiProtocol(DeviceProtocol):
         except Exception:
             log.exception("Windows SCSI handshake failed on %s", self._path)
             return None
-        finally:
-            transport.close()
 
     def send_image(self, image_data: bytes, width: int, height: int) -> bool:
         from .scsi import ScsiDevice
-        from .windows.scsi import WindowsScsiTransport
 
-        transport = WindowsScsiTransport(self._path)
-        if not transport.open():
+        transport = self._get_transport()
+        if transport is None:
             return False
 
         try:
@@ -428,11 +440,11 @@ class WindowsScsiProtocol(DeviceProtocol):
         except Exception:
             log.exception("Windows SCSI send_image failed")
             return False
-        finally:
-            transport.close()
 
     def close(self) -> None:
-        pass
+        if self._transport is not None:
+            self._transport.close()
+            self._transport = None
 
     def get_info(self) -> 'ProtocolInfo':
         return ProtocolInfo(
