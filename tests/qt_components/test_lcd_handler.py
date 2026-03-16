@@ -539,7 +539,7 @@ class TestDisplaySettings:
         mock_settings.save_device_setting.assert_called_with('dev0', 'rotation', 90)
 
     @patch('trcc.qt_components.lcd_handler.Settings')
-    @patch('trcc.qt_components.lcd_handler.settings')
+    @patch('trcc.conf.settings')
     def test_set_rotation_resolves_cloud_dirs(self, mock_conf, mock_settings):
         h = _make_handler()
         h._lcd.settings.set_rotation.return_value = {'success': True}
@@ -595,7 +595,7 @@ class TestBackgroundScreencast:
 class TestThemeIO:
     """save_theme, export_config, import_config."""
 
-    @patch('trcc.qt_components.lcd_handler.settings')
+    @patch('trcc.conf.settings')
     @patch('trcc.qt_components.lcd_handler.Settings')
     def test_save_theme_success(self, mock_settings_cls, mock_conf):
         h = _make_handler()
@@ -612,7 +612,7 @@ class TestThemeIO:
         h.export_config(Path('/out/theme.tr'))
         h._lcd.theme.export_config.assert_called_once_with(Path('/out/theme.tr'))
 
-    @patch('trcc.qt_components.lcd_handler.settings')
+    @patch('trcc.conf.settings')
     def test_import_config_success_reloads(self, mock_conf):
         h = _make_handler()
         td = MagicMock()

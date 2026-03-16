@@ -834,7 +834,7 @@ class TestLEDHandler:
             patch("trcc.core.builder.ControllerBuilder",
                   return_value=mock_builder),
             patch("trcc.services.led.LEDService") as mock_svc,
-            patch("trcc.qt_components.trcc_app.settings") as mock_settings,
+            patch("trcc.conf.settings") as mock_settings,
         ):
             mock_svc.resolve_style_id.return_value = style_id
             mock_svc.get_style_info.return_value = style_info
@@ -875,7 +875,7 @@ class TestLEDHandler:
             patch("trcc.core.builder.ControllerBuilder",
                   return_value=mock_builder),
             patch("trcc.services.led.LEDService") as mock_svc,
-            patch("trcc.qt_components.trcc_app.settings") as mock_settings,
+            patch("trcc.conf.settings") as mock_settings,
         ):
             mock_svc.resolve_style_id.return_value = 1
             mock_svc.get_style_info.return_value = style_info

@@ -13,7 +13,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
-from ..conf import settings
+import trcc.conf as _conf
+
 from ..core.models import SPLIT_MODE_RESOLUTIONS, SPLIT_OVERLAY_MAP
 from ..core.paths import RESOURCES_DIR
 from .device import DeviceService
@@ -76,15 +77,15 @@ class DisplayService:
 
     @property
     def lcd_width(self) -> int:
-        return settings.width
+        return _conf.settings.width
 
     @property
     def lcd_height(self) -> int:
-        return settings.height
+        return _conf.settings.height
 
     @property
     def lcd_size(self) -> tuple[int, int]:
-        return (settings.width, settings.height)
+        return (_conf.settings.width, _conf.settings.height)
 
     # -- Initialization ----------------------------------------------------
 
@@ -103,12 +104,12 @@ class DisplayService:
         """Extract, locate, and set theme/web/mask directories."""
         if self._ensure_data_fn is not None:
             self._ensure_data_fn(width, height)
-        settings._resolve_paths()
+        _conf.settings._resolve_paths()
 
-        td = settings.theme_dir
+        td = _conf.settings.theme_dir
         self._local_dir = td.path if td and td.exists() else None
-        self._web_dir = settings.web_dir if settings.web_dir and settings.web_dir.exists() else None
-        self._masks_dir = settings.masks_dir
+        self._web_dir = _conf.settings.web_dir if _conf.settings.web_dir and _conf.settings.web_dir.exists() else None
+        self._masks_dir = _conf.settings.masks_dir
 
     def cleanup(self) -> None:
         """Clean up working directory on exit."""
@@ -123,7 +124,7 @@ class DisplayService:
             return
         log.info("Resolution changed: %dx%d -> %dx%d",
                  self.lcd_width, self.lcd_height, width, height)
-        settings.set_resolution(width, height, persist=persist)
+        _conf.settings.set_resolution(width, height, persist=persist)
         self.media.set_target_size(width, height)
         self.overlay.set_resolution(width, height)
 
@@ -489,8 +490,7 @@ class DisplayService:
         """Save current config as a custom theme."""
         # Fall back to user-writable dir on system-wide installs (#51)
         if not os.access(data_dir, os.W_OK):
-            from ..core.paths import USER_DATA_DIR
-            data_dir = Path(USER_DATA_DIR)
+            data_dir = _conf.settings.user_data_dir
         ok, msg = ThemePersistence.save(
             name, data_dir, self.lcd_size,
             current_image=self._clean_background or self.current_image,
@@ -516,8 +516,7 @@ class DisplayService:
         """Import theme from .tr or JSON file."""
         # Fall back to user-writable dir on system-wide installs (#51)
         if not os.access(data_dir, os.W_OK):
-            from ..core.paths import USER_DATA_DIR
-            data_dir = Path(USER_DATA_DIR)
+            data_dir = _conf.settings.user_data_dir
         ok, result = self._persistence.import_config(
             import_path, data_dir, self.lcd_size)
         if ok and not isinstance(result, str):

@@ -17,7 +17,9 @@ from typing import Any
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 
-from ..conf import Settings, settings
+import trcc.conf as _conf
+from trcc.conf import Settings
+
 from ..core.lcd_device import LCDDevice
 from ..core.models import (
     DEFAULT_BRIGHTNESS_LEVEL,
@@ -149,7 +151,7 @@ class LCDHandler:
         # Auto-load first local theme as fallback.
         # Persist only when no theme was previously saved — avoids
         # overwriting a saved path that just went missing (v6.1.3).
-        theme_base = settings.theme_dir
+        theme_base = _conf.settings.theme_dir
         if theme_base and theme_base.exists():
             persist = not saved  # no prior save → persist fallback
             for item in sorted(theme_base.path.iterdir()):
@@ -320,7 +322,7 @@ class LCDHandler:
         result = self._lcd.theme.save(name, self._data_dir)
         self._w['preview'].set_status(result.get('message', ''))
         if result['success']:
-            td = settings.theme_dir
+            td = _conf.settings.theme_dir
             if td:
                 self._w['theme_local'].set_theme_directory(td.path)
             self._w['theme_local'].load_themes()
@@ -337,7 +339,7 @@ class LCDHandler:
         result = self._lcd.theme.import_config(path, self._data_dir)
         self._w['preview'].set_status(result.get('message', ''))
         if result['success']:
-            td = settings.theme_dir
+            td = _conf.settings.theme_dir
             if td:
                 self._w['theme_local'].set_theme_directory(td.path)
             self._w['theme_local'].load_themes()
@@ -615,28 +617,28 @@ class LCDHandler:
 
     def _update_theme_directories(self) -> None:
         """Reload theme browser directories for current resolution."""
-        w, h = settings.width, settings.height
-        td = settings.theme_dir
+        w, h = _conf.settings.width, _conf.settings.height
+        td = _conf.settings.theme_dir
         if td and td.exists():
             self._w['theme_local'].set_theme_directory(td.path)
-        if settings.web_dir:
-            self._w['theme_web'].set_web_directory(settings.web_dir)
+        if _conf.settings.web_dir:
+            self._w['theme_web'].set_web_directory(_conf.settings.web_dir)
         self._w['theme_web'].set_resolution(f'{w}x{h}')
-        if settings.masks_dir:
-            self._w['theme_mask'].set_mask_directory(settings.masks_dir)
+        if _conf.settings.masks_dir:
+            self._w['theme_mask'].set_mask_directory(_conf.settings.masks_dir)
         self._w['theme_mask'].set_resolution(f'{w}x{h}')
 
     def _resolve_cloud_dirs(self, rotation: int) -> None:
         """Re-resolve cloud dirs for portrait rotation (C# GetWebBackgroundImageDirectory)."""
-        settings.resolve_cloud_dirs(rotation)
-        w, h = settings.width, settings.height
+        _conf.settings.resolve_cloud_dirs(rotation)
+        w, h = _conf.settings.width, _conf.settings.height
         if w != h and rotation in (90, 270):
             w, h = h, w
-        if settings.web_dir:
-            self._w['theme_web'].set_web_directory(settings.web_dir)
+        if _conf.settings.web_dir:
+            self._w['theme_web'].set_web_directory(_conf.settings.web_dir)
         self._w['theme_web'].set_resolution(f'{w}x{h}')
-        if settings.masks_dir:
-            self._w['theme_mask'].set_mask_directory(settings.masks_dir)
+        if _conf.settings.masks_dir:
+            self._w['theme_mask'].set_mask_directory(_conf.settings.masks_dir)
         self._w['theme_mask'].set_resolution(f'{w}x{h}')
 
     @property

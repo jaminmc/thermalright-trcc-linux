@@ -14,10 +14,10 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QMenu
 
+import trcc.conf as _conf
 from trcc.adapters.infra.data_repository import DataManager
 
 from ..core.models import MaskItem
-from ..core.paths import get_user_masks_dir
 from .base import BaseThumbnail, DownloadableThemeBrowser
 
 log = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ class UCThemeMask(DownloadableThemeBrowser):
     def _user_masks_dir(self) -> Path:
         """Get the user custom masks directory for current resolution."""
         w, h = self._parse_resolution()
-        return Path(get_user_masks_dir(w, h))
+        return Path(_conf.settings._path_resolver.user_masks_dir(w, h))
 
     def _scan_mask_dir(self, directory: Path, is_custom: bool = False) -> list[MaskItem]:
         """Scan a directory for local mask subdirs."""

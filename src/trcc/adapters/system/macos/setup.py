@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import shutil
 import subprocess
@@ -25,6 +26,27 @@ class MacOSSetup(PlatformSetup):
     def check_deps(self) -> list[Any]:
         from trcc.adapters.infra.doctor import check_system_deps
         return check_system_deps(self.get_pkg_manager())
+
+    def config_dir(self) -> str:
+        return os.path.join(Path.home(), '.trcc')
+
+    def data_dir(self) -> str:
+        return os.path.join(self.config_dir(), 'data')
+
+    def user_content_dir(self) -> str:
+        return os.path.join(Path.home(), '.trcc-user')
+
+    def theme_dir(self, width: int, height: int) -> str:
+        return os.path.join(self.data_dir(), f'theme{width}{height}')
+
+    def web_dir(self, width: int, height: int) -> str:
+        return os.path.join(self.data_dir(), 'web', f'{width}{height}')
+
+    def web_masks_dir(self, width: int, height: int) -> str:
+        return os.path.join(self.data_dir(), 'web', f'zt{width}{height}')
+
+    def user_masks_dir(self, width: int, height: int) -> str:
+        return os.path.join(self.user_content_dir(), 'data', 'web', f'zt{width}{height}')
 
     def ffmpeg_install_help(self) -> str:
         return "ffmpeg not found. Install:\n  brew install ffmpeg"

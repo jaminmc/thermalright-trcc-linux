@@ -584,7 +584,6 @@ class TestSaveTheme:
              patch(_PATCH_SETTINGS_CLS, sc), \
              patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
             rc = save_theme("MyTheme")
         assert rc == 0
@@ -605,8 +604,7 @@ class TestSaveTheme:
         sc.get_device_config.return_value = {}  # no theme_path
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_SETTINGS_CLS, sc):
             rc = save_theme("MyTheme")
         assert rc == 1
         assert "No current theme" in capsys.readouterr().out
@@ -617,8 +615,7 @@ class TestSaveTheme:
 
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch("trcc.core.models.ThemeDir", return_value=td):
             rc = save_theme("MyTheme")
         assert rc == 1
         assert "No current theme" in capsys.readouterr().out
@@ -637,7 +634,6 @@ class TestSaveTheme:
              patch(_PATCH_SETTINGS_CLS, sc), \
              patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
             rc = save_theme("MyTheme")
         assert rc == 1
@@ -656,7 +652,6 @@ class TestSaveTheme:
              patch(_PATCH_SETTINGS_CLS, sc), \
              patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
             save_theme("MyTheme", video="/path/to/video.gif")
 
@@ -677,7 +672,6 @@ class TestSaveTheme:
              patch(_PATCH_SETTINGS_CLS, sc), \
              patch("trcc.core.models.ThemeDir", return_value=td), \
              patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"), \
              patch(_PATCH_PIL_IMAGE, pil_mock):
             save_theme("MyTheme")
 
@@ -812,8 +806,7 @@ class TestImportTheme:
         theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, theme_info)
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_THEME_SVC, theme_svc):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 0
         assert "ImportedTheme" in capsys.readouterr().out
@@ -824,8 +817,7 @@ class TestImportTheme:
         theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, "Import successful")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_THEME_SVC, theme_svc):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 0
         assert "Import successful" in capsys.readouterr().out
@@ -836,8 +828,7 @@ class TestImportTheme:
         theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (False, "Invalid .tr file")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_THEME_SVC, theme_svc):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 1
         assert "Invalid" in capsys.readouterr().out
@@ -856,8 +847,7 @@ class TestImportTheme:
         theme_svc.return_value = theme_svc
         theme_svc.import_tr.return_value = (True, "ok")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_THEME_SVC, theme_svc):
             import_theme(str(tmp_path / "theme.tr"))
         call_args = theme_svc.import_tr.call_args[0]
         assert (640, 480) in call_args
@@ -869,8 +859,7 @@ class TestImportTheme:
         theme_svc.import_tr.return_value = (True, "ok")
         file_path = str(tmp_path / "my_theme.tr")
         with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/data"):
+             patch(_PATCH_THEME_SVC, theme_svc):
             import_theme(file_path)
         call_args = theme_svc.import_tr.call_args[0]
         assert Path(file_path) in call_args

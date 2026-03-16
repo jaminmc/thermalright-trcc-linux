@@ -270,11 +270,10 @@ class TestSaveCustomMask:
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
 
-        with patch('trcc.qt_components.trcc_app.Path') as mock_path_cls:
-            mock_path_cls.side_effect = lambda x: Path(x)
-            with patch('trcc.core.paths.get_user_masks_dir',
-                       return_value=str(user_dir)):
-                TRCCApp._save_and_apply_custom_mask(app, cropped)
+        import trcc.conf as _conf
+        _conf.settings._path_resolver.user_masks_dir.side_effect = None
+        _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
+        TRCCApp._save_and_apply_custom_mask(app, cropped)
 
         mask_dir = user_dir / 'my_overlay'
         assert mask_dir.exists()
@@ -295,9 +294,10 @@ class TestSaveCustomMask:
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
 
-        with patch('trcc.core.paths.get_user_masks_dir',
-                   return_value=str(user_dir)):
-            TRCCApp._save_and_apply_custom_mask(app, cropped)
+        import trcc.conf as _conf
+        _conf.settings._path_resolver.user_masks_dir.side_effect = None
+        _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
+        TRCCApp._save_and_apply_custom_mask(app, cropped)
 
         thumb = Image.open(user_dir / 'test_mask' / 'Theme.png')
         assert thumb.size == (120, 120)
@@ -317,9 +317,10 @@ class TestSaveCustomMask:
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
 
-        with patch('trcc.core.paths.get_user_masks_dir',
-                   return_value=str(user_dir)):
-            TRCCApp._save_and_apply_custom_mask(app, cropped)
+        import trcc.conf as _conf
+        _conf.settings._path_resolver.user_masks_dir.side_effect = None
+        _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
+        TRCCApp._save_and_apply_custom_mask(app, cropped)
 
         assert (user_dir / 'my_mask_2').exists()
 
@@ -337,9 +338,10 @@ class TestSaveCustomMask:
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
 
-        with patch('trcc.core.paths.get_user_masks_dir',
-                   return_value=str(user_dir)):
-            TRCCApp._save_and_apply_custom_mask(app, cropped)
+        import trcc.conf as _conf
+        _conf.settings._path_resolver.user_masks_dir.side_effect = None
+        _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
+        TRCCApp._save_and_apply_custom_mask(app, cropped)
 
         app._lcd_handler.apply_mask.assert_called_once()
         item = app._lcd_handler.apply_mask.call_args[0][0]

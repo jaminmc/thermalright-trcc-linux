@@ -1,5 +1,13 @@
 # Changelog
 
+## v8.6.0
+
+### Architecture
+- **Settings DI**: `Settings` receives a `PlatformSetup` path resolver via constructor — no module-level singleton, no hardcoded path imports. `init_settings(resolver)` called by composition roots (CLI, GUI, API)
+- **Path resolution through adapters**: `conf.py` no longer imports `get_web_dir`/`get_web_masks_dir`/`USER_DATA_DIR` from `paths.py`. All path resolution goes through `PlatformSetup` adapter methods
+- **No import binding issues**: All files that access `settings` use `import trcc.conf as _conf` (module reference) instead of `from ..conf import settings` (bound import) — safe across `init_settings` re-binding
+- **Pure tests**: No patches on path constants. Tests use DI via `init_settings(mock_resolver)` in conftest. 5241 tests, 0 failures
+
 ## v8.5.7
 
 ### Fixes

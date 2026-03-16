@@ -42,6 +42,13 @@ from trcc.services.system import set_instance
 
 log = logging.getLogger(__name__)
 
+# ── Platform setup + Settings (composition root) ──────────────────────
+
+from trcc.conf import init_settings  # noqa: E402
+
+_setup = ControllerBuilder.build_setup()
+init_settings(_setup)
+
 # ── Renderer (composition root) ───────────────────────────────────────
 
 _renderer = QtRenderer()

@@ -214,9 +214,9 @@ class UCThemeLocal(BaseThemeBrowser):
         # Scan primary dir + user data dir (merge, dedup by name).
         # This ensures Custom_ themes saved to ~/.trcc/data/ are visible
         # even when the primary dir is the package data dir.
-        from ..adapters.infra.data_repository import USER_DATA_DIR
+        from ..conf import settings
         dirs_to_scan = [self.theme_directory]
-        user_theme_dir = Path(USER_DATA_DIR) / self.theme_directory.name
+        user_theme_dir = settings.user_data_dir / self.theme_directory.name
         if user_theme_dir != self.theme_directory and user_theme_dir.exists():
             dirs_to_scan.append(user_theme_dir)
 

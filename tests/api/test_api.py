@@ -1661,8 +1661,8 @@ class TestDisplayErrorPaths(unittest.TestCase):
 
     def test_overlay_no_device_returns_409(self) -> None:
         api_module._display_dispatcher = None
-        from trcc.core.paths import USER_DATA_DIR
-        safe_path = f"{USER_DATA_DIR}/nope.dc"
+        import trcc.conf as _conf
+        safe_path = f"{_conf.settings.user_data_dir}/nope.dc"
         resp = self.client.post(f"/display/overlay?dc_path={safe_path}")
         self.assertEqual(resp.status_code, 409)
 
@@ -1674,8 +1674,8 @@ class TestDisplayErrorPaths(unittest.TestCase):
 
     def test_overlay_relative_traversal_returns_400(self) -> None:
         """dc_path with .. traversal must be rejected."""
-        from trcc.core.paths import USER_DATA_DIR
-        traversal = f"{USER_DATA_DIR}/../../etc/passwd"
+        import trcc.conf as _conf
+        traversal = f"{_conf.settings.user_data_dir}/../../etc/passwd"
         resp = self.client.post(f"/display/overlay?dc_path={traversal}")
         self.assertEqual(resp.status_code, 400)
 
@@ -2262,10 +2262,10 @@ class TestDisplayHappyPaths(unittest.TestCase):
         self.mock_lcd.load_mask_standalone.assert_called_once()
 
     def test_overlay_success(self) -> None:
-        from trcc.core.paths import USER_DATA_DIR
+        import trcc.conf as _conf
         self.mock_lcd.render_overlay_from_dc.return_value = {
             "success": True, "message": "Overlay rendered"}
-        safe_dc = f"{USER_DATA_DIR}/themes/config1.dc"
+        safe_dc = f"{_conf.settings.user_data_dir}/themes/config1.dc"
         resp = self.client.post(f"/display/overlay?dc_path={safe_dc}&send=true")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["success"])

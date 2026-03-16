@@ -108,7 +108,7 @@ def save_theme(name, *, device=None, video=None):
     """Save current display state as a custom theme."""
     from pathlib import Path
 
-    from trcc.adapters.infra.data_repository import USER_DATA_DIR
+    from trcc.conf import settings as _settings
     from trcc.services import ImageService, ThemeService
 
     svc = _device._get_service(device)
@@ -137,7 +137,7 @@ def save_theme(name, *, device=None, video=None):
         return 1
 
     video_path = Path(video) if video else None
-    data_dir = Path(USER_DATA_DIR)
+    data_dir = _settings.user_data_dir
     ok, msg = ThemeService.save(
         name, data_dir, (w, h),
         background=bg, overlay_config={},
@@ -199,10 +199,10 @@ def import_theme(file_path, *, device=None):
     """Import a theme from .tr file."""
     from pathlib import Path
 
-    from trcc.adapters.infra.data_repository import USER_DATA_DIR
     from trcc.adapters.infra.dc_config import DcConfig
     from trcc.adapters.infra.dc_parser import load_config_json
     from trcc.adapters.infra.dc_writer import import_theme as _import_fn
+    from trcc.conf import settings as _settings
     from trcc.services import ThemeService
 
     svc = _device._get_service(device)
@@ -212,7 +212,7 @@ def import_theme(file_path, *, device=None):
 
     dev = svc.selected
     w, h = dev.resolution
-    data_dir = Path(USER_DATA_DIR)
+    data_dir = _settings.user_data_dir
 
     theme_svc = ThemeService(
         import_theme_fn=_import_fn,

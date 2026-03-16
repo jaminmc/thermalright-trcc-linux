@@ -110,13 +110,13 @@ async def render_overlay(dc_path: str, send: bool = True) -> dict:
     """Render overlay from DC config path and optionally send to device."""
     import os
 
-    from trcc.core.paths import USER_DATA_DIR
+    from trcc.conf import settings
 
     # Validate path is within the data directory — prevent traversal
 
     if '\0' in dc_path:
         raise HTTPException(status_code=400, detail="Invalid overlay path")
-    allowed_dir = os.path.realpath(USER_DATA_DIR)
+    allowed_dir = os.path.realpath(str(settings.user_data_dir))
     # Resolve to canonical path — handles both absolute and relative input
     safe_path = os.path.realpath(os.path.join(allowed_dir, dc_path))
     if not safe_path.startswith(allowed_dir + os.sep) and safe_path != allowed_dir:

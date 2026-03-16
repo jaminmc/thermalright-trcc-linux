@@ -30,11 +30,11 @@ import locale
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .__version__ import __version__
 from .core.models import LEGACY_TO_ISO, LOCALE_TO_LANG, ThemeDir
-from .core.paths import USER_CONFIG_DIR, USER_DATA_DIR, get_web_dir, get_web_masks_dir
+from .core.paths import USER_CONFIG_DIR
 
 log = logging.getLogger(__name__)
 
@@ -399,8 +399,13 @@ class Settings:
 
     # --- Instance methods and properties ---
 
-    def __init__(self) -> None:
+    def __init__(self, path_resolver: Any) -> None:
+        if path_resolver is None:
+            raise RuntimeError(
+                "Settings requires a path_resolver. "
+                "Use init_settings() from a composition root.")
         _migrate_config()
+        self._path_resolver = path_resolver
         w, h = Settings._get_saved_resolution()
         self._width = w
         self._height = h
@@ -416,7 +421,7 @@ class Settings:
         self._lang: str = self._get_saved_lang()
 
         # Static paths
-        self.user_data_dir = Path(USER_DATA_DIR)
+        self.user_data_dir = Path(path_resolver.data_dir())
 
         # Resolve for initial resolution
         if w and h:
@@ -486,8 +491,8 @@ class Settings:
         """Resolve theme/web/mask directories for current resolution."""
         w, h = self._width, self._height
         self.theme_dir = ThemeDir.for_resolution(w, h)
-        self.web_dir = Path(get_web_dir(w, h))
-        self.masks_dir = Path(get_web_masks_dir(w, h))
+        self.web_dir = Path(self._path_resolver.web_dir(w, h))
+        self.masks_dir = Path(self._path_resolver.web_masks_dir(w, h))
 
     def resolve_cloud_dirs(self, rotation: int = 0) -> None:
         """Re-resolve cloud background/mask dirs for rotation.
@@ -499,9 +504,35 @@ class Settings:
         w, h = self._width, self._height
         if w != h and rotation in (90, 270):
             w, h = h, w
-        self.web_dir = Path(get_web_dir(w, h))
-        self.masks_dir = Path(get_web_masks_dir(w, h))
+        self.web_dir = Path(self._path_resolver.web_dir(w, h))
+        self.masks_dir = Path(self._path_resolver.web_masks_dir(w, h))
 
 
-# Module-level singleton — import and use directly
-settings = Settings()
+# Module-level singleton — initialized by composition roots via init_settings()
+_settings: Settings | None = None
+
+
+def _get_settings() -> Settings:
+    """Return the Settings singleton. Raises if not initialized."""
+    if _settings is None:
+        raise RuntimeError(
+            "Settings not initialized. "
+            "Call init_settings() from a composition root.")
+    return _settings
+
+
+# Public accessor — always returns Settings (not Optional)
+# Composition roots must call init_settings() before any code uses this.
+settings: Settings = None  # type: ignore[assignment]
+
+
+def init_settings(path_resolver: Any) -> Settings:
+    """Initialize the Settings singleton with a platform path resolver.
+
+    Called by composition roots (CLI, GUI, API) after building the
+    platform adapter via ControllerBuilder.build_setup().
+    """
+    global _settings, settings  # noqa: PLW0603
+    _settings = Settings(path_resolver)
+    settings = _settings
+    return settings

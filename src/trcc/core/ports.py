@@ -318,6 +318,34 @@ class PlatformSetup(ABC):
         """Platform-specific instructions for installing 7z/p7zip."""
 
     @abstractmethod
+    def config_dir(self) -> str:
+        """User config directory (e.g. ~/.trcc/)."""
+
+    @abstractmethod
+    def data_dir(self) -> str:
+        """User data directory (e.g. ~/.trcc/data/)."""
+
+    @abstractmethod
+    def user_content_dir(self) -> str:
+        """User-created content directory (e.g. ~/.trcc-user/)."""
+
+    @abstractmethod
+    def theme_dir(self, width: int, height: int) -> str:
+        """Local theme directory for a resolution."""
+
+    @abstractmethod
+    def web_dir(self, width: int, height: int) -> str:
+        """Cloud theme web directory for a resolution."""
+
+    @abstractmethod
+    def web_masks_dir(self, width: int, height: int) -> str:
+        """Cloud masks directory for a resolution."""
+
+    @abstractmethod
+    def user_masks_dir(self, width: int, height: int) -> str:
+        """User-created masks directory for a resolution."""
+
+    @abstractmethod
     def ffmpeg_install_help(self) -> str:
         """Platform-specific instructions for installing ffmpeg."""
 

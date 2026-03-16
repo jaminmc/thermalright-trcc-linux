@@ -173,6 +173,7 @@ def tmp_config(tmp_path, monkeypatch):
     """Isolated config dir — patches CONFIG_DIR/CONFIG_PATH to tmp_path.
 
     Autouse: no test should ever read from or write to the real ~/.trcc/config.json.
+    Initializes Settings with a platform path resolver pointing to tmp_path.
     """
     config_dir = str(tmp_path / "trcc")
     config_path = str(tmp_path / "trcc" / "config.json")
@@ -181,6 +182,24 @@ def tmp_config(tmp_path, monkeypatch):
     monkeypatch.setattr("trcc.conf.CONFIG_DIR", config_dir)
     monkeypatch.setattr("trcc.conf.CONFIG_PATH", config_path)
     monkeypatch.setattr("trcc.conf._HANDSHAKE_CACHE_PATH", handshake_path)
+
+    # Initialize Settings with a test path resolver (DI)
+    # Uses tmp_path so tests never touch real ~/.trcc/
+    from unittest.mock import MagicMock
+
+    from trcc.conf import init_settings
+
+    resolver = MagicMock()
+    resolver.config_dir.return_value = config_dir
+    resolver.data_dir.return_value = str(tmp_path / "trcc" / "data")
+    resolver.user_content_dir.return_value = str(tmp_path / "trcc-user")
+    resolver.theme_dir.side_effect = lambda w, h: str(tmp_path / "trcc" / "data" / f"theme{w}{h}")
+    resolver.web_dir.side_effect = lambda w, h: str(tmp_path / "trcc" / "data" / "web" / f"{w}{h}")
+    resolver.web_masks_dir.side_effect = lambda w, h: str(tmp_path / "trcc" / "data" / "web" / f"zt{w}{h}")
+    resolver.user_masks_dir.side_effect = lambda w, h: str(tmp_path / "trcc-user" / "data" / "web" / f"zt{w}{h}")
+    os.makedirs(str(tmp_path / "trcc" / "data"), exist_ok=True)
+    init_settings(resolver)
+
     return tmp_path
 
 

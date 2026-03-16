@@ -98,7 +98,7 @@ def lcd(display_svc: DisplayService, renderer: Any) -> LCDDevice:
 @pytest.fixture()
 def mock_settings():
     """Patch settings for 320x320."""
-    with patch('trcc.services.display.settings') as s:
+    with patch('trcc.conf.settings') as s:
         s.width = 320
         s.height = 320
         yield s

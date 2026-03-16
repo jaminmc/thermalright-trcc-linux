@@ -21,9 +21,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
+import trcc.conf as _conf
 from trcc.core.models import FBL_TO_RESOLUTION
 
-from .data_repository import DATA_DIR, USER_DATA_DIR, DataManager
+from .data_repository import DataManager
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def _build_registry() -> Dict[str, PackInfo]:
     for w, h in _all_resolutions():
         pack_id = f"themes-{w}x{h}"
         archive = f"theme{w}{h}.7z"
-        archive_path = os.path.join(DATA_DIR, archive)
+        archive_path = os.path.join(str(_conf.settings.user_data_dir), archive)
         size_kb = os.path.getsize(archive_path) // 1024 if os.path.isfile(archive_path) else 0
         registry[pack_id] = PackInfo(
             name=f"TRCC Themes {w}x{h}",
@@ -89,13 +90,28 @@ def _build_short_aliases(registry: Dict[str, PackInfo]) -> Dict[str, str]:
     return aliases
 
 
-THEME_REGISTRY = _build_registry()
-_SHORT_ALIASES = _build_short_aliases(THEME_REGISTRY)
+_THEME_REGISTRY: Dict[str, PackInfo] | None = None
+_SHORT_ALIASES: Dict[str, str] | None = None
+
+
+def _get_registry() -> Dict[str, PackInfo]:
+    """Lazy-build theme registry on first access."""
+    global _THEME_REGISTRY, _SHORT_ALIASES  # noqa: PLW0603
+    if _THEME_REGISTRY is None:
+        _THEME_REGISTRY = _build_registry()
+        _SHORT_ALIASES = _build_short_aliases(_THEME_REGISTRY)
+    return _THEME_REGISTRY
+
+
+def _get_aliases() -> Dict[str, str]:
+    """Lazy-build short aliases on first access."""
+    _get_registry()  # ensures both are built
+    return _SHORT_ALIASES  # type: ignore[return-value]
 
 
 def _resolve_pack_name(name: str) -> str:
     """Resolve short aliases to canonical pack names."""
-    return _SHORT_ALIASES.get(name, name)
+    return _get_aliases().get(name, name)
 
 
 # =========================================================================
@@ -108,10 +124,10 @@ class ThemeDownloader:
     @staticmethod
     def _theme_dir(w: int, h: int) -> Path:
         """Path to extracted theme directory (prefers user dir)."""
-        user = Path(USER_DATA_DIR) / f"theme{w}{h}"
+        user = _conf.settings.user_data_dir / f"theme{w}{h}"
         if user.exists():
             return user
-        pkg = Path(DATA_DIR) / f"theme{w}{h}"
+        pkg = _conf.settings.user_data_dir / f"theme{w}{h}"
         if pkg.exists():
             return pkg
         return user  # default to user dir for installs
@@ -138,7 +154,7 @@ class ThemeDownloader:
         print("Available theme packs:")
         print("=" * 60)
 
-        for pack_id, info in THEME_REGISTRY.items():
+        for pack_id, info in _get_registry().items():
             installed = ThemeDownloader._is_installed(info.width, info.height)
             status = ""
             if installed:
@@ -160,12 +176,12 @@ class ThemeDownloader:
     def show_info(pack_name: str) -> None:
         """Show detailed info about a theme pack."""
         pack_name = _resolve_pack_name(pack_name)
-        if pack_name not in THEME_REGISTRY:
+        if pack_name not in _get_registry():
             print(f"Unknown theme pack: {pack_name}")
             print("Use 'trcc download --list' to see available packs")
             return
 
-        info = THEME_REGISTRY[pack_name]
+        info = _get_registry()[pack_name]
         theme_dir = ThemeDownloader._theme_dir(info.width, info.height)
 
         print(f"\n{info.name}")
@@ -192,12 +208,12 @@ class ThemeDownloader:
             0 on success, non-zero on failure.
         """
         pack_name = _resolve_pack_name(pack_name)
-        if pack_name not in THEME_REGISTRY:
+        if pack_name not in _get_registry():
             print(f"Unknown theme pack: {pack_name}")
             print("Use 'trcc download --list' to see available packs")
             return 1
 
-        info = THEME_REGISTRY[pack_name]
+        info = _get_registry()[pack_name]
         w, h = info.width, info.height
 
         # Already installed?
@@ -209,8 +225,8 @@ class ThemeDownloader:
 
         # Force: remove existing first
         if force:
-            for d in (Path(USER_DATA_DIR) / f"theme{w}{h}",
-                      Path(DATA_DIR) / f"theme{w}{h}"):
+            for d in (_conf.settings.user_data_dir / f"theme{w}{h}",
+                      _conf.settings.user_data_dir / f"theme{w}{h}"):
                 if d.exists():
                     log.info("Removing %s for reinstall", d)
                     shutil.rmtree(d)
@@ -230,12 +246,12 @@ class ThemeDownloader:
     def remove_pack(pack_name: str) -> int:
         """Remove an installed theme pack from user data directory."""
         pack_name = _resolve_pack_name(pack_name)
-        if pack_name not in THEME_REGISTRY:
+        if pack_name not in _get_registry():
             print(f"Unknown theme pack: {pack_name}")
             return 1
 
-        info = THEME_REGISTRY[pack_name]
-        user_dir = Path(USER_DATA_DIR) / f"theme{info.width}{info.height}"
+        info = _get_registry()[pack_name]
+        user_dir = _conf.settings.user_data_dir / f"theme{info.width}{info.height}"
 
         if not user_dir.exists():
             print(f"Theme pack '{pack_name}' is not installed in user directory")

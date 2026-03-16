@@ -288,8 +288,7 @@ class TestResolutionInstalled(unittest.TestCase):
         self.patches = [
             patch('trcc.conf.CONFIG_PATH', self.config_path),
             patch('trcc.conf.CONFIG_DIR', self.tmp),
-            patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', self.user_data),
-            patch('trcc.adapters.infra.data_repository.DATA_DIR', self.pkg_data),
+            patch.object(DataManager, '_data_dir', staticmethod(lambda: self.user_data)),
         ]
         for p in self.patches:
             p.start()
@@ -531,16 +530,16 @@ class TestEnsureThemesExtracted(unittest.TestCase):
             sub = os.path.join(theme_dir, '000a')
             os.makedirs(sub)
             Path(sub, '00.png').touch()
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')):
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))):
                 self.assertTrue(DataManager.ensure_themes(320, 320))
 
     def test_no_archive(self):
         """Returns False when no archive and no themes."""
         with tempfile.TemporaryDirectory() as d:
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
                  patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_themes(320, 320))
 
@@ -551,9 +550,9 @@ class TestEnsureThemesExtracted(unittest.TestCase):
             # Place archive in pkg _PKG_DATA_DIR
             archive = os.path.join(d, 'theme320320.7z')
             Path(archive).touch()
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
                  patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))), \
                  patch.object(DataManager, 'extract_7z', return_value=True) as mock_ex:
                 result = DataManager.ensure_themes(320, 320)
             self.assertTrue(result)
@@ -569,15 +568,15 @@ class TestEnsureWebExtracted(unittest.TestCase):
             web_dir = os.path.join(d, 'web', '320320')
             os.makedirs(web_dir)
             Path(web_dir, 'preview.png').touch()
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')):
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))):
                 self.assertTrue(DataManager.ensure_web(320, 320))
 
     def test_no_archive(self):
         with tempfile.TemporaryDirectory() as d:
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
                  patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_web(320, 320))
 
@@ -588,9 +587,9 @@ class TestEnsureWebExtracted(unittest.TestCase):
             os.makedirs(archive_dir)
             archive = os.path.join(archive_dir, '320320.7z')
             Path(archive).touch()
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
                  patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))), \
                  patch.object(DataManager, 'extract_7z', return_value=True) as mock_ex:
                 result = DataManager.ensure_web(320, 320)
             self.assertTrue(result)
@@ -606,15 +605,15 @@ class TestEnsureWebMasksExtracted(unittest.TestCase):
             sub = os.path.join(masks_dir, '000a')
             os.makedirs(sub)
             Path(sub, '00.png').touch()  # has_themes needs a .png
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')):
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))):
                 self.assertTrue(DataManager.ensure_web_masks(320, 320))
 
     def test_no_archive(self):
         with tempfile.TemporaryDirectory() as d:
-            with patch('trcc.adapters.infra.data_repository.DATA_DIR', d), \
+            with patch.object(DataManager, '_data_dir', staticmethod(lambda: d)), \
                  patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', d), \
-                 patch('trcc.adapters.infra.data_repository.USER_DATA_DIR', os.path.join(d, 'user')), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: os.path.join(d, 'user'))), \
                  patch.object(DataManager, 'download_archive', return_value=False):
                 self.assertFalse(DataManager.ensure_web_masks(320, 320))
 
@@ -738,7 +737,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_landscape_rotation_keeps_landscape_dirs(self):
         """Rotation 0 or 180 keeps original w×h for cloud dirs."""
-        s = Settings()
+        from trcc.core.builder import ControllerBuilder
+        s = Settings(ControllerBuilder.build_setup())
         s._width, s._height = 1280, 480
         s.resolve_cloud_dirs(0)
         self.assertIn('1280480', str(s.web_dir))
@@ -750,7 +750,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_portrait_rotation_swaps_dims(self):
         """Rotation 90 or 270 swaps to h×w for cloud dirs."""
-        s = Settings()
+        from trcc.core.builder import ControllerBuilder
+        s = Settings(ControllerBuilder.build_setup())
         s._width, s._height = 1280, 480
         s.resolve_cloud_dirs(90)
         self.assertIn('4801280', str(s.web_dir))
@@ -762,7 +763,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_square_display_no_swap(self):
         """Square displays never swap, regardless of rotation."""
-        s = Settings()
+        from trcc.core.builder import ControllerBuilder
+        s = Settings(ControllerBuilder.build_setup())
         s._width, s._height = 320, 320
         s.resolve_cloud_dirs(90)
         self.assertIn('320320', str(s.web_dir))
@@ -770,7 +772,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_1600x720_portrait(self):
         """1600x720 swaps to 7201600 on portrait rotation."""
-        s = Settings()
+        from trcc.core.builder import ControllerBuilder
+        s = Settings(ControllerBuilder.build_setup())
         s._width, s._height = 1600, 720
         s.resolve_cloud_dirs(90)
         self.assertIn('7201600', str(s.web_dir))
@@ -778,7 +781,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_640x480_portrait(self):
         """640x480 swaps to 480640 on portrait rotation."""
-        s = Settings()
+        from trcc.core.builder import ControllerBuilder
+        s = Settings(ControllerBuilder.build_setup())
         s._width, s._height = 640, 480
         s.resolve_cloud_dirs(270)
         self.assertIn('480640', str(s.web_dir))

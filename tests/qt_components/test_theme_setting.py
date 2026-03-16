@@ -1121,7 +1121,6 @@ class TestUCThemeLocal:
         panel.load_themes()
         assert panel._all_themes == []
 
-    @patch("trcc.adapters.infra.data_repository.USER_DATA_DIR", "/nonexistent_user_data")
     def test_load_themes_with_directory(self, qapp, tmp_path):
         from PIL import Image as PILImage
         # Create real theme directories with real PNG thumbnails

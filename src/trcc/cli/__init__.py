@@ -42,6 +42,15 @@ def _ensure_renderer() -> None:
         ImageService.set_renderer(QtRenderer())
 
 
+def _ensure_settings() -> None:
+    """Initialize Settings singleton with platform path resolver (once)."""
+    from trcc.conf import settings
+    if settings is None:
+        from trcc.conf import init_settings
+        from trcc.core.builder import ControllerBuilder
+        init_settings(ControllerBuilder.build_setup())
+
+
 def _ensure_system() -> None:
     """Initialize SystemService singleton for CLI (once)."""
     from trcc.services.system import _instance
@@ -56,6 +65,7 @@ def _cli_handler(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
+            _ensure_settings()
             _ensure_renderer()
             return func(*args, **kwargs)
         except KeyboardInterrupt:

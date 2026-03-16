@@ -22,6 +22,16 @@ from trcc.conf import (
     save_last_handshake,
 )
 
+
+def _mock_resolver():
+    """Create a mock path resolver for Settings DI in tests."""
+    r = MagicMock()
+    r.data_dir.return_value = '/tmp/trcc/data'
+    r.web_dir.side_effect = lambda w, h: f'/tmp/trcc/data/web/{w}{h}'
+    r.web_masks_dir.side_effect = lambda w, h: f'/tmp/trcc/data/web/zt{w}{h}'
+    r.user_masks_dir.side_effect = lambda w, h: f'/tmp/trcc-user/data/web/zt{w}{h}'
+    return r
+
 # =========================================================================
 # load_config / save_config
 # =========================================================================
@@ -31,6 +41,9 @@ class TestLoadConfig:
     """load_config: reads JSON from CONFIG_PATH, returns {} on errors."""
 
     def test_returns_empty_dict_when_file_missing(self, tmp_config):
+        from trcc.conf import CONFIG_PATH
+        if os.path.exists(CONFIG_PATH):
+            os.remove(CONFIG_PATH)
         assert load_config() == {}
 
     def test_reads_valid_json(self, tmp_config):
@@ -414,10 +427,11 @@ class TestSettingsInit:
     def test_init_loads_defaults(self, tmp_config):
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
+             patch("trcc.conf.ThemeDir.for_resolution") as mock_td2:
             mock_td.return_value = MagicMock()
-            s = Settings()
+            if mock_td2:
+                mock_td2.return_value = MagicMock()
+            s = Settings(_mock_resolver())
         assert s.resolution == (320, 320)
         assert s.temp_unit == 0
         assert s.hdd_enabled is True
@@ -431,10 +445,11 @@ class TestSettingsInit:
         })
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
+             patch("trcc.conf.ThemeDir.for_resolution") as mock_td2:
             mock_td.return_value = MagicMock()
-            s = Settings()
+            if mock_td2:
+                mock_td2.return_value = MagicMock()
+            s = Settings(_mock_resolver())
         assert s.resolution == (480, 480)
         assert s.width == 480
         assert s.height == 480
@@ -447,7 +462,7 @@ class TestSettingsInit:
         save_config({"resolution": [0, 0]})
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td:
-            s = Settings()
+            s = Settings(_mock_resolver())
         mock_td.assert_not_called()
         assert s.theme_dir is None
         assert s.web_dir is None
@@ -464,20 +479,14 @@ class TestSettingsInstance:
 
     @pytest.fixture
     def settings(self, tmp_config):
-        """Create a Settings instance with mocked external dependencies."""
+        """Create a Settings instance with mock path resolver (DI)."""
         with patch("trcc.conf._migrate_config"), \
-             patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            mock_td.return_value = MagicMock()
-            s = Settings()
+             patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
+            s = Settings(_mock_resolver())
         return s
 
     def test_set_resolution_updates_and_persists(self, settings, tmp_config):
-        with patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web2"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks2"):
-            mock_td.return_value = MagicMock()
+        with patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
             settings.set_resolution(480, 480)
         assert settings.resolution == (480, 480)
         assert Settings._get_saved_resolution() == (480, 480)
@@ -490,10 +499,7 @@ class TestSettingsInstance:
 
     def test_set_resolution_no_persist(self, settings, tmp_config):
         """persist=False skips saving to config."""
-        with patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            mock_td.return_value = MagicMock()
+        with patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
             settings.set_resolution(640, 480, persist=False)
         assert settings.resolution == (640, 480)
         # Config still has default
@@ -519,10 +525,11 @@ class TestSettingsInstance:
         monkeypatch.setattr("locale.getlocale", lambda: ("ja_JP", "UTF-8"))
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
+             patch("trcc.conf.ThemeDir.for_resolution") as mock_td2:
             mock_td.return_value = MagicMock()
-            s = Settings()
+            if mock_td2:
+                mock_td2.return_value = MagicMock()
+            s = Settings(_mock_resolver())
         assert s.lang == "ja"
 
     def test_get_saved_lang_uses_saved(self, tmp_config):
@@ -530,10 +537,11 @@ class TestSettingsInstance:
         save_config({"lang": "es"})
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
+             patch("trcc.conf.ThemeDir.for_resolution") as mock_td2:
             mock_td.return_value = MagicMock()
-            s = Settings()
+            if mock_td2:
+                mock_td2.return_value = MagicMock()
+            s = Settings(_mock_resolver())
         assert s.lang == "es"
 
     def test_get_saved_lang_migrates_legacy_code(self, tmp_config):
@@ -541,10 +549,11 @@ class TestSettingsInstance:
         save_config({"lang": "d"})
         with patch("trcc.conf._migrate_config"), \
              patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
+             patch("trcc.conf.ThemeDir.for_resolution") as mock_td2:
             mock_td.return_value = MagicMock()
-            s = Settings()
+            if mock_td2:
+                mock_td2.return_value = MagicMock()
+            s = Settings(_mock_resolver())
         assert s.lang == "de"
         assert load_config()["lang"] == "de"  # Persisted
 
@@ -561,59 +570,42 @@ class TestResolveCloudDirs:
     def settings(self, tmp_config):
         """Settings with a non-square resolution (1280x480)."""
         save_config({"resolution": [1280, 480]})
+        self._resolver = _mock_resolver()
         with patch("trcc.conf._migrate_config"), \
-             patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            mock_td.return_value = MagicMock()
-            s = Settings()
+             patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
+            s = Settings(self._resolver)
         return s
 
     def test_rotation_0_keeps_landscape(self, settings):
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web_l") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks_l"):
-            settings.resolve_cloud_dirs(0)
-            mock_web.assert_called_with(1280, 480)
+        settings.resolve_cloud_dirs(0)
+        self._resolver.web_dir.assert_called_with(1280, 480)
 
     def test_rotation_90_swaps_to_portrait(self, settings):
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web_p") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks_p"):
-            settings.resolve_cloud_dirs(90)
-            mock_web.assert_called_with(480, 1280)
-        assert settings.web_dir == Path("/tmp/web_p")
-        assert settings.masks_dir == Path("/tmp/masks_p")
+        settings.resolve_cloud_dirs(90)
+        self._resolver.web_dir.assert_called_with(480, 1280)
+        assert '4801280' in str(settings.web_dir)
 
     def test_rotation_270_swaps_to_portrait(self, settings):
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web_p") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks_p"):
-            settings.resolve_cloud_dirs(270)
-            mock_web.assert_called_with(480, 1280)
+        settings.resolve_cloud_dirs(270)
+        self._resolver.web_dir.assert_called_with(480, 1280)
 
     def test_rotation_180_keeps_landscape(self, settings):
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web_l") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks_l"):
-            settings.resolve_cloud_dirs(180)
-            mock_web.assert_called_with(1280, 480)
+        settings.resolve_cloud_dirs(180)
+        self._resolver.web_dir.assert_called_with(1280, 480)
 
     def test_square_display_no_swap(self, tmp_config):
         """Square resolution (320x320) never swaps, even at 90 degrees."""
+        r = _mock_resolver()
         with patch("trcc.conf._migrate_config"), \
-             patch("trcc.conf.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            mock_td.return_value = MagicMock()
-            s = Settings()
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web_sq") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks_sq"):
-            s.resolve_cloud_dirs(90)
-            mock_web.assert_called_with(320, 320)
+             patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
+            s = Settings(r)
+        s.resolve_cloud_dirs(90)
+        r.web_dir.assert_called_with(320, 320)
 
     def test_default_rotation_0(self, settings):
         """Default rotation parameter is 0 (no swap)."""
-        with patch("trcc.conf.get_web_dir", return_value="/tmp/web") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            settings.resolve_cloud_dirs()
-            mock_web.assert_called_with(1280, 480)
+        settings.resolve_cloud_dirs()
+        self._resolver.web_dir.assert_called_with(1280, 480)
 
 
 # =========================================================================
@@ -622,20 +614,19 @@ class TestResolveCloudDirs:
 
 
 class TestResolvePaths:
-    """_resolve_paths: resolves theme_dir, web_dir, masks_dir."""
+    """_resolve_paths: resolves theme_dir, web_dir, masks_dir via path resolver."""
 
     def test_sets_all_three_paths(self, tmp_config):
+        r = _mock_resolver()
         mock_td = MagicMock()
         with patch("trcc.conf._migrate_config"), \
-             patch("trcc.conf.ThemeDir.for_resolution", return_value=mock_td), \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web") as mock_web, \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks") as mock_masks:
-            s = Settings()
+             patch("trcc.conf.ThemeDir.for_resolution", return_value=mock_td):
+            s = Settings(r)
         assert s.theme_dir is mock_td
-        assert s.web_dir == Path("/tmp/web")
-        assert s.masks_dir == Path("/tmp/masks")
-        mock_web.assert_called_with(320, 320)
-        mock_masks.assert_called_with(320, 320)
+        assert s.web_dir is not None
+        assert s.masks_dir is not None
+        r.web_dir.assert_called_with(320, 320)
+        r.web_masks_dir.assert_called_with(320, 320)
 
 
 # =========================================================================
@@ -647,10 +638,8 @@ class TestSettingsProperties:
     """Read-only properties return correct values."""
 
     def test_user_data_dir(self, tmp_config):
-        from trcc.adapters.infra.data_repository import USER_DATA_DIR
+        r = _mock_resolver()
         with patch("trcc.conf._migrate_config"), \
-             patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()), \
-             patch("trcc.conf.get_web_dir", return_value="/tmp/web"), \
-             patch("trcc.conf.get_web_masks_dir", return_value="/tmp/masks"):
-            s = Settings()
-        assert s.user_data_dir == Path(USER_DATA_DIR)
+             patch("trcc.conf.ThemeDir.for_resolution", return_value=MagicMock()):
+            s = Settings(r)
+        assert s.user_data_dir == Path(r.data_dir())

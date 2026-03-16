@@ -28,9 +28,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import trcc.conf as _conf
+from trcc.conf import Settings
+
 from ..adapters.device.scsi import find_lcd_devices
 from ..adapters.infra.dc_writer import read_carousel_config
-from ..conf import Settings, settings
 from ..core.builder import ControllerBuilder
 from ..core.led_device import LEDDevice
 from ..core.models import DeviceInfo
@@ -118,7 +120,7 @@ class LEDHandler:
         self._panel.set_memory_ratio(self._led.state.memory_ratio)
         self._sync_ui_from_state()
 
-        seg_unit = "F" if settings.temp_unit == 1 else "C"
+        seg_unit = "F" if _conf.settings.temp_unit == 1 else "C"
         self._led.set_seg_temp_unit(seg_unit)
 
         self._active = True
@@ -441,8 +443,7 @@ class TRCCApp(QMainWindow):
         self._decorated = decorated
         self._drag_pos = None
         self._force_quit = False
-        from ..adapters.infra.data_repository import USER_DATA_DIR
-        self._data_dir = data_dir or Path(USER_DATA_DIR)
+        self._data_dir = data_dir or _conf.settings.user_data_dir
 
         self.setWindowTitle("TRCC-Linux - Thermalright LCD Control Center")
         self.setFixedSize(Sizes.WINDOW_W, Sizes.WINDOW_H)
@@ -484,7 +485,7 @@ class TRCCApp(QMainWindow):
         self._setup_mediator()
 
         # Restore temp unit
-        saved_unit = settings.temp_unit
+        saved_unit = _conf.settings.temp_unit
         if self._lcd_handler:
             self._lcd_handler.display.set_overlay_temp_unit(saved_unit)
         self.uc_system_info.set_temp_unit(saved_unit)
@@ -650,7 +651,7 @@ class TRCCApp(QMainWindow):
 
         # Preview
         self.uc_preview = UCPreview(
-            settings.width, settings.height, self.form_container)
+            _conf.settings.width, _conf.settings.height, self.form_container)
         self.uc_preview.setGeometry(*Layout.PREVIEW)
 
         # Info module
@@ -788,7 +789,7 @@ class TRCCApp(QMainWindow):
             TITLE_BAR_TEXT,
             tr,
         )
-        lang = settings.lang
+        lang = _conf.settings.lang
         self._i18n_labels: list[tuple[QLabel, str | None]] = []
 
         def _lbl(parent: QWidget, text: str, x: int, y: int, w: int, h: int,
@@ -1076,17 +1077,17 @@ class TRCCApp(QMainWindow):
             self._set_panel_bg(panel, bg_name)
 
     def _init_theme_directories(self):
-        w, h = settings.width, settings.height
-        td = settings.theme_dir
+        w, h = _conf.settings.width, _conf.settings.height
+        td = _conf.settings.theme_dir
         if td:
             self.uc_theme_local.set_theme_directory(td.path)
             if td.exists():
                 self._load_carousel_config(td.path)
-        if settings.web_dir:
-            self.uc_theme_web.set_web_directory(settings.web_dir)
+        if _conf.settings.web_dir:
+            self.uc_theme_web.set_web_directory(_conf.settings.web_dir)
         self.uc_theme_web.set_resolution(f'{w}x{h}')
-        if settings.masks_dir:
-            self.uc_theme_mask.set_mask_directory(settings.masks_dir)
+        if _conf.settings.masks_dir:
+            self.uc_theme_mask.set_mask_directory(_conf.settings.masks_dir)
         self.uc_theme_mask.set_resolution(f'{w}x{h}')
 
     # ── View Navigation ────────────────────────────────────────────
@@ -1463,7 +1464,7 @@ class TRCCApp(QMainWindow):
     # ── File Dialogs ───────────────────────────────────────────────
 
     def _on_load_video_clicked(self):
-        web_dir = str(settings.web_dir) if settings.web_dir else ""
+        web_dir = str(_conf.settings.web_dir) if _conf.settings.web_dir else ""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Video", web_dir,
             "Video Files (*.mp4 *.avi *.mov *.gif);;All Files (*)")
@@ -1565,13 +1566,12 @@ class TRCCApp(QMainWindow):
         from PIL import Image as PILImage
 
         from ..core.models import MaskItem
-        from ..core.paths import get_user_masks_dir
 
         if not self._lcd_handler:
             return
 
         w, h = self._lcd_handler.display.lcd_size
-        user_dir = Path(get_user_masks_dir(w, h))
+        user_dir = Path(_conf.settings._path_resolver.user_masks_dir(w, h))
         user_dir.mkdir(parents=True, exist_ok=True)
 
         # Name from original filename stem — sanitize and deduplicate
@@ -1755,11 +1755,11 @@ class TRCCApp(QMainWindow):
         self.uc_system_info.set_temp_unit(temp_int)
         self.uc_led_control.set_temp_unit(temp_int)
         self._led.set_temp_unit(unit)
-        settings.set_temp_unit(temp_int)
+        _conf.settings.set_temp_unit(temp_int)
         self.uc_preview.set_status(f"Temperature: \u00b0{unit}")
 
     def _on_hdd_toggle_changed(self, on: bool):
-        settings.set_hdd_enabled(on)
+        _conf.settings.set_hdd_enabled(on)
         self.uc_preview.set_status(
             f"HDD info: {'Enabled' if on else 'Disabled'}")
 
@@ -1768,7 +1768,7 @@ class TRCCApp(QMainWindow):
         self.uc_preview.set_status(f"Refresh: {interval}s")
 
     def _set_language(self, lang: str):
-        settings.lang = lang
+        _conf.settings.lang = lang
         self._apply_settings_backgrounds()
         self.uc_about.sync_language()
         self.uc_led_control.apply_localized_background()
@@ -1970,11 +1970,13 @@ def run_app(data_dir: Path | None = None, decorated: bool = False,
         _raise_existing_instance()
         return 0
 
-    # Resolve assets directory via platform adapter (before any Qt widget loads)
+    # Platform adapter — resolves assets, paths, deps for this OS
+    from ..conf import init_settings
     from ..core.builder import ControllerBuilder as _Builder
     from .assets import _PKG_ASSETS_DIR, set_assets_dir
     setup = _Builder.build_setup()
     set_assets_dir(setup.resolve_assets_dir(_PKG_ASSETS_DIR))
+    init_settings(setup)
 
     os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.services=false")
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
