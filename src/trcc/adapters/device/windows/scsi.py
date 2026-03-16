@@ -170,6 +170,71 @@ class WindowsScsiTransport:
             log.exception("SCSI passthrough failed")
             return False
 
+    def read_cdb(
+        self,
+        cdb: bytes,
+        length: int,
+        *,
+        timeout: int = 5,
+    ) -> bytes:
+        """Send a SCSI CDB and read response data.
+
+        Args:
+            cdb: SCSI Command Descriptor Block (6-16 bytes)
+            length: Expected response length in bytes
+            timeout: Timeout in seconds
+
+        Returns:
+            Response bytes, or empty bytes on failure.
+        """
+        if self._handle is None:
+            log.error("SCSI device not open")
+            return b''
+
+        # Allocate receive buffer
+        data_buf = (ctypes.c_ubyte * length)()
+
+        # Build SCSI_PASS_THROUGH_DIRECT for read
+        sptdwb = SCSI_PASS_THROUGH_DIRECT_WITH_BUFFER()
+        sptd = sptdwb.sptd
+        sptd.Length = ctypes.sizeof(SCSI_PASS_THROUGH_DIRECT)
+        sptd.CdbLength = len(cdb)
+        sptd.SenseInfoLength = 32
+        sptd.DataIn = SCSI_IOCTL_DATA_IN
+        sptd.DataTransferLength = length
+        sptd.TimeOutValue = timeout
+        sptd.DataBuffer = ctypes.addressof(data_buf)
+        sptd.SenseInfoOffset = ctypes.sizeof(SCSI_PASS_THROUGH_DIRECT)
+
+        # Copy CDB bytes
+        for i, b in enumerate(cdb[:16]):
+            sptd.Cdb[i] = b
+
+        # DeviceIoControl
+        bytes_returned = ctypes.wintypes.DWORD(0)
+        try:
+            ok = ctypes.windll.kernel32.DeviceIoControl(  # pyright: ignore[reportAttributeAccessIssue]
+                self._handle,
+                IOCTL_SCSI_PASS_THROUGH_DIRECT,
+                ctypes.byref(sptdwb),
+                ctypes.sizeof(sptdwb),
+                ctypes.byref(sptdwb),
+                ctypes.sizeof(sptdwb),
+                ctypes.byref(bytes_returned),
+                None,
+            )
+            if not ok:
+                error = ctypes.GetLastError()  # pyright: ignore[reportAttributeAccessIssue]
+                log.error("DeviceIoControl read failed: error %d", error)
+                return b''
+            if sptd.ScsiStatus != 0:
+                log.warning("SCSI read status %d", sptd.ScsiStatus)
+                return b''
+            return bytes(data_buf)
+        except Exception:
+            log.exception("SCSI read passthrough failed")
+            return b''
+
     def __enter__(self):
         self.open()
         return self

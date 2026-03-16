@@ -1,5 +1,15 @@
 # Changelog
 
+## v8.7.0
+
+### Features
+- **Windows SCSI device communication**: New `WindowsScsiProtocol` uses `DeviceIoControl` SCSI passthrough instead of Linux `fcntl`/`sg_raw`. Windows users with SCSI LCD devices (0402:3922, 87CD:70DB, 0416:5406) can now send images to their displays
+- **Windows SCSI read support**: Added `WindowsScsiTransport.read_cdb()` for SCSI read operations (handshake polling), completing the Windows DeviceIoControl transport
+
+### Fixes
+- **Windows `AttributeError: AF_UNIX` crash**: `_gui_running()` in `instance.py` called `socket.AF_UNIX` without checking if it exists on Windows. Added `hasattr` guard matching the existing pattern in `ipc.py`
+- **Windows uninstaller leaves processes running**: Added `[UninstallRun]` to Inno Setup to kill `trcc-gui.exe`/`trcc.exe` before removing files. Added `[UninstallDelete]` to clean up autostart desktop entry
+
 ## v8.6.9
 
 ### Fixes

@@ -19,6 +19,7 @@ Usage::
 """
 
 import logging
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
@@ -31,6 +32,11 @@ from trcc.core.models import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _is_windows() -> bool:
+    return sys.platform == 'win32'
+
 
 # USB errno constants.
 _ERRNO_EACCES = 13  # Permission denied — udev rules missing.
@@ -325,6 +331,132 @@ class ScsiProtocol(DeviceProtocol):
 
 
 # =========================================================================
+# WindowsScsiProtocol — Windows DeviceIoControl implementation
+# =========================================================================
+
+class WindowsScsiProtocol(DeviceProtocol):
+    """LCD communication via Windows SCSI passthrough (DeviceIoControl).
+
+    Uses WindowsScsiTransport instead of Linux sg_raw/SG_IO.
+    The device_path is a PhysicalDrive path (e.g. \\\\.\\PhysicalDrive1).
+    """
+
+    def __init__(self, device_path: str):
+        super().__init__()
+        self._path = device_path
+
+    def _do_handshake(self) -> Optional[HandshakeResult]:
+        """Poll Windows SCSI device to discover FBL → resolution."""
+        import time  # noqa: I001
+
+        from .scsi import (
+            ScsiDevice,
+            _BOOT_MAX_RETRIES,
+            _BOOT_SIGNATURE,
+            _BOOT_WAIT_SECONDS,
+            _POST_INIT_DELAY,
+        )
+        from .windows.scsi import WindowsScsiTransport
+
+        transport = WindowsScsiTransport(self._path)
+        if not transport.open():
+            log.error("Failed to open Windows SCSI device %s", self._path)
+            return None
+
+        try:
+            poll_header = ScsiDevice._build_header(0xF5, 0xE100)
+            cdb = poll_header[:16]
+
+            # Poll with boot state check
+            response = b''
+            for attempt in range(_BOOT_MAX_RETRIES):
+                response = transport.read_cdb(cdb, 0xE100)
+                if len(response) >= 8 and response[4:8] == _BOOT_SIGNATURE:
+                    log.info("Device %s still booting (attempt %d/%d)",
+                             self._path, attempt + 1, _BOOT_MAX_RETRIES)
+                    time.sleep(_BOOT_WAIT_SECONDS)
+                else:
+                    break
+
+            fbl = response[0] if response else 100
+            log.debug("Windows SCSI poll byte[0] = %d (FBL)", fbl)
+
+            # Init
+            init_header = ScsiDevice._build_header(0x1F5, 0xE100)
+            transport.send_cdb(init_header[:16], b'\x00' * 0xE100)
+            time.sleep(_POST_INIT_DELAY)
+
+            # Build HandshakeResult
+            from trcc.core.models import fbl_to_resolution
+            width, height = fbl_to_resolution(fbl)
+
+            return HandshakeResult(
+                model_id=fbl,
+                resolution=(width, height),
+                pm_byte=fbl,
+                sub_byte=0,
+                raw_response=response[:64],
+            )
+        except Exception:
+            log.exception("Windows SCSI handshake failed on %s", self._path)
+            return None
+        finally:
+            transport.close()
+
+    def send_image(self, image_data: bytes, width: int, height: int) -> bool:
+        from .scsi import ScsiDevice
+        from .windows.scsi import WindowsScsiTransport
+
+        transport = WindowsScsiTransport(self._path)
+        if not transport.open():
+            return False
+
+        try:
+            chunks = ScsiDevice._get_frame_chunks(width, height)
+            total_size = sum(size for _, size in chunks)
+            if len(image_data) < total_size:
+                image_data += b'\x00' * (total_size - len(image_data))
+
+            offset = 0
+            for cmd, size in chunks:
+                header = ScsiDevice._build_header(cmd, size)
+                ok = transport.send_cdb(header[:16], image_data[offset:offset + size])
+                if not ok:
+                    return False
+                offset += size
+            return True
+        except Exception:
+            log.exception("Windows SCSI send_image failed")
+            return False
+        finally:
+            transport.close()
+
+    def close(self) -> None:
+        pass
+
+    def get_info(self) -> 'ProtocolInfo':
+        return ProtocolInfo(
+            protocol="scsi",
+            device_type=1,
+            protocol_display="SCSI (Windows DeviceIoControl)",
+            device_type_display="SCSI RGB565",
+            active_backend="DeviceIoControl",
+            backends={"DeviceIoControl": True, "sg_raw": False},
+        )
+
+    @property
+    def protocol_name(self) -> str:
+        return "scsi"
+
+    @property
+    def is_available(self) -> bool:
+        return True
+
+    def __repr__(self) -> str:
+        return f"WindowsScsiProtocol(path={self._path!r})"
+
+
+# =========================================================================
 # HidProtocol — HID/USB bulk implementation
 # =========================================================================
 
@@ -612,8 +744,11 @@ class DeviceProtocolFactory:
 
     # Registry map: (protocol, implementation) → factory function.
     # Looked up by exact match first, then (protocol, '') as fallback.
+    # SCSI routes to WindowsScsiProtocol on Windows (DeviceIoControl)
+    # vs ScsiProtocol on Linux/macOS/BSD (sg_raw/SG_IO).
     _PROTOCOL_REGISTRY: ClassVar[Dict[Tuple[str, str], Callable[..., DeviceProtocol]]] = {
-        ('scsi', ''):       lambda di: ScsiProtocol(di.path),
+        ('scsi', ''):       lambda di: (WindowsScsiProtocol(di.path)
+                                        if _is_windows() else ScsiProtocol(di.path)),
         ('bulk', ''):       lambda di: BulkProtocol(vid=di.vid, pid=di.pid),
         ('ly', ''):         lambda di: LyProtocol(vid=di.vid, pid=di.pid),
         ('hid', 'hid_led'): lambda di: LedProtocol(vid=di.vid, pid=di.pid),

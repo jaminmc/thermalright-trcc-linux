@@ -34,6 +34,8 @@ def _socket_path() -> Path:
 
 def _gui_running() -> bool:
     """Check if GUI daemon is listening on IPC socket."""
+    if not hasattr(socket, 'AF_UNIX'):
+        return False
     path = _socket_path()
     if not path.exists():
         return False

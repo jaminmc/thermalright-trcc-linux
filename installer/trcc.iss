@@ -71,6 +71,17 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; \
     Check: NeedsAddPath('{app}')
 
+[UninstallDelete]
+; Clean up autostart entry and app directory
+Type: files; Name: "{userappdata}\Microsoft\Windows\Start Menu\Programs\Startup\trcc-linux.desktop"
+Type: files; Name: "{userstartup}\trcc-linux.desktop"
+Type: filesandordirs; Name: "{app}"
+
+[UninstallRun]
+; Kill TRCC processes before uninstall
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM trcc-gui.exe"; Flags: runhidden; RunOnceId: "KillGUI"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM trcc.exe"; Flags: runhidden; RunOnceId: "KillCLI"
+
 [Code]
 function NeedsAddPath(Param: string): Boolean;
 var
