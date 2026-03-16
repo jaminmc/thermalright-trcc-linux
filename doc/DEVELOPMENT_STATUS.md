@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.1.2 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 8.6.6
+**Current version:** 8.7.0
 **Branch:** `main`
-**Tests:** 5258 across 92 files in 9 hexagonal directories
+**Tests:** 5265 across 92 files in 9 hexagonal directories
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable

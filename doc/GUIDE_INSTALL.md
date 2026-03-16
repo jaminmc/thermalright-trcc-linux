@@ -751,7 +751,7 @@ trcc gui
 
 ## Windows (experimental)
 
-Download `trcc-8.6.6-setup.exe` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer.
+Download `trcc-8.7.0-setup.exe` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer.
 
 **What you get:**
 - **TRCC** shortcut in Start Menu — launches the GUI
@@ -774,7 +774,7 @@ trcc doctor
 
 ## macOS (experimental)
 
-Download `trcc-8.6.6-macos.dmg` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
+Download `trcc-8.7.0-macos.dmg` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
 
 **Requirements:**
 - macOS 11+ (Big Sur or later)
