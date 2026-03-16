@@ -1,6 +1,6 @@
 # TRCC Linux — Test Suite
 
-4741 tests across 57 files, organized to mirror `src/trcc/` hexagonal layers.
+5243 tests across 91 files, organized to mirror `src/trcc/` hexagonal layers.
 
 ## Running Tests
 

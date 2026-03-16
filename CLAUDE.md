@@ -5,13 +5,13 @@
 ### Layer Map
 - **Models** (`core/models.py`): Pure dataclasses, enums, domain constants — zero logic, zero I/O, zero framework deps
 - **Services** (`services/`): Core hexagon — all business logic, pure Python. `ImageService` is a thin facade delegating to the active `Renderer` (QtRenderer by default). `OverlayService` uses injected Renderer for compositing/text.
-- **Paths** (`core/paths.py`): Application path constants and directory resolution — `DATA_DIR`, `USER_DATA_DIR`, `get_web_dir()`, `get_web_masks_dir()`. Zero project imports, safe from any module. Pure path logic only.
-- **Devices** (`core/lcd_device.py`, `core/led_device.py`): Application-layer facades living in `core/` for import convenience. `LCDDevice`/`LEDDevice` use deferred imports from services and adapters at method call time (not module load). They delegate to services and return result dicts. Not domain objects — they're composition roots that wire services together per operation.
+- **Paths** (`core/paths.py`): Fallback path constants (`DATA_DIR`, `USER_DATA_DIR`). Primary path resolution goes through `PlatformSetup` adapter injected into `Settings`. Zero project imports, safe from any module.
+- **Devices** (`core/lcd_device.py`, `core/led_device.py`): Application-layer facades in `core/`. Strict DI — `RuntimeError` if `device_svc` or `build_services_fn` not injected. Zero adapter imports. Delegate to services and return result dicts.
 - **Builder** (`core/builder.py`): `ControllerBuilder` — fluent builder, assembles devices with DI, returns `LCDDevice`/`LEDDevice`. Composition root: imports adapters to inject into services.
 - **Views** (`qt_components/`): PySide6 GUI adapter. `TRCCApp` (thin shell) + `LCDHandler`/`LEDHandler` (one per device).
 - **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 7 submodules). Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
 - **API** (`api/`): FastAPI REST adapter (package: `__init__.py` + 7 submodules). 46 endpoints covering devices, display, LED, themes, system metrics, and i18n. Includes WebSocket live preview stream + cloud theme download. Uses `LCDDevice`/`LEDDevice` from core/. `_current_image` tracks last frame sent for preview endpoints.
-- **Config** (`conf.py`): Application settings singleton — resolution, language, temp unit, device prefs. Single source of truth for all mutable app state.
+- **Config** (`conf.py`): Application settings with DI — `Settings(path_resolver)` receives a `PlatformSetup` adapter via constructor. `init_settings(resolver)` called by composition roots (CLI, GUI, API). Single source of truth for all mutable app state.
 - **Entry**: `cli/` → `trcc_app.py` (TRCCApp) → builder.build_lcd()/build_led()
 - **Protocols**: SCSI (LCD frames), HID (handshake/resolution), LED (RGB effects + segment displays)
 - **Platform** (`core/platform.py`): `WINDOWS`, `LINUX`, `MACOS`, `BSD` flags. `builder.py` routes to platform-specific adapters via these flags.

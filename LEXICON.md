@@ -85,5 +85,7 @@ Shared terminology so everyone uses the same names.
 | **adapters/infra/** | Infrastructure I/O (data repo, fonts, media, themes, doctor) |
 | **services/** | Core hexagon — pure Python business logic, no framework deps. Strict DI — RuntimeError if deps not injected. |
 | **install/** | Standalone setup wizard (works without trcc installed) |
-| **Composition root** | Code that imports adapters and injects them into services. Only `builder.py`, `lcd_device.py:_build_services()`, CLI functions, and `api/__init__.py` may import adapters. |
-| **Strict DI** | Service constructors raise `RuntimeError` if required adapter dependencies are missing. No lazy fallback imports. |
+| **Composition root** | Code that imports adapters and injects them into services. Only `builder.py` in core/ may import adapters. CLI, GUI, API entry points call `init_settings(setup)` to wire path resolution. |
+| **Strict DI** | Service and device constructors raise `RuntimeError` if required adapter dependencies are missing. No lazy fallback imports. No deferred adapter imports in core/. |
+| **PlatformSetup** | ABC in `core/ports.py` — each OS adapter (Linux, Windows, macOS, BSD) implements path resolution, install help, and asset resolution |
+| **init_settings** | Module-level function in `conf.py` — called by composition roots to inject `PlatformSetup` path resolver into `Settings` |

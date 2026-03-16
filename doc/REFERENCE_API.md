@@ -55,7 +55,7 @@ Health check. Always accessible, no auth required.
 
 **Response:**
 ```json
-{"status": "ok", "version": "8.1.0"}
+{"status": "ok", "version": "8.6.5"}
 ```
 
 ---
