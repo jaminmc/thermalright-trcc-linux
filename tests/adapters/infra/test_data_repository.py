@@ -618,6 +618,49 @@ class TestEnsureWebMasksExtracted(unittest.TestCase):
                 self.assertFalse(DataManager.ensure_web_masks(320, 320))
 
 
+# -- download_archive SSL ---------------------------------------------------
+
+class TestDownloadArchiveSSL(unittest.TestCase):
+    """Test download_archive SSL cert handling for PyInstaller builds."""
+
+    @patch('urllib.request.urlopen')
+    def test_clears_ssl_cert_file_env_during_context_creation(self, mock_urlopen):
+        """SSL_CERT_FILE is temporarily cleared so Python uses OS cert store."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b''
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        with tempfile.TemporaryDirectory() as d:
+            dest = os.path.join(d, 'test.7z')
+            fake_cert = '/nonexistent/cacert.pem'
+            os.environ['SSL_CERT_FILE'] = fake_cert
+            try:
+                DataManager.download_archive('https://example.com/test.7z', dest)
+            finally:
+                restored = os.environ.get('SSL_CERT_FILE')
+                os.environ.pop('SSL_CERT_FILE', None)
+
+            # SSL_CERT_FILE must be restored after context creation
+            self.assertEqual(restored, fake_cert)
+
+    @patch('urllib.request.urlopen')
+    def test_no_ssl_cert_file_env_unchanged(self, mock_urlopen):
+        """When SSL_CERT_FILE is not set, nothing is restored."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b''
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_urlopen.return_value = mock_resp
+
+        os.environ.pop('SSL_CERT_FILE', None)
+        with tempfile.TemporaryDirectory() as d:
+            dest = os.path.join(d, 'test.7z')
+            DataManager.download_archive('https://example.com/test.7z', dest)
+            self.assertNotIn('SSL_CERT_FILE', os.environ)
+
+
 # -- _find_data_dir ---------------------------------------------------------
 
 class TestFindPkgDataDir(unittest.TestCase):

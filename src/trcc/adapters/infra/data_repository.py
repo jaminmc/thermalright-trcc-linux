@@ -211,16 +211,28 @@ class DataManager:
     @staticmethod
     def download_archive(url: str, dest_path: str, timeout: int = 60) -> bool:
         """Download a file from URL to dest_path. Returns True on success."""
+        import ssl
         import urllib.error
         import urllib.request
 
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         tmp_path = dest_path + '.tmp'
 
+        # PyInstaller sets SSL_CERT_FILE to a bundled cacert.pem that may
+        # not exist at runtime, causing certificate verification failures.
+        # Temporarily clear it so ssl.create_default_context() loads certs
+        # from the OS store (Windows) or system CA bundle instead.
+        stashed = os.environ.pop('SSL_CERT_FILE', None)
+        try:
+            ctx = ssl.create_default_context()
+        finally:
+            if stashed is not None:
+                os.environ['SSL_CERT_FILE'] = stashed
+
         try:
             log.info("Downloading %s ...", os.path.basename(dest_path))
             req = urllib.request.Request(url, headers={'User-Agent': 'trcc-linux'})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
                 with open(tmp_path, 'wb') as f:
                     while True:
                         chunk = resp.read(65536)

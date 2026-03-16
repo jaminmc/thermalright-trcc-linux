@@ -60,13 +60,13 @@ Pre-built packages are available for every major distro. No pip, no venv, no PEP
 
 **Fedora / openSUSE / Nobara:**
 ```bash
-sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.6.7-1.fc43.noarch.rpm
+sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.6.8-1.fc43.noarch.rpm
 ```
 
 **Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS 24.04+ / Zorin 17+:**
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.6.7-1_all.deb
-sudo dpkg -i trcc-linux_8.6.7-1_all.deb
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.6.8-1_all.deb
+sudo dpkg -i trcc-linux_8.6.8-1_all.deb
 sudo apt-get install -f    # pulls in any missing dependencies
 ```
 
@@ -74,8 +74,8 @@ sudo apt-get install -f    # pulls in any missing dependencies
 
 **Arch / CachyOS / Manjaro / EndeavourOS / Garuda:**
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.6.7-1-any.pkg.tar.zst
-sudo pacman -U trcc-linux-8.6.7-1-any.pkg.tar.zst
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.6.8-1-any.pkg.tar.zst
+sudo pacman -U trcc-linux-8.6.8-1-any.pkg.tar.zst
 ```
 
 **NixOS** — add to your `flake.nix` inputs:
@@ -102,8 +102,8 @@ That's it! If your device isn't detected, run `trcc detect --all` to see what's 
 
 | OS | Download | Notes |
 |----|----------|-------|
-| **Windows 10/11** | [`trcc-8.6.7-setup.exe`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | GUI + CLI, bundles 7z/ffmpeg/libusb |
-| **macOS 11+** | [`trcc-8.6.7-macos.dmg`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | Drag to Applications, `brew install libusb` first |
+| **Windows 10/11** | [`trcc-8.6.8-setup.exe`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | GUI + CLI, bundles 7z/ffmpeg/libusb |
+| **macOS 11+** | [`trcc-8.6.8-macos.dmg`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | Drag to Applications, `brew install libusb` first |
 | **FreeBSD** | `pip install trcc-linux` | PyPI only, needs `libusb` + `py311-pyusb` |
 
 See the **[Install Guide](doc/GUIDE_INSTALL.md)** for detailed setup instructions, requirements, and troubleshooting for each platform.

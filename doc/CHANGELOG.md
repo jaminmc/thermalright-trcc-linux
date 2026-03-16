@@ -1,5 +1,13 @@
 # Changelog
 
+## v8.6.8
+
+### Fixes
+- **Windows SSL certificate verification failure on PyInstaller builds**: `download_archive()` failed with `CERTIFICATE_VERIFY_FAILED` because PyInstaller sets `SSL_CERT_FILE` to a bundled `cacert.pem` that doesn't exist at runtime. Now temporarily clears the env var so `ssl.create_default_context()` loads certificates from the OS store instead
+
+### Tests
+- 2 new tests for SSL cert env handling in download_archive (5260 total across 92 files)
+
 ## v8.6.7
 
 ### Fixes
