@@ -69,15 +69,14 @@ jobs:
 
       - name: Log PyInstaller output
         run: |
-          echo "=== dist/ contents ==="
+          echo "=== dist/ top-level ==="
           ls -la dist/
-          echo "=== Looking for TRCC executable ==="
-          find dist -name "TRCC" -type f 2>/dev/null || echo "No TRCC found"
-          find dist -name "__main__" -type f 2>/dev/null || echo "No __main__ found"
-          echo "=== .app bundle MacOS/ ==="
+          echo "=== .app bundle MacOS/ (with symlinks) ==="
           ls -la dist/TRCC.app/Contents/MacOS/ 2>/dev/null || echo "No MacOS/ dir"
-          echo "=== .app bundle Frameworks/ (executables) ==="
-          find dist/TRCC.app/Contents/Frameworks -maxdepth 1 -type f -perm +111 2>/dev/null | head -10 || echo "No executables in Frameworks/"
+          echo "=== .app bundle Frameworks/ (first 10) ==="
+          ls dist/TRCC.app/Contents/Frameworks/ 2>/dev/null | head -10 || echo "No Frameworks/ dir"
+          echo "=== Finding TRCC executable (following symlinks) ==="
+          find -L dist/TRCC.app -name "TRCC" -type f 2>/dev/null || echo "No TRCC found"
 
       - name: Bundle dependencies
         run: |
@@ -121,14 +120,14 @@ jobs:
           echo ""
           echo "=== Verification ==="
           missing=()
-          # Find TRCC executable anywhere in the bundle
-          TRCC_EXE=$(find dist/TRCC.app -name "TRCC" -type f 2>/dev/null | head -1)
+          # Find TRCC executable anywhere in the bundle (follow symlinks — PyInstaller 6.0+ uses them)
+          TRCC_EXE=$(find -L dist/TRCC.app -name "TRCC" -type f 2>/dev/null | head -1)
           if [ -n "$TRCC_EXE" ]; then
             echo "  TRCC executable: $TRCC_EXE"
           else
             echo "  TRCC executable: NOT FOUND"
-            echo "  All executables in bundle:"
-            find dist/TRCC.app -type f -perm +111 2>/dev/null | head -20
+            echo "  All executables in bundle (following symlinks):"
+            find -L dist/TRCC.app -type f -perm +111 2>/dev/null | head -20
             missing+=("TRCC")
           fi
           [ -f "dist/TRCC.app/Contents/MacOS/7z" ] && echo "  7z: OK" || missing+=("7z")
