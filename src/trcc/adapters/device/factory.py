@@ -359,47 +359,32 @@ class WindowsScsiProtocol(DeviceProtocol):
         return self._transport
 
     def _do_handshake(self) -> Optional[HandshakeResult]:
-        """Poll Windows SCSI device to discover FBL → resolution."""
+        """Init Windows SCSI device and determine FBL.
+
+        Windows IOCTL_SCSI_PASS_THROUGH_DIRECT read direction times out
+        (error 121) on USB mass storage LCD devices — the protocol doesn't
+        map cleanly to standard SCSI IN/OUT. Skip the poll read and default
+        to FBL=100 (320x320). The init write still works and is required
+        to wake the device for frame sends.
+        """
         import time  # noqa: I001
 
-        from .scsi import (
-            ScsiDevice,
-            _BOOT_MAX_RETRIES,
-            _BOOT_SIGNATURE,
-            _BOOT_WAIT_SECONDS,
-            _POST_INIT_DELAY,
-        )
+        from .scsi import ScsiDevice, _POST_INIT_DELAY
 
         transport = self._get_transport()
         if transport is None:
             return None
 
         try:
-            poll_header = ScsiDevice._build_header(0xF5, 0xE100)
-            cdb = poll_header[:16]
-
-            # Poll with boot state check
-            response = b''
-            for attempt in range(_BOOT_MAX_RETRIES):
-                response = transport.read_cdb(cdb, 0xE100, timeout=15)
-                if len(response) >= 8 and response[4:8] == _BOOT_SIGNATURE:
-                    log.info("Device %s still booting (attempt %d/%d)",
-                             self._path, attempt + 1, _BOOT_MAX_RETRIES)
-                    time.sleep(_BOOT_WAIT_SECONDS)
-                elif response:
-                    break
-                else:
-                    log.warning("Windows SCSI poll returned empty, "
-                                "defaulting FBL=100")
-                    break
-
-            fbl = response[0] if response else 100
-            log.debug("Windows SCSI poll byte[0] = %d (FBL)", fbl)
-
-            # Init
+            # Init write — wakes the device for frame reception
             init_header = ScsiDevice._build_header(0x1F5, 0xE100)
             transport.send_cdb(init_header[:16], b'\x00' * 0xE100)
             time.sleep(_POST_INIT_DELAY)
+
+            # Default FBL=100 (320x320) — poll read not supported on
+            # Windows SCSI passthrough for these devices
+            fbl = 100
+            log.info("Windows SCSI init OK, defaulting FBL=%d", fbl)
 
             # Build HandshakeResult
             from trcc.core.models import fbl_to_resolution
@@ -410,7 +395,7 @@ class WindowsScsiProtocol(DeviceProtocol):
                 resolution=(width, height),
                 pm_byte=fbl,
                 sub_byte=0,
-                raw_response=response[:64],
+                raw_response=b'',
             )
         except Exception:
             log.exception("Windows SCSI handshake failed on %s", self._path)

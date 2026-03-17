@@ -478,15 +478,15 @@ class TestHandshakeScsi:
         dev.scsi_device = "/dev/sg0"
         return dev
 
-    @patch("trcc.adapters.device.factory.ScsiProtocol")
-    def test_success_known_fbl(self, MockScsi):
+    @patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol")
+    def test_success_known_fbl(self, mock_create):
         result = MagicMock()
         result.model_id = 50  # FBL 50 → known
         result.resolution = (320, 240)
         result.raw_response = bytes(range(64))
         proto = MagicMock()
         proto.handshake.return_value = result
-        MockScsi.return_value = proto
+        mock_create.return_value = proto
 
         sec_obj = MagicMock()
         sec_obj.lines = []
@@ -499,15 +499,15 @@ class TestHandshakeScsi:
         assert "320" in text
         proto.close.assert_called_once()
 
-    @patch("trcc.adapters.device.factory.ScsiProtocol")
-    def test_success_unknown_fbl(self, MockScsi):
+    @patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol")
+    def test_success_unknown_fbl(self, mock_create):
         result = MagicMock()
         result.model_id = 999  # not in table
         result.resolution = (0, 0)
         result.raw_response = b""
         proto = MagicMock()
         proto.handshake.return_value = result
-        MockScsi.return_value = proto
+        mock_create.return_value = proto
 
         sec_obj = MagicMock()
         sec_obj.lines = []
@@ -518,11 +518,11 @@ class TestHandshakeScsi:
         assert "UNKNOWN" in text
         assert "FBL=999" in text
 
-    @patch("trcc.adapters.device.factory.ScsiProtocol")
-    def test_handshake_returns_none(self, MockScsi):
+    @patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol")
+    def test_handshake_returns_none(self, mock_create):
         proto = MagicMock()
         proto.handshake.return_value = None
-        MockScsi.return_value = proto
+        mock_create.return_value = proto
 
         sec_obj = MagicMock()
         sec_obj.lines = []
@@ -533,11 +533,11 @@ class TestHandshakeScsi:
         assert "poll failed" in text
         proto.close.assert_called_once()
 
-    @patch("trcc.adapters.device.factory.ScsiProtocol")
-    def test_close_called_on_exception(self, MockScsi):
+    @patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol")
+    def test_close_called_on_exception(self, mock_create):
         proto = MagicMock()
         proto.handshake.side_effect = RuntimeError("device gone")
-        MockScsi.return_value = proto
+        mock_create.return_value = proto
 
         sec_obj = MagicMock()
         sec_obj.lines = []

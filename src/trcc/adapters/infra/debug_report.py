@@ -384,10 +384,10 @@ class DebugReport:
             sec.lines.append("    (device in use by trcc gui)")
 
     def _handshake_scsi(self, dev, sec: _Section) -> None:
-        from trcc.adapters.device.factory import ScsiProtocol
+        from trcc.adapters.device.factory import DeviceProtocolFactory
         from trcc.core.models import FBL_TO_RESOLUTION
 
-        protocol = ScsiProtocol(dev.scsi_device)
+        protocol = DeviceProtocolFactory.create_protocol(dev)
         try:
             result = protocol.handshake()
             if result is None:

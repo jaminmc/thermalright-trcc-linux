@@ -1,5 +1,13 @@
 # Changelog
 
+## v8.7.3
+
+### Fixes
+- **Windows SCSI handshake skip read — eliminates theme blinking**: `IOCTL_SCSI_PASS_THROUGH_DIRECT` read direction times out (error 121) on USB mass storage LCD devices. Skipped the poll read and default to FBL=100 (320x320). Init write still wakes the device for frame sends. No more 15-second handshake timeout blocking the GUI
+- **Hexagonal violation — debug_report bypassed factory**: `_handshake_scsi()` directly instantiated `ScsiProtocol` instead of using `DeviceProtocolFactory.create_protocol()`. On Windows this always used the Linux SCSI path (`fcntl`). Fixed to route through the factory which selects `WindowsScsiProtocol` on Windows
+- **Hexagonal violation — _device.py bypassed factory**: `_probe()` directly instantiated `BulkProtocol` instead of using the factory. Fixed for consistency
+- **Installer post-launch shellexec**: `CreateProcess` from an admin installer can't re-elevate a UAC-manifest exe. Changed to `ShellExecute` which triggers proper UAC prompt
+
 ## v8.7.2
 
 ### Fixes

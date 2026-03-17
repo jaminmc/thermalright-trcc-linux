@@ -555,7 +555,7 @@ class TestProbe:
     # -- bulk_usblcdnew ---
 
     def test_bulk_success(self):
-        """bulk_usblcdnew: BulkProtocol handshake parsed for resolution and pm."""
+        """bulk_usblcdnew: factory handshake parsed for resolution and pm."""
         dev = _make_detected_device(implementation="bulk_usblcdnew")
 
         hs = MagicMock()
@@ -565,7 +565,8 @@ class TestProbe:
         mock_bp = MagicMock()
         mock_bp.handshake.return_value = hs
 
-        with patch("trcc.adapters.device.factory.BulkProtocol", return_value=mock_bp):
+        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol",
+                   return_value=mock_bp):
             result = _probe(dev)
 
         assert result["resolution"] == (480, 480)
@@ -579,7 +580,8 @@ class TestProbe:
         mock_bp = MagicMock()
         mock_bp.handshake.return_value = None
 
-        with patch("trcc.adapters.device.factory.BulkProtocol", return_value=mock_bp):
+        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol",
+                   return_value=mock_bp):
             result = _probe(dev)
 
         assert result == {}
@@ -589,7 +591,7 @@ class TestProbe:
         """bulk_usblcdnew: exception in handshake is swallowed."""
         dev = _make_detected_device(implementation="bulk_usblcdnew")
 
-        with patch("trcc.adapters.device.factory.BulkProtocol",
+        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.create_protocol",
                    side_effect=RuntimeError("bulk error")):
             result = _probe(dev)
 

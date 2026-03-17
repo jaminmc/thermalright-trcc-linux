@@ -102,11 +102,11 @@ def _probe(dev):
         except Exception:
             pass
 
-    # Bulk USB devices: probe via BulkProtocol
+    # Bulk USB devices: probe via factory
     elif dev.implementation == 'bulk_usblcdnew':
         try:
-            from trcc.adapters.device.factory import BulkProtocol
-            bp = BulkProtocol(dev.vid, dev.pid)
+            from trcc.adapters.device.factory import DeviceProtocolFactory
+            bp = DeviceProtocolFactory.create_protocol(dev)
             hs = bp.handshake()
             if hs and hs.resolution:
                 result['resolution'] = hs.resolution
