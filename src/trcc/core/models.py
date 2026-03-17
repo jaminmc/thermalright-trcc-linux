@@ -1318,7 +1318,7 @@ DEFAULT_BRIGHTNESS_LEVEL = 3  # 100%
 # Time formats matching Windows TRCC (UCXiTongXianShiSub.cs)
 TIME_FORMATS: Dict[int, str] = {
     0: "%H:%M",       # 24-hour (14:58)
-    1: "%-I:%M",      # 12-hour, no leading zero, no AM/PM (2:58)
+    1: "%I:%M",       # 12-hour with leading zero (02:58) — stripped in _format_metric
     2: "%H:%M",       # 24-hour (same as mode 0 in Windows)
 }
 
@@ -1731,7 +1731,12 @@ def format_metric(metric: str, value: float, time_format: int = 0,
     elif metric == 'time':
         now = datetime.now()
         fmt = TIME_FORMATS.get(time_format, TIME_FORMATS[0])
-        return now.strftime(fmt)
+        result = now.strftime(fmt)
+        # Strip leading zero for 12-hour format (cross-platform — avoids
+        # Unix %-I vs Windows %#I platform-specific strftime flags)
+        if time_format == 1:
+            result = result.lstrip('0')
+        return result
     elif metric == 'weekday':
         now = datetime.now()
         return WEEKDAYS[now.weekday()]
