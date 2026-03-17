@@ -53,19 +53,7 @@ Log ""
 
 # Build CLI (with console)
 Log "--- Building CLI ---"
-python -m PyInstaller `
-  --name trcc `
-  --onedir `
-  --console `
-  --uac-admin `
-  --icon src/trcc/assets/icons/app.ico `
-  --add-data "src/trcc/assets;trcc/assets" `
-  --hidden-import PySide6.QtSvg `
-  --hidden-import pynvml `
-  --hidden-import wmi `
-  --collect-submodules trcc `
-  --noconfirm `
-  src/trcc/__main__.py 2>&1 | Tee-Object -Append -FilePath $logFile
+cmd /c "python -m PyInstaller --name trcc --onedir --console --uac-admin --icon src/trcc/assets/icons/app.ico --add-data src/trcc/assets;trcc/assets --hidden-import PySide6.QtSvg --hidden-import pynvml --hidden-import wmi --collect-submodules trcc --noconfirm src/trcc/__main__.py 2>&1" | Tee-Object -Append -FilePath $logFile
 
 if ($LASTEXITCODE -ne 0) {
   Log "ERROR: CLI build failed (exit code $LASTEXITCODE)"
@@ -76,19 +64,7 @@ Log "CLI build OK"
 # Build GUI (windowed, no console)
 Log ""
 Log "--- Building GUI ---"
-python -m PyInstaller `
-  --name trcc-gui `
-  --onedir `
-  --windowed `
-  --uac-admin `
-  --icon src/trcc/assets/icons/app.ico `
-  --add-data "src/trcc/assets;trcc/assets" `
-  --hidden-import PySide6.QtSvg `
-  --hidden-import pynvml `
-  --hidden-import wmi `
-  --collect-submodules trcc `
-  --noconfirm `
-  src/trcc/__main__.py 2>&1 | Tee-Object -Append -FilePath $logFile
+cmd /c "python -m PyInstaller --name trcc-gui --onedir --windowed --uac-admin --icon src/trcc/assets/icons/app.ico --add-data src/trcc/assets;trcc/assets --hidden-import PySide6.QtSvg --hidden-import pynvml --hidden-import wmi --collect-submodules trcc --noconfirm src/trcc/__main__.py 2>&1" | Tee-Object -Append -FilePath $logFile
 
 if ($LASTEXITCODE -ne 0) {
   Log "ERROR: GUI build failed (exit code $LASTEXITCODE)"
