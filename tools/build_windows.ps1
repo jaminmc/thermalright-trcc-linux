@@ -143,7 +143,7 @@ Log "  Total: $count files, $([math]::Round($total, 1)) MB"
 
 Log ""
 if ($missing.Count -gt 0) {
-  Log "FAILED — Missing: $($missing -join ', ')"
+  Log "FAILED - Missing: $($missing -join ', ')"
   exit 1
 }
 
@@ -158,4 +158,4 @@ Log "  .\dist\trcc\trcc.exe detect"
 Log "  .\dist\trcc\trcc.exe report"
 Log "  .\dist\trcc\trcc-gui.exe"
 Log ""
-Log "Build log saved to: $logFile"
+Log "Build log saved to: build.log"
