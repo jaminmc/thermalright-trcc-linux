@@ -240,8 +240,12 @@ class DisplayService:
         result = self._loader.load_cloud_theme(theme, self.working_dir)
         log.debug("load_cloud_theme: loader result keys=%s", list(result.keys()))
 
-        # Wire up state from loader result
-        self._mask_source_dir = result.get('mask_source_dir')
+        # Wire up state — preserve existing mask source dir if the cloud
+        # loader doesn't provide one (cloud themes are video backgrounds;
+        # the user's applied mask should persist)
+        cloud_mask = result.get('mask_source_dir')
+        if cloud_mask is not None:
+            self._mask_source_dir = cloud_mask
         self.current_theme_path = result.get('theme_path')
 
         # Convert PIL frames → native renderer surfaces
