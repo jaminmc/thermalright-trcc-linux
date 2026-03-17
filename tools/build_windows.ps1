@@ -37,8 +37,10 @@ if ($scriptsDir -and (Test-Path $scriptsDir)) {
 
 # Kill running TRCC processes before build
 Log "--- Stopping running TRCC processes ---"
-taskkill /F /IM trcc-gui.exe 2>$null
-taskkill /F /IM trcc.exe 2>$null
+$ErrorActionPreference = "SilentlyContinue"
+taskkill /F /IM trcc-gui.exe *>$null
+taskkill /F /IM trcc.exe *>$null
+$ErrorActionPreference = "Stop"
 Start-Sleep -Seconds 1
 
 # Log build environment
