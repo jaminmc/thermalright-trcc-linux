@@ -30,7 +30,7 @@ import re
 import subprocess
 from typing import List, Optional
 
-from trcc.adapters.infra.data_repository import SysUtils
+from trcc.adapters.infra.repository_data import SysUtils
 from trcc.core.models import (
     DetectedDevice,  # noqa: F401 — re-export
     DeviceEntry,  # noqa: F401 — re-export

@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance
 
 from ...core.ports import Renderer
-from ..infra.font_resolver import FontResolver
+from ..infra.resolver_font import FontResolver
 
 
 class PilRenderer(Renderer):

@@ -81,7 +81,7 @@ def _make_mock_service(resolution=(320, 320)) -> MagicMock:
 
 _PATCH_SETTINGS = "trcc.conf.settings"
 _PATCH_SETTINGS_CLS = "trcc.conf.Settings"
-_PATCH_DATA_MANAGER = "trcc.adapters.infra.data_repository.DataManager"
+_PATCH_DATA_MANAGER = "trcc.adapters.infra.repository_data.DataManager"
 _PATCH_THEME_SVC = "trcc.services.ThemeService"
 _PATCH_IMAGE_SVC = "trcc.services.ImageService"
 _PATCH_LCD_FROM_SVC = "trcc.core.lcd_device.LCDDevice.from_service"

@@ -314,7 +314,7 @@ class TestEnsureExtracted:
 
         mock_dm = MagicMock()
 
-        with patch("trcc.adapters.infra.data_repository.DataManager", mock_dm):
+        with patch("trcc.adapters.infra.repository_data.DataManager", mock_dm):
             _ensure_extracted(driver)
 
         mock_dm.ensure_all.assert_called_once_with(320, 320)
@@ -326,7 +326,7 @@ class TestEnsureExtracted:
 
         mock_dm = MagicMock()
 
-        with patch("trcc.adapters.infra.data_repository.DataManager", mock_dm):
+        with patch("trcc.adapters.infra.repository_data.DataManager", mock_dm):
             _ensure_extracted(driver)
 
         mock_dm.ensure_all.assert_not_called()
@@ -339,7 +339,7 @@ class TestEnsureExtracted:
         driver = MagicMock()
         driver.implementation = impl
 
-        with patch("trcc.adapters.infra.data_repository.DataManager") as mock_dm:
+        with patch("trcc.adapters.infra.repository_data.DataManager") as mock_dm:
             mock_dm.ensure_all.side_effect = OSError("disk full")
             _ensure_extracted(driver)  # must not raise
 

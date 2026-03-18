@@ -25,7 +25,7 @@ from PySide6.QtGui import (
 )
 
 from ...core.ports import Renderer
-from ..infra.data_repository import FONT_SEARCH_DIRS
+from ..infra.repository_data import FONT_SEARCH_DIRS
 
 log = logging.getLogger(__name__)
 

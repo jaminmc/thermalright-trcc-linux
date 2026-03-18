@@ -37,15 +37,15 @@ from trcc.adapters.infra.doctor import (
 class TestReadOsRelease(unittest.TestCase):
     """Test os-release parsing."""
 
-    @patch('trcc.adapters.infra.doctor.platform.freedesktop_os_release',
+    @patch('trcc.adapters.infra.facade_doctor.platform.freedesktop_os_release',
            return_value={'ID': 'fedora', 'PRETTY_NAME': 'Fedora 43'})
     def test_uses_platform_api(self, mock_rel):
         result = _read_os_release()
         self.assertEqual(result['ID'], 'fedora')
         mock_rel.assert_called_once()
 
-    @patch('trcc.adapters.infra.doctor.platform.freedesktop_os_release', side_effect=OSError)
-    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=False)
+    @patch('trcc.adapters.infra.facade_doctor.platform.freedesktop_os_release', side_effect=OSError)
+    @patch('trcc.adapters.infra.facade_doctor.os.path.isfile', return_value=False)
     def test_fallback_returns_empty(self, _isfile, _rel):
         result = _read_os_release()
         self.assertEqual(result, {})
@@ -54,52 +54,52 @@ class TestReadOsRelease(unittest.TestCase):
 class TestDetectPkgManager(unittest.TestCase):
     """Test distro → package manager mapping."""
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'fedora', 'ID_LIKE': ''})
     def test_fedora(self, _):
         self.assertEqual(_detect_pkg_manager(), 'dnf')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'ubuntu', 'ID_LIKE': 'debian'})
     def test_ubuntu(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'arch', 'ID_LIKE': ''})
     def test_arch(self, _):
         self.assertEqual(_detect_pkg_manager(), 'pacman')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'pop', 'ID_LIKE': 'ubuntu debian'})
     def test_pop_os(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'nobara', 'ID_LIKE': 'fedora'})
     def test_nobara(self, _):
         self.assertEqual(_detect_pkg_manager(), 'dnf')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'cachyos', 'ID_LIKE': 'arch'})
     def test_cachyos_id_like_fallback(self, _):
         self.assertEqual(_detect_pkg_manager(), 'pacman')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'unknowndistro', 'ID_LIKE': ''})
     def test_unknown_returns_none(self, _):
         self.assertIsNone(_detect_pkg_manager())
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'zorin', 'ID_LIKE': 'ubuntu debian'})
     def test_zorin(self, _):
         self.assertEqual(_detect_pkg_manager(), 'apt')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'void', 'ID_LIKE': ''})
     def test_void(self, _):
         self.assertEqual(_detect_pkg_manager(), 'xbps')
 
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'ID': 'opensuse-tumbleweed', 'ID_LIKE': 'suse'})
     def test_opensuse(self, _):
         self.assertEqual(_detect_pkg_manager(), 'zypper')
@@ -279,13 +279,13 @@ class TestInstallHint(unittest.TestCase):
 class TestInstallHintExtra:
     """_install_hint — additional branches via _provides_search fallback."""
 
-    @patch("trcc.adapters.infra.doctor._provides_search", return_value="sg3_utils")
+    @patch("trcc.adapters.infra.facade_doctor._provides_search", return_value="sg3_utils")
     def test_provides_search_fallback_used(self, mock_search):
         hint = _install_hint("totally_unknown_tool", "pacman")
         assert "pacman" in hint
         assert "sg3_utils" in hint
 
-    @patch("trcc.adapters.infra.doctor._provides_search", return_value=None)
+    @patch("trcc.adapters.infra.facade_doctor._provides_search", return_value=None)
     def test_provides_search_returns_none_falls_to_generic(self, _):
         hint = _install_hint("totally_unknown_tool", "pacman")
         assert hint == "install totally_unknown_tool"
@@ -379,11 +379,11 @@ class TestCheckLibrary(unittest.TestCase):
 class TestCheckUdevRules(unittest.TestCase):
     """Test udev rules check."""
 
-    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor.os.path.isfile', return_value=True)
     def test_rules_exist(self, _):
         self.assertTrue(_check_udev_rules())
 
-    @patch('trcc.adapters.infra.doctor.os.path.isfile', return_value=False)
+    @patch('trcc.adapters.infra.facade_doctor.os.path.isfile', return_value=False)
     def test_rules_missing(self, _):
         self.assertFalse(_check_udev_rules())
 
@@ -454,10 +454,10 @@ class TestCheckSystemDeps:
 
     def test_returns_list_of_dep_results(self):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor.get_module_version", return_value="1.0"),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="libusb"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/sg_raw"),
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value="1.0"),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="libusb"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/sg_raw"),
         ):
             results = check_system_deps("dnf")
         names = [r.name for r in results]
@@ -486,10 +486,10 @@ class TestCheckSystemDeps:
 
     def test_apt_adds_xcb_dep(self):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="apt"),
-            patch("trcc.adapters.infra.doctor.get_module_version", return_value="1.0"),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="lib"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/x"),
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="apt"),
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value="1.0"),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="lib"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/x"),
         ):
             results = check_system_deps("apt")
         names = [r.name for r in results]
@@ -497,10 +497,10 @@ class TestCheckSystemDeps:
 
     def test_non_apt_no_xcb_dep(self):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor.get_module_version", return_value="1.0"),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="lib"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/x"),
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value="1.0"),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="lib"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/x"),
         ):
             results = check_system_deps("dnf")
         names = [r.name for r in results]
@@ -511,9 +511,9 @@ class TestCheckSystemDeps:
             return None if imp == "usb.core" else "1.0"
 
         with (
-            patch("trcc.adapters.infra.doctor.get_module_version", side_effect=mock_ver),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="lib"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/x"),
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", side_effect=mock_ver),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="lib"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/x"),
         ):
             results = check_system_deps("dnf")
         pyusb = next(r for r in results if r.name == "pyusb")
@@ -524,9 +524,9 @@ class TestCheckSystemDeps:
             return None if imp == "hid" else "1.0"
 
         with (
-            patch("trcc.adapters.infra.doctor.get_module_version", side_effect=mock_ver),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="lib"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/x"),
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", side_effect=mock_ver),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="lib"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/x"),
         ):
             results = check_system_deps("dnf")
         hid = next(r for r in results if r.name == "hidapi")
@@ -534,10 +534,10 @@ class TestCheckSystemDeps:
 
     def test_pm_none_auto_detected(self):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="apt") as mock_pm,
-            patch("trcc.adapters.infra.doctor.get_module_version", return_value="1.0"),
-            patch("trcc.adapters.infra.doctor.ctypes.util.find_library", return_value="lib"),
-            patch("trcc.adapters.infra.doctor.shutil.which", return_value="/usr/bin/x"),
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="apt") as mock_pm,
+            patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value="1.0"),
+            patch("trcc.adapters.infra.facade_doctor.ctypes.util.find_library", return_value="lib"),
+            patch("trcc.adapters.infra.facade_doctor.shutil.which", return_value="/usr/bin/x"),
         ):
             check_system_deps(pm=None)
         mock_pm.assert_called_once()
@@ -579,7 +579,7 @@ class TestCheckGpu:
         result = check_gpu()
         assert result == []
 
-    @patch("trcc.adapters.infra.doctor.get_module_version", return_value="11.0")
+    @patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value="11.0")
     @patch("pathlib.Path")
     def test_nvidia_detected_pynvml_installed(self, MockPath, mock_ver):
         mock_base = MagicMock()
@@ -593,7 +593,7 @@ class TestCheckGpu:
         nvidia = next(g for g in results if g.vendor == "nvidia")
         assert nvidia.package_installed is True
 
-    @patch("trcc.adapters.infra.doctor.get_module_version", return_value=None)
+    @patch("trcc.adapters.infra.facade_doctor.get_module_version", return_value=None)
     @patch("pathlib.Path")
     def test_nvidia_detected_pynvml_missing(self, MockPath, mock_ver):
         mock_base = MagicMock()
@@ -669,13 +669,13 @@ class TestCheckGpu:
 class TestCheckUdev:
     """check_udev — structured result."""
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=False)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=False)
     def test_file_missing(self, _):
         result = check_udev()
         assert result.ok is False
         assert "not installed" in result.message
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=True)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_all_vids_present(self, _):
         from trcc.adapters.device.detector import DeviceDetector
         all_registries = DeviceDetector._get_all_registries()
@@ -692,7 +692,7 @@ class TestCheckUdev:
         assert result.ok is True
         assert result.missing_vids == []
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=True)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_missing_vid_in_file(self, _):
         from trcc.adapters.device.detector import DeviceDetector
         all_registries = DeviceDetector._get_all_registries()
@@ -707,7 +707,7 @@ class TestCheckUdev:
         assert result.ok is False
         assert len(result.missing_vids) > 0
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=True)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_open_exception_returns_ok(self, _):
         with patch("builtins.open", side_effect=PermissionError):
             result = check_udev()
@@ -925,13 +925,13 @@ class TestCheckRapl:
 class TestCheckPolkit:
     """check_polkit — file presence check."""
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=True)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_installed(self, _):
         result = check_polkit()
         assert result.ok is True
         assert "installed" in result.message
 
-    @patch("trcc.adapters.infra.doctor.os.path.isfile", return_value=False)
+    @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=False)
     def test_not_installed(self, _):
         result = check_polkit()
         assert result.ok is False
@@ -962,28 +962,28 @@ class TestCheckDesktopEntry:
 class TestRunDoctor(unittest.TestCase):
     """Test run_doctor() return codes."""
 
-    @patch('trcc.adapters.infra.doctor._check_rapl_permissions', return_value=True)
-    @patch('trcc.adapters.infra.doctor.check_selinux',
+    @patch('trcc.adapters.infra.facade_doctor._check_rapl_permissions', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor.check_selinux',
            return_value=SelinuxResult(ok=True, message='not installed'))
-    @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=True)
-    @patch('trcc.adapters.infra.doctor._check_library', return_value=True)
-    @patch('trcc.adapters.infra.doctor._check_binary', return_value=True)
-    @patch('trcc.adapters.infra.doctor._check_python_module', return_value=True)
-    @patch('trcc.adapters.infra.doctor._detect_pkg_manager', return_value='dnf')
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._check_udev_rules', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._check_library', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._check_binary', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._check_python_module', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._detect_pkg_manager', return_value='dnf')
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'PRETTY_NAME': 'TestOS'})
     def test_all_ok_returns_0(self, *_):
         self.assertEqual(run_doctor(), 0)
 
-    @patch('trcc.adapters.infra.doctor._check_rapl_permissions', return_value=True)
-    @patch('trcc.adapters.infra.doctor.check_selinux',
+    @patch('trcc.adapters.infra.facade_doctor._check_rapl_permissions', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor.check_selinux',
            return_value=SelinuxResult(ok=True, message='not installed'))
-    @patch('trcc.adapters.infra.doctor._check_udev_rules', return_value=False)
-    @patch('trcc.adapters.infra.doctor._check_library', return_value=True)
-    @patch('trcc.adapters.infra.doctor._check_binary', return_value=True)
-    @patch('trcc.adapters.infra.doctor._check_python_module', return_value=True)
-    @patch('trcc.adapters.infra.doctor._detect_pkg_manager', return_value='apt')
-    @patch('trcc.adapters.infra.doctor._read_os_release',
+    @patch('trcc.adapters.infra.facade_doctor._check_udev_rules', return_value=False)
+    @patch('trcc.adapters.infra.facade_doctor._check_library', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._check_binary', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._check_python_module', return_value=True)
+    @patch('trcc.adapters.infra.facade_doctor._detect_pkg_manager', return_value='apt')
+    @patch('trcc.adapters.infra.facade_doctor._read_os_release',
            return_value={'PRETTY_NAME': 'Ubuntu 24.04'})
     def test_missing_udev_returns_1(self, *_):
         self.assertEqual(run_doctor(), 1)
@@ -994,19 +994,19 @@ class TestRunDoctorExtra:
 
     def test_all_ok_returns_0(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "TestOS"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             rc = run_doctor()
         assert rc == 0
@@ -1015,19 +1015,19 @@ class TestRunDoctorExtra:
 
     def test_missing_module_returns_1(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "TestOS"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=False),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=False),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             rc = run_doctor()
         assert rc == 1
@@ -1042,20 +1042,20 @@ class TestRunDoctorExtra:
             return True
 
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="apt"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="apt"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "Ubuntu 24.04"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library",
                   side_effect=capture_check_lib),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             run_doctor()
 
@@ -1064,23 +1064,23 @@ class TestRunDoctorExtra:
 
     def test_selinux_enforcing_not_ok_prints_hint(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "Fedora 43"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(
                       ok=False,
                       message="SELinux enforcing — USB policy not installed",
                       enforcing=True,
                   )),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             rc = run_doctor()
         assert rc == 1
@@ -1089,20 +1089,20 @@ class TestRunDoctorExtra:
 
     def test_polkit_not_installed_prints_optional(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "Fedora 43"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=False,
                                         message="polkit policy not installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             rc = run_doctor()
         assert rc == 0
@@ -1111,38 +1111,38 @@ class TestRunDoctorExtra:
 
     def test_missing_binary_returns_1(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "TestOS"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=False),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=False),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             rc = run_doctor()
         assert rc == 1
 
     def test_output_includes_distro_name(self, capsys):
         with (
-            patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"),
-            patch("trcc.adapters.infra.doctor._read_os_release",
+            patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"),
+            patch("trcc.adapters.infra.facade_doctor._read_os_release",
                   return_value={"PRETTY_NAME": "MyDistro 42"}),
-            patch("trcc.adapters.infra.doctor._check_python_module", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_binary", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_library", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_udev_rules", return_value=True),
-            patch("trcc.adapters.infra.doctor._check_rapl_permissions", return_value=True),
-            patch("trcc.adapters.infra.doctor.check_selinux",
+            patch("trcc.adapters.infra.facade_doctor._check_python_module", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_binary", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_library", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_udev_rules", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor._check_rapl_permissions", return_value=True),
+            patch("trcc.adapters.infra.facade_doctor.check_selinux",
                   return_value=SelinuxResult(ok=True, message="not installed")),
-            patch("trcc.adapters.infra.doctor.check_polkit",
+            patch("trcc.adapters.infra.facade_doctor.check_polkit",
                   return_value=MagicMock(ok=True, message="polkit policy installed")),
-            patch("trcc.adapters.infra.doctor._check_gpu_packages"),
+            patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"),
         ):
             run_doctor()
         captured = capsys.readouterr()
@@ -1155,7 +1155,7 @@ class TestRunDoctorExtra:
 class TestDoctorCLI(unittest.TestCase):
     """Test doctor command dispatch from CLI."""
 
-    @patch('trcc.adapters.infra.doctor.run_doctor', return_value=0)
+    @patch('trcc.adapters.infra.facade_doctor.run_doctor', return_value=0)
     @patch('sys.argv', ['trcc', 'doctor'])
     def test_dispatch(self, mock_doctor):
         from trcc.cli import main

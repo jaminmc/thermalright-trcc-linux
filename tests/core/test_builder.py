@@ -10,7 +10,7 @@ from trcc.services.image import ImageService
 class TestControllerBuilderLcd(unittest.TestCase):
     """ControllerBuilder.build_lcd() — assembles LCDDevice with DI."""
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_returns_lcd_device(self, _):
         """build_lcd() returns an LCDDevice instance."""
         from trcc.core.lcd_device import LCDDevice
@@ -23,32 +23,32 @@ class TestControllerBuilderLcd(unittest.TestCase):
             ControllerBuilder().build_lcd()
         self.assertIn('with_renderer', str(ctx.exception))
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_wires_device_service(self, _):
         """LCDDevice has a wired DeviceService."""
         lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
         self.assertIsNotNone(lcd._device_svc)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_wires_display_service(self, _):
         """LCDDevice has a wired DisplayService."""
         lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
         self.assertIsNotNone(lcd._display_svc)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_wires_theme_service(self, _):
         """LCDDevice has a wired ThemeService."""
         lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
         self.assertIsNotNone(lcd._theme_svc)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_wires_renderer(self, _):
         """LCDDevice has the injected renderer."""
         renderer = ImageService._r()
         lcd = ControllerBuilder().with_renderer(renderer).build_lcd()
         self.assertIs(lcd._renderer, renderer)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_with_data_dir_triggers_initialize(self, mock_ensure):
         """with_data_dir() causes build_lcd() to call lcd.initialize()."""
         import tempfile
@@ -61,7 +61,7 @@ class TestControllerBuilderLcd(unittest.TestCase):
             # initialize was called (ensure_all is the data download step)
             self.assertIsNotNone(lcd)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_build_lcd_without_data_dir_skips_initialize(self, mock_ensure):
         """Without with_data_dir(), initialize is not called."""
         lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
@@ -165,7 +165,7 @@ class TestControllerBuilderFluent(unittest.TestCase):
         b = ControllerBuilder()
         self.assertIsNone(b._data_dir)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_full_chain(self, _):
         """Full fluent chain builds successfully."""
         from trcc.core.lcd_device import LCDDevice

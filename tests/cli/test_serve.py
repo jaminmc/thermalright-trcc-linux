@@ -44,7 +44,7 @@ def mock_qrcode():
 def mock_lan_ip():
     """Mock get_lan_ip to return a known address."""
     with patch(
-        "trcc.adapters.infra.network.get_lan_ip", return_value="192.168.1.100",
+        "trcc.adapters.infra.resolver_network.get_lan_ip", return_value="192.168.1.100",
     ) as m:
         yield m
 
@@ -93,12 +93,12 @@ class TestGetLanIp:
         mock_sock.getsockname.return_value = ("192.168.1.42", 12345)
         mock_sock.__enter__ = MagicMock(return_value=mock_sock)
         mock_sock.__exit__ = MagicMock(return_value=False)
-        with patch("trcc.adapters.infra.network.socket.socket", return_value=mock_sock):
+        with patch("trcc.adapters.infra.resolver_network.socket.socket", return_value=mock_sock):
             from trcc.adapters.infra.network import get_lan_ip
             assert get_lan_ip() == "192.168.1.42"
 
     def test_fallback_on_oserror(self):
-        with patch("trcc.adapters.infra.network.socket.socket", side_effect=OSError):
+        with patch("trcc.adapters.infra.resolver_network.socket.socket", side_effect=OSError):
             from trcc.adapters.infra.network import get_lan_ip
             assert get_lan_ip() == "127.0.0.1"
 

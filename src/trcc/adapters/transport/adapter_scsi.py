@@ -14,7 +14,7 @@ import time
 import zlib
 from typing import Set
 
-from trcc.adapters.infra.data_repository import SysUtils
+from trcc.adapters.infra.repository_data import SysUtils
 from trcc.adapters.transport.bridge_linux import (
     sg_io_read as _sg_io_read,
 )

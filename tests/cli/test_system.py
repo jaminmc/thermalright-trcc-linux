@@ -714,8 +714,8 @@ class TestSetupSelinux:
         with patch("os.geteuid", return_value=0), \
              patch("trcc.adapters.system.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value=None), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="sudo dnf install checkpolicy"):
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.facade_doctor._install_hint", return_value="sudo dnf install checkpolicy"):
             rc = setup_selinux()
         assert rc == 1
 
@@ -731,8 +731,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=False), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"):
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.facade_doctor._install_hint", return_value="hint"):
             rc = setup_selinux()
         assert rc == 1
 
@@ -750,8 +750,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.facade_doctor._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -777,8 +777,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.facade_doctor._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -798,8 +798,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.facade_doctor._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -1491,7 +1491,7 @@ class TestReport:
         mock_report.collect.return_value = None
         mock_report.__str__ = lambda self: "REPORT_OUTPUT"
 
-        with patch("trcc.adapters.infra.debug_report.DebugReport", return_value=mock_report):
+        with patch("trcc.adapters.infra.facade_debug_report.DebugReport", return_value=mock_report):
             rc = report()
         assert rc == 0
 
@@ -1499,7 +1499,7 @@ class TestReport:
         mock_report = MagicMock()
         mock_report.__str__ = lambda self: "REPORT"
 
-        with patch("trcc.adapters.infra.debug_report.DebugReport", return_value=mock_report):
+        with patch("trcc.adapters.infra.facade_debug_report.DebugReport", return_value=mock_report):
             report()
         mock_report.collect.assert_called_once()
 
@@ -1508,8 +1508,8 @@ class TestReport:
         mock_report.collect.return_value = None
         mock_report.__str__ = lambda self: "DIAGNOSTIC_OUTPUT_HERE"
 
-        with patch("trcc.adapters.infra.debug_report.DebugReport", return_value=mock_report), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+        with patch("trcc.adapters.infra.facade_debug_report.DebugReport", return_value=mock_report), \
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -1519,8 +1519,8 @@ class TestReport:
         mock_report = MagicMock()
         mock_report.__str__ = lambda self: "REPORT"
 
-        with patch("trcc.adapters.infra.debug_report.DebugReport", return_value=mock_report), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0) as mock_doctor:
+        with patch("trcc.adapters.infra.facade_debug_report.DebugReport", return_value=mock_report), \
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0) as mock_doctor:
             report()
         mock_doctor.assert_called_once()
 
@@ -1528,8 +1528,8 @@ class TestReport:
         mock_report = MagicMock()
         mock_report.__str__ = lambda self: "REPORT"
 
-        with patch("trcc.adapters.infra.debug_report.DebugReport", return_value=mock_report), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+        with patch("trcc.adapters.infra.facade_debug_report.DebugReport", return_value=mock_report), \
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -1544,53 +1544,53 @@ class TestDownloadThemes:
     """download_themes — list mode, info mode, force, normal download, error."""
 
     def test_no_pack_calls_list_available(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available") as mock_list, \
-             patch("trcc.adapters.infra.theme_downloader.download_pack"), \
-             patch("trcc.adapters.infra.theme_downloader.show_info"):
+        with patch("trcc.adapters.infra.repository_theme_download.list_available") as mock_list, \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack"), \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"):
             rc = download_themes(pack=None)
         mock_list.assert_called_once()
         assert rc == 0
 
     def test_show_list_calls_list_available(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available") as mock_list, \
-             patch("trcc.adapters.infra.theme_downloader.download_pack"), \
-             patch("trcc.adapters.infra.theme_downloader.show_info"):
+        with patch("trcc.adapters.infra.repository_theme_download.list_available") as mock_list, \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack"), \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"):
             rc = download_themes(pack="themes-320x320", show_list=True)
         mock_list.assert_called_once()
         assert rc == 0
 
     def test_show_info_calls_pack_info(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available"), \
-             patch("trcc.adapters.infra.theme_downloader.download_pack"), \
-             patch("trcc.adapters.infra.theme_downloader.show_info") as mock_info:
+        with patch("trcc.adapters.infra.repository_theme_download.list_available"), \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack"), \
+             patch("trcc.adapters.infra.repository_theme_download.show_info") as mock_info:
             rc = download_themes(pack="themes-320x320", show_info=True)
         mock_info.assert_called_once_with("themes-320x320")
         assert rc == 0
 
     def test_force_clears_installed_resolutions(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available"), \
-             patch("trcc.adapters.infra.theme_downloader.download_pack", return_value=0), \
-             patch("trcc.adapters.infra.theme_downloader.show_info"), \
+        with patch("trcc.adapters.infra.repository_theme_download.list_available"), \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack", return_value=0), \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"), \
              patch("trcc.conf.Settings.clear_installed_resolutions") as mock_clear:
             download_themes(pack="themes-320x320", force=True)
         mock_clear.assert_called_once()
 
     def test_normal_download_calls_download_pack(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available"), \
-             patch("trcc.adapters.infra.theme_downloader.download_pack", return_value=0) as mock_dl, \
-             patch("trcc.adapters.infra.theme_downloader.show_info"):
+        with patch("trcc.adapters.infra.repository_theme_download.list_available"), \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack", return_value=0) as mock_dl, \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"):
             download_themes(pack="themes-320x320")
         mock_dl.assert_called_once_with("themes-320x320", force=False)
 
     def test_normal_download_returns_download_pack_result(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available"), \
-             patch("trcc.adapters.infra.theme_downloader.download_pack", return_value=42), \
-             patch("trcc.adapters.infra.theme_downloader.show_info"):
+        with patch("trcc.adapters.infra.repository_theme_download.list_available"), \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack", return_value=42), \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"):
             rc = download_themes(pack="themes-320x320")
         assert rc == 42
 
     def test_exception_returns_one(self, capsys):
-        with patch("trcc.adapters.infra.theme_downloader.list_available",
+        with patch("trcc.adapters.infra.repository_theme_download.list_available",
                    side_effect=RuntimeError("network error")):
             rc = download_themes(pack=None)
         assert rc == 1
@@ -1598,9 +1598,9 @@ class TestDownloadThemes:
         assert "Error" in out
 
     def test_force_passes_force_to_download_pack(self):
-        with patch("trcc.adapters.infra.theme_downloader.list_available"), \
-             patch("trcc.adapters.infra.theme_downloader.download_pack", return_value=0) as mock_dl, \
-             patch("trcc.adapters.infra.theme_downloader.show_info"), \
+        with patch("trcc.adapters.infra.repository_theme_download.list_available"), \
+             patch("trcc.adapters.infra.repository_theme_download.download_pack", return_value=0) as mock_dl, \
+             patch("trcc.adapters.infra.repository_theme_download.show_info"), \
              patch("trcc.conf.Settings.clear_installed_resolutions"):
             download_themes(pack="themes-320x320", force=True)
         mock_dl.assert_called_once_with("themes-320x320", force=True)
@@ -1705,35 +1705,35 @@ class TestRunSetup:
         """Return all needed patches for a clean run_setup call."""
         from trcc.adapters.infra.doctor import SetupInfo
         return {
-            "trcc.adapters.infra.doctor.get_setup_info": MagicMock(
+            "trcc.adapters.infra.facade_doctor.get_setup_info": MagicMock(
                 return_value=SetupInfo(distro="Fedora 43", pkg_manager="dnf", python_version="3.12.0")
             ),
-            "trcc.adapters.infra.doctor.check_system_deps": MagicMock(
+            "trcc.adapters.infra.facade_doctor.check_system_deps": MagicMock(
                 return_value=[self._make_dep("Python", ok=True)]
             ),
-            "trcc.adapters.infra.doctor.check_gpu": MagicMock(return_value=[]),
-            "trcc.adapters.infra.doctor.check_udev": MagicMock(
+            "trcc.adapters.infra.facade_doctor.check_gpu": MagicMock(return_value=[]),
+            "trcc.adapters.infra.facade_doctor.check_udev": MagicMock(
                 return_value=self._make_udev(ok=True)
             ),
-            "trcc.adapters.infra.doctor.check_rapl": MagicMock(
+            "trcc.adapters.infra.facade_doctor.check_rapl": MagicMock(
                 return_value=self._make_rapl(applicable=False)
             ),
-            "trcc.adapters.infra.doctor.check_selinux": MagicMock(
+            "trcc.adapters.infra.facade_doctor.check_selinux": MagicMock(
                 return_value=self._make_selinux(enforcing=False)
             ),
-            "trcc.adapters.infra.doctor.check_polkit": MagicMock(
+            "trcc.adapters.infra.facade_doctor.check_polkit": MagicMock(
                 return_value=self._make_polkit(ok=True)
             ),
-            "trcc.adapters.infra.doctor.check_desktop_entry": MagicMock(return_value=True),
+            "trcc.adapters.infra.facade_doctor.check_desktop_entry": MagicMock(return_value=True),
             "trcc.adapters.system.setup.subprocess.run": MagicMock(return_value=_completed(0)),
         }
 
     def test_returns_zero_all_ok(self, capsys):
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.facade_doctor.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.facade_doctor.")
         }), patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             rc = run_setup(auto_yes=True)
         assert rc == 0
@@ -1741,9 +1741,9 @@ class TestRunSetup:
     def test_prints_distro_name(self, capsys):
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.facade_doctor.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.facade_doctor.")
         }), patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1752,9 +1752,9 @@ class TestRunSetup:
     def test_prints_six_steps(self, capsys):
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.facade_doctor.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.facade_doctor.")
         }), patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1767,9 +1767,9 @@ class TestRunSetup:
     def test_nothing_to_do_when_all_ok(self, capsys):
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.facade_doctor.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.facade_doctor.")
         }), patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1779,21 +1779,21 @@ class TestRunSetup:
         from trcc.adapters.infra.doctor import DepResult, SetupInfo
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[DepResult("sg_raw", ok=False, required=True,
                                            install_cmd="sudo dnf install sg3_utils")]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=False)
         out = capsys.readouterr().out
@@ -1803,21 +1803,21 @@ class TestRunSetup:
         from trcc.adapters.infra.doctor import DepResult, SetupInfo
         calls = []
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[DepResult("sg_raw", ok=False, required=True,
                                            install_cmd="sudo dnf install sg3_utils")]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.adapters.system.setup.subprocess.run",
                    side_effect=lambda cmd, **kw: calls.append(cmd) or _completed(0)):
             run_setup(auto_yes=True)
@@ -1829,20 +1829,20 @@ class TestRunSetup:
         from trcc.adapters.infra.doctor import SetupInfo
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[self._make_dep()]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=False, message="Rules missing")), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=False)
         out = capsys.readouterr().out
@@ -1851,20 +1851,20 @@ class TestRunSetup:
     def test_selinux_enforcing_shows_step_4(self, capsys):
         from trcc.adapters.infra.doctor import SetupInfo
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Bazzite", "rpm-ostree", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[self._make_dep()]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=True, ok=True, message="Policy loaded")), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1873,20 +1873,20 @@ class TestRunSetup:
     def test_selinux_not_enforcing_skips_step_4(self, capsys):
         from trcc.adapters.infra.doctor import SetupInfo
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Ubuntu", "apt", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[self._make_dep()]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1896,20 +1896,20 @@ class TestRunSetup:
     def test_summary_lists_installed_actions(self, capsys):
         from trcc.adapters.infra.doctor import SetupInfo
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[self._make_dep()]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=False, message="Missing")), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=True), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=True), \
              patch("trcc.cli._system.setup_udev", return_value=0), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
@@ -1920,20 +1920,20 @@ class TestRunSetup:
         from trcc.adapters.infra.doctor import SetupInfo
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
-        with patch("trcc.adapters.infra.doctor.get_setup_info",
+        with patch("trcc.adapters.infra.facade_doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
-             patch("trcc.adapters.infra.doctor.check_system_deps",
+             patch("trcc.adapters.infra.facade_doctor.check_system_deps",
                    return_value=[self._make_dep()]), \
-             patch("trcc.adapters.infra.doctor.check_gpu", return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_gpu", return_value=[]), \
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=self._make_udev(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=self._make_rapl(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=self._make_selinux(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=self._make_polkit(ok=True)), \
-             patch("trcc.adapters.infra.doctor.check_desktop_entry", return_value=False), \
+             patch("trcc.adapters.infra.facade_doctor.check_desktop_entry", return_value=False), \
              patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=False)
         out = capsys.readouterr().out
@@ -1942,9 +1942,9 @@ class TestRunSetup:
     def test_prints_run_trcc_gui_message(self, capsys):
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.facade_doctor.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.facade_doctor.")
         }), patch("trcc.adapters.system.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1970,7 +1970,7 @@ class TestReportDiagnosticOutput:
         return {
             # Block subprocess calls (lsusb, ps, getenforce)
             "sub": patch(
-                "trcc.adapters.infra.debug_report.subprocess.run",
+                "trcc.adapters.infra.facade_debug_report.subprocess.run",
                 return_value=_completed(0, stdout=""),
             ),
             # Block device detection
@@ -1985,7 +1985,7 @@ class TestReportDiagnosticOutput:
             ),
             # Block doctor's subprocess calls
             "doc_sub": patch(
-                "trcc.adapters.infra.doctor.subprocess.run",
+                "trcc.adapters.infra.facade_doctor.subprocess.run",
                 return_value=_completed(0, stdout=""),
             ),
             # Block log file read
@@ -1997,16 +1997,16 @@ class TestReportDiagnosticOutput:
 
     def test_udev_rules_missing_shows_not_installed(self, capsys, tmp_path):
         """When udev rules file doesn't exist, output says NOT INSTALLED."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=1):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=1):
             report()
 
         out = capsys.readouterr().out
@@ -2022,16 +2022,16 @@ class TestReportDiagnosticOutput:
             'ATTRS{idProduct}=="5302", MODE="0666"\n'
         )
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(rules_file)), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2041,16 +2041,16 @@ class TestReportDiagnosticOutput:
 
     def test_no_sg_devices_shows_message(self, capsys, tmp_path):
         """When no /dev/sg* devices exist, output says so."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=["tty0", "null", "zero"]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2058,19 +2058,19 @@ class TestReportDiagnosticOutput:
 
     def test_sg_device_no_access_shows_no_access(self, capsys, tmp_path):
         """When /dev/sg* exists but isn't accessible, output says NO ACCESS."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=["sg0", "sg1"]), \
-             patch("trcc.adapters.infra.debug_report.os.stat") as mock_stat, \
-             patch("trcc.adapters.infra.debug_report.os.access",
+             patch("trcc.adapters.infra.facade_debug_report.os.stat") as mock_stat, \
+             patch("trcc.adapters.infra.facade_debug_report.os.access",
                    return_value=False), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             mock_stat.return_value.st_mode = 0o060660  # crw-rw---- (660)
             report()
 
@@ -2080,16 +2080,16 @@ class TestReportDiagnosticOutput:
 
     def test_no_devices_detected(self, capsys, tmp_path):
         """When no devices found, output says none."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2097,16 +2097,16 @@ class TestReportDiagnosticOutput:
 
     def test_no_devices_to_handshake(self, capsys, tmp_path):
         """When no devices detected, handshake section says so."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2132,18 +2132,18 @@ class TestReportDiagnosticOutput:
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = usb_err
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[mock_dev]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.device.factory.HidProtocol",
                    return_value=mock_protocol), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2154,33 +2154,33 @@ class TestReportDiagnosticOutput:
         """When doctor finds udev missing, the hint appears in report output."""
         from trcc.adapters.infra.doctor import UdevResult
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.facade_doctor.check_udev",
                    return_value=UdevResult(ok=False, message="udev rules not installed")), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager",
+             patch("trcc.adapters.infra.facade_doctor._detect_pkg_manager",
                    return_value="apt"), \
-             patch("trcc.adapters.infra.doctor._read_os_release",
+             patch("trcc.adapters.infra.facade_doctor._read_os_release",
                    return_value={"PRETTY_NAME": "Linux Mint 22.3"}), \
-             patch("trcc.adapters.infra.doctor._check_python_module",
+             patch("trcc.adapters.infra.facade_doctor._check_python_module",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor._check_gpu_packages"), \
-             patch("trcc.adapters.infra.doctor._check_library",
+             patch("trcc.adapters.infra.facade_doctor._check_gpu_packages"), \
+             patch("trcc.adapters.infra.facade_doctor._check_library",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor._check_binary",
+             patch("trcc.adapters.infra.facade_doctor._check_binary",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.facade_doctor.check_selinux",
                    return_value=MagicMock(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.facade_doctor.check_rapl",
                    return_value=MagicMock(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.facade_doctor.check_polkit",
                    return_value=MagicMock(ok=True, message="ok")):
             report()
 
@@ -2203,16 +2203,16 @@ class TestReportDiagnosticOutput:
                 return _completed(0, stdout=lsusb_output)
             return _completed(0, stdout="")
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    side_effect=_fake_subprocess), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out
@@ -2223,16 +2223,16 @@ class TestReportDiagnosticOutput:
 
     def test_report_github_url_after_doctor(self, capsys, tmp_path):
         """GitHub URL appears at the very end, after doctor output."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.facade_debug_report._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.facade_debug_report.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.adapters.device.detector.detect_devices",
                    return_value=[]), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.facade_debug_report.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
+             patch("trcc.adapters.infra.facade_doctor.run_doctor", return_value=0):
             report()
 
         out = capsys.readouterr().out

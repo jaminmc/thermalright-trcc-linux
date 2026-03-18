@@ -198,7 +198,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
         scsi_mod._sg_io_available = None
         bridge_mod._device_fds.clear()
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.require_sg_raw')
+    @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_read_success(self, mock_run, _):
         from trcc.adapters.device.scsi import ScsiDevice
@@ -207,7 +207,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
         self.assertEqual(result, b'\xDE\xAD')
         mock_run.assert_called_once()
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.require_sg_raw')
+    @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_read_failure(self, mock_run, _):
         from trcc.adapters.device.scsi import ScsiDevice
@@ -215,7 +215,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
         result = ScsiDevice._scsi_read('/dev/sg0', b'\x01', 128)
         self.assertEqual(result, b'')
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.require_sg_raw')
+    @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_write_success(self, mock_run, _):
         from trcc.adapters.device.scsi import ScsiDevice
@@ -224,7 +224,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
         result = ScsiDevice._scsi_write('/dev/sg0', header, b'\x00' * 100)
         self.assertTrue(result)
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.require_sg_raw')
+    @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_write_failure(self, mock_run, _):
         from trcc.adapters.device.scsi import ScsiDevice

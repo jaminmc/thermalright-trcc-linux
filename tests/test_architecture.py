@@ -50,7 +50,7 @@ class TestDependencyInjection(unittest.TestCase):
         self.assertIs(svc.overlay, ovl)
         self.assertIs(svc.media, med)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_builder_wires_services_into_lcd_device(self, _):
         """ControllerBuilder creates LCDDevice with properly wired services."""
         from trcc.core.builder import ControllerBuilder

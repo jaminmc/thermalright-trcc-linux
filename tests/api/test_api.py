@@ -289,14 +289,14 @@ class TestThemesEndpoint(unittest.TestCase):
         self.client = TestClient(app)
 
     @patch('trcc.api.themes.ThemeService.discover_local', return_value=[])
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution', return_value=MagicMock(__str__=lambda s: '/tmp/themes'))
+    @patch('trcc.adapters.infra.repository_data.ThemeDir.for_resolution', return_value=MagicMock(__str__=lambda s: '/tmp/themes'))
     def test_list_themes_empty(self, mock_dir, mock_discover):
         resp = self.client.get("/themes?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), [])
 
     @patch('trcc.api.themes.ThemeService.discover_local')
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
+    @patch('trcc.adapters.infra.repository_data.ThemeDir.for_resolution')
     def test_list_themes_with_results(self, mock_dir, mock_discover):
         mock_td = MagicMock(__str__=lambda s: '/tmp/themes')
         mock_td.path = '/tmp/themes'
@@ -636,7 +636,7 @@ class TestSystemEndpoints(unittest.TestCase):
         resp = self.client.get("/system/metrics/invalid")
         self.assertEqual(resp.status_code, 400)
 
-    @patch('trcc.adapters.infra.debug_report.DebugReport')
+    @patch('trcc.adapters.infra.facade_debug_report.DebugReport')
     def test_get_report(self, mock_report_class):
         mock_rpt = MagicMock()
         mock_rpt.__str__ = lambda s: "TRCC Linux Diagnostic Report\n..."
@@ -698,7 +698,7 @@ class TestWebThemeEndpoints(unittest.TestCase):
         configure_auth(None)
         self.client = TestClient(app)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/nonexistent')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/nonexistent')
     def test_list_web_themes_empty_dir(self, mock_dir):
         resp = self.client.get("/themes/web?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
@@ -707,7 +707,7 @@ class TestWebThemeEndpoints(unittest.TestCase):
     @patch('trcc.api.themes.os.listdir', return_value=['a001.png', 'b002.png', 'readme.txt'])
     @patch('trcc.api.themes.os.path.isfile', return_value=False)
     @patch('trcc.api.themes.os.path.isdir', return_value=True)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_list_web_themes_with_pngs(self, mock_dir, mock_isdir, mock_isfile, mock_listdir):
         resp = self.client.get("/themes/web?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
@@ -722,7 +722,7 @@ class TestWebThemeEndpoints(unittest.TestCase):
         resp = self.client.get("/themes/web?resolution=bad")
         self.assertEqual(resp.status_code, 400)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir', return_value='/nonexistent')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir', return_value='/nonexistent')
     def test_list_masks_empty_dir(self, mock_dir):
         resp = self.client.get("/themes/masks?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
@@ -735,16 +735,16 @@ class TestWebThemeEndpoints(unittest.TestCase):
     @patch('trcc.api.themes.os.listdir', return_value=['a001.png'])
     @patch('trcc.api.themes.os.path.isfile', return_value=False)
     @patch('trcc.api.themes.os.path.isdir', return_value=True)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_list_web_themes_includes_download_url(self, *_mocks):
         resp = self.client.get("/themes/web?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data[0]["download_url"], "/themes/web/a001/download")
 
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_download_web_theme_success(self, *_mocks):
         resp = self.client.post("/themes/web/a001/download?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
@@ -754,17 +754,17 @@ class TestWebThemeEndpoints(unittest.TestCase):
         self.assertEqual(data["resolution"], "320x320")
         self.assertFalse(data["already_cached"])
 
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.is_cached', return_value=True)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.is_cached', return_value=True)
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_download_web_theme_already_cached(self, *_mocks):
         resp = self.client.post("/themes/web/a001/download?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["already_cached"])
 
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.download_theme', return_value=None)
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.download_theme', return_value=None)
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_download_web_theme_not_found(self, *_mocks):
         resp = self.client.post("/themes/web/z999/download?resolution=320x320")
         self.assertEqual(resp.status_code, 404)
@@ -781,9 +781,9 @@ class TestWebThemeEndpoints(unittest.TestCase):
 
     @patch('trcc.api.start_video_playback', return_value=True)
     @patch('trcc.api.stop_video_playback')
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
-    @patch('trcc.adapters.infra.theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/tmp/web')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.download_theme', return_value='/tmp/web/a001.mp4')
+    @patch('trcc.adapters.infra.repository_theme_cloud.CloudThemeDownloader.is_cached', return_value=False)
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/tmp/web')
     def test_download_web_theme_with_send(self, *_mocks):
         # Set up mock display dispatcher
         mock_disp = MagicMock()
@@ -1159,7 +1159,7 @@ class TestStandaloneThemeInit(unittest.TestCase):
         api_module._display_dispatcher = None
         api_module._current_image = None
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_init_theme_data_calls_ensure_all(self, mock_ensure):
         """POST /themes/init triggers DataManager.ensure_all() for the resolution."""
         resp = self.client.post("/themes/init?resolution=320x320")
@@ -1167,31 +1167,31 @@ class TestStandaloneThemeInit(unittest.TestCase):
         self.assertTrue(resp.json()["success"])
         mock_ensure.assert_called_once_with(320, 320)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_init_theme_data_invalid_resolution(self, mock_ensure):
         """POST /themes/init rejects bad resolution."""
         resp = self.client.post("/themes/init?resolution=bad")
         self.assertEqual(resp.status_code, 400)
         mock_ensure.assert_not_called()
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_themes')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_themes')
     @patch('trcc.api.themes.ThemeService.discover_local', return_value=[])
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution',
+    @patch('trcc.adapters.infra.repository_data.ThemeDir.for_resolution',
            return_value=MagicMock(__str__=lambda s: '/tmp/themes', path='/tmp/themes'))
     def test_list_themes_calls_ensure_themes(self, _td, _discover, mock_ensure):
         """GET /themes triggers DataManager.ensure_themes() for the resolution."""
         self.client.get("/themes?resolution=320x320")
         mock_ensure.assert_called_once_with(320, 320)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_web')
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_dir', return_value='/nonexistent')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_web')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_dir', return_value='/nonexistent')
     def test_list_web_themes_calls_ensure_web(self, _dir, mock_ensure):
         """GET /themes/web triggers DataManager.ensure_web() for the resolution."""
         self.client.get("/themes/web?resolution=480x480")
         mock_ensure.assert_called_once_with(480, 480)
 
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_web_masks')
-    @patch('trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir', return_value='/nonexistent')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_web_masks')
+    @patch('trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir', return_value='/nonexistent')
     def test_list_masks_calls_ensure_web_masks(self, _dir, mock_ensure):
         """GET /themes/masks triggers DataManager.ensure_web_masks() for the resolution."""
         self.client.get("/themes/masks?resolution=320x320")
@@ -1199,7 +1199,7 @@ class TestStandaloneThemeInit(unittest.TestCase):
 
     @patch('trcc.ipc.IPCClient')
     @patch('trcc.cli._device.discover_resolution')
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_all')
     def test_select_device_standalone_calls_ensure_all(
         self, mock_ensure_all, mock_discover, mock_ipc,
     ):
@@ -1801,7 +1801,7 @@ class TestThemeEdgeCases(unittest.TestCase):
 
     def test_list_themes_resolution_boundary_min(self) -> None:
         with patch("trcc.api.themes.ThemeService.discover_local", return_value=[]), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
+             patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp/none", __str__=lambda s: "/tmp/none")
             resp = self.client.get("/themes?resolution=100x100")
         self.assertEqual(resp.status_code, 200)
@@ -1829,7 +1829,7 @@ class TestThemeEdgeCases(unittest.TestCase):
     def test_import_theme_correct_extension_accepted(self) -> None:
         data = b"not-a-real-tr-archive"
         with patch("trcc.api.themes.ThemeService.import_tr", return_value=(True, "ok")), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
+             patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
             resp = self.client.post(
                 "/themes/import",
@@ -1847,7 +1847,7 @@ class TestThemeEdgeCases(unittest.TestCase):
 
     def test_import_theme_service_error_returns_400(self) -> None:
         with patch("trcc.api.themes.ThemeService.import_tr", return_value=(False, "bad archive")), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
+             patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
             resp = self.client.post(
                 "/themes/import",
@@ -1861,7 +1861,7 @@ class TestThemeEdgeCases(unittest.TestCase):
         """Internal exceptions must not leak tracebacks to API clients."""
         with patch("trcc.api.themes.ThemeService.import_tr",
                    side_effect=RuntimeError("/home/user/.trcc/data/secret")), \
-             patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
+             patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
             resp = self.client.post(
                 "/themes/import",
@@ -1912,7 +1912,7 @@ class TestThemeEdgeCases(unittest.TestCase):
             mask_dir.mkdir()
             (mask_dir / "Theme.png").write_bytes(b"fake")
 
-            with patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
+            with patch("trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir",
                        return_value=td):
                 resp = self.client.get("/themes/masks?resolution=320x320")
 
@@ -1928,7 +1928,7 @@ class TestThemeEdgeCases(unittest.TestCase):
             mask_dir.mkdir()
             (mask_dir / "something.txt").write_text("ignored")
 
-            with patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
+            with patch("trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir",
                        return_value=td):
                 resp = self.client.get("/themes/masks?resolution=320x320")
 
@@ -1940,7 +1940,7 @@ class TestThemeEdgeCases(unittest.TestCase):
             (Path(td) / "a001.png").write_bytes(b"fake")
             (Path(td) / "a001.mp4").write_bytes(b"fake")
 
-            with patch("trcc.adapters.infra.data_repository.DataManager.get_web_dir",
+            with patch("trcc.adapters.infra.repository_data.DataManager.get_web_dir",
                        return_value=td):
                 resp = self.client.get("/themes/web?resolution=320x320")
 
@@ -1953,7 +1953,7 @@ class TestThemeEdgeCases(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "b002.png").write_bytes(b"fake")
 
-            with patch("trcc.adapters.infra.data_repository.DataManager.get_web_dir",
+            with patch("trcc.adapters.infra.repository_data.DataManager.get_web_dir",
                        return_value=td):
                 resp = self.client.get("/themes/web?resolution=480x480")
 
@@ -2068,10 +2068,10 @@ class TestStaticMountEdgeCases(unittest.TestCase):
     def test_mount_static_dirs_nonexistent_web_dir_skipped(self) -> None:
         from trcc.api import _mounted_routes, mount_static_dirs
 
-        with patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.adapters.infra.data_repository.DataManager.get_web_dir",
+        with patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td, \
+             patch("trcc.adapters.infra.repository_data.DataManager.get_web_dir",
                    return_value="/nonexistent/web"), \
-             patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
+             patch("trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir",
                    return_value="/nonexistent/masks"):
             mock_td_obj = MagicMock()
             mock_td_obj.path = "/nonexistent/themes"
@@ -2084,10 +2084,10 @@ class TestStaticMountEdgeCases(unittest.TestCase):
     def test_mount_static_dirs_clears_old_routes(self) -> None:
         from trcc.api import _mounted_routes, mount_static_dirs
 
-        with patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td, \
-             patch("trcc.adapters.infra.data_repository.DataManager.get_web_dir",
+        with patch("trcc.adapters.infra.repository_data.ThemeDir.for_resolution") as mock_td, \
+             patch("trcc.adapters.infra.repository_data.DataManager.get_web_dir",
                    return_value="/nonexistent"), \
-             patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
+             patch("trcc.adapters.infra.repository_data.DataManager.get_web_masks_dir",
                    return_value="/nonexistent"):
             mock_td_obj = MagicMock()
             mock_td_obj.path = "/nonexistent"
@@ -2691,16 +2691,16 @@ class TestThemeExportEndpoint(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
     @patch('trcc.services.ThemeService.discover_local', return_value=[])
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_themes')
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_themes')
+    @patch('trcc.adapters.infra.repository_data.ThemeDir.for_resolution')
     def test_export_theme_not_found(self, mock_td, mock_ensure, mock_discover):
         mock_td.return_value = MagicMock(__str__=lambda s: '/tmp/themes')
         resp = self.client.post("/themes/export?theme_name=NonExistent")
         self.assertEqual(resp.status_code, 404)
 
     @patch('trcc.services.ThemeService.discover_local')
-    @patch('trcc.adapters.infra.data_repository.DataManager.ensure_themes')
-    @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
+    @patch('trcc.adapters.infra.repository_data.DataManager.ensure_themes')
+    @patch('trcc.adapters.infra.repository_data.ThemeDir.for_resolution')
     @patch('trcc.services.ThemeService.export_tr')
     def test_export_theme_success(self, mock_export, mock_td, mock_ensure, mock_discover):
         from trcc.core.models import ThemeInfo

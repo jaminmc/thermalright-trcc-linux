@@ -318,7 +318,7 @@ class TestDeviceDetectorRoundTrip(unittest.TestCase):
 class TestMultiResolution(unittest.TestCase):
     """Verify frame sizing and chunk counts for different resolutions."""
 
-    @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
+    @patch("trcc.adapters.infra.repository_data.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
     @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)
@@ -345,7 +345,7 @@ class TestMultiResolution(unittest.TestCase):
         # 480*480*2 = 460800, ceil(460800/65536) = 8 chunks
         self.assertEqual(len(chunks), 8)
 
-    @patch("trcc.adapters.infra.data_repository.SysUtils.require_sg_raw")
+    @patch("trcc.adapters.infra.repository_data.SysUtils.require_sg_raw")
     @patch("trcc.adapters.device.scsi.subprocess.run")
     @patch("trcc.adapters.device.lcd.detect_devices")
     @patch("trcc.adapters.device.lcd.LCDDriver._detect_resolution", return_value=False)

@@ -257,7 +257,7 @@ class TestFindUsbDevices(unittest.TestCase):
 class TestFindScsiDeviceByUsbPath(unittest.TestCase):
     """Test find_scsi_device_by_usb_path function."""
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('os.path.exists')
     @patch('builtins.open', new_callable=mock_open, read_data='USBLCD  ')
     def test_find_via_sysfs(self, mock_file, mock_exists, _):
@@ -293,8 +293,8 @@ class TestFindScsiDeviceByUsbPath(unittest.TestCase):
 class TestFindScsiUsblcdDevices(unittest.TestCase):
     """Test find_scsi_usblcd_devices function."""
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_block_devices', return_value=[])
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=[])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_block_devices', return_value=[])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=[])
     @patch('os.path.exists')
     def test_no_sg_devices(self, mock_exists, _, __):
         """Test when no sg or block devices exist."""
@@ -302,7 +302,7 @@ class TestFindScsiUsblcdDevices(unittest.TestCase):
         devices = find_scsi_usblcd_devices()
         self.assertEqual(devices, [])
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('builtins.open')
     @patch('os.path.exists')
     def test_usblcd_device_found(self, mock_exists, mock_open_fn, _):
@@ -603,7 +603,7 @@ class TestDeviceModelMapping(unittest.TestCase):
 
 class TestScsiMethodFallbacks(unittest.TestCase):
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch(f'{_CLS}.run_command', return_value=None)
     @patch('os.path.exists')
     @patch('builtins.open')
@@ -614,7 +614,7 @@ class TestScsiMethodFallbacks(unittest.TestCase):
         result = find_scsi_device_by_usb_path('1-2')
         self.assertIsNone(result)
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch(f'{_CLS}.run_command', return_value=None)
     @patch('os.path.exists', return_value=True)
     @patch('builtins.open', side_effect=IOError("permission"))
@@ -623,7 +623,7 @@ class TestScsiMethodFallbacks(unittest.TestCase):
         result = find_scsi_device_by_usb_path('1-2')
         self.assertIsNone(result)
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=[])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=[])
     @patch(f'{_CLS}.run_command')
     @patch('os.path.exists', return_value=False)
     def test_method3_lsscsi_t(self, _, mock_run, __):
@@ -792,7 +792,7 @@ class TestMainCLI(unittest.TestCase):
 class TestFindScsiUsblcdVidPid(unittest.TestCase):
     """Cover USB VID/PID lookup in sysfs (lines 210-221) and IOError (234-235)."""
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('trcc.adapters.detection.factory_detector.os.path.exists')
     @patch('trcc.adapters.detection.factory_detector.os.path.realpath', return_value='/sys/devices/pci/usb/scsi/sg0')
     @patch('builtins.open', create=True)
@@ -828,7 +828,7 @@ class TestFindScsiUsblcdVidPid(unittest.TestCase):
         found = [d for d in devices if d.scsi_device == '/dev/sg0']
         self.assertTrue(len(found) > 0)
 
-    @patch('trcc.adapters.infra.data_repository.SysUtils.find_scsi_devices', return_value=['sg0'])
+    @patch('trcc.adapters.infra.repository_data.SysUtils.find_scsi_devices', return_value=['sg0'])
     @patch('trcc.adapters.detection.factory_detector.os.path.exists')
     @patch('builtins.open', side_effect=IOError("fail"))
     def test_ioerror_skips_device(self, mock_open_fn, mock_exists, _):
@@ -886,7 +886,7 @@ class TestMainPathOnlyNoScsi(unittest.TestCase):
 
 # ── Block device fallback (sg module not loaded) ────────────────────────────
 
-_SYSUTILS = 'trcc.adapters.infra.data_repository.SysUtils'
+_SYSUTILS = 'trcc.adapters.infra.repository_data.SysUtils'
 
 
 class TestFindScsiBlockDevices(unittest.TestCase):
