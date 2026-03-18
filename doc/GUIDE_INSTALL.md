@@ -9,42 +9,41 @@ A step-by-step guide for every major Linux distro. Each section is self-containe
 ## Table of Contents
 
 1. [Before You Start](#before-you-start)
-2. [Find Your Distro](#find-your-distro)
-3. [Native Package Install (Recommended)](#native-package-install-recommended)
-   - [Fedora / Nobara](#fedora--nobara)
-   - [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin)
-   - [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda)
-   - [openSUSE](#opensuse)
-   - [NixOS](#nixos)
-   - [Gentoo](#gentoo)
-4. [PyPI Install (Alternative)](#pypi-install-alternative)
-   - [Fedora / Nobara (pip)](#fedora--nobara-pip)
-   - [Ubuntu / Debian / Mint / Pop!_OS / Zorin (pip)](#ubuntu--debian--mint--pop_os--zorin-pip)
-   - [Arch / CachyOS / Manjaro / EndeavourOS / Garuda (pip)](#arch--cachyos--manjaro--endeavouros--garuda-pip)
-   - [openSUSE (pip)](#opensuse-pip)
-   - [Void Linux](#void-linux)
-   - [Alpine Linux](#alpine-linux)
-   - [Solus](#solus)
-   - [Clear Linux](#clear-linux)
-5. [Git Clone Install](#git-clone-install)
-6. [Immutable / Atomic Distros](#immutable--atomic-distros)
-   - [Bazzite / Aurora / Bluefin / Fedora Atomic](#bazzite--aurora--bluefin--fedora-atomic)
-   - [SteamOS (Steam Deck)](#steamos-steam-deck)
-   - [Vanilla OS](#vanilla-os)
-   - [ChromeOS (Crostini)](#chromeos-crostini)
-7. [Windows](#windows-experimental)
-8. [macOS](#macos-experimental)
-9. [FreeBSD](#freebsd-experimental)
-10. [Special Hardware](#special-hardware)
-    - [Asahi Linux (Apple Silicon)](#asahi-linux-apple-silicon)
-    - [Raspberry Pi / ARM SBCs](#raspberry-pi--arm-sbcs)
-    - [WSL2 (Windows Subsystem for Linux)](#wsl2-windows-subsystem-for-linux)
-11. [After Installing](#after-installing)
-12. [Verify Your Download](#verify-your-download)
-13. [What Each Package Does](#what-each-package-does)
-14. [Troubleshooting](#troubleshooting)
-15. [Uninstalling](#uninstalling)
-16. [Getting Help](#getting-help)
+
+**Find your distro and click through:**
+
+| Distribution | Package | PyPI / pip |
+|-------------|---------|------------|
+| Fedora / Nobara | [Native RPM](#fedora--nobara) | [pip](#fedora--nobara-pip) |
+| Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS / Zorin | [Native DEB](#ubuntu--debian--mint--pop_os--zorin) | [pip](#ubuntu--debian--mint--pop_os--zorin-pip) |
+| Ubuntu 22.04 / Mint 21.x / Debian 12 (older) | — | [pip (recommended)](#ubuntu--debian--mint--pop_os--zorin-pip) |
+| Arch / CachyOS / Manjaro / EndeavourOS / Garuda | [Native pkg](#arch--cachyos--manjaro--endeavouros--garuda) | [pip](#arch--cachyos--manjaro--endeavouros--garuda-pip) |
+| openSUSE | [Native RPM](#opensuse) | [pip](#opensuse-pip) |
+| NixOS | [Flake](#nixos) | — |
+| Gentoo | [Ebuild](#gentoo) | — |
+| Bazzite / Bluefin / Aurora / Fedora Atomic | [rpm-ostree](#bazzite--aurora--bluefin--fedora-atomic) | — |
+| SteamOS (Steam Deck) | — | [pip / Distrobox](#steamos-steam-deck) |
+| Vanilla OS | — | [apx subsystem](#vanilla-os) |
+| ChromeOS (Crostini) | — | [pip](#chromeos-crostini) |
+| Void Linux | — | [pip](#void-linux) |
+| Alpine Linux | — | [pip](#alpine-linux) |
+| Solus | — | [pip](#solus) |
+| Clear Linux | — | [pip](#clear-linux) |
+| Windows 10/11 | [Installer](#windows-experimental) | — |
+| macOS 11+ | [DMG](#macos-experimental) | — |
+| FreeBSD | — | [pip](#freebsd-experimental) |
+| Asahi Linux (Apple Silicon) | — | [pip](#asahi-linux-apple-silicon) |
+| Raspberry Pi / ARM SBCs | — | [pip](#raspberry-pi--arm-sbcs) |
+| WSL2 | — | [pip](#wsl2-windows-subsystem-for-linux) |
+
+**Other:**
+- [Git Clone Install](#git-clone-install)
+- [After Installing](#after-installing)
+- [Verify Your Download](#verify-your-download)
+- [What Each Package Does](#what-each-package-does)
+- [Troubleshooting](#troubleshooting)
+- [Uninstalling](#uninstalling)
+- [Getting Help](#getting-help)
 
 ---
 
@@ -71,49 +70,7 @@ Once the terminal is open, you can paste commands with `Ctrl+Shift+V` (not `Ctrl
 
 ---
 
-## Find Your Distro
-
-Not sure which Linux you're running? Open a terminal and type:
-
-```bash
-cat /etc/os-release
-```
-
-Look at the `ID=` line — that's your distro. Match it below:
-
-| You see | You're running | Go to section |
-|---------|---------------|---------------|
-| `ID=fedora` | Fedora | [Fedora / Nobara](#fedora--nobara) |
-| `ID=nobara` | Nobara | [Fedora / Nobara](#fedora--nobara) |
-| `ID=ubuntu` | Ubuntu | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=debian` | Debian | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=linuxmint` | Linux Mint | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=pop` | Pop!_OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=zorin` | Zorin OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=elementary` | elementary OS | [Ubuntu / Debian / Mint / Pop!_OS / Zorin](#ubuntu--debian--mint--pop_os--zorin) |
-| `ID=arch` | Arch Linux | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
-| `ID=cachyos` | CachyOS | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
-| `ID=manjaro` | Manjaro | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
-| `ID=endeavouros` | EndeavourOS | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
-| `ID=garuda` | Garuda Linux | [Arch / CachyOS / Manjaro / EndeavourOS / Garuda](#arch--cachyos--manjaro--endeavouros--garuda) |
-| `ID=opensuse-tumbleweed` | openSUSE Tumbleweed | [openSUSE](#opensuse) |
-| `ID=opensuse-leap` | openSUSE Leap | [openSUSE](#opensuse) |
-| `ID=nixos` | NixOS | [NixOS](#nixos) |
-| `ID=gentoo` | Gentoo | [Gentoo](#gentoo) |
-| `ID=void` | Void Linux | [Void Linux](#void-linux) |
-| `ID=alpine` | Alpine Linux | [Alpine Linux](#alpine-linux) |
-| `ID=solus` | Solus | [Solus](#solus) |
-| `ID=clear-linux-os` | Clear Linux | [Clear Linux](#clear-linux) |
-| `ID=bazzite` | Bazzite | [Bazzite / Aurora / Bluefin / Fedora Atomic](#bazzite--aurora--bluefin--fedora-atomic) |
-| `ID=steamos` | SteamOS (Steam Deck) | [SteamOS (Steam Deck)](#steamos-steam-deck) |
-
----
-
-## Native Package Install (Recommended)
-
-Pre-built packages that install like any other app. No pip, no venv, no Python headaches. This is the easiest way.
-
-**How it works:** Go to the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) page, download the package for your distro, then run the install command below.
+> **Not sure which distro you're running?** Open a terminal and type `cat /etc/os-release` — the `ID=` line tells you. Find it in the table above.
 
 ---
 
