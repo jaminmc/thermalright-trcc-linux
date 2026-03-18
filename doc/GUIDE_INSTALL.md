@@ -892,13 +892,14 @@ trcc detect
 
 You should see something like:
 ```
-Active: /dev/sg1
+[1] 0402:3922  ALi Corp  (SCSI)  path=/dev/sg1
+```
+or for HID devices:
+```
+[1] 0416:5302  USBDISPLAY  (HID)  path=1-8.1
 ```
 
-If you have multiple devices:
-```bash
-trcc detect --all
-```
+Use `trcc detect --all` to see all connected devices.
 
 ### Quick test
 
