@@ -1268,12 +1268,14 @@ def parse_metric_spec(
 ) -> tuple[str, dict]:
     """Parse a metric spec string into an overlay config element.
 
-    Format: ``key:x,y[:color[:size]]``
+    Format: ``key:x,y[:color[:size[:font[:style]]]]``
 
     Examples:
-        ``"gpu_temp:10,20"``            → uses all defaults
-        ``"cpu_usage:10,50:ff0000"``     → red, default size
-        ``"time:150,10:ffffff:24"``      → white, 24px
+        ``"gpu_temp:10,20"``                      → uses all defaults
+        ``"cpu_percent:10,50:ff0000"``             → red, default size
+        ``"time:150,10:ffffff:24"``                → white, 24px
+        ``"gpu_temp:10,20:ff0000:18:Arial:bold"``  → red, 18px, Arial bold
+        ``"cpu_temp:10,50::16:Courier"``            → default color, 16px, Courier
 
     Returns:
         (element_key, config_dict) for ``OverlayService.set_config()``.
@@ -1303,6 +1305,8 @@ def parse_metric_spec(
 
     color = default_color
     size = default_size
+    font_name = default_font
+    style = default_style
     if len(parts) >= 3 and parts[2]:
         color = parts[2]
     if len(parts) >= 4 and parts[3]:
@@ -1311,6 +1315,10 @@ def parse_metric_spec(
         except ValueError as e:
             raise ValueError(
                 f"Invalid size in '{spec}' — expected integer") from e
+    if len(parts) >= 5 and parts[4]:
+        font_name = parts[4]
+    if len(parts) >= 6 and parts[5]:
+        style = parts[5]
 
     element_key = f"cli_elem_{index}"
     config: dict = {
@@ -1319,8 +1327,8 @@ def parse_metric_spec(
         'color': f"#{color.lstrip('#')}",
         'font': {
             'size': size,
-            'style': default_style,
-            'name': default_font,
+            'style': style,
+            'name': font_name,
         },
         'enabled': True,
         'metric': metric_key,

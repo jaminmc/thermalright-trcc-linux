@@ -619,13 +619,15 @@ trcc theme --background animated.gif \
 | `--duration` | Stop after N seconds (default: 0 = forever) |
 | `--preview`, `-p` | Animate ANSI preview in terminal |
 
-**Metric spec format:** `key:x,y[:color[:size]]`
+**Metric spec format:** `key:x,y[:color[:size[:font[:style]]]]`
 
 - `gpu_temp:10,20` — uses global defaults
 - `cpu_temp:10,50:ff0000` — red, global font size
 - `time:150,10:ffffff:24` — white, 24px
+- `gpu_temp:10,20:ff0000:18:Arial:bold` — red, 18px, Arial bold
+- `cpu_temp:10,50::16:Courier` — default color, 16px, Courier
 
-Per-metric color/size override the globals (`--color`, `--font-size`). Font name and style always come from the global flags.
+Per-metric values override the globals (`--color`, `--font-size`, `--font`, `--font-style`). Empty fields (double colon `::`) fall through to the global default.
 
 **Available metric keys:**
 

@@ -688,6 +688,28 @@ class TestParseMetricSpec:
         assert elem['color'] == '#ffffff'
         assert elem['font']['size'] == 18
 
+    def test_per_metric_font_override(self):
+        from trcc.core.models import parse_metric_spec
+        _, elem = parse_metric_spec('gpu_temp:10,20:ff0000:18:Arial:bold', 0)
+        assert elem['font']['name'] == 'Arial'
+        assert elem['font']['style'] == 'bold'
+        assert elem['font']['size'] == 18
+        assert elem['color'] == '#ff0000'
+
+    def test_per_metric_font_without_style(self):
+        from trcc.core.models import parse_metric_spec
+        _, elem = parse_metric_spec('cpu_temp:10,20::16:Courier', 0)
+        assert elem['font']['name'] == 'Courier'
+        assert elem['font']['style'] == 'regular'
+        assert elem['font']['size'] == 16
+
+    def test_per_metric_font_uses_global_when_empty(self):
+        from trcc.core.models import parse_metric_spec
+        _, elem = parse_metric_spec('gpu_temp:10,20', 0,
+                                     default_font='Mono', default_style='bold')
+        assert elem['font']['name'] == 'Mono'
+        assert elem['font']['style'] == 'bold'
+
 
 class TestBuildOverlayConfig:
     """Tests for build_overlay_config() — multiple specs → config dict."""
