@@ -56,63 +56,23 @@ Native Linux port of the Thermalright LCD Control Center (Windows TRCC 2.1.2). C
 
 Pre-built packages are available for every major distro. No pip, no venv, no PEP 668 headaches — just download and install like any other app. Every release is built automatically from source using [GitHub Actions](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/release.yml) — the build logs are public so anyone can verify what went in.
 
-> Not sure which distro you're running? Open a terminal and type `cat /etc/os-release` — the `ID` line tells you.
+> For detailed step-by-step instructions, troubleshooting, and alternative install methods, see the **[Install Guide](doc/GUIDE_INSTALL.md)**.
 
-**Fedora / openSUSE / Nobara:**
-```bash
-sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1.fc43.noarch.rpm
-```
+| Distro | Install Guide |
+|--------|--------------|
+| Fedora / Nobara / openSUSE | [Fedora](doc/GUIDE_INSTALL.md#fedora--nobara) |
+| Bazzite / Bluefin / Aurora / Universal Blue | [Immutable Fedora](doc/GUIDE_INSTALL.md#bazzite--aurora--bluefin--fedora-atomic) |
+| Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS / Zorin | [Ubuntu / Debian](doc/GUIDE_INSTALL.md#ubuntu--debian--mint--pop_os--zorin) |
+| Ubuntu 22.04 / Mint 21.x / Debian 12 (older) | [PyPI install](doc/GUIDE_INSTALL.md#ubuntu--debian--mint--pop_os--zorin-pip) |
+| Arch / CachyOS / Manjaro / EndeavourOS / Garuda | [Arch](doc/GUIDE_INSTALL.md#arch--cachyos--manjaro--endeavouros--garuda) |
+| NixOS | [NixOS](doc/GUIDE_INSTALL.md#nixos) |
+| Gentoo | [Gentoo](doc/GUIDE_INSTALL.md#gentoo) |
+| SteamOS (Steam Deck) | [SteamOS](doc/GUIDE_INSTALL.md#steamos-steam-deck) |
+| Windows 10/11 | [Windows](doc/GUIDE_INSTALL.md#windows-experimental) |
+| macOS 11+ | [macOS](doc/GUIDE_INSTALL.md#macos-experimental) |
+| FreeBSD | [FreeBSD](doc/GUIDE_INSTALL.md#freebsd-experimental) |
 
-**Bazzite / Bluefin / Aurora / Universal Blue (immutable Fedora):**
-```bash
-rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1.fc43.noarch.rpm
-systemctl reboot   # rpm-ostree changes apply on next boot
-```
-
-**Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS 24.04+ / Zorin 17+:**
-```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.7.6-1_all.deb
-sudo dpkg -i trcc-linux_8.7.6-1_all.deb
-sudo apt-get install -f    # pulls in any missing dependencies
-```
-
-> **Older versions** (Ubuntu 22.04, Mint 21.x, etc.) don't have `python3-pyside6` and other deps in their repos. Use `pipx` instead — see [PyPI install](#pypi) below.
-
-**Arch / CachyOS / Manjaro / EndeavourOS / Garuda:**
-```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1-any.pkg.tar.zst
-sudo pacman -U trcc-linux-8.7.6-1-any.pkg.tar.zst
-```
-
-**NixOS** — add to your `flake.nix` inputs:
-```nix
-{
-  inputs.trcc-linux.url = "github:Lexonight1/thermalright-trcc-linux";
-
-  # In your system configuration:
-  programs.trcc-linux.enable = true;
-}
-```
-Then run `sudo nixos-rebuild switch`.
-
-**Step 3:** Unplug and replug the USB cable, or reboot (this reloads the device permissions).
-
-**Step 4:** Launch the app:
-```bash
-trcc gui
-```
-
-That's it! If your device isn't detected, run `trcc detect --all` to see what's connected, or `trcc report` and [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) with the output.
-
-### Windows / macOS / FreeBSD (experimental)
-
-| OS | Download | Notes |
-|----|----------|-------|
-| **Windows 10/11** | [`trcc-8.7.6-setup.exe`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | GUI + CLI, bundles 7z/ffmpeg/libusb |
-| **macOS 11+** | [`trcc-8.7.6-macos.dmg`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) | Drag to Applications, `brew install libusb` first |
-| **FreeBSD** | `pip install trcc-linux` | PyPI only, needs `libusb` + `py311-pyusb` |
-
-See the **[Install Guide](doc/GUIDE_INSTALL.md)** for detailed setup instructions, requirements, and troubleshooting for each platform.
+Each guide has a one-liner copy-paste command and step-by-step instructions. After installing, unplug and replug the USB cable, then run `trcc gui`.
 
 ### Verify your download
 

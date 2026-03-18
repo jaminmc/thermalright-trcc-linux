@@ -121,9 +121,12 @@ Pre-built packages that install like any other app. No pip, no venv, no Python h
 
 Covers: Fedora 39+, Nobara 39+
 
-**Step 1 — Download** the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+**One-liner** (download + install in one command):
+```bash
+sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1.fc43.noarch.rpm
+```
 
-**Step 2 — Open a terminal** and run:
+**Or manually:** Download the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
 
 ```bash
 cd ~/Downloads
@@ -140,7 +143,7 @@ It will ask for your password — type it and press Enter (the password won't sh
 trcc gui
 ```
 
-That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
+That's it! If your device isn't detected, see the [Device Testing Guide](GUIDE_DEVICE_TESTING.md) or run `trcc report` and [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) with the output.
 
 ---
 
@@ -150,9 +153,12 @@ Covers: Ubuntu 24.04+, Debian 13+, Linux Mint 22+, Pop!_OS 24.04+, Zorin OS 17+,
 
 > **Older versions** (Ubuntu 22.04, Mint 21.x, Debian 11/12, Pop!_OS 22.04, elementary OS 7) don't have `python3-pyside6` and other deps in their repos. The `.deb` package won't work — use the [PyPI install](#ubuntu--debian--mint--pop_os--zorin-pip) instead.
 
-**Step 1 — Download** the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+**One-liner** (download + install in one command):
+```bash
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.7.6-1_all.deb && sudo dpkg -i trcc-linux_8.7.6-1_all.deb && sudo apt-get install -f
+```
 
-**Step 2 — Open a terminal** and run:
+**Or manually:** Download the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
 
 ```bash
 cd ~/Downloads
@@ -170,7 +176,7 @@ The first command installs the package. The second command pulls in any missing 
 trcc gui
 ```
 
-That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
+That's it! If your device isn't detected, see the [Device Testing Guide](GUIDE_DEVICE_TESTING.md) or run `trcc report` and [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) with the output.
 
 > **`python3-pyside6` not found?** On Ubuntu 24.04 it may be in the `universe` repository:
 > ```bash
@@ -185,9 +191,12 @@ That's it! If your device isn't detected, run `trcc detect --all` to see what's 
 
 Covers: Arch Linux, CachyOS, Manjaro, EndeavourOS, Garuda Linux, Artix Linux, ArcoLinux, BlackArch
 
-**Step 1 — Download** the `.pkg.tar.zst` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+**One-liner** (download + install in one command):
+```bash
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1-any.pkg.tar.zst && sudo pacman -U trcc-linux-8.7.6-1-any.pkg.tar.zst
+```
 
-**Step 2 — Open a terminal** and run:
+**Or manually:** Download the `.pkg.tar.zst` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
 
 ```bash
 cd ~/Downloads
@@ -202,7 +211,7 @@ sudo pacman -U trcc-linux-*-any.pkg.tar.zst
 trcc gui
 ```
 
-That's it! If your device isn't detected, run `trcc detect --all` to see what's connected.
+That's it! If your device isn't detected, see the [Device Testing Guide](GUIDE_DEVICE_TESTING.md) or run `trcc report` and [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) with the output.
 
 ---
 
@@ -562,17 +571,19 @@ These use an immutable root filesystem — you can't `sudo dnf install` like nor
 
 **Option A — Native RPM (recommended):**
 
+**One-liner** (download + install, requires reboot):
 ```bash
-# Step 1: Download the .rpm from the latest release
-cd ~/Downloads
+rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.7.6-1.fc43.noarch.rpm && systemctl reboot
+```
 
-# Step 2: Install with rpm-ostree (requires reboot)
+**Or manually:** Download the `.rpm` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
+```bash
+cd ~/Downloads
 rpm-ostree install ./trcc-linux-*.noarch.rpm
 systemctl reboot
-
-# Step 3: Unplug and replug the USB cable, then launch
-trcc gui
 ```
+
+After reboot, unplug and replug the USB cable, then: `trcc gui`
 
 > If you have a bulk USB device, you may also need SELinux policy: `trcc setup-selinux`
 > (if `checkmodule` is not found: `rpm-ostree install checkpolicy` and reboot first)
@@ -968,35 +979,7 @@ If you see `OK` next to your package — it's clean. Source code is GPL-3.0, ful
 
 ## Troubleshooting
 
-For the full troubleshooting guide, see **[Troubleshooting](GUIDE_TROUBLESHOOTING.md)**.
-
-Quick fixes for the most common issues:
-
-| Problem | Fix |
-|---------|-----|
-| `trcc: command not found` | Open a new terminal, or [add `~/.local/bin` to PATH](#trcc-command-not-found) |
-| No device detected | Run `trcc setup-udev` then unplug/replug USB |
-| Permission denied | `pip install --upgrade trcc-linux` then `trcc setup-udev` |
-| Permission denied on SELinux (Bazzite) | `trcc setup-selinux` |
-| PySide6 not available | Install system package: `sudo dnf install python3-pyside6` (or your distro's equivalent) |
-| Qt_6_PRIVATE_API not found | Use system PySide6 instead of pip version |
-| externally-managed-environment | Use `--break-system-packages` or a venv (see your distro's section above) |
-| NixOS: setup-udev fails | Add udev rules to `configuration.nix` (see [NixOS section](#nixos)) |
-| HID handshake None | Upgrade to latest version, power-cycle USB, run `trcc hid-debug` |
-| Old pip/pipx `trcc` shadows system package | `rm ~/.local/bin/trcc` (or `pipx uninstall trcc-linux`) then open a new terminal |
-| `python3-pyside6` not found (Ubuntu 22.04 / Mint 21.x) | Use `pipx install trcc-linux` instead of the `.deb` — see [PyPI install](#ubuntu--debian--mint--pop_os--zorin-pip) |
-| `python3-pyside6` not found (Ubuntu 24.04) | `sudo add-apt-repository universe && sudo apt update && sudo apt-get install -f` |
-
-### Wayland screen capture
-
-| Desktop | Screen capture method | Extra packages needed |
-|---------|----------------------|----------------------|
-| GNOME | PipeWire portal | `python3-gobject` + `python3-dbus` |
-| KDE Plasma | PipeWire portal | `python3-gobject` + `python3-dbus` |
-| Sway / Hyprland / Wayfire | `grim` | `grim` |
-| X11 (any) | Native X11 capture | None |
-
-Everything else (themes, overlays, video, device communication) works identically on X11 and Wayland.
+Something not working? See the **[Troubleshooting Guide](GUIDE_TROUBLESHOOTING.md)** for common issues and fixes.
 
 ---
 
@@ -1027,6 +1010,7 @@ rm -f ~/.local/share/applications/trcc*.desktop
 ## Getting Help
 
 - Run `trcc doctor` to check your system for missing dependencies
-- Run `trcc report` and [paste the output in an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) — this gives us everything we need to help you
-- Check the [Troubleshooting guide](GUIDE_TROUBLESHOOTING.md) for more solutions
+- See the [Device Testing Guide](GUIDE_DEVICE_TESTING.md) for verifying your setup
+- Run `trcc report` and [open an issue](https://github.com/Lexonight1/thermalright-trcc-linux/issues/new) with the output — this gives us everything we need to help you
+- Check the [Troubleshooting Guide](GUIDE_TROUBLESHOOTING.md) for common issues and fixes
 - For verbose output: `trcc gui -v` (or `trcc gui -vv` for debug)
