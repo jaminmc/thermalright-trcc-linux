@@ -204,12 +204,13 @@ class SensorPickerDialog(QDialog):
         source_labels = {
             'hwmon': 'Hardware Monitor',
             'nvidia': 'NVIDIA GPU',
+            'drm': 'GPU (DRM)',
             'psutil': 'System',
             'rapl': 'Power (RAPL)',
             'computed': 'Computed Rates',
         }
 
-        for source in ('hwmon', 'nvidia', 'psutil', 'rapl', 'computed'):
+        for source in ('hwmon', 'nvidia', 'drm', 'psutil', 'rapl', 'computed'):
             group = groups.get(source, [])
             if not group:
                 continue
