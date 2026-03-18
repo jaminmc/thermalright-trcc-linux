@@ -5,14 +5,14 @@ from unittest.mock import MagicMock, patch
 
 from trcc.core.models import SensorInfo
 
-MODULE = 'trcc.adapters.system.macos.sensors'
+MODULE = 'trcc.adapters.sensors.facade_macos'
 
 
 def _make_enum(**flags):
     """Create MacOSSensorEnumerator with optional feature flags."""
     with patch(f'{MODULE}.NVML_AVAILABLE', flags.get('nvml', False)), \
          patch(f'{MODULE}.IS_APPLE_SILICON', flags.get('arm', False)):
-        from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+        from trcc.adapters.sensors.facade_macos import MacOSSensorEnumerator
         return MacOSSensorEnumerator()
 
 
@@ -223,13 +223,13 @@ class TestGetters:
 class TestParseMetric:
 
     def test_temperature(self):
-        from trcc.adapters.system.macos.sensors import _parse_metric
+        from trcc.adapters.sensors.facade_macos import _parse_metric
         assert _parse_metric('CPU die temperature: 45.23 C') == 45.23
 
     def test_fan(self):
-        from trcc.adapters.system.macos.sensors import _parse_metric
+        from trcc.adapters.sensors.facade_macos import _parse_metric
         assert _parse_metric('Fan: 1200 rpm') == 1200.0
 
     def test_no_number(self):
-        from trcc.adapters.system.macos.sensors import _parse_metric
+        from trcc.adapters.sensors.facade_macos import _parse_metric
         assert _parse_metric('no numbers here') == 0.0

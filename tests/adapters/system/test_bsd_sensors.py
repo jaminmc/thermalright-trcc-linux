@@ -5,13 +5,13 @@ from unittest.mock import MagicMock, patch
 
 from trcc.core.models import SensorInfo
 
-MODULE = 'trcc.adapters.system.bsd.sensors'
+MODULE = 'trcc.adapters.sensors.facade_bsd'
 
 
 def _make_enum(**flags):
     """Create BSDSensorEnumerator with optional feature flags."""
     with patch(f'{MODULE}.NVML_AVAILABLE', flags.get('nvml', False)):
-        from trcc.adapters.system.bsd.sensors import BSDSensorEnumerator
+        from trcc.adapters.sensors.facade_bsd import BSDSensorEnumerator
         return BSDSensorEnumerator()
 
 

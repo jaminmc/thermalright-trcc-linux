@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-MODULE = 'trcc.adapters.system.macos.hardware'
+MODULE = 'trcc.adapters.hardware.facade_macos'
 
 
 class TestRunProfiler:
@@ -15,20 +15,20 @@ class TestRunProfiler:
             returncode=0,
             stdout=json.dumps({'SPMemoryDataType': [{'_name': 'test'}]}),
         )
-        from trcc.adapters.system.macos.hardware import _run_profiler
+        from trcc.adapters.hardware.facade_macos import _run_profiler
         result = _run_profiler('SPMemoryDataType')
         assert result == {'SPMemoryDataType': [{'_name': 'test'}]}
 
     @patch(f'{MODULE}.subprocess')
     def test_returns_empty_on_failure(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=1, stdout='')
-        from trcc.adapters.system.macos.hardware import _run_profiler
+        from trcc.adapters.hardware.facade_macos import _run_profiler
         assert _run_profiler('SPMemoryDataType') == {}
 
     @patch(f'{MODULE}.subprocess')
     def test_returns_empty_on_exception(self, mock_sub):
         mock_sub.run.side_effect = RuntimeError("timeout")
-        from trcc.adapters.system.macos.hardware import _run_profiler
+        from trcc.adapters.hardware.facade_macos import _run_profiler
         assert _run_profiler('SPMemoryDataType') == {}
 
 
@@ -49,7 +49,7 @@ class TestGetMemoryInfo:
                 }],
             }],
         }
-        from trcc.adapters.system.macos.hardware import get_memory_info
+        from trcc.adapters.hardware.facade_macos import get_memory_info
         slots = get_memory_info()
         assert len(slots) == 1
         assert slots[0]['manufacturer'] == 'Samsung'
@@ -59,7 +59,7 @@ class TestGetMemoryInfo:
     @patch(f'{MODULE}._run_profiler')
     def test_psutil_fallback(self, mock_profiler):
         mock_profiler.return_value = {'SPMemoryDataType': []}
-        from trcc.adapters.system.macos.hardware import get_memory_info
+        from trcc.adapters.hardware.facade_macos import get_memory_info
         slots = get_memory_info()
         assert len(slots) == 1
         assert 'GB' in slots[0]['size']
@@ -80,7 +80,7 @@ class TestGetDiskInfo:
                 'smart_status': 'Verified',
             }],
         }
-        from trcc.adapters.system.macos.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_macos import get_disk_info
         disks = get_disk_info()
         assert len(disks) == 1
         assert disks[0]['model'] == 'APPLE SSD AP0512Q'
@@ -91,5 +91,5 @@ class TestGetDiskInfo:
     @patch(f'{MODULE}._run_profiler')
     def test_empty_without_data(self, mock_profiler):
         mock_profiler.return_value = {'SPStorageDataType': []}
-        from trcc.adapters.system.macos.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_macos import get_disk_info
         assert get_disk_info() == []

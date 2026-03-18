@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from trcc.core.models import SensorInfo
 
-MODULE = 'trcc.adapters.system.windows.sensors'
+MODULE = 'trcc.adapters.sensors.facade_windows'
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ def _make_enum(**flags):
     """Create WindowsSensorEnumerator with optional feature flags."""
     with patch(f'{MODULE}.LHM_AVAILABLE', flags.get('lhm', False)), \
          patch(f'{MODULE}.NVML_AVAILABLE', flags.get('nvml', False)):
-        from trcc.adapters.system.windows.sensors import WindowsSensorEnumerator
+        from trcc.adapters.sensors.facade_windows import WindowsSensorEnumerator
         return WindowsSensorEnumerator()
 
 
@@ -624,17 +624,17 @@ class TestLhmTypeMap:
     """_LHM_TYPE_MAP coverage."""
 
     def test_all_expected_types_mapped(self):
-        from trcc.adapters.system.windows.sensors import _LHM_TYPE_MAP
+        from trcc.adapters.sensors.facade_windows import _LHM_TYPE_MAP
         expected = {'Temperature', 'Fan', 'Clock', 'Load', 'Power',
                     'Voltage', 'SmallData', 'Data', 'Throughput'}
         assert set(_LHM_TYPE_MAP.keys()) == expected
 
     def test_voltage_mapping(self):
-        from trcc.adapters.system.windows.sensors import _LHM_TYPE_MAP
+        from trcc.adapters.sensors.facade_windows import _LHM_TYPE_MAP
         assert _LHM_TYPE_MAP['Voltage'] == ('voltage', 'V')
 
     def test_temperature_mapping(self):
-        from trcc.adapters.system.windows.sensors import _LHM_TYPE_MAP
+        from trcc.adapters.sensors.facade_windows import _LHM_TYPE_MAP
         assert _LHM_TYPE_MAP['Temperature'] == ('temperature', '°C')
 
 

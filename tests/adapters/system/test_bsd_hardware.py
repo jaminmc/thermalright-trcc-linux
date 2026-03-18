@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-MODULE = 'trcc.adapters.system.bsd.hardware'
+MODULE = 'trcc.adapters.hardware.facade_bsd'
 
 
 class TestSysctl:
@@ -13,19 +13,19 @@ class TestSysctl:
         mock_sub.run.return_value = MagicMock(
             returncode=0, stdout='16777216000\n',
         )
-        from trcc.adapters.system.bsd.hardware import _sysctl
+        from trcc.adapters.hardware.facade_bsd import _sysctl
         assert _sysctl('hw.physmem') == '16777216000'
 
     @patch(f'{MODULE}.subprocess')
     def test_returns_empty_on_failure(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=1, stdout='')
-        from trcc.adapters.system.bsd.hardware import _sysctl
+        from trcc.adapters.hardware.facade_bsd import _sysctl
         assert _sysctl('bad.key') == ''
 
     @patch(f'{MODULE}.subprocess')
     def test_returns_empty_on_exception(self, mock_sub):
         mock_sub.run.side_effect = RuntimeError("timeout")
-        from trcc.adapters.system.bsd.hardware import _sysctl
+        from trcc.adapters.hardware.facade_bsd import _sysctl
         assert _sysctl('hw.physmem') == ''
 
 
@@ -37,7 +37,7 @@ class TestGetMemoryInfo:
             'hw.physmem': str(16 * 1024 ** 3),
             'dev.cpu.0.freq': '3200',
         }.get(k, '')
-        from trcc.adapters.system.bsd.hardware import get_memory_info
+        from trcc.adapters.hardware.facade_bsd import get_memory_info
         slots = get_memory_info()
         assert len(slots) == 1
         assert '16 GB' in slots[0]['size']
@@ -45,7 +45,7 @@ class TestGetMemoryInfo:
     @patch(f'{MODULE}._sysctl')
     def test_psutil_fallback(self, mock_sysctl):
         mock_sysctl.return_value = ''
-        from trcc.adapters.system.bsd.hardware import get_memory_info
+        from trcc.adapters.hardware.facade_bsd import get_memory_info
         slots = get_memory_info()
         assert len(slots) == 1
         assert 'GB' in slots[0]['size']
@@ -64,7 +64,7 @@ class TestGetDiskInfo:
                 '   rotationrate: 0\n'
             ),
         )
-        from trcc.adapters.system.bsd.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_bsd import get_disk_info
         disks = get_disk_info()
         assert len(disks) == 1
         assert disks[0]['name'] == 'ada0'
@@ -83,7 +83,7 @@ class TestGetDiskInfo:
                 '   rotationrate: 7200\n'
             ),
         )
-        from trcc.adapters.system.bsd.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_bsd import get_disk_info
         disks = get_disk_info()
         assert len(disks) == 1
         assert disks[0]['type'] == 'HDD'
@@ -91,7 +91,7 @@ class TestGetDiskInfo:
     @patch(f'{MODULE}.subprocess')
     def test_empty_on_failure(self, mock_sub):
         mock_sub.run.return_value = MagicMock(returncode=1, stdout='')
-        from trcc.adapters.system.bsd.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_bsd import get_disk_info
         assert get_disk_info() == []
 
     @patch(f'{MODULE}.subprocess')
@@ -109,7 +109,7 @@ class TestGetDiskInfo:
                 '   rotationrate: 0\n'
             ),
         )
-        from trcc.adapters.system.bsd.hardware import get_disk_info
+        from trcc.adapters.hardware.facade_bsd import get_disk_info
         disks = get_disk_info()
         assert len(disks) == 2
         assert disks[0]['name'] == 'ada0'

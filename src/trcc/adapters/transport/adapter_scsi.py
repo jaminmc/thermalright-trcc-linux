@@ -17,6 +17,8 @@ from typing import Set
 from trcc.adapters.infra.data_repository import SysUtils
 from trcc.adapters.transport.bridge_linux import (
     sg_io_read as _sg_io_read,
+)
+from trcc.adapters.transport.bridge_linux import (
     sg_io_write as _sg_io_write,
 )
 from trcc.adapters.transport.template_device import FrameDevice
