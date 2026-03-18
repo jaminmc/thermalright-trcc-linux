@@ -259,7 +259,7 @@ Zero tolerance for security issues. Fix properly within hexagonal/SOLID architec
 - Multiple commits can accumulate until the work is ready to ship
 
 **Release** — when a set of changes is validated and ready for users:
-1. Bump version in **both** `src/trcc/__version__.py` AND `pyproject.toml`
+1. Bump version in `src/trcc/__version__.py`, `pyproject.toml`, AND `flake.nix`
 2. Add version history entry in `__version__.py`
 3. Update `doc/CHANGELOG.md` with new version entry
 4. Run `ruff check .` + `pyright` — fix any issues (0 errors, 0 warnings)
@@ -271,7 +271,7 @@ Zero tolerance for security issues. Fix properly within hexagonal/SOLID architec
 
 ### Trigger Words
 When the user says one bare word — `patch`, `minor`, or `major` — execute the full release workflow:
-1. Bump version (`patch`: 8.1.10→8.1.11, `minor`: 8.1.10→8.2.0, `major`: 8.1.10→9.0.0) in **both** `src/trcc/__version__.py` AND `pyproject.toml`
+1. Bump version (`patch`: 8.1.10→8.1.11, `minor`: 8.1.10→8.2.0, `major`: 8.1.10→9.0.0) in `src/trcc/__version__.py`, `pyproject.toml`, AND `flake.nix`
 2. Add version history entry in `__version__.py`
 3. Update `doc/CHANGELOG.md` with new version entry
 4. Update inline package specs in `release.yml` (version strings)
