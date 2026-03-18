@@ -9,19 +9,10 @@ import sys
 from pathlib import Path
 
 from trcc.cli import _cli_handler
-from trcc.core.platform import LINUX
+from trcc.core.platform import LINUX, detect_install_method, is_root
 
-
-def _is_root() -> bool:
-    """Check if running as root/admin (cross-platform)."""
-    if LINUX:
-        return os.geteuid() == 0
-    # Windows: check via ctypes
-    try:
-        import ctypes
-        return ctypes.windll.shell32.IsUserAnAdmin() != 0  # type: ignore[attr-defined]
-    except Exception:
-        return False
+# Backward compat — internal callers use _is_root()
+_is_root = is_root
 
 
 def _require_linux(command: str) -> int | None:
@@ -585,25 +576,8 @@ def setup_winusb():
     return 0
 
 
-def _detect_install_method() -> str:
-    """Detect how trcc-linux was installed.
-
-    Returns 'pipx', 'pip', 'pacman', 'dnf', or 'apt'.
-    """
-    if 'pipx' in sys.prefix:
-        return 'pipx'
-    try:
-        from importlib.metadata import distribution
-        dist = distribution('trcc-linux')
-        installer = (dist.read_text('INSTALLER') or '').strip()
-        if installer == 'pip':
-            return 'pip'
-    except Exception:
-        pass
-    for mgr in ('pacman', 'dnf', 'apt'):
-        if shutil.which(mgr):
-            return mgr
-    return 'pip'
+# _detect_install_method moved to core/platform.py as detect_install_method()
+_detect_install_method = detect_install_method
 
 
 def _is_externally_managed() -> bool:

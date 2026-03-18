@@ -113,8 +113,8 @@ class DebugReport:
         except Exception:
             pass
         try:
-            from trcc.cli._system import _detect_install_method
-            return _detect_install_method()
+            from trcc.core.platform import detect_install_method
+            return detect_install_method()
         except Exception:
             return "unknown"
 
