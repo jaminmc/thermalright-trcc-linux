@@ -57,7 +57,7 @@ class TestMatchDevice:
     def test_known_scsi_device(self):
         """Known SCSI VID:PID should return DetectedDevice with protocol='scsi'."""
         from trcc.adapters.detection.facade_windows import _match_device
-        from trcc.adapters.device.detector import KNOWN_DEVICES
+        from trcc.adapters.detection.factory_detector import KNOWN_DEVICES
 
         if not KNOWN_DEVICES:
             pytest.skip("No SCSI devices in registry")
@@ -78,7 +78,7 @@ class TestMatchDevice:
     def test_known_hid_lcd_device(self):
         """Known HID LCD VID:PID should return DetectedDevice with protocol='hid'."""
         from trcc.adapters.detection.facade_windows import _match_device
-        from trcc.adapters.device.detector import _HID_LCD_DEVICES
+        from trcc.adapters.detection.factory_detector import _HID_LCD_DEVICES
 
         if not _HID_LCD_DEVICES:
             pytest.skip("No HID LCD devices in registry")
@@ -95,7 +95,7 @@ class TestMatchDevice:
     def test_known_bulk_device(self):
         """Known Bulk VID:PID should return protocol='bulk'."""
         from trcc.adapters.detection.facade_windows import _match_device
-        from trcc.adapters.device.detector import _BULK_DEVICES
+        from trcc.adapters.detection.factory_detector import _BULK_DEVICES
 
         if not _BULK_DEVICES:
             pytest.skip("No Bulk devices in registry")
@@ -112,7 +112,7 @@ class TestMatchDevice:
     def test_known_ly_device(self):
         """Known LY VID:PID should return protocol='ly'."""
         from trcc.adapters.detection.facade_windows import _match_device
-        from trcc.adapters.device.detector import _LY_DEVICES
+        from trcc.adapters.detection.factory_detector import _LY_DEVICES
 
         if not _LY_DEVICES:
             pytest.skip("No LY devices in registry")
@@ -129,7 +129,7 @@ class TestMatchDevice:
     def test_known_led_device(self):
         """Known LED VID:PID should return protocol='hid', implementation='hid_led'."""
         from trcc.adapters.detection.facade_windows import _match_device
-        from trcc.adapters.device.detector import _LED_DEVICES
+        from trcc.adapters.detection.factory_detector import _LED_DEVICES
 
         if not _LED_DEVICES:
             pytest.skip("No LED devices in registry")

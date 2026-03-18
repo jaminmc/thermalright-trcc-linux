@@ -31,7 +31,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from trcc.adapters.infra.debug_report import _KNOWN_VIDS, DebugReport
+from trcc.adapters.infra.facade_debug_report import _KNOWN_VIDS, DebugReport
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -564,7 +564,7 @@ class TestHandshakeHidLcd:
 
     def _make_hid_info(self, fbl=50, pm=128, sub=0, serial="SN123",
                        resolution=(320, 240), raw=bytes(64)):
-        from trcc.adapters.device.hid import HidHandshakeInfo
+        from trcc.adapters.transport.adapter_hid import HidHandshakeInfo
         info = MagicMock(spec=HidHandshakeInfo)
         info.mode_byte_1 = pm
         info.mode_byte_2 = sub
@@ -692,7 +692,7 @@ class TestHandshakeLed:
 
     def _make_led_info(self, pm=1, sub=0, model_name="PA120",
                        known=True, raw=bytes(64)):
-        from trcc.adapters.device.led import LedHandshakeInfo
+        from trcc.adapters.transport.adapter_led import LedHandshakeInfo
         info = MagicMock(spec=LedHandshakeInfo)
         info.pm = pm
         info.sub_type = sub

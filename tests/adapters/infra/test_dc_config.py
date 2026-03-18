@@ -21,7 +21,7 @@ Covers:
 
 from unittest.mock import MagicMock, patch
 
-from trcc.adapters.infra.dc_config import (
+from trcc.adapters.infra.model_dc_config import (
     DcConfig,
     get_hardware_metric_name,
     metric_to_hardware_ids,

@@ -18,7 +18,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from trcc.adapters.infra.theme_downloader import (
+from trcc.adapters.infra.repository_theme_download import (
     PackInfo,
     ThemeDownloader,
     _get_aliases,
@@ -154,7 +154,7 @@ class TestDownloadPack(unittest.TestCase):
 
     def test_delegates_to_ensure(self):
         """Calls DataManager.ensure_themes on download."""
-        from trcc.adapters.infra.data_repository import DataManager
+        from trcc.adapters.infra.repository_data import DataManager
         with patch.object(ThemeDownloader, '_is_installed', return_value=False), \
              patch.object(DataManager, 'ensure_themes', return_value=True), \
              patch.object(ThemeDownloader, '_theme_count', return_value=10):

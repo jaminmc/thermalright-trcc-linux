@@ -23,7 +23,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QWidget
 
-from trcc.adapters.system.config import (
+from trcc.adapters.sensors.adapter_config import (
     CATEGORY_COLORS,
     CATEGORY_IMAGES,
     PanelConfig,

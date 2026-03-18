@@ -10,7 +10,7 @@ import pytest
 from conftest import make_test_surface
 from PIL import Image
 
-from trcc.adapters.infra.data_repository import ThemeDir
+from trcc.adapters.infra.repository_data import ThemeDir
 from trcc.core.models import ThemeData, ThemeInfo, ThemeType
 from trcc.services.theme import ThemeService, _copy_flat_files
 

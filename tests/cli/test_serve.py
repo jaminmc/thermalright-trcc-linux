@@ -94,12 +94,12 @@ class TestGetLanIp:
         mock_sock.__enter__ = MagicMock(return_value=mock_sock)
         mock_sock.__exit__ = MagicMock(return_value=False)
         with patch("trcc.adapters.infra.resolver_network.socket.socket", return_value=mock_sock):
-            from trcc.adapters.infra.network import get_lan_ip
+            from trcc.adapters.infra.resolver_network import get_lan_ip
             assert get_lan_ip() == "192.168.1.42"
 
     def test_fallback_on_oserror(self):
         with patch("trcc.adapters.infra.resolver_network.socket.socket", side_effect=OSError):
-            from trcc.adapters.infra.network import get_lan_ip
+            from trcc.adapters.infra.resolver_network import get_lan_ip
             assert get_lan_ip() == "127.0.0.1"
 
 

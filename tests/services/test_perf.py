@@ -63,7 +63,7 @@ class TestRunDeviceBenchmarks:
             from PySide6.QtWidgets import QApplication
             if QApplication.instance() is None:
                 QApplication([])
-            from trcc.adapters.render.qt import QtRenderer
+            from trcc.adapters.render.strategy_qt import QtRenderer
             ImageService.set_renderer(QtRenderer())
 
     def test_no_devices_returns_empty(self):
@@ -237,7 +237,7 @@ class TestIPCPauseResume:
             from PySide6.QtWidgets import QApplication
             if QApplication.instance() is None:
                 QApplication([])
-            from trcc.adapters.render.qt import QtRenderer
+            from trcc.adapters.render.strategy_qt import QtRenderer
             ImageService.set_renderer(QtRenderer())
 
     @pytest.mark.usefixtures("_renderer")

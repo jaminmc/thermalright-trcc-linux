@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
-from trcc.adapters.infra.theme_cloud import (
+from trcc.adapters.infra.repository_theme_cloud import (
     CATEGORIES,
     CATEGORY_NAMES,
     RESOLUTION_URLS,
@@ -481,7 +481,7 @@ class TestDownloadThemeConvenience(unittest.TestCase):
 
     @patch.object(CloudThemeDownloader, 'download_theme', return_value='/tmp/a001.mp4')
     def test_convenience_function(self, mock_dl):
-        from trcc.adapters.infra.theme_cloud import download_theme
+        from trcc.adapters.infra.repository_theme_cloud import download_theme
         result = download_theme('a001', resolution='320x320')
         self.assertEqual(result, '/tmp/a001.mp4')
 

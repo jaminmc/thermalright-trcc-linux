@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from trcc.adapters.device.lcd import LCDDriver
+from trcc.adapters.transport.facade_lcd import LCDDriver
 from trcc.core.models import LCDDeviceConfig
 
 
@@ -30,18 +30,18 @@ class TestLCDDriverHeaderCRC(unittest.TestCase):
     """Test _build_header and _crc32 (delegated to scsi_device)."""
 
     def test_crc32(self):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         data = b'\x01\x00\x00\x00' + b'\x00' * 8 + b'\x00\x02\x00\x00'
         expected = binascii.crc32(data) & 0xFFFFFFFF
         self.assertEqual(ScsiDevice._crc32(data), expected)
 
     def test_build_header_length(self):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         header = ScsiDevice._build_header(0x01, 512)
         self.assertEqual(len(header), 20)
 
     def test_build_header_structure(self):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         header = ScsiDevice._build_header(0x42, 1024)
 
         cmd = struct.unpack_from('<I', header, 0)[0]
@@ -201,7 +201,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
     @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_read_success(self, mock_run, _):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         mock_run.return_value = MagicMock(returncode=0, stdout=b'\xDE\xAD')
         result = ScsiDevice._scsi_read('/dev/sg0', b'\x01\x02', 256)
         self.assertEqual(result, b'\xDE\xAD')
@@ -210,7 +210,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
     @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_read_failure(self, mock_run, _):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         mock_run.return_value = MagicMock(returncode=1, stdout=b'')
         result = ScsiDevice._scsi_read('/dev/sg0', b'\x01', 128)
         self.assertEqual(result, b'')
@@ -218,7 +218,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
     @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_write_success(self, mock_run, _):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         mock_run.return_value = MagicMock(returncode=0)
         header = ScsiDevice._build_header(0x101F5, 100)
         result = ScsiDevice._scsi_write('/dev/sg0', header, b'\x00' * 100)
@@ -227,7 +227,7 @@ class TestLCDDriverScsiIO(unittest.TestCase):
     @patch('trcc.adapters.infra.repository_data.SysUtils.require_sg_raw')
     @patch('trcc.adapters.transport.adapter_scsi.subprocess.run')
     def test_scsi_write_failure(self, mock_run, _):
-        from trcc.adapters.device.scsi import ScsiDevice
+        from trcc.adapters.transport.adapter_scsi import ScsiDevice
         mock_run.return_value = MagicMock(returncode=1)
         header = ScsiDevice._build_header(0x101F5, 100)
         result = ScsiDevice._scsi_write('/dev/sg0', header, b'\x00' * 100)

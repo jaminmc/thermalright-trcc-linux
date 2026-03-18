@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from trcc.adapters.infra.data_repository import (
+from trcc.adapters.infra.repository_data import (
     DataManager,
     Resources,
     ThemeDir,

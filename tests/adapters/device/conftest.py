@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from trcc.adapters.device.detector import enable_hid_testing
-from trcc.adapters.device.hid import UsbTransport
+from trcc.adapters.detection.factory_detector import enable_hid_testing
+from trcc.adapters.transport.adapter_hid import UsbTransport
 
 
 @pytest.fixture(autouse=True)

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from trcc.adapters.device.led_segment import (
+from trcc.adapters.transport.strategy_segment import (
     DISPLAYS,
     AK120Display,
     AX120Display,

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
-from trcc.adapters.infra.media_player import (
+from trcc.adapters.infra.facade_media import (
     ThemeZtDecoder,
     VideoDecoder,
     _check_ffmpeg,
@@ -59,19 +59,19 @@ class TestBackwardCompatAliases(unittest.TestCase):
     """Old names still resolve to new classes."""
 
     def test_video_player_alias(self):
-        from trcc.adapters.infra.media_player import VideoPlayer
+        from trcc.adapters.infra.facade_media import VideoPlayer
         self.assertIs(VideoPlayer, VideoDecoder)
 
     def test_theme_zt_player_alias(self):
-        from trcc.adapters.infra.media_player import ThemeZtPlayer
+        from trcc.adapters.infra.facade_media import ThemeZtPlayer
         self.assertIs(ThemeZtPlayer, ThemeZtDecoder)
 
     def test_gif_animator_alias(self):
-        from trcc.adapters.infra.media_player import GIFAnimator
+        from trcc.adapters.infra.facade_media import GIFAnimator
         self.assertIs(GIFAnimator, VideoDecoder)
 
     def test_gif_theme_loader_alias(self):
-        from trcc.adapters.infra.media_player import GIFThemeLoader
+        from trcc.adapters.infra.facade_media import GIFThemeLoader
         self.assertIs(GIFThemeLoader, VideoDecoder)
 
 
@@ -254,7 +254,7 @@ class TestCheckFfmpeg(unittest.TestCase):
 class TestFfmpegAvailableConstant(unittest.TestCase):
 
     def test_ffmpeg_available_is_bool(self):
-        from trcc.adapters.infra.media_player import FFMPEG_AVAILABLE
+        from trcc.adapters.infra.facade_media import FFMPEG_AVAILABLE
         self.assertIsInstance(FFMPEG_AVAILABLE, bool)
 
 

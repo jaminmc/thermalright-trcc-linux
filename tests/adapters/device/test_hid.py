@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from tests.adapters.device.conftest import make_mock_transport as _make_mock_transport
-from trcc.adapters.device.hid import (
+from trcc.adapters.transport.adapter_hid import (
     DELAY_FRAME_TYPE2_S,
     DELAY_POST_INIT_S,
     DELAY_PRE_INIT_S,
@@ -831,14 +831,14 @@ class TestPyUsbTransport:
 
     def test_construct_without_open(self):
         """PyUsbTransport can be constructed without opening (no device required)."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
         t = PyUsbTransport(0x0416, 0x5302)
         assert not t.is_open
 
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_open_find_device(self):
         """open() calls usb.core.find with correct VID/PID."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = False
@@ -852,7 +852,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_open_detaches_kernel_driver(self):
         """open() detaches kernel driver if active (Linux)."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = True
@@ -864,7 +864,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_open_device_not_found(self):
         """open() raises RuntimeError when device not found."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         with patch("trcc.adapters.transport.adapter_hid.usb.core.find", return_value=None):
             t = PyUsbTransport(0x0416, 0x5302)
@@ -874,7 +874,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_close_releases_interface(self):
         """close() calls release_interface and dispose_resources."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = False
@@ -892,7 +892,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_write_calls_device_write(self):
         """write() delegates to device.write with correct args."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = False
@@ -908,7 +908,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_read_calls_device_read(self):
         """read() delegates to device.read and returns bytes."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = False
@@ -924,7 +924,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_write_when_closed_raises(self):
         """write() raises RuntimeError when transport is closed."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
         t = PyUsbTransport(0x0416, 0x5302)
         with pytest.raises(RuntimeError, match="not open"):
             t.write(EP_WRITE_02, b'\xFF')
@@ -932,7 +932,7 @@ class TestPyUsbTransport:
     @pytest.mark.skipif(not PYUSB_AVAILABLE, reason="pyusb not installed")
     def test_context_manager(self):
         """Context manager opens and closes."""
-        from trcc.adapters.device.hid import PyUsbTransport
+        from trcc.adapters.transport.adapter_hid import PyUsbTransport
 
         mock_dev = MagicMock()
         mock_dev.is_kernel_driver_active.return_value = False
@@ -966,7 +966,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_open_calls_hid_device(self):
         """open() creates hid.Device(vid, pid) directly."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         with patch("trcc.adapters.transport.adapter_hid.hidapi.Device", return_value=mock_hid_dev) as mock_cls:
@@ -978,7 +978,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_close_calls_hid_close(self):
         """close() calls device.close()."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         with patch("trcc.adapters.transport.adapter_hid.hidapi.Device", return_value=mock_hid_dev):
@@ -991,7 +991,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_write_prepends_report_id(self):
         """write() prepends 0x00 report ID byte."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.write.return_value = 5
@@ -1006,7 +1006,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_read_returns_bytes(self):
         """read() returns bytes from hid device."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.read.return_value = [0xDA, 0xDB, 0xDC, 0xDD]
@@ -1020,7 +1020,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_read_empty_returns_empty_bytes(self):
         """read() returns b'' when hidapi returns None."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.read.return_value = None
@@ -1033,7 +1033,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_write_when_closed_raises(self):
         """write() raises RuntimeError when transport is closed."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
         t = HidApiTransport.__new__(HidApiTransport)
         t._vid = 0x0416
         t._pid = 0x5302
@@ -1046,7 +1046,7 @@ class TestHidApiTransport:
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_context_manager(self):
         """Context manager opens and closes."""
-        from trcc.adapters.device.hid import HidApiTransport
+        from trcc.adapters.transport.adapter_hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         with patch("trcc.adapters.transport.adapter_hid.hidapi.Device", return_value=mock_hid_dev):

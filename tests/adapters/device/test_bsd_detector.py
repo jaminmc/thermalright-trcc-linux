@@ -11,7 +11,7 @@ class TestBSDDetector:
     @patch(f'{MODULE}.usb', create=True)
     def test_detects_known_hid_device(self, mock_usb_mod):
         """Known HID LCD device is detected via pyusb."""
-        from trcc.adapters.device.detector import _HID_LCD_DEVICES
+        from trcc.adapters.detection.factory_detector import _HID_LCD_DEVICES
 
         if not _HID_LCD_DEVICES:
             return

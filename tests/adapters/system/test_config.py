@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from trcc.adapters.system.config import (
+from trcc.adapters.sensors.adapter_config import (
     CATEGORY_COLORS,
     CATEGORY_IMAGES,
     PanelConfig,

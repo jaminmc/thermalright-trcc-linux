@@ -431,7 +431,7 @@ class TestHidDebug(unittest.TestCase):
 
     def test_hid_device_handshake_none(self):
         """LED device found but handshake returns None."""
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -448,8 +448,8 @@ class TestHidDebug(unittest.TestCase):
 
     def test_hid_device_handshake_success(self):
         """LCD device found and handshake succeeds."""
-        from trcc.adapters.device.detector import DetectedDevice
-        from trcc.adapters.device.hid import HidHandshakeInfo
+        from trcc.adapters.detection.factory_detector import DetectedDevice
+        from trcc.adapters.transport.adapter_hid import HidHandshakeInfo
         dev = DetectedDevice(
             vid=0x0416, pid=0x5302, vendor_name="Winbond",
             product_name="USBDISPLAY", usb_path="1-2",
@@ -469,8 +469,8 @@ class TestHidDebug(unittest.TestCase):
 
     def test_led_device_handshake_success(self):
         """LED device found and handshake succeeds."""
-        from trcc.adapters.device.detector import DetectedDevice
-        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.detection.factory_detector import DetectedDevice
+        from trcc.adapters.transport.adapter_led import LedDeviceStyle, LedHandshakeInfo
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -490,7 +490,7 @@ class TestHidDebug(unittest.TestCase):
 
     def test_hid_device_import_error(self):
         """Import error for pyusb/hidapi shows helpful message."""
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x0416, pid=0x8001, vendor_name="Winbond",
             product_name="LED Controller", usb_path="1-2",
@@ -522,7 +522,7 @@ class TestLedDebug(unittest.TestCase):
 
     def test_handshake_success(self):
         """Successful LED handshake prints device info."""
-        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.transport.adapter_led import LedDeviceStyle, LedHandshakeInfo
         style = LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL")
         info = LedHandshakeInfo(
             pm=3, sub_type=0, style=style,
@@ -547,7 +547,7 @@ class TestLedDebug(unittest.TestCase):
 
     def test_test_colors(self):
         """test=True sends test colors via protocol.send_led_data."""
-        from trcc.adapters.device.led import LedDeviceStyle, LedHandshakeInfo
+        from trcc.adapters.transport.adapter_led import LedDeviceStyle, LedHandshakeInfo
         style = LedDeviceStyle(1, 30, 10, 1, "AX120_DIGITAL")
         info = LedHandshakeInfo(
             pm=3, sub_type=0, style=style,

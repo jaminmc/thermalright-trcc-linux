@@ -334,22 +334,22 @@ class TestPlatformSetupABC(unittest.TestCase):
     """All platform setup adapters implement the PlatformSetup ABC."""
 
     def test_linux_implements_abc(self):
-        from trcc.adapters.system.setup import LinuxSetup
+        from trcc.adapters.setup.facade_linux import LinuxSetup
         from trcc.core.ports import PlatformSetup
         self.assertTrue(issubclass(LinuxSetup, PlatformSetup))
 
     def test_windows_implements_abc(self):
-        from trcc.adapters.system.windows.setup import WindowsSetup
+        from trcc.adapters.setup.facade_windows import WindowsSetup
         from trcc.core.ports import PlatformSetup
         self.assertTrue(issubclass(WindowsSetup, PlatformSetup))
 
     def test_macos_implements_abc(self):
-        from trcc.adapters.system.macos.setup import MacOSSetup
+        from trcc.adapters.setup.facade_macos import MacOSSetup
         from trcc.core.ports import PlatformSetup
         self.assertTrue(issubclass(MacOSSetup, PlatformSetup))
 
     def test_bsd_implements_abc(self):
-        from trcc.adapters.system.bsd.setup import BSDSetup
+        from trcc.adapters.setup.facade_bsd import BSDSetup
         from trcc.core.ports import PlatformSetup
         self.assertTrue(issubclass(BSDSetup, PlatformSetup))
 
@@ -358,22 +358,22 @@ class TestSensorEnumeratorABC(unittest.TestCase):
     """All platform sensor enumerators implement the SensorEnumerator ABC."""
 
     def test_linux_implements_abc(self):
-        from trcc.adapters.system.sensors import SensorEnumerator
+        from trcc.adapters.sensors.facade_linux import SensorEnumerator
         from trcc.core.ports import SensorEnumerator as ABC
         self.assertTrue(issubclass(SensorEnumerator, ABC))
 
     def test_windows_implements_abc(self):
-        from trcc.adapters.system.windows.sensors import WindowsSensorEnumerator
+        from trcc.adapters.sensors.facade_windows import WindowsSensorEnumerator
         from trcc.core.ports import SensorEnumerator as ABC
         self.assertTrue(issubclass(WindowsSensorEnumerator, ABC))
 
     def test_macos_implements_abc(self):
-        from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+        from trcc.adapters.sensors.facade_macos import MacOSSensorEnumerator
         from trcc.core.ports import SensorEnumerator as ABC
         self.assertTrue(issubclass(MacOSSensorEnumerator, ABC))
 
     def test_bsd_implements_abc(self):
-        from trcc.adapters.system.bsd.sensors import BSDSensorEnumerator
+        from trcc.adapters.sensors.facade_bsd import BSDSensorEnumerator
         from trcc.core.ports import SensorEnumerator as ABC
         self.assertTrue(issubclass(BSDSensorEnumerator, ABC))
 

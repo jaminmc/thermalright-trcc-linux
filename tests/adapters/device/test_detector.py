@@ -897,7 +897,7 @@ class TestFindScsiBlockDevices(unittest.TestCase):
     @patch('builtins.open')
     def test_finds_usblcd_block_device(self, mock_open_fn, mock_isdir, mock_listdir):
         """Block device with USBLCD vendor is found."""
-        from trcc.adapters.infra.data_repository import SysUtils
+        from trcc.adapters.infra.repository_data import SysUtils
 
         def open_side(path, *args, **kwargs):
             m = MagicMock()
@@ -919,7 +919,7 @@ class TestFindScsiBlockDevices(unittest.TestCase):
     @patch('builtins.open')
     def test_no_usblcd_block_device(self, mock_open_fn, mock_isdir, mock_listdir):
         """No block device has USBLCD vendor."""
-        from trcc.adapters.infra.data_repository import SysUtils
+        from trcc.adapters.infra.repository_data import SysUtils
 
         m = MagicMock()
         m.__enter__ = lambda s: MagicMock(read=lambda: 'ATA     ')
@@ -932,7 +932,7 @@ class TestFindScsiBlockDevices(unittest.TestCase):
     @patch('os.path.isdir', return_value=False)
     def test_no_sysfs_block_dir(self, mock_isdir):
         """No /sys/block directory — returns empty list."""
-        from trcc.adapters.infra.data_repository import SysUtils
+        from trcc.adapters.infra.repository_data import SysUtils
         self.assertEqual(SysUtils.find_scsi_block_devices(), [])
 
 

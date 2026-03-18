@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from trcc.adapters.infra.data_repository import SysUtils
+from trcc.adapters.infra.repository_data import SysUtils
 from trcc.adapters.sensors.facade_linux import (
     _HWMON_DIVISORS,
     _HWMON_TYPES,

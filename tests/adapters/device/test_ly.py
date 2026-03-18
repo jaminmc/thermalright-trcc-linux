@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src'))
 
-from trcc.adapters.device.ly import (
+from trcc.adapters.transport.adapter_ly import (
     _CHUNK_DATA_SIZE,
     _CHUNK_HEADER_SIZE,
     _CHUNK_SIZE,
@@ -276,7 +276,7 @@ class TestLyDeviceClose(unittest.TestCase):
 
 class TestLyProtocol(unittest.TestCase):
     def test_create_via_factory(self):
-        from trcc.adapters.device.factory import DeviceProtocolFactory, LyProtocol
+        from trcc.adapters.transport.factory_protocol import DeviceProtocolFactory, LyProtocol
 
         device_info = MagicMock()
         device_info.protocol = 'ly'
@@ -291,7 +291,7 @@ class TestLyProtocol(unittest.TestCase):
         proto.close()
 
     def test_protocol_info(self):
-        from trcc.adapters.device.factory import LyProtocol
+        from trcc.adapters.transport.factory_protocol import LyProtocol
 
         proto = LyProtocol(0x0416, _PID_LY)
         info = proto.get_info()
@@ -302,7 +302,7 @@ class TestLyProtocol(unittest.TestCase):
 
 class TestLyDeviceDetection(unittest.TestCase):
     def test_ly_in_registry(self):
-        from trcc.adapters.device.detector import _LY_DEVICES
+        from trcc.adapters.detection.factory_detector import _LY_DEVICES
         self.assertIn((0x0416, 0x5408), _LY_DEVICES)
         self.assertIn((0x0416, 0x5409), _LY_DEVICES)
         info = _LY_DEVICES[(0x0416, 0x5408)]
@@ -310,7 +310,7 @@ class TestLyDeviceDetection(unittest.TestCase):
         self.assertEqual(info.device_type, 5)
 
     def test_ly_in_all_registries(self):
-        from trcc.adapters.device.detector import DeviceDetector
+        from trcc.adapters.detection.factory_detector import DeviceDetector
         all_devs = DeviceDetector._get_all_registries()
         self.assertIn((0x0416, 0x5408), all_devs)
         self.assertIn((0x0416, 0x5409), all_devs)

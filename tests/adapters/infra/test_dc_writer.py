@@ -7,8 +7,8 @@ import struct
 import tempfile
 import unittest
 
-from trcc.adapters.infra.dc_parser import parse_dc_file
-from trcc.adapters.infra.dc_writer import (
+from trcc.adapters.infra.parser_dc import parse_dc_file
+from trcc.adapters.infra.writer_dc import (
     _hex_to_argb,
     _metric_to_hardware_ids,
     _write_string,

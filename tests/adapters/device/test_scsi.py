@@ -5,7 +5,7 @@ import struct
 import unittest
 from unittest.mock import MagicMock, patch
 
-from trcc.adapters.device.scsi import (
+from trcc.adapters.transport.adapter_scsi import (
     _BOOT_MAX_RETRIES,
     _BOOT_SIGNATURE,
     _BOOT_WAIT_SECONDS,

@@ -17,7 +17,7 @@ import pytest
 from PIL import Image
 from PySide6.QtWidgets import QApplication
 
-from trcc.adapters.render.qt import QtRenderer
+from trcc.adapters.render.strategy_qt import QtRenderer
 from trcc.core.models import DeviceInfo
 
 # ═══════════════════════════════════════════════════════════════════════

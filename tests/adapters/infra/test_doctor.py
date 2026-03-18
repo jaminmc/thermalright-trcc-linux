@@ -8,7 +8,7 @@ from collections import namedtuple
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
-from trcc.adapters.infra.doctor import (
+from trcc.adapters.infra.facade_doctor import (
     SelinuxResult,
     _check_binary,
     _check_library,
@@ -677,7 +677,7 @@ class TestCheckUdev:
 
     @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_all_vids_present(self, _):
-        from trcc.adapters.device.detector import DeviceDetector
+        from trcc.adapters.detection.factory_detector import DeviceDetector
         all_registries = DeviceDetector._get_all_registries()
         all_vids = {f"{vid:04x}" for vid, _ in all_registries}
         content = " ".join(all_vids)
@@ -694,7 +694,7 @@ class TestCheckUdev:
 
     @patch("trcc.adapters.infra.facade_doctor.os.path.isfile", return_value=True)
     def test_missing_vid_in_file(self, _):
-        from trcc.adapters.device.detector import DeviceDetector
+        from trcc.adapters.detection.factory_detector import DeviceDetector
         all_registries = DeviceDetector._get_all_registries()
 
         from unittest.mock import mock_open as _mock_open

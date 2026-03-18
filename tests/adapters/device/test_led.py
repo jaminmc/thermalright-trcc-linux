@@ -11,12 +11,12 @@ from unittest.mock import call, patch
 import pytest
 
 from tests.adapters.device.conftest import make_mock_transport as _make_mock_transport
-from trcc.adapters.device.hid import (
+from trcc.adapters.transport.adapter_hid import (
     DEFAULT_TIMEOUT_MS,
     EP_READ_01,
     EP_WRITE_02,
 )
-from trcc.adapters.device.led import (
+from trcc.adapters.transport.adapter_led import (
     DELAY_POST_INIT_S,
     DELAY_PRE_INIT_S,
     HID_REPORT_SIZE,
@@ -47,7 +47,7 @@ from trcc.adapters.device.led import (
 @pytest.fixture(autouse=True)
 def _clear_rgb_table_cache():
     """Reset the ColorEngine cached table between tests."""
-    from trcc.adapters.device.led import ColorEngine
+    from trcc.adapters.transport.adapter_led import ColorEngine
     original = ColorEngine._cached_table
     ColorEngine._cached_table = None
     yield

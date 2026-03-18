@@ -41,7 +41,7 @@ class FakeDeviceInfo:
 # Import targets (new names + backward-compatible aliases)
 # =========================================================================
 
-from trcc.adapters.device.factory import (  # noqa: E402
+from trcc.adapters.transport.factory_protocol import (  # noqa: E402
     DeviceProtocol,
     DeviceProtocolFactory,
     HidProtocol,
@@ -436,7 +436,7 @@ class TestDeviceServiceFactoryWiring:
     def _make_svc(self, device_info):
         """Create a DeviceService with a selected device and real factory."""
         from tests.conftest import make_device_service
-        from trcc.adapters.device.factory import DeviceProtocolFactory
+        from trcc.adapters.transport.factory_protocol import DeviceProtocolFactory
         from trcc.core.models import DeviceInfo
         svc = make_device_service(get_protocol=DeviceProtocolFactory.get_protocol)
         dev = DeviceInfo(
@@ -526,28 +526,28 @@ class TestDeviceDetectorProtocol:
     """Verify KNOWN_DEVICES entries carry protocol/device_type."""
 
     def test_scsi_devices_have_scsi_protocol(self):
-        from trcc.adapters.device.detector import KNOWN_DEVICES
+        from trcc.adapters.detection.factory_detector import KNOWN_DEVICES
         scsi_pids = [(0x87CD, 0x70DB), (0x0416, 0x5406), (0x0402, 0x3922)]
         for vid_pid in scsi_pids:
             info = KNOWN_DEVICES[vid_pid]
             assert info.protocol == "scsi"
 
     def test_hid_type2_in_known_devices(self):
-        from trcc.adapters.device.detector import _HID_LCD_DEVICES
+        from trcc.adapters.detection.factory_detector import _HID_LCD_DEVICES
         info = _HID_LCD_DEVICES[(0x0416, 0x5302)]
         assert info.protocol == "hid"
         assert info.device_type == 2
         assert info.vendor
 
     def test_hid_type3_in_known_devices(self):
-        from trcc.adapters.device.detector import _HID_LCD_DEVICES
+        from trcc.adapters.detection.factory_detector import _HID_LCD_DEVICES
         info = _HID_LCD_DEVICES[(0x0418, 0x5303)]
         assert info.protocol == "hid"
         assert info.device_type == 3
         assert info.vendor
 
     def test_detected_device_has_protocol_field(self):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x0416, pid=0x5302,
             vendor_name="ALi Corp", product_name="LCD (HID)",
@@ -557,7 +557,7 @@ class TestDeviceDetectorProtocol:
         assert dev.device_type == 2
 
     def test_detected_device_defaults_to_scsi(self):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         dev = DetectedDevice(
             vid=0x87CD, pid=0x70DB,
             vendor_name="Thermalright", product_name="LCD",
@@ -576,7 +576,7 @@ class TestFindLcdDevicesHid:
 
     @patch("trcc.adapters.detection.factory_detector.detect_devices")
     def test_hid_device_included_without_scsi_path(self, mock_detect):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         mock_detect.return_value = [
             DetectedDevice(
                 vid=0x0416, pid=0x5302,
@@ -585,7 +585,7 @@ class TestFindLcdDevicesHid:
                 protocol="hid", device_type=2,
             )
         ]
-        from trcc.adapters.device.scsi import find_lcd_devices
+        from trcc.adapters.transport.adapter_scsi import find_lcd_devices
         devices = find_lcd_devices()
         assert len(devices) == 1
         assert devices[0]['protocol'] == 'hid'
@@ -594,7 +594,7 @@ class TestFindLcdDevicesHid:
 
     @patch("trcc.adapters.detection.factory_detector.detect_devices")
     def test_scsi_device_needs_scsi_path(self, mock_detect):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         mock_detect.return_value = [
             DetectedDevice(
                 vid=0x87CD, pid=0x70DB,
@@ -603,13 +603,13 @@ class TestFindLcdDevicesHid:
                 scsi_device=None,  # No SCSI path found
             )
         ]
-        from trcc.adapters.device.scsi import find_lcd_devices
+        from trcc.adapters.transport.adapter_scsi import find_lcd_devices
         devices = find_lcd_devices()
         assert len(devices) == 0  # SCSI device without path is excluded
 
     @patch("trcc.adapters.detection.factory_detector.detect_devices")
     def test_mixed_scsi_and_hid(self, mock_detect):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         mock_detect.return_value = [
             DetectedDevice(
                 vid=0x87CD, pid=0x70DB,
@@ -623,7 +623,7 @@ class TestFindLcdDevicesHid:
                 protocol="hid", device_type=3,
             ),
         ]
-        from trcc.adapters.device.scsi import find_lcd_devices
+        from trcc.adapters.transport.adapter_scsi import find_lcd_devices
 
         # Patch LCDDriver to avoid real SCSI access
         with patch("trcc.adapters.transport.facade_lcd.LCDDriver", side_effect=Exception("no hw")):
@@ -640,7 +640,7 @@ class TestFindLcdDevicesHid:
 
     @patch("trcc.adapters.detection.factory_detector.detect_devices")
     def test_device_index_assigned_across_protocols(self, mock_detect):
-        from trcc.adapters.device.detector import DetectedDevice
+        from trcc.adapters.detection.factory_detector import DetectedDevice
         mock_detect.return_value = [
             DetectedDevice(
                 vid=0x87CD, pid=0x70DB,
@@ -654,7 +654,7 @@ class TestFindLcdDevicesHid:
                 protocol="hid", device_type=2,
             ),
         ]
-        from trcc.adapters.device.scsi import find_lcd_devices
+        from trcc.adapters.transport.adapter_scsi import find_lcd_devices
 
         with patch("trcc.adapters.transport.facade_lcd.LCDDriver", side_effect=Exception("no hw")):
             devices = find_lcd_devices()
@@ -801,7 +801,7 @@ class TestDeviceServiceProtocolInfo:
 
     def _make(self):
         from tests.conftest import make_device_service
-        from trcc.adapters.device.factory import DeviceProtocolFactory
+        from trcc.adapters.transport.factory_protocol import DeviceProtocolFactory
         return make_device_service(
             get_protocol_info=DeviceProtocolFactory.get_protocol_info,
         )

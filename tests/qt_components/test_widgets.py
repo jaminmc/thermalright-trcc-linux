@@ -116,14 +116,14 @@ class TestResolveAssetsDir(unittest.TestCase):
 
     def test_linux_uses_package_dir(self):
         """LinuxSetup returns package dir directly."""
-        from trcc.adapters.system.setup import LinuxSetup
+        from trcc.adapters.setup.facade_linux import LinuxSetup
         from trcc.qt_components.assets import _PKG_ASSETS_DIR
         result = LinuxSetup().resolve_assets_dir(_PKG_ASSETS_DIR)
         self.assertEqual(result, _PKG_ASSETS_DIR)
 
     def test_windows_copies_to_user_dir(self):
         """WindowsSetup copies assets to ~/.trcc/assets/gui/."""
-        from trcc.adapters.system.windows.setup import WindowsSetup
+        from trcc.adapters.setup.facade_windows import WindowsSetup
         from trcc.qt_components.assets import _PKG_ASSETS_DIR
         with TemporaryDirectory() as tmpdir:
             with patch('trcc.adapters.system.windows.setup.Path.home',
@@ -136,7 +136,7 @@ class TestResolveAssetsDir(unittest.TestCase):
 
     def test_macos_copies_to_user_dir(self):
         """MacOSSetup copies assets to ~/.trcc/assets/gui/."""
-        from trcc.adapters.system.macos.setup import MacOSSetup
+        from trcc.adapters.setup.facade_macos import MacOSSetup
         from trcc.qt_components.assets import _PKG_ASSETS_DIR
         with TemporaryDirectory() as tmpdir:
             with patch('trcc.adapters.system.macos.setup.Path.home',
@@ -148,7 +148,7 @@ class TestResolveAssetsDir(unittest.TestCase):
 
     def test_bsd_copies_to_user_dir(self):
         """BSDSetup copies assets to ~/.trcc/assets/gui/."""
-        from trcc.adapters.system.bsd.setup import BSDSetup
+        from trcc.adapters.setup.facade_bsd import BSDSetup
         from trcc.qt_components.assets import _PKG_ASSETS_DIR
         with TemporaryDirectory() as tmpdir:
             with patch('trcc.adapters.system.bsd.setup.Path.home',
