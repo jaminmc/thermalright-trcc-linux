@@ -137,7 +137,7 @@ jobs:
           echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
 
       - name: Create Inno Setup installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
           path: installer/trcc.iss
           options: /DAPP_VERSION=${{ steps.version.outputs.VERSION }}
