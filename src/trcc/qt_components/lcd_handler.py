@@ -450,6 +450,9 @@ class LCDHandler:
             if preview is not None:
                 self._w['preview'].set_image(preview, fast=True)
 
+        if not self._lcd.connected:
+            return
+
         # Pre-encoded path
         encoded = result.get('encoded')
         if encoded is not None:
@@ -613,6 +616,8 @@ class LCDHandler:
             return
         if self._is_visible():
             self._w['preview'].set_image(image)
+        if not self._lcd.connected:
+            return
         if skip_if_video and self._lcd.video.playing:
             return
         self._lcd.frame.send(image)
@@ -686,4 +691,11 @@ class LCDHandler:
         self._slideshow_timer.stop()
         self._flash_timer.stop()
         self._lcd.video.stop()
+        # Stop async send worker and wait for any in-progress send to finish,
+        # then send a black frame to clear the display before disconnecting.
+        try:
+            self._lcd.device_service.stop_send_worker()
+            self._lcd.frame.send_color(0, 0, 0)
+        except Exception:
+            pass
         self._lcd.cleanup()

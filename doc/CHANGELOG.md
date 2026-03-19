@@ -1,5 +1,26 @@
 # Changelog
 
+## v9.0.3
+
+### Features
+- **API `POST /display/create-theme`**: Send a custom theme via REST — static image or video background, optional mask, repeatable `&metric=key:x,y[:color[:size[:font[:style]]]]` overlays, loop control. Auto-detects animated backgrounds (video, animated GIF)
+- **Media player — direct video playback**: "Load Video" in the media player panel now plays the video directly on the LCD without opening the cutter. Competing sources (screencast, overlay, background) are stopped before playback begins
+- **LCD clear on close**: On GUI shutdown, a black frame is sent to the display before disconnecting so the screen goes dark instead of freezing on the last image
+- **Legacy DEB for Ubuntu 22.04**: CI now builds a second `.deb` (`*-1~legacy_all.deb`) targeting Ubuntu 22.04 and older. Installs Python dependencies into `/opt/trcc-linux` via pip+venv to avoid the `--break-system-packages` restriction on older distros
+
+### Fixes
+- **Spurious toggle signal on `set_enabled()`**: `DisplayModePanel.set_enabled()` blocked signals around `setChecked()` — prevents false toggle-off events when restoring state from config
+- **Video cache built while disconnected**: `DisplayService.load_theme()` no longer builds the pre-baked frame cache when no device is connected — avoids wasted encoding on startup
+- **`send_frame` / `send_image` called while disconnected**: `LCDHandler` now returns early if the device is not connected before attempting to push frames or pre-encoded data
+- **Screen capture failure logged once**: Repeated "all capture methods failed" warnings are now deduplicated — first occurrence logged at WARNING, subsequent silent until capture recovers
+- **pynvml per-sensor errors now at DEBUG**: Individual GPU sensor read failures (temp, util, clock, power, VRAM, fan) downgraded from silent swallow to `log.debug` — init-level failures stay at WARNING
+- **`--last-one` renamed to `gui --resume`**: Autostart desktop entry and CLI now use `trcc gui --resume` instead of the ambiguous root-level `--last-one` flag
+
+### Internal
+- **`stop_send_worker()`**: New `DeviceService` method for clean async-worker shutdown before sending a final frame — prevents race between the worker and the shutdown black-frame send
+- **Removed backward-compat aliases**: `TRCCMainWindowMVC`, `run_mvc_app` (qt_components), `_is_root` (_system.py) — all callers already use canonical names
+- **`__version__` imported from `__version__.py`**: Package `__init__.py` no longer hardcodes version string
+
 ## v9.0.2
 
 ### Fixes

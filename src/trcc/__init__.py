@@ -23,19 +23,16 @@ Usage:
     trcc-test         # Test display with color cycle
 """
 
-__version__ = "7.0.5"
-__author__ = "TRCC Linux Contributors"
-
-# Core exports
+from trcc.__version__ import __version__
 from trcc.adapters.device.detector import detect_devices, get_device_path
 from trcc.adapters.device.lcd import LCDDriver
 from trcc.adapters.infra.dc_config import DcConfig
 from trcc.adapters.infra.dc_parser import dc_to_overlay_config, parse_dc_file
-
-# Animation
 from trcc.adapters.infra.media_player import VideoDecoder
 from trcc.core.models import format_metric
 from trcc.services.system import get_all_metrics
+
+__author__ = "TRCC Linux Contributors"
 
 __all__ = [
     # Version

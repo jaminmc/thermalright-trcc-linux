@@ -236,6 +236,82 @@ jobs:
           echo "DEB build PASSED"
           '
 
+      - name: Build DEB legacy (Ubuntu 22.04 and older)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -v "${{ github.workspace }}/packages:/output" \
+            ubuntu:22.04 bash -c '
+          set -e
+          apt-get update -qq >/dev/null 2>&1
+          apt-get install -y -qq python3 python3-pip >/dev/null 2>&1
+          echo "=== DEB Legacy Build Environment ==="
+          echo "Ubuntu: $(cat /etc/lsb-release | grep DISTRIB_DESCRIPTION | cut -d= -f2)"
+          echo "Python: $(python3 --version)"
+          echo "dpkg: $(dpkg --version | head -1)"
+          VER=${{ steps.version.outputs.ver }}
+          PKG=/tmp/deb-legacy-root
+          mkdir -p "$PKG/DEBIAN"
+
+          install -Dm644 /src/packaging/udev/99-trcc-lcd.rules "$PKG/lib/udev/rules.d/99-trcc-lcd.rules"
+          install -Dm644 /src/packaging/modprobe/trcc-lcd.conf "$PKG/etc/modprobe.d/trcc-lcd.conf"
+          install -Dm644 /src/packaging/modprobe/trcc-sg.conf "$PKG/etc/modules-load.d/trcc-sg.conf"
+          install -Dm644 /src/src/trcc/assets/trcc-linux.desktop "$PKG/usr/share/applications/trcc-linux.desktop"
+          for size in 256 128 64 48 32 24 16; do
+            install -Dm644 /src/src/trcc/assets/icons/trcc_${size}x${size}.png "$PKG/usr/share/icons/hicolor/${size}x${size}/apps/trcc.png"
+          done
+          install -Dm644 /src/src/trcc/assets/com.github.lexonight1.trcc.policy "$PKG/usr/share/polkit-1/actions/com.github.lexonight1.trcc.policy"
+          install -Dm644 /src/src/trcc/assets/trcc-quirk-fix.service "$PKG/lib/systemd/system/trcc-quirk-fix.service"
+
+          cat > "$PKG/DEBIAN/control" << CTRL
+          Package: trcc-linux
+          Version: ${VER}-1~legacy
+          Section: utils
+          Priority: optional
+          Architecture: all
+          Depends: python3 (>= 3.9), python3-pip, python3-venv, libusb-1.0-0, sg3-utils, p7zip-full, libxcb-cursor0
+          Recommends: python3-dbus, python3-gi
+          Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
+          Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
+          Description: Thermalright LCD/LED Control Center for Linux (legacy)
+           Controls LCD displays and LED segment displays on Thermalright CPU coolers
+           and AIO liquid coolers. Python dependencies are installed via pip into
+           /opt/trcc-linux. For Ubuntu 24.04+ use the standard .deb instead.
+          CTRL
+
+          cat > "$PKG/DEBIAN/postinst" << POST
+          #!/bin/sh
+          set -e
+          python3 -m venv /opt/trcc-linux
+          /opt/trcc-linux/bin/pip install --quiet "trcc-linux==${VER}"
+          for cmd in trcc trcc-gui trcc-detect trcc-lcd trcc-test; do
+            printf "#!/bin/sh\nexec /opt/trcc-linux/bin/%s \"\$@\"\n" "\$cmd" > /usr/bin/\$cmd
+            chmod 755 /usr/bin/\$cmd
+          done
+          udevadm control --reload-rules 2>/dev/null || true
+          udevadm trigger 2>/dev/null || true
+          modprobe sg 2>/dev/null || true
+          POST
+          chmod 755 "$PKG/DEBIAN/postinst"
+
+          cat > "$PKG/DEBIAN/prerm" << PRERM
+          #!/bin/sh
+          set -e
+          for cmd in trcc trcc-gui trcc-detect trcc-lcd trcc-test; do
+            rm -f /usr/bin/\$cmd
+          done
+          rm -rf /opt/trcc-linux
+          PRERM
+          chmod 755 "$PKG/DEBIAN/prerm"
+
+          dpkg-deb --build "$PKG" "/output/trcc-linux_${VER}-1~legacy_all.deb"
+          echo "=== DEB Legacy Verification ==="
+          DEB="/output/trcc-linux_${VER}-1~legacy_all.deb"
+          echo "  Package: $DEB ($(du -h "$DEB" | cut -f1))"
+          dpkg-deb -I "$DEB"
+          echo "DEB legacy build PASSED"
+          '
+
       - name: Build Arch package
         run: |
           docker run --rm \
@@ -328,9 +404,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           RPM=$(find packages -name "*.rpm" | head -1)
-          DEB=$(find packages -name "*.deb" | head -1)
+          DEB=$(find packages -name "*_all.deb" | head -1)
+          DEB_LEGACY=$(find packages -name "*legacy*" | head -1)
           ARCH=$(find packages -name "*.pkg.tar.zst" | head -1)
           gh release upload "${{ github.ref_name }}" \
-            "$RPM" "$DEB" "$ARCH" \
+            "$RPM" "$DEB" "$DEB_LEGACY" "$ARCH" \
             packages/SHA256SUMS.txt \
             --clobber

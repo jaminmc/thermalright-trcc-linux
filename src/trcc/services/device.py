@@ -289,6 +289,22 @@ class DeviceService:
                 data, w, h = self._send_queue.popleft()
                 self.send_rgb565(data, w, h)
 
+    def stop_send_worker(self, timeout: float = 2.0) -> None:
+        """Stop the async send worker and wait for any in-progress send to finish.
+
+        Must be called before send_rgb565() on shutdown so _send_busy is clear.
+        """
+        self._send_shutdown = True
+        self._send_queue.clear()
+        self._send_event.set()
+        if self._send_worker and self._send_worker.is_alive():
+            self._send_worker.join(timeout=timeout)
+        # Spin-wait for any in-progress send_rgb565 to release _send_busy
+        import time
+        deadline = time.monotonic() + timeout
+        while self._send_busy and time.monotonic() < deadline:
+            time.sleep(0.01)
+
     @property
     def is_busy(self) -> bool:
         """Check if a send is in progress."""

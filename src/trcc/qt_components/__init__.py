@@ -9,15 +9,9 @@ from .uc_theme_mask import UCThemeMask
 from .uc_theme_setting import UCThemeSetting
 from .uc_theme_web import UCThemeWeb
 
-# Backward compat aliases (to be removed after migration)
-TRCCMainWindowMVC = TRCCApp
-run_mvc_app = run_app
-
 __all__ = [
     'TRCCApp',
     'run_app',
-    'TRCCMainWindowMVC',
-    'run_mvc_app',
     'BasePanel',
     'ImageLabel',
     'pil_to_pixmap',

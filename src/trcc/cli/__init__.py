@@ -127,10 +127,6 @@ def _main_callback(
         "--verbose", "-v", count=True,
         help="Increase verbosity (-v, -vv, -vvv)",
     )] = 0,
-    last_one: Annotated[bool, typer.Option(
-        "--last-one",
-        help="Start minimized to system tray with last-used theme (autostart)",
-    )] = False,
     testing_hid: Annotated[bool, typer.Option(
         "--testing-hid", hidden=True,
         help="No-op (HID devices are now auto-detected)",
@@ -142,9 +138,6 @@ def _main_callback(
 ) -> None:
     global _verbose
     _verbose = verbose
-    if last_one:
-        result = gui(verbose=verbose, start_hidden=True)
-        raise typer.Exit(result or 0)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
@@ -225,9 +218,13 @@ def _cmd_gui(
         "--decorated", "-d",
         help="Use decorated window (normal window with titlebar, can minimize)",
     )] = False,
+    resume: Annotated[bool, typer.Option(
+        "--resume",
+        help="Start hidden in system tray and restore last-used theme (autostart)",
+    )] = False,
 ) -> int:
     """Launch graphical interface."""
-    return gui(verbose=_verbose, decorated=decorated)
+    return gui(verbose=_verbose, decorated=decorated, start_hidden=resume)
 
 
 @app.command("detect")

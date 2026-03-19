@@ -6,8 +6,9 @@ import hmac
 import io
 import json
 import logging
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 
 from trcc.api.models import (
@@ -232,6 +233,129 @@ def test_display() -> dict:
     api.set_current_image(img)  # type: ignore[possibly-undefined]
 
     return {"success": True, "message": f"Test complete — cycled {len(colors)} colors on {w}x{h}"}
+
+
+# ── Create-theme endpoint ─────────────────────────────────────────────
+
+_VIDEO_SUFFIXES = frozenset({'.mp4', '.zt', '.webm', '.avi', '.mkv'})
+
+
+def _is_animated(path: Path) -> bool:
+    """Return True if path is a video or an animated GIF (n_frames > 1)."""
+    suffix = path.suffix.lower()
+    if suffix in _VIDEO_SUFFIXES:
+        return True
+    if suffix == '.gif':
+        try:
+            from PIL import Image
+            with Image.open(path) as img:
+                return getattr(img, 'n_frames', 1) > 1
+        except Exception:
+            return False
+    return False
+
+
+@router.post("/create-theme")
+def create_theme(
+    background: str,
+    mask: str | None = None,
+    metric: list[str] = Query(default=[]),
+    loop: bool = True,
+    font_size: int = 14,
+    color: str = "ffffff",
+    font: str = "Microsoft YaHei",
+    font_style: str = "regular",
+    temp_unit: int = 0,
+    time_format: int = 0,
+    date_format: int = 0,
+) -> dict:
+    """Send a custom theme to the LCD device.
+
+    Auto-detects animated backgrounds (video, animated GIF) and loops them
+    by default. Add ``&loop=false`` to play once.
+
+    ``metric`` is repeatable: ``&metric=cpu_temp:10,20&metric=time:150,10:ffffff:24``
+
+    Metric spec format: ``key:x,y[:color[:size[:font[:style]]]]``
+    """
+    import trcc.api as api
+    from trcc.core.models import build_overlay_config
+    from trcc.services import ImageService
+
+    lcd = _get_display()
+    api.stop_video_playback()
+    api.stop_overlay_loop()
+
+    bg_path = Path(background)
+    if '\0' in background or not bg_path.exists():
+        raise HTTPException(status_code=400, detail=f"Background file not found: {background}")
+
+    if mask is not None and ('\0' in mask or not Path(mask).exists()):
+        raise HTTPException(status_code=400, detail=f"Mask file not found: {mask}")
+
+    w, h = lcd.resolution  # type: ignore[union-attr]
+    animated = _is_animated(bg_path)
+
+    overlay_config = None
+    if metric:
+        try:
+            overlay_config = build_overlay_config(
+                metric,
+                default_color=color,
+                default_font_size=font_size,
+                default_font=font,
+                default_style=font_style,
+                temp_unit=temp_unit,
+                time_format=time_format,
+                date_format=date_format,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    if animated:
+        ok = api.start_video_playback(str(bg_path), w, h, loop=loop)
+        if not ok:
+            raise HTTPException(status_code=500, detail="Failed to start video playback")
+        return {"success": True, "animated": True, "loop": loop, "resolution": f"{w}x{h}"}
+
+    # Static image
+    from trcc.cli import _ensure_renderer
+    _ensure_renderer()
+    img = ImageService.open_and_resize(bg_path, w, h)
+    if img is None:
+        raise HTTPException(status_code=400, detail="Failed to open background image")
+
+    if mask:
+        result = lcd.load_mask_standalone(mask)
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Mask load failed"))
+        img = result.get("image", img)
+
+    if overlay_config:
+        from trcc.adapters.infra.dc_config import DcConfig
+        from trcc.adapters.infra.dc_parser import load_config_json
+        from trcc.cli import _ensure_system
+        from trcc.services.overlay import OverlayService
+        _ensure_system()
+        overlay = OverlayService(
+            w, h, renderer=api._renderer,
+            load_config_json_fn=load_config_json,
+            dc_config_cls=DcConfig,
+        )
+        overlay.set_background(img)
+        overlay.set_config(overlay_config)
+        overlay.enabled = True
+        api._overlay_svc = overlay
+        # render one frame immediately and send
+        from trcc.services.system import get_all_metrics
+        frame = overlay.render(get_all_metrics())
+        lcd.frame.send_pil(frame)
+        api.set_current_image(frame)
+    else:
+        lcd.frame.send_pil(img)
+        api.set_current_image(img)
+
+    return {"success": True, "animated": False, "resolution": f"{w}x{h}"}
 
 
 # ── Preview helpers ───────────────────────────────────────────────────

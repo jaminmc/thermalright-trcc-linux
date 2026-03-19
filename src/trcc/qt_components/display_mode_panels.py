@@ -279,7 +279,9 @@ class DisplayModePanel(QFrame):
             btn.setEnabled(enabled)
 
     def set_enabled(self, enabled):
+        self.toggle_btn.blockSignals(True)
         self.toggle_btn.setChecked(enabled)
+        self.toggle_btn.blockSignals(False)
         self._set_actions_enabled(enabled)
 
     def set_title(self, text: str) -> None:

@@ -9,9 +9,6 @@ from pathlib import Path
 
 from trcc.core.platform import LINUX, detect_install_method, is_root
 
-# Backward compat — internal callers use _is_root()
-_is_root = is_root
-
 
 def _require_linux(command: str) -> int | None:
     """Return error code if not on Linux, None if OK to proceed."""
@@ -192,7 +189,7 @@ def uninstall(*, yes: bool = False):
 
     # Handle root files — auto-elevate with sudo if needed
     root_exists = [p for p in root_files if os.path.exists(p)]
-    if root_exists and not _is_root():
+    if root_exists and not is_root():
         print("Root files found — requesting sudo to remove...")
         result = _sudo_run(["rm", "-f"] + root_exists)
         if result.returncode == 0:
@@ -221,7 +218,7 @@ def uninstall(*, yes: bool = False):
         print("Nothing to remove — TRCC is already clean.")
 
     # Reload udev if we removed rules (and we're root — non-root already did it above)
-    if _is_root() and any("udev" in r for r in removed):
+    if is_root() and any("udev" in r for r in removed):
         subprocess.run(["udevadm", "control", "--reload-rules"], check=False)
         subprocess.run(["udevadm", "trigger"], check=False)
 

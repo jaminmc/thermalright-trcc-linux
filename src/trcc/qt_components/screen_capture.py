@@ -11,6 +11,7 @@ Works on both X11 and Wayland via fallback chain.
 """
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import tempfile
@@ -19,6 +20,8 @@ from functools import lru_cache
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
+
+log = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -300,5 +303,6 @@ class ScreenCaptureOverlay(BaseScreenOverlay):
             pil_img = pixmap_to_pil(cropped)
             self.captured.emit(pil_img)
         except Exception:
+            log.debug("Screen capture region crop/convert failed", exc_info=True)
             self.captured.emit(None)
         self.deleteLater()

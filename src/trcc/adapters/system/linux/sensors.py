@@ -315,7 +315,8 @@ class SensorEnumerator(SensorEnumeratorABC):
 
         try:
             count = pynvml.nvmlDeviceGetCount()
-        except Exception:
+        except Exception as e:
+            log.warning("nvmlDeviceGetCount failed — NVIDIA GPU sensors unavailable: %s", e)
             return
 
         for i in range(count):
@@ -325,7 +326,8 @@ class SensorEnumerator(SensorEnumeratorABC):
                 gpu_name = pynvml.nvmlDeviceGetName(handle)
                 if isinstance(gpu_name, bytes):
                     gpu_name = gpu_name.decode()
-            except Exception:
+            except Exception as e:
+                log.warning("NVIDIA GPU %d handle/name failed — skipping: %s", i, e)
                 continue
 
             prefix = f"nvidia:{i}"
@@ -461,38 +463,38 @@ class SensorEnumerator(SensorEnumeratorABC):
             try:
                 readings[f"{prefix}:temp"] = float(
                     pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d temp read failed: %s", i, e)
             try:
                 util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                 readings[f"{prefix}:gpu_util"] = float(util.gpu)
                 readings[f"{prefix}:mem_util"] = float(util.memory)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d util read failed: %s", i, e)
             try:
                 readings[f"{prefix}:clock"] = float(
                     pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_GRAPHICS))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d clock read failed: %s", i, e)
             try:
                 readings[f"{prefix}:mem_clock"] = float(
                     pynvml.nvmlDeviceGetClockInfo(handle, pynvml.NVML_CLOCK_MEM))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d mem_clock read failed: %s", i, e)
             try:
                 readings[f"{prefix}:power"] = pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d power read failed: %s", i, e)
             try:
                 mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
                 readings[f"{prefix}:vram_used"] = int(mem.used) / (1024 * 1024)
                 readings[f"{prefix}:vram_total"] = int(mem.total) / (1024 * 1024)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d vram read failed: %s", i, e)
             try:
                 readings[f"{prefix}:fan"] = float(pynvml.nvmlDeviceGetFanSpeed(handle))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("nvidia:%d fan read failed: %s", i, e)
 
     def _read_drm(self, readings: dict[str, float]):
         """Read DRM sysfs sensors (AMD gpu_busy, Intel freq)."""

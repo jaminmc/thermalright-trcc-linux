@@ -297,7 +297,6 @@ class LEDHandler:
             if self._save_counter >= self._SAVE_INTERVAL:
                 self._save_counter = 0
                 self._led.save_config()
-                log.debug("LED: periodic config save")
         except Exception:
             log.exception("LED tick error")
 
@@ -327,6 +326,7 @@ class ScreencastHandler:
         self._lcd_w = 320
         self._lcd_h = 320
 
+        self._capture_warn_logged = False
         self._timer = QTimer(parent)
         self._timer.timeout.connect(self._tick)
 
@@ -403,7 +403,11 @@ class ScreencastHandler:
             from .screen_capture import grab_screen_region
             pixmap = grab_screen_region(self._x, self._y, self._w, self._h)
             if pixmap.isNull():
+                if not self._capture_warn_logged:
+                    log.warning("Screencast: all capture methods failed — no frame available")
+                    self._capture_warn_logged = True
                 return
+            self._capture_warn_logged = False
             pil_img = pixmap_to_pil(pixmap)
 
         pil_img = pil_img.resize(
@@ -1395,7 +1399,7 @@ class TRCCApp(QMainWindow):
         elif cmd == UCThemeSetting.CMD_MASK_CLOUD:
             self._show_panel(3)  # C# buttonYDMB_Click — cloud masks
         elif cmd == UCThemeSetting.CMD_VIDEO_LOAD:
-            self._on_load_video_clicked()
+            self._on_media_player_load_clicked()
         elif cmd == 51:  # C# buttonYDZT_Click — switch to cloud theme panel
             self._show_panel(1)
         elif cmd == UCThemeSetting.CMD_VIDEO_TOGGLE:
@@ -1449,13 +1453,19 @@ class TRCCApp(QMainWindow):
         if not self._lcd_handler:
             return
         if enabled:
-            # C# case 3: myBjxs=false, myTpxs=false
-            self._screencast.toggle(False)
-            self._lcd_handler.is_background_active = False
-            if self._lcd_handler.display.video_has_frames():
-                self._lcd_handler.play_pause()
+            # Toggle ON: UI gate only — enable Load button, don't touch display
+            pass
         else:
-            self._lcd_handler.stop_video()
+            # Toggle OFF: stop media player video and resume the background theme
+            if self._lcd_handler.display.video_has_frames():
+                self._lcd_handler._animation_timer.stop()
+                self._lcd_handler.display.stop_video()
+                self.uc_preview.set_playing(False)
+                self.uc_preview.show_video_controls(False)
+            # Always reload last theme on toggle OFF
+            last_path = self._lcd_handler.display.current_theme_path
+            if last_path:
+                self._lcd_handler.select_theme_from_path(Path(last_path))
 
     def _on_screencast_frame(self, pil_img):
         if self._lcd_handler:
@@ -1473,6 +1483,33 @@ class TRCCApp(QMainWindow):
             self.uc_video_cut.set_resolution(w, h)
             self.uc_video_cut.load_video(path)
             self._show_cutter('video')
+
+    def _on_media_player_load_clicked(self):
+        """Load and play a video directly on the LCD — no cutter, no Theme.zt encoding."""
+        web_dir = str(_conf.settings.web_dir) if _conf.settings.web_dir else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Video", web_dir,
+            "Video Files (*.mp4 *.avi *.mkv *.mov *.gif);;All Files (*)")
+        if not path or not self._lcd_handler:
+            return
+
+        # Stop all competing sources before loading: background, screencast, overlay
+        self._screencast.toggle(False)
+        self._lcd_handler.is_background_active = False
+        self._lcd_handler._animation_timer.stop()
+        self._lcd_handler.display.stop_video()
+        self._lcd_handler.display.enable(False)  # overlay off — don't overwrite video frames
+
+        result = self._lcd_handler.display.load_video(path)
+        if not result.get("success"):
+            self.uc_preview.set_status(f"Error: {result.get('error', 'Failed to load video')}")
+            return
+        self._lcd_handler.display.play_video()
+        interval = self._lcd_handler.display.interval
+        self._lcd_handler._animation_timer.start(interval)
+        self.uc_preview.set_playing(True)
+        self.uc_preview.show_video_controls(True)
+        self.uc_preview.set_status(f"Playing: {Path(path).name}")
 
     def _on_load_image_clicked(self):
         self._cut_mode = 'background'

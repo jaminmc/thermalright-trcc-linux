@@ -419,7 +419,7 @@ class TestAutostart(unittest.TestCase):
         mock_file.write_text.assert_called_once()
         content = mock_file.write_text.call_args[0][0]
         self.assertIn('[Desktop Entry]', content)
-        self.assertIn('--last-one', content)
+        self.assertIn('gui --resume', content)
 
     @patch('trcc.qt_components.uc_about._AUTOSTART_FILE')
     def test_set_autostart_disable_removes_file(self, mock_file):
@@ -450,7 +450,7 @@ class TestAutostart(unittest.TestCase):
                 self.assertTrue(mod._AUTOSTART_FILE.exists())
                 content = mod._AUTOSTART_FILE.read_text()
                 self.assertIn('TRCC Linux', content)
-                self.assertIn('--last-one', content)
+                self.assertIn('gui --resume', content)
                 # Disable
                 _set_autostart(False)
                 self.assertFalse(mod._AUTOSTART_FILE.exists())
@@ -483,7 +483,7 @@ class TestAutostart(unittest.TestCase):
         self.assertIn('[Desktop Entry]', entry)
         self.assertIn('Type=Application', entry)
         self.assertIn('Name=TRCC Linux', entry)
-        self.assertIn('Exec=/usr/bin/trcc --last-one', entry)
+        self.assertIn('Exec=/usr/bin/trcc gui --resume', entry)
         self.assertIn('Terminal=false', entry)
         self.assertIn('X-GNOME-Autostart-enabled=true', entry)
 

@@ -224,8 +224,8 @@ class DisplayService:
                 self.current_image = first_frame
                 self._clean_background = first_frame
 
-        # Build pre-baked cache for animated themes
-        if result.get('is_animated') and self.media.has_frames:
+        # Build pre-baked cache for animated themes (only if device is connected)
+        if result.get('is_animated') and self.media.has_frames and self.devices.selected:
             self._build_video_cache()
 
         # Render with adjustments if we have a static image
