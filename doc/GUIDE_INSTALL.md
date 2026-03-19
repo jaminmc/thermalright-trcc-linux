@@ -16,7 +16,7 @@ A step-by-step guide for every major Linux distro. Each section is self-containe
 |-------------|---------|------------|
 | Fedora / Nobara | [Native RPM](#fedora--nobara) | [pip](#fedora--nobara-pip) |
 | Ubuntu 24.04+ / Debian 13+ / Mint 22+ / Pop!_OS / Zorin | [Native DEB](#ubuntu--debian--mint--pop_os--zorin) | [pip](#ubuntu--debian--mint--pop_os--zorin-pip) |
-| Ubuntu 22.04 / Mint 21.x / Debian 12 (older) | — | [pip (recommended)](#ubuntu--debian--mint--pop_os--zorin-pip) |
+| Ubuntu 22.04 / Mint 21.x / Debian 12 (older) | [Legacy DEB](#ubuntu-2204--mint-21x--debian-12-legacy-deb) | [pip](#ubuntu--debian--mint--pop_os--zorin-pip) |
 | Arch / CachyOS / Manjaro / EndeavourOS / Garuda | [Native pkg](#arch--cachyos--manjaro--endeavouros--garuda) | [pip](#arch--cachyos--manjaro--endeavouros--garuda-pip) |
 | openSUSE | [Native RPM](#opensuse) | [pip](#opensuse-pip) |
 | NixOS | [Flake](#nixos) | — |
@@ -80,7 +80,7 @@ Covers: Fedora 39+, Nobara 39+
 
 **One-liner** (download + install in one command):
 ```bash
-sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.8.1-1.fc43.noarch.rpm
+sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.0.3-1.fc43.noarch.rpm
 ```
 
 **Or manually:** Download the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -108,11 +108,11 @@ That's it! If your device isn't detected, see the [Device Testing Guide](GUIDE_D
 
 Covers: Ubuntu 24.04+, Debian 13+, Linux Mint 22+, Pop!_OS 24.04+, Zorin OS 17+, KDE neon, Kubuntu, Xubuntu, Lubuntu
 
-> **Older versions** (Ubuntu 22.04, Mint 21.x, Debian 11/12, Pop!_OS 22.04, elementary OS 7) don't have `python3-pyside6` and other deps in their repos. The `.deb` package won't work — use the [PyPI install](#ubuntu--debian--mint--pop_os--zorin-pip) instead.
+> **Older versions** (Ubuntu 22.04, Mint 21.x, Debian 11/12, Pop!_OS 22.04, elementary OS 7) — use the [Legacy DEB](#ubuntu-2204--mint-21x--debian-12-legacy-deb) instead, which bundles its own Python environment.
 
 **One-liner** (download + install in one command):
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_8.8.1-1_all.deb && sudo dpkg -i trcc-linux_8.8.1-1_all.deb && sudo apt-get install -f
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_9.0.3-1_all.deb && sudo dpkg -i trcc-linux_9.0.3-1_all.deb && sudo apt-get install -f
 ```
 
 **Or manually:** Download the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -144,13 +144,46 @@ That's it! If your device isn't detected, see the [Device Testing Guide](GUIDE_D
 
 ---
 
+### Ubuntu 22.04 / Mint 21.x / Debian 12 (Legacy DEB)
+
+Covers: Ubuntu 22.04 LTS, Linux Mint 21.x, Linux Mint 22.x, Debian 12 (Bookworm), Pop!_OS 22.04, elementary OS 7
+
+The standard `.deb` requires `python3-pyside6` and other packages that aren't in Ubuntu 22.04's repos. This legacy package installs Python dependencies into `/opt/trcc-linux` via pip — no system Python conflicts, no `--break-system-packages`.
+
+**Step 1 — Download** the `*legacy*_all.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest).
+
+**Step 2 — Install:**
+
+```bash
+cd ~/Downloads
+sudo dpkg -i trcc-linux_*legacy*_all.deb
+```
+
+**Step 3 — Run setup:**
+
+```bash
+trcc setup-udev
+```
+
+**Step 4 — Unplug and replug** the USB cable from your cooler (or reboot).
+
+**Step 5 — Launch:**
+
+```bash
+trcc gui
+```
+
+> To uninstall: `sudo dpkg -r trcc-linux` — this removes `/opt/trcc-linux` and the wrapper scripts automatically.
+
+---
+
 ### Arch / CachyOS / Manjaro / EndeavourOS / Garuda
 
 Covers: Arch Linux, CachyOS, Manjaro, EndeavourOS, Garuda Linux, Artix Linux, ArcoLinux, BlackArch
 
 **One-liner** (download + install in one command):
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.8.1-1-any.pkg.tar.zst && sudo pacman -U trcc-linux-8.8.1-1-any.pkg.tar.zst
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.0.3-1-any.pkg.tar.zst && sudo pacman -U trcc-linux-9.0.3-1-any.pkg.tar.zst
 ```
 
 **Or manually:** Download the `.pkg.tar.zst` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -301,7 +334,7 @@ trcc gui
 
 ### Ubuntu / Debian / Mint / Pop!_OS / Zorin (pip)
 
-> **Recommended for older distros** (Ubuntu 22.04, Mint 21.x, Debian 11/12, elementary OS 7) where the `.deb` package won't work because `python3-pyside6` and other deps aren't in the repos. `pipx` creates its own isolated environment and handles all Python dependencies automatically.
+> **Alternative for all distros**, and the only option for very old distros (Ubuntu 20.04, Debian 11, elementary OS 6) where even the legacy `.deb` won't work. `pipx` creates an isolated environment and handles all Python dependencies automatically.
 
 ```bash
 # Step 1: Install system dependencies
@@ -530,7 +563,7 @@ These use an immutable root filesystem — you can't `sudo dnf install` like nor
 
 **One-liner** (download + install, requires reboot):
 ```bash
-rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-8.8.1-1.fc43.noarch.rpm && systemctl reboot
+rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.0.3-1.fc43.noarch.rpm && systemctl reboot
 ```
 
 **Or manually:** Download the `.rpm` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:

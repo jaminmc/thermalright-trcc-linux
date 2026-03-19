@@ -14,7 +14,6 @@ trcc [--version] [-v] <command> [options]is
 |--------|-------------|
 | `--version` | Show version and exit |
 | `-v` | Increase verbosity (`-v` info, `-vv` debug) |
-| `--last-one` | Start minimized to system tray, send last-used theme (for autostart) |
 
 ---
 
@@ -27,12 +26,14 @@ Launch the graphical interface.
 ```bash
 trcc gui
 trcc gui --decorated
+trcc gui --resume     # autostart: start hidden in tray, restore last theme
 trcc gui -vv          # debug logging
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--decorated`, `-d` | Show window with titlebar (can minimize/resize) |
+| `--resume` | Start hidden in system tray and restore the last-used theme (for autostart) |
 
 The default window is frameless (matching the Windows TRCC layout). Use `--decorated` for debugging or if your window manager has trouble with frameless windows.
 
@@ -227,7 +228,7 @@ Send the last-used theme to each detected device, then exit. Designed for headle
 trcc resume
 ```
 
-This is what `~/.config/autostart/trcc.desktop` calls on login with `trcc --last-one` (which launches the GUI minimized to tray and sends the last theme).
+This is what `~/.config/autostart/trcc.desktop` calls on login with `trcc gui --resume` (which launches the GUI minimized to tray and sends the last theme).
 
 ---
 
