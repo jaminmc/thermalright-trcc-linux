@@ -157,7 +157,7 @@ jobs:
             dist/TRCC.app
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trcc-macos-dmg
           path: trcc-${{ steps.version.outputs.VERSION }}-macos.dmg
