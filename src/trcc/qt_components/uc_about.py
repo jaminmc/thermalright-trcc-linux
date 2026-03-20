@@ -23,7 +23,6 @@ import sys
 import webbrowser
 from pathlib import Path
 from threading import Thread
-from typing import Any
 from urllib.request import urlopen
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
@@ -36,235 +35,12 @@ from .constants import Layout, Sizes, Styles
 
 log = logging.getLogger(__name__)
 
-from trcc.core.platform import LINUX, MACOS, WINDOWS  # noqa: E402
+from trcc.core.ports import AutostartManager  # noqa: E402
 
 
-def _winreg() -> Any:
-    """Return the winreg stdlib module as Any (Windows-only, avoids pyright platform errors)."""
-    import winreg  # pyright: ignore[reportMissingImports]
-    return winreg
-
-# Linux autostart
-_LINUX_AUTOSTART_DIR  = Path.home() / '.config' / 'autostart'
-_LINUX_AUTOSTART_FILE = _LINUX_AUTOSTART_DIR / 'trcc-linux.desktop'
-_LINUX_LEGACY_FILE    = _LINUX_AUTOSTART_DIR / 'trcc.desktop'
-
-# macOS Launch Agent
-_MACOS_LAUNCH_AGENTS_DIR  = Path.home() / 'Library' / 'LaunchAgents'
-_MACOS_LAUNCH_AGENT_FILE  = _MACOS_LAUNCH_AGENTS_DIR / 'com.thermalright.trcc.plist'
-
-# Windows registry
-_WIN_REG_KEY   = r'Software\Microsoft\Windows\CurrentVersion\Run'
-_WIN_REG_VALUE = 'TRCC Linux'
-
-
-def _get_trcc_exec() -> str:
-    """Resolve full path to trcc binary for the platform autostart mechanism.
-
-    - Windows PyInstaller bundle: sys.executable (trcc.exe)
-    - pip/pipx install: shutil.which('trcc')
-    - git clone fallback: PYTHONPATH=<src> python -m trcc.cli
-    """
-    if getattr(sys, 'frozen', False):
-        return sys.executable
-    trcc_path = shutil.which('trcc')
-    if trcc_path:
-        return trcc_path
-    src_dir = str(Path(__file__).parent.parent.parent)
-    return f'env PYTHONPATH={src_dir} {sys.executable} -m trcc.cli'
-
-
-# ── Linux ─────────────────────────────────────────────────────────────────────
-
-def _make_desktop_entry() -> str:
-    exec_path = _get_trcc_exec()
-    return f"""\
-[Desktop Entry]
-Type=Application
-Name=TRCC Linux
-Comment=Thermalright LCD Control Center
-Exec={exec_path} gui --resume
-Icon=trcc
-Terminal=false
-Categories=Utility;System;
-StartupWMClass=trcc-linux
-X-GNOME-Autostart-enabled=true
-"""
-
-
-def _linux_is_enabled() -> bool:
-    return _LINUX_AUTOSTART_FILE.exists()
-
-
-def _linux_set(enabled: bool) -> None:
-    if enabled:
-        _LINUX_AUTOSTART_DIR.mkdir(parents=True, exist_ok=True)
-        _LINUX_AUTOSTART_FILE.write_text(_make_desktop_entry())
-        log.info("Autostart enabled: %s", _LINUX_AUTOSTART_FILE)
-    else:
-        if _LINUX_AUTOSTART_FILE.exists():
-            _LINUX_AUTOSTART_FILE.unlink()
-        log.info("Autostart disabled")
-
-
-def _linux_refresh() -> None:
-    """Rewrite .desktop if Exec path has changed."""
-    if _LINUX_AUTOSTART_FILE.exists():
-        expected = _make_desktop_entry()
-        if _LINUX_AUTOSTART_FILE.read_text() != expected:
-            _LINUX_AUTOSTART_FILE.write_text(expected)
-            log.info("Autostart refreshed: %s", _LINUX_AUTOSTART_FILE)
-
-
-# ── macOS ─────────────────────────────────────────────────────────────────────
-
-def _make_launch_agent() -> str:
-    exec_path = _get_trcc_exec()
-    return f"""\
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.thermalright.trcc</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>{exec_path}</string>
-        <string>gui</string>
-        <string>--resume</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-</dict>
-</plist>
-"""
-
-
-def _macos_is_enabled() -> bool:
-    return _MACOS_LAUNCH_AGENT_FILE.exists()
-
-
-def _macos_set(enabled: bool) -> None:
-    if enabled:
-        _MACOS_LAUNCH_AGENTS_DIR.mkdir(parents=True, exist_ok=True)
-        _MACOS_LAUNCH_AGENT_FILE.write_text(_make_launch_agent())
-        log.info("Autostart enabled: %s", _MACOS_LAUNCH_AGENT_FILE)
-    else:
-        if _MACOS_LAUNCH_AGENT_FILE.exists():
-            _MACOS_LAUNCH_AGENT_FILE.unlink()
-        log.info("Autostart disabled")
-
-
-def _macos_refresh() -> None:
-    if _MACOS_LAUNCH_AGENT_FILE.exists():
-        expected = _make_launch_agent()
-        if _MACOS_LAUNCH_AGENT_FILE.read_text() != expected:
-            _MACOS_LAUNCH_AGENT_FILE.write_text(expected)
-            log.info("Autostart refreshed: %s", _MACOS_LAUNCH_AGENT_FILE)
-
-
-# ── Windows ───────────────────────────────────────────────────────────────────
-
-def _windows_is_enabled() -> bool:
-    try:
-        wr = _winreg()
-        key = wr.OpenKey(wr.HKEY_CURRENT_USER, _WIN_REG_KEY, 0, wr.KEY_READ)
-        wr.QueryValueEx(key, _WIN_REG_VALUE)
-        wr.CloseKey(key)
-        return True
-    except OSError:
-        return False
-
-
-def _windows_set(enabled: bool) -> None:
-    wr = _winreg()
-    if enabled:
-        exec_path = _get_trcc_exec()
-        key = wr.OpenKey(wr.HKEY_CURRENT_USER, _WIN_REG_KEY, 0, wr.KEY_SET_VALUE)
-        wr.SetValueEx(key, _WIN_REG_VALUE, 0, wr.REG_SZ, f'"{exec_path}" gui --resume')
-        wr.CloseKey(key)
-        log.info("Autostart enabled: HKCU\\%s → %s", _WIN_REG_KEY, exec_path)
-    else:
-        try:
-            key = wr.OpenKey(wr.HKEY_CURRENT_USER, _WIN_REG_KEY, 0, wr.KEY_SET_VALUE)
-            wr.DeleteValue(key, _WIN_REG_VALUE)
-            wr.CloseKey(key)
-        except OSError:
-            pass
-        log.info("Autostart disabled")
-
-
-def _windows_refresh() -> None:
-    """Update registry value if exe path has changed."""
-    if not _windows_is_enabled():
-        return
-    wr = _winreg()
-    exec_path = _get_trcc_exec()
-    expected = f'"{exec_path}" gui --resume'
-    try:
-        key = wr.OpenKey(
-            wr.HKEY_CURRENT_USER, _WIN_REG_KEY, 0, wr.KEY_READ | wr.KEY_SET_VALUE,
-        )
-        current, _ = wr.QueryValueEx(key, _WIN_REG_VALUE)
-        if current != expected:
-            wr.SetValueEx(key, _WIN_REG_VALUE, 0, wr.REG_SZ, expected)
-            log.info("Autostart refreshed: HKCU\\%s → %s", _WIN_REG_KEY, exec_path)
-        wr.CloseKey(key)
-    except OSError:
-        pass
-
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def _is_autostart_enabled() -> bool:
-    if WINDOWS:
-        return _windows_is_enabled()
-    if MACOS:
-        return _macos_is_enabled()
-    return _linux_is_enabled()
-
-
-def _set_autostart(enabled: bool) -> None:
-    if WINDOWS:
-        _windows_set(enabled)
-    elif MACOS:
-        _macos_set(enabled)
-    else:
-        _linux_set(enabled)
-
-
-def ensure_autostart() -> bool:
-    """Auto-enable autostart on first launch; refresh path on subsequent launches.
-
-    Returns the current autostart state.
-    """
-    from ..conf import load_config, save_config
-
-    # Clean up legacy Linux .desktop file (pre-v2.0.2)
-    if LINUX and _LINUX_LEGACY_FILE.exists():
-        _LINUX_LEGACY_FILE.unlink()
-        log.info("Removed legacy autostart file: %s", _LINUX_LEGACY_FILE)
-
-    config = load_config()
-
-    if not config.get('autostart_configured'):
-        _set_autostart(True)
-        config['autostart_configured'] = True
-        save_config(config)
-        return True
-
-    # Refresh path in case the binary moved (upgrade, reinstall, etc.)
-    if WINDOWS:
-        _windows_refresh()
-    elif MACOS:
-        _macos_refresh()
-    else:
-        _linux_refresh()
-
-    return _is_autostart_enabled()
+def ensure_autostart(manager: AutostartManager) -> bool:
+    """Auto-enable autostart on first launch; refresh on subsequent launches."""
+    return manager.ensure()
 
 
 _GITHUB_LATEST = (
@@ -376,12 +152,13 @@ class UCAbout(BasePanel):
     _update_available = Signal(str, dict) # (version, {mgr: download_url})
     _upgrade_finished = Signal(bool)     # True=success, False=failure
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, autostart_manager: AutostartManager | None = None):
         super().__init__(parent, width=Sizes.FORM_W, height=Sizes.FORM_H)
 
+        self._autostart_manager = autostart_manager
         self._lang_buttons: dict[str, QPushButton] = {}  # Legacy — populated by combo in trcc_app
         self._temp_mode = 'C'
-        self._autostart = _is_autostart_enabled()
+        self._autostart = autostart_manager.is_enabled() if autostart_manager else False
         from ..conf import settings
         self._read_hdd = settings.hdd_enabled
         self._refresh_interval = 1
@@ -545,7 +322,11 @@ class UCAbout(BasePanel):
     def _on_startup_clicked(self):
         """Toggle auto-start on login."""
         self._autostart = self.startup_btn.isChecked()
-        _set_autostart(self._autostart)
+        if self._autostart_manager:
+            if self._autostart:
+                self._autostart_manager.enable()
+            else:
+                self._autostart_manager.disable()
         self.startup_changed.emit(self._autostart)
         self.invoke_delegate(self.CMD_STARTUP, self._autostart)
 

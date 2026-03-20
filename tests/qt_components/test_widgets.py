@@ -377,109 +377,102 @@ class TestUCThemeLocal(unittest.TestCase):
 # UCAbout helpers
 # ============================================================================
 
-from trcc.qt_components.uc_about import (  # noqa: E402
-    _get_trcc_exec,
-    _is_autostart_enabled,
-    _make_desktop_entry,
-    _set_autostart,
-    ensure_autostart,
-)
+from trcc.adapters.system.linux.autostart import LinuxAutostartManager  # noqa: E402
+from trcc.qt_components.uc_about import ensure_autostart  # noqa: E402
+
+_AUTOSTART_MOD = 'trcc.adapters.system.linux.autostart'
 
 
 class TestAutostart(unittest.TestCase):
-    """Comprehensive autostart tests matching Windows KaijiQidong behavior."""
+    """Tests for LinuxAutostartManager and ensure_autostart wrapper."""
 
-    # --- _is_autostart_enabled ---
+    def _manager(self) -> LinuxAutostartManager:
+        return LinuxAutostartManager()
 
-    def test_is_autostart_enabled_returns_bool(self):
-        """_is_autostart_enabled returns bool based on .desktop file existence."""
-        result = _is_autostart_enabled()
+    # --- is_enabled ---
+
+    def test_is_enabled_returns_bool(self):
+        result = self._manager().is_enabled()
         self.assertIsInstance(result, bool)
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
-    def test_is_autostart_enabled_true(self, mock_file):
-        """Returns True when .desktop file exists."""
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
+    def test_is_enabled_true(self, mock_file):
         mock_file.exists.return_value = True
-        self.assertTrue(_is_autostart_enabled())
+        self.assertTrue(self._manager().is_enabled())
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
-    def test_is_autostart_enabled_false(self, mock_file):
-        """Returns False when .desktop file missing."""
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
+    def test_is_enabled_false(self, mock_file):
         mock_file.exists.return_value = False
-        self.assertFalse(_is_autostart_enabled())
+        self.assertFalse(self._manager().is_enabled())
 
-    # --- _set_autostart ---
+    # --- enable / disable ---
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_DIR')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_DIR')
     def test_set_autostart_enable(self, mock_dir, mock_file):
-        """Enabling creates dir and writes .desktop file."""
-        _set_autostart(True)
+        """enable() creates dir and writes .desktop file."""
+        self._manager().enable()
         mock_dir.mkdir.assert_called_once_with(parents=True, exist_ok=True)
         mock_file.write_text.assert_called_once()
         content = mock_file.write_text.call_args[0][0]
         self.assertIn('[Desktop Entry]', content)
         self.assertIn('gui --resume', content)
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     def test_set_autostart_disable_removes_file(self, mock_file):
-        """Disabling removes .desktop file when it exists."""
         mock_file.exists.return_value = True
-        _set_autostart(False)
+        self._manager().disable()
         mock_file.unlink.assert_called_once()
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     def test_set_autostart_disable_noop_when_missing(self, mock_file):
-        """Disabling does nothing when .desktop file already gone."""
         mock_file.exists.return_value = False
-        _set_autostart(False)
+        self._manager().disable()
         mock_file.unlink.assert_not_called()
 
     def test_set_autostart_real_filesystem(self):
         """Integration test with real temp dir."""
-        import trcc.qt_components.uc_about as mod
+        import trcc.adapters.system.linux.autostart as mod
+        manager = self._manager()
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            orig_dir = mod._LINUX_AUTOSTART_DIR
-            orig_file = mod._LINUX_AUTOSTART_FILE
+            orig_dir = mod._AUTOSTART_DIR
+            orig_file = mod._AUTOSTART_FILE
             try:
-                mod._LINUX_AUTOSTART_DIR = tmp_path / 'autostart'
-                mod._LINUX_AUTOSTART_FILE = mod._LINUX_AUTOSTART_DIR / 'trcc-linux.desktop'
-                # Enable
-                _set_autostart(True)
-                self.assertTrue(mod._LINUX_AUTOSTART_FILE.exists())
-                content = mod._LINUX_AUTOSTART_FILE.read_text()
+                mod._AUTOSTART_DIR = tmp_path / 'autostart'
+                mod._AUTOSTART_FILE = mod._AUTOSTART_DIR / 'trcc-linux.desktop'
+                manager.enable()
+                self.assertTrue(mod._AUTOSTART_FILE.exists())
+                content = mod._AUTOSTART_FILE.read_text()
                 self.assertIn('TRCC Linux', content)
                 self.assertIn('gui --resume', content)
-                # Disable
-                _set_autostart(False)
-                self.assertFalse(mod._LINUX_AUTOSTART_FILE.exists())
+                manager.disable()
+                self.assertFalse(mod._AUTOSTART_FILE.exists())
             finally:
-                mod._LINUX_AUTOSTART_DIR = orig_dir
-                mod._LINUX_AUTOSTART_FILE = orig_file
+                mod._AUTOSTART_DIR = orig_dir
+                mod._AUTOSTART_FILE = orig_file
 
-    # --- _get_trcc_exec ---
+    # --- get_exec ---
 
     @patch('shutil.which', return_value='/usr/bin/trcc')
     def test_get_trcc_exec_pip_installed(self, mock_which):
-        """Uses pip-installed entry point when found on PATH."""
-        result = _get_trcc_exec()
+        result = LinuxAutostartManager.get_exec()
         self.assertEqual(result, '/usr/bin/trcc')
 
     @patch('shutil.which', return_value=None)
     def test_get_trcc_exec_fallback(self, mock_which):
-        """Falls back to PYTHONPATH + python -m trcc.cli."""
-        result = _get_trcc_exec()
+        result = LinuxAutostartManager.get_exec()
         self.assertIn('python', result)
         self.assertIn('trcc.cli', result)
         self.assertIn('PYTHONPATH=', result)
 
-    # --- _make_desktop_entry ---
+    # --- _desktop_entry ---
 
-    @patch('trcc.qt_components.uc_about._get_trcc_exec', return_value='/usr/bin/trcc')
-    def test_make_desktop_entry_format(self, mock_exec):
+    def test_make_desktop_entry_format(self):
         """Desktop entry has correct XDG fields."""
-        entry = _make_desktop_entry()
+        manager = self._manager()
+        with patch.object(LinuxAutostartManager, 'get_exec', return_value='/usr/bin/trcc'):
+            entry = manager._desktop_entry()
         self.assertIn('[Desktop Entry]', entry)
         self.assertIn('Type=Application', entry)
         self.assertIn('Name=TRCC Linux', entry)
@@ -487,90 +480,81 @@ class TestAutostart(unittest.TestCase):
         self.assertIn('Terminal=false', entry)
         self.assertIn('X-GNOME-Autostart-enabled=true', entry)
 
-    # --- ensure_autostart (first launch) ---
+    # --- ensure (first launch) ---
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_DIR')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_DIR')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={})
     def test_ensure_autostart_first_launch(self, mock_load, mock_save,
                                             mock_dir, mock_file):
-        """First launch auto-enables autostart and marks configured."""
         mock_file.exists.return_value = False
-        result = ensure_autostart()
+        manager = self._manager()
+        result = ensure_autostart(manager)
         self.assertTrue(result)
         mock_dir.mkdir.assert_called_once()
         mock_file.write_text.assert_called_once()
         mock_save.assert_called_once()
-        saved = mock_save.call_args[0][0]
-        self.assertTrue(saved['autostart_configured'])
+        self.assertTrue(mock_save.call_args[0][0]['autostart_configured'])
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_DIR')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_DIR')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={'other_key': 'val'})
     def test_ensure_autostart_first_launch_preserves_config(self, mock_load,
                                                              mock_save,
                                                              mock_dir, mock_file):
-        """First launch preserves existing config keys."""
         mock_file.exists.return_value = False
-        ensure_autostart()
+        ensure_autostart(self._manager())
         saved = mock_save.call_args[0][0]
         self.assertEqual(saved['other_key'], 'val')
         self.assertTrue(saved['autostart_configured'])
 
-    # --- ensure_autostart (subsequent launch) ---
+    # --- ensure (subsequent launch) ---
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={'autostart_configured': True})
-    def test_ensure_autostart_subsequent_enabled(self, mock_load, mock_save,
-                                                  mock_file):
-        """Subsequent launch returns True when .desktop exists."""
+    def test_ensure_autostart_subsequent_enabled(self, mock_load, mock_save, mock_file):
         mock_file.exists.return_value = True
         mock_file.read_text.return_value = "old content"
-        result = ensure_autostart()
+        result = ensure_autostart(self._manager())
         self.assertTrue(result)
         mock_save.assert_not_called()
 
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={'autostart_configured': True})
-    def test_ensure_autostart_subsequent_disabled(self, mock_load, mock_save,
-                                                   mock_file):
-        """Returns False when user removed .desktop file."""
+    def test_ensure_autostart_subsequent_disabled(self, mock_load, mock_save, mock_file):
         mock_file.exists.return_value = False
-        result = ensure_autostart()
+        result = ensure_autostart(self._manager())
         self.assertFalse(result)
 
-    # --- ensure_autostart (path refresh) ---
+    # --- refresh (path change) ---
 
-    @patch('trcc.qt_components.uc_about._make_desktop_entry',
-           return_value='[Desktop Entry]\nExec=/new/path\n')
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={'autostart_configured': True})
-    def test_ensure_autostart_refreshes_stale_path(self, mock_load, mock_save,
-                                                    mock_file, mock_make):
-        """Refreshes .desktop when Exec path changed (like Windows path check)."""
+    def test_ensure_autostart_refreshes_stale_path(self, mock_load, mock_save, mock_file):
         mock_file.exists.return_value = True
         mock_file.read_text.return_value = '[Desktop Entry]\nExec=/old/path\n'
-        result = ensure_autostart()
+        manager = self._manager()
+        with patch.object(LinuxAutostartManager, '_desktop_entry',
+                          return_value='[Desktop Entry]\nExec=/new/path\n'):
+            result = ensure_autostart(manager)
         self.assertTrue(result)
-        mock_file.write_text.assert_called_once_with(
-            '[Desktop Entry]\nExec=/new/path\n')
+        mock_file.write_text.assert_called_once_with('[Desktop Entry]\nExec=/new/path\n')
 
-    @patch('trcc.qt_components.uc_about._make_desktop_entry',
-           return_value='[Desktop Entry]\nExec=/same/path\n')
-    @patch('trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE')
+    @patch(f'{_AUTOSTART_MOD}._AUTOSTART_FILE')
     @patch('trcc.conf.save_config')
     @patch('trcc.conf.load_config', return_value={'autostart_configured': True})
-    def test_ensure_autostart_no_refresh_when_same(self, mock_load, mock_save,
-                                                    mock_file, mock_make):
-        """Does not rewrite .desktop when content matches."""
+    def test_ensure_autostart_no_refresh_when_same(self, mock_load, mock_save, mock_file):
         mock_file.exists.return_value = True
         mock_file.read_text.return_value = '[Desktop Entry]\nExec=/same/path\n'
-        ensure_autostart()
+        manager = self._manager()
+        with patch.object(LinuxAutostartManager, '_desktop_entry',
+                          return_value='[Desktop Entry]\nExec=/same/path\n'):
+            ensure_autostart(manager)
         mock_file.write_text.assert_not_called()
 
 

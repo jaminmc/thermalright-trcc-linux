@@ -499,7 +499,7 @@ class TRCCApp(QMainWindow):
             self.uc_about._set_temp('F')
 
         # Autostart
-        autostart_state = ensure_autostart()
+        autostart_state = ensure_autostart(self._autostart_manager)
         self.uc_about._autostart = autostart_state
         self.uc_about.startup_btn.setChecked(autostart_state)
 
@@ -707,8 +707,10 @@ class TRCCApp(QMainWindow):
         self._create_title_buttons()
         self._apply_settings_backgrounds()
 
-        # About panel
-        self.uc_about = UCAbout(parent=central)
+        # About panel — build platform autostart manager and inject
+        from ..core.builder import ControllerBuilder
+        self._autostart_manager = ControllerBuilder.build_autostart()
+        self.uc_about = UCAbout(parent=central, autostart_manager=self._autostart_manager)
         self.uc_about.setGeometry(*Layout.FORM_CONTAINER)
         self.uc_about.setVisible(False)
 

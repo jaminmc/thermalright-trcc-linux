@@ -358,3 +358,79 @@ class PlatformSetup(ABC):
         Returns the resolved Path.
         """
 
+
+# =========================================================================
+# Autostart Manager ABC — contract for platform-specific autostart mechanisms
+# =========================================================================
+
+
+class AutostartManager(ABC):
+    """Port: platform-specific autostart mechanism.
+
+    Each platform adapter implements the four abstract methods.
+    The concrete ensure() method provides first-launch auto-enable logic
+    shared across all platforms.
+
+    Concrete implementations:
+        - LinuxAutostartManager   (adapters/system/linux/autostart.py)   — XDG .desktop
+        - WindowsAutostartManager (adapters/system/windows/autostart.py) — winreg Run key
+        - MacOSAutostartManager   (adapters/system/macos/autostart.py)   — Launch Agent plist
+        - LinuxAutostartManager   reused for BSD (XDG .desktop)
+    """
+
+    @staticmethod
+    def get_exec() -> str:
+        """Resolve full path to trcc binary (shared across all platforms).
+
+        Resolution order:
+        1. PyInstaller bundle — sys.executable (trcc.exe / trcc)
+        2. pip/pipx install  — shutil.which('trcc')
+        3. git clone fallback — PYTHONPATH=<src> python -m trcc.cli
+        """
+        import shutil
+        import sys
+        from pathlib import Path
+
+        if getattr(sys, 'frozen', False):
+            return sys.executable
+        trcc_path = shutil.which('trcc')
+        if trcc_path:
+            return trcc_path
+        src_dir = str(Path(__file__).parent.parent.parent)
+        return f'env PYTHONPATH={src_dir} {sys.executable} -m trcc.cli'
+
+    @abstractmethod
+    def is_enabled(self) -> bool:
+        """Return True if autostart is currently configured."""
+
+    @abstractmethod
+    def enable(self) -> None:
+        """Register autostart entry for the current user."""
+
+    @abstractmethod
+    def disable(self) -> None:
+        """Remove autostart entry for the current user."""
+
+    @abstractmethod
+    def refresh(self) -> None:
+        """Update the autostart entry if the binary path has changed."""
+
+    def ensure(self) -> bool:
+        """Auto-enable on first launch; refresh on subsequent launches.
+
+        On first launch: calls enable() and marks config as configured.
+        On subsequent launches: calls refresh() to keep path current.
+        Returns the current autostart state.
+        """
+        from ..conf import load_config, save_config
+
+        config = load_config()
+        if not config.get('autostart_configured'):
+            self.enable()
+            config['autostart_configured'] = True
+            save_config(config)
+            return True
+
+        self.refresh()
+        return self.is_enabled()
+

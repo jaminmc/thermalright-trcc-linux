@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .ports import PlatformSetup, Renderer
+from .ports import AutostartManager, PlatformSetup, Renderer
 
 if TYPE_CHECKING:
     from ..services.system import SystemService
@@ -234,6 +234,21 @@ class ControllerBuilder:
             device_svc=device_svc,
             get_protocol=DeviceProtocolFactory.get_protocol,
         )
+
+    @staticmethod
+    def build_autostart() -> AutostartManager:
+        """Build and return the platform-specific autostart manager."""
+        from .platform import MACOS, WINDOWS
+
+        if WINDOWS:
+            from ..adapters.system.windows.autostart import WindowsAutostartManager
+            return WindowsAutostartManager()
+        if MACOS:
+            from ..adapters.system.macos.autostart import MacOSAutostartManager
+            return MacOSAutostartManager()
+        # Linux and BSD both use XDG .desktop
+        from ..adapters.system.linux.autostart import LinuxAutostartManager
+        return LinuxAutostartManager()
 
     @staticmethod
     def build_setup() -> PlatformSetup:

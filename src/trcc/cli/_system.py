@@ -6,9 +6,8 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
-from trcc.core.platform import LINUX, MACOS, WINDOWS, detect_install_method, is_root
+from trcc.core.platform import LINUX, WINDOWS, detect_install_method, is_root
 
 
 def _require_linux(command: str) -> int | None:
@@ -105,7 +104,6 @@ def setup_winusb():
 
     HID, Bulk, and LY devices need WinUSB — installed via Zadig.
     """
-    from trcc.core.platform import WINDOWS
     if not WINDOWS:
         print("This command is for Windows only.")
         print("On Linux, use: trcc setup-udev")
@@ -181,16 +179,10 @@ def uninstall(*, yes: bool = False):
     user_items = [
         home / ".trcc",                                      # all trcc data + config
     ]
-    # Glob for any trcc autostart/desktop files (catches current + legacy names)
-    for d in (home / ".config" / "autostart", home / ".local" / "share" / "applications"):
-        if d.is_dir():
-            user_items.extend(d.glob("trcc*.desktop"))
-
-    # macOS Launch Agent
-    if MACOS:
-        plist = home / 'Library' / 'LaunchAgents' / 'com.thermalright.trcc.plist'
-        if plist.exists():
-            user_items.append(plist)
+    # Glob for any trcc desktop files in applications dir (keeps app menu clean)
+    applications = home / ".local" / "share" / "applications"
+    if applications.is_dir():
+        user_items.extend(applications.glob("trcc*.desktop"))
 
     removed = []
 
@@ -217,21 +209,12 @@ def uninstall(*, yes: bool = False):
                 path.unlink()
             removed.append(str(path))
 
-    # Windows registry autostart key
-    if WINDOWS:
-        try:
-            import winreg as _wr  # pyright: ignore[reportMissingImports]
-            wr: Any = _wr
-            key = wr.OpenKey(
-                wr.HKEY_CURRENT_USER,
-                r'Software\Microsoft\Windows\CurrentVersion\Run',
-                0, wr.KEY_SET_VALUE,
-            )
-            wr.DeleteValue(key, 'TRCC Linux')
-            wr.CloseKey(key)
-            removed.append(r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TRCC Linux')
-        except OSError:
-            pass
+    # Disable autostart via platform manager
+    from trcc.core.builder import ControllerBuilder
+    autostart = ControllerBuilder.build_autostart()
+    if autostart.is_enabled():
+        autostart.disable()
+        removed.append("autostart entry")
 
     if removed:
         print("Removed:")

@@ -539,34 +539,37 @@ class TestVideoCutWidget:
 # ============================================================================
 
 
+_AUTOSTART_MOD = "trcc.adapters.system.linux.autostart"
+
+
 class TestAboutAutostart:
-    """Test module-level autostart helpers."""
+    """Test LinuxAutostartManager."""
 
     def test_is_autostart_enabled_no_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE",
+            f"{_AUTOSTART_MOD}._AUTOSTART_FILE",
             tmp_path / "nonexistent.desktop",
         )
-        from trcc.qt_components.uc_about import _is_autostart_enabled
+        from trcc.adapters.system.linux.autostart import LinuxAutostartManager
 
-        assert _is_autostart_enabled() is False
+        assert LinuxAutostartManager().is_enabled() is False
 
     def test_is_autostart_enabled_with_file(self, tmp_path, monkeypatch):
         f = tmp_path / "trcc-linux.desktop"
         f.write_text("[Desktop Entry]\nExec=trcc\n")
-        monkeypatch.setattr("trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE", f)
-        from trcc.qt_components.uc_about import _is_autostart_enabled
+        monkeypatch.setattr(f"{_AUTOSTART_MOD}._AUTOSTART_FILE", f)
+        from trcc.adapters.system.linux.autostart import LinuxAutostartManager
 
-        assert _is_autostart_enabled() is True
+        assert LinuxAutostartManager().is_enabled() is True
 
     def test_set_autostart_enable(self, tmp_path, monkeypatch):
         autostart_dir = tmp_path / "autostart"
         autostart_file = autostart_dir / "trcc-linux.desktop"
-        monkeypatch.setattr("trcc.qt_components.uc_about._LINUX_AUTOSTART_DIR", autostart_dir)
-        monkeypatch.setattr("trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE", autostart_file)
-        from trcc.qt_components.uc_about import _set_autostart
+        monkeypatch.setattr(f"{_AUTOSTART_MOD}._AUTOSTART_DIR", autostart_dir)
+        monkeypatch.setattr(f"{_AUTOSTART_MOD}._AUTOSTART_FILE", autostart_file)
+        from trcc.adapters.system.linux.autostart import LinuxAutostartManager
 
-        _set_autostart(True)
+        LinuxAutostartManager().enable()
         assert autostart_file.exists()
 
     def test_set_autostart_disable(self, tmp_path, monkeypatch):
@@ -574,11 +577,11 @@ class TestAboutAutostart:
         autostart_dir.mkdir()
         autostart_file = autostart_dir / "trcc-linux.desktop"
         autostart_file.write_text("test")
-        monkeypatch.setattr("trcc.qt_components.uc_about._LINUX_AUTOSTART_DIR", autostart_dir)
-        monkeypatch.setattr("trcc.qt_components.uc_about._LINUX_AUTOSTART_FILE", autostart_file)
-        from trcc.qt_components.uc_about import _set_autostart
+        monkeypatch.setattr(f"{_AUTOSTART_MOD}._AUTOSTART_DIR", autostart_dir)
+        monkeypatch.setattr(f"{_AUTOSTART_MOD}._AUTOSTART_FILE", autostart_file)
+        from trcc.adapters.system.linux.autostart import LinuxAutostartManager
 
-        _set_autostart(False)
+        LinuxAutostartManager().disable()
         assert not autostart_file.exists()
 
     def test_parse_version(self):
@@ -593,12 +596,12 @@ class TestAboutWidget:
     """Test UCAbout construction and signals."""
 
     @pytest.fixture
-    def widget(self, tmp_config, monkeypatch):
-        monkeypatch.setattr(
-            "trcc.qt_components.uc_about._is_autostart_enabled", lambda: False
-        )
+    def widget(self, tmp_config):
+        from unittest.mock import MagicMock
+        mock_manager = MagicMock()
+        mock_manager.is_enabled.return_value = False
         with patch("trcc.qt_components.uc_about.Thread"):
-            w = UCAbout()
+            w = UCAbout(autostart_manager=mock_manager)
         return w
 
     def test_construction(self, widget):
