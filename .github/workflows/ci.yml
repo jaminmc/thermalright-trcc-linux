@@ -89,10 +89,10 @@ jobs:
 
       - name: Parse and update badges
         run: |
-          TESTS=$(grep -oP '\d+ passed' pytest-output.txt | grep -oP '\d+')
-          COV=$(grep -oP 'TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+\K\d+' pytest-output.txt)
-          sed -i "s/tests-[0-9]*_passed/tests-${TESTS}_passed/" README.md
-          sed -i "s/coverage-[0-9]*%25/coverage-${COV}%25/" README.md
+          TESTS=$(grep -oP '\d+ passed' pytest-output.txt | grep -oP '\d+' || true)
+          COV=$(grep -oP 'TOTAL.*\K\d+(?=%)' pytest-output.txt || true)
+          [ -n "$TESTS" ] && sed -i "s/tests-[0-9]*_passed/tests-${TESTS}_passed/" README.md
+          [ -n "$COV" ] && sed -i "s/coverage-[0-9]*%25/coverage-${COV}%25/" README.md
 
       - name: Commit if changed
         run: |
