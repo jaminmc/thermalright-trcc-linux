@@ -41,6 +41,14 @@ class TestScsiStructures:
         assert hasattr(sptdwb, 'sense')
         assert len(sptdwb.sense) == 32
 
+    def test_spt_buffered_has_offset_fields(self):
+        from trcc.adapters.device.windows.scsi import SCSI_PASS_THROUGH
+        spt = SCSI_PASS_THROUGH()
+        assert hasattr(spt, 'DataBufferOffset')
+        assert hasattr(spt, 'SenseInfoOffset')
+        assert hasattr(spt, 'Cdb')
+        assert len(spt.Cdb) == 16
+
 
 # ── Transport Logic Tests (all platforms) ─────────────────────────────
 
@@ -76,6 +84,30 @@ class TestWindowsScsiTransport:
         transport = self._make_transport()
         result = transport.send_cdb(b'\xef\x01', b'\x00' * 512)
         assert result is False
+
+    def test_read_cdb_fails_when_not_open(self):
+        transport = self._make_transport()
+        result = transport.read_cdb(b'\xf5\x00', 64)
+        assert result == b''
+
+    def test_read_cdb_uses_buffered_ioctl(self):
+        """read_cdb must use IOCTL_SCSI_PASS_THROUGH (0x4D004), not DIRECT."""
+        transport = self._make_transport()
+        transport._handle = 42  # fake open handle
+
+        mock_kernel32 = MagicMock()
+        mock_kernel32.DeviceIoControl.return_value = 1  # success
+        mock_windll = MagicMock()
+        mock_windll.kernel32 = mock_kernel32
+
+        with patch('ctypes.windll', mock_windll, create=True), \
+             patch('ctypes.GetLastError', return_value=0, create=True):
+            transport.read_cdb(b'\xf5' + b'\x00' * 15, 64)
+
+        ioctl_code = mock_kernel32.DeviceIoControl.call_args[0][1]
+        assert ioctl_code == 0x4D004, (
+            f"read_cdb must use IOCTL_SCSI_PASS_THROUGH (0x4D004), got {ioctl_code:#x}"
+        )
 
     def test_close_noop_when_not_open(self):
         transport = self._make_transport()
