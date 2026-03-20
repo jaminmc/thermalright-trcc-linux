@@ -4,7 +4,6 @@ Tests for qt_components.base – base widget classes and utility functions.
 Uses QT_QPA_PLATFORM=offscreen for headless testing.
 
 Tests cover:
-- pil_to_pixmap() / pixmap_to_pil() conversion round-trip
 - BasePanel: init, fixed size, delegate signal, resource loading
 - ImageLabel: init, set_image, click signal
 - ClickableFrame: click signal
@@ -26,8 +25,7 @@ from PySide6.QtWidgets import QApplication
 # Create app once for all tests
 _app = QApplication.instance() or QApplication(sys.argv)
 
-from PIL import Image  # noqa: E402
-from PySide6.QtGui import QPixmap  # noqa: E402
+from PySide6.QtGui import QImage, QPixmap  # noqa: E402
 
 from trcc.core.models import ThemeItem  # noqa: E402
 from trcc.qt_components.base import (  # noqa: E402
@@ -36,46 +34,9 @@ from trcc.qt_components.base import (  # noqa: E402
     ClickableFrame,
     ImageLabel,
     create_image_button,
-    pil_to_pixmap,
-    pixmap_to_pil,
     set_background_pixmap,
 )
 from trcc.qt_components.constants import Sizes  # noqa: E402
-
-
-class TestPilToPixmap(unittest.TestCase):
-    """Test PIL <-> QPixmap conversions."""
-
-    def test_rgb_image(self):
-        img = Image.new('RGB', (100, 100), (255, 0, 0))
-        pix = pil_to_pixmap(img)
-        self.assertFalse(pix.isNull())
-        self.assertEqual(pix.width(), 100)
-        self.assertEqual(pix.height(), 100)
-
-    def test_rgba_image(self):
-        """RGBA is composited onto black."""
-        img = Image.new('RGBA', (50, 50), (0, 255, 0, 128))
-        pix = pil_to_pixmap(img)
-        self.assertFalse(pix.isNull())
-
-    def test_grayscale_image(self):
-        """Non-RGB modes are converted."""
-        img = Image.new('L', (30, 30), 128)
-        pix = pil_to_pixmap(img)
-        self.assertFalse(pix.isNull())
-
-    def test_none_returns_empty(self):
-        pix = pil_to_pixmap(None)
-        self.assertTrue(pix.isNull())
-
-    def test_roundtrip(self):
-        """PIL -> QPixmap -> PIL preserves dimensions."""
-        original = Image.new('RGB', (64, 64), (100, 150, 200))
-        pixmap = pil_to_pixmap(original)
-        restored = pixmap_to_pil(pixmap)
-        self.assertEqual(restored.size, (64, 64))
-        self.assertEqual(restored.mode, 'RGB')
 
 
 class TestBasePanel(unittest.TestCase):
@@ -126,20 +87,20 @@ class TestImageLabel(unittest.TestCase):
 
     def test_set_image(self):
         label = ImageLabel(100, 100)
-        img = Image.new('RGB', (100, 100), (0, 0, 255))
+        img = QImage(100, 100, QImage.Format.Format_RGB32)
         label.set_image(img)
         self.assertFalse(label.pixmap().isNull())
 
     def test_set_image_resizes(self):
         """Image is resized to fit label dimensions."""
         label = ImageLabel(50, 50)
-        img = Image.new('RGB', (200, 200), (255, 0, 0))
+        img = QImage(200, 200, QImage.Format.Format_RGB32)
         label.set_image(img)
         self.assertEqual(label.pixmap().width(), 50)
 
     def test_set_none_clears(self):
         label = ImageLabel(100, 100)
-        img = Image.new('RGB', (100, 100), (0, 0, 0))
+        img = QImage(100, 100, QImage.Format.Format_RGB32)
         label.set_image(img)
         label.set_image(None)
         # After clear, pixmap should be null or label text empty

@@ -211,62 +211,104 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
 
 
 def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
-    """Stream screen region to LCD. Ctrl+C to stop."""
+    """Stream screen region to LCD via ffmpeg. Ctrl+C to stop."""
+    import subprocess
+
+    from PySide6.QtGui import QImage
+
+    from trcc.cli import _ensure_renderer
+    from trcc.core.platform import LINUX, MACOS, WINDOWS
+    from trcc.services import ImageService
+
+    _ensure_renderer()
+    svc = _device._get_service(device)
+    if not svc.selected:
+        print("No device found.")
+        return 1
+
+    dev = svc.selected
+    lcd_w, lcd_h = dev.resolution
+
+    # Build platform-appropriate ffmpeg screen capture arguments.
+    # ffmpeg scales output to LCD resolution — no Python resize needed.
+    region_args: list[str] = []
+    if LINUX:
+        display = os.environ.get('DISPLAY', ':0.0')
+        fmt = 'x11grab'
+        inp = f'{display}+{x},{y}' if (w and h) else display
+        if w and h:
+            region_args = ['-video_size', f'{w}x{h}']
+    elif MACOS:
+        fmt = 'avfoundation'
+        inp = '1:none'
+        if w and h:
+            region_args = ['-video_size', f'{w}x{h}']
+    elif WINDOWS:
+        fmt = 'gdigrab'
+        inp = 'desktop'
+        if w and h:
+            region_args = ['-offset_x', str(x), '-offset_y', str(y),
+                           '-video_size', f'{w}x{h}']
+    else:
+        print("Error: Screencast not supported on this platform.")
+        return 1
+
+    cmd = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error',
+        '-f', fmt, '-framerate', str(fps),
+        *region_args,
+        '-i', inp,
+        '-vf', f'scale={lcd_w}:{lcd_h}',
+        '-f', 'rawvideo', '-pix_fmt', 'rgb24',
+        'pipe:1',
+    ]
+    frame_size = lcd_w * lcd_h * 3
+
+    if w and h:
+        print(f"Capturing region ({x},{y}) {w}x{h} → {dev.path} [{lcd_w}x{lcd_h}]")
+    else:
+        print(f"Capturing full screen → {dev.path} [{lcd_w}x{lcd_h}]")
+    print(f"Target: {fps} fps. Press Ctrl+C to stop.")
+
+    if preview:
+        print('\033[2J', end='', flush=True)
+
+    frames = 0
+    proc = None
     try:
-        import time
-
-        from PIL import ImageGrab
-
-        from trcc.cli import _ensure_renderer
-        from trcc.services import ImageService
-
-        _ensure_renderer()
-        svc = _device._get_service(device)
-        if not svc.selected:
-            print("No device found.")
-            return 1
-
-        dev = svc.selected
-        lcd_w, lcd_h = dev.resolution
-
-        bbox = None
-        if w > 0 and h > 0:
-            bbox = (x, y, x + w, y + h)
-            print(f"Capturing region ({x},{y}) {w}x{h} → {dev.path} [{lcd_w}x{lcd_h}]")
-        else:
-            print(f"Capturing full screen → {dev.path} [{lcd_w}x{lcd_h}]")
-
-        print(f"Target: {fps} fps. Press Ctrl+C to stop.")
-
-        interval = 1.0 / fps
-        frames = 0
-        if preview:
-            print('\033[2J', end='', flush=True)
-
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL)
+        assert proc.stdout is not None
         while True:
-            start = time.monotonic()
-            img = ImageGrab.grab(bbox=bbox)
-            img = ImageService.resize(img, lcd_w, lcd_h)
-            svc.send_pil(img, lcd_w, lcd_h)
+            raw = proc.stdout.read(frame_size)
+            if len(raw) < frame_size:
+                break
+            # Detach from raw buffer immediately — send_pil may hold a ref
+            qimg = QImage(raw, lcd_w, lcd_h, lcd_w * 3,
+                          QImage.Format.Format_RGB888).copy()
+            svc.send_pil(qimg, lcd_w, lcd_h)
             frames += 1
             if preview:
-                print(ImageService.to_ansi_cursor_home(img), flush=True)
+                print(ImageService.to_ansi_cursor_home(qimg), flush=True)
             else:
                 print(f"\r  Frames: {frames}", end="", flush=True)
-            elapsed = time.monotonic() - start
-            if elapsed < interval:
-                time.sleep(interval - elapsed)
-
     except KeyboardInterrupt:
-        print(f"\nStopped after {frames} frames.")
-        return 0
-    except ImportError:
-        print("Error: Screen capture requires Pillow with ImageGrab support.")
-        print("On Linux, install: pip install Pillow")
+        pass
+    except FileNotFoundError:
+        print("Error: ffmpeg not found. Install ffmpeg to use screencast.")
         return 1
     except Exception as e:
         print(f"\nError: {e}")
         return 1
+    finally:
+        if proc is not None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+    print(f"\nStopped after {frames} frames.")
+    return 0
 
 
 # =========================================================================

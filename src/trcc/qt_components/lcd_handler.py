@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 
 import trcc.conf as _conf
 from trcc.conf import Settings
@@ -65,6 +65,10 @@ class LCDHandler:
         self._ldd_is_split = False
         self._background_active = False
         self._slideshow_index = 0
+
+        # QPixmap cache keyed by frame index: {index: (id(qimage), QPixmap)}
+        # Avoids QImage→QPixmap conversion on every tick when L3 cache is warm.
+        self._pixmap_cache: dict[int, tuple[int, QPixmap]] = {}
 
         # Timers (created by parent, owned by this handler)
         self._animation_timer: QTimer = make_timer(self._on_video_tick)
@@ -234,6 +238,7 @@ class LCDHandler:
 
     def _select_theme(self, theme: ThemeInfo) -> None:
         """Select theme via LCDDevice and handle result."""
+        self._pixmap_cache.clear()
         result = self._lcd.theme.select(theme)
         image = result.get('image')
         is_animated = result.get('is_animated', False)
@@ -448,7 +453,18 @@ class LCDHandler:
         if self._is_visible():
             preview = result.get('preview')
             if preview is not None:
-                self._w['preview'].set_image(preview, fast=True)
+                index = result.get('frame_index')
+                if index is not None:
+                    cached = self._pixmap_cache.get(index)
+                    preview_id = id(preview)
+                    if cached is None or cached[0] != preview_id:
+                        pixmap = QPixmap.fromImage(preview)
+                        self._pixmap_cache[index] = (preview_id, pixmap)
+                    else:
+                        pixmap = cached[1]
+                    self._w['preview'].set_image(pixmap, fast=True)
+                else:
+                    self._w['preview'].set_image(preview, fast=True)
 
         if not self._lcd.connected:
             return
@@ -561,10 +577,10 @@ class LCDHandler:
         self._w['preview'].set_status(
             f"Background: {'On' if enabled else 'Off'} ({kind})")
 
-    def on_screencast_frame(self, pil_img: Any) -> None:
+    def on_screencast_frame(self, image: Any) -> None:
         """Handle captured screencast frame — preview + send to LCD."""
-        self._w['preview'].set_image(pil_img)
-        self._lcd.frame.send(pil_img)
+        self._w['preview'].set_image(image)
+        self._lcd.frame.send(image)
 
     # ── Slideshow / Carousel ───────────────────────────────────────
 

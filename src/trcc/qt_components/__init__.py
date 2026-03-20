@@ -1,6 +1,6 @@
 """PySide6 GUI components for TRCC Linux."""
 
-from .base import BasePanel, ImageLabel, pil_to_pixmap
+from .base import BasePanel, ImageLabel
 from .trcc_app import TRCCApp, run_app
 from .uc_device import UCDevice
 from .uc_preview import UCPreview
@@ -14,7 +14,6 @@ __all__ = [
     'run_app',
     'BasePanel',
     'ImageLabel',
-    'pil_to_pixmap',
     'UCDevice',
     'UCPreview',
     'UCThemeLocal',

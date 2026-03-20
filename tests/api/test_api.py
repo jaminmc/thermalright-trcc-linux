@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import make_test_surface
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -372,7 +373,7 @@ class TestDisplayEndpoints(unittest.TestCase):
 
     def test_on_frame_sent_callback_updates_current_image(self):
         """DeviceService.on_frame_sent callback updates _current_image."""
-        test_img = Image.new('RGB', (320, 320), (0, 255, 0))
+        test_img = make_test_surface(320, 320, (0, 255, 0))
         api_module._current_image = None
 
         # Simulate the callback that select_device() wires up
@@ -401,7 +402,7 @@ class TestPreviewEndpoints(unittest.TestCase):
         self.assertEqual(resp.status_code, 503)
 
     def test_preview_returns_png(self):
-        api_module._current_image = Image.new('RGB', (320, 320), (255, 0, 0))
+        api_module._current_image = make_test_surface(320, 320, (255, 0, 0))
         resp = self.client.get("/display/preview")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.headers["content-type"], "image/png")
@@ -421,21 +422,21 @@ class TestPreviewEndpoints(unittest.TestCase):
         configure_auth(None)
 
     def test_preview_stream_sends_frame(self):
-        api_module._current_image = Image.new('RGB', (100, 100), (0, 0, 255))
+        api_module._current_image = make_test_surface(100, 100, (0, 0, 255))
         with self.client.websocket_connect("/display/preview/stream") as ws:
             data = ws.receive_bytes()
             # Should be JPEG (starts with FF D8)
             self.assertTrue(data[:2] == b'\xff\xd8')
 
     def test_preview_stream_accepts_control_message(self):
-        api_module._current_image = Image.new('RGB', (100, 100), (0, 0, 255))
+        api_module._current_image = make_test_surface(100, 100, (0, 0, 255))
         with self.client.websocket_connect("/display/preview/stream") as ws:
             # Read the first frame
             ws.receive_bytes()
             # Send control message
             ws.send_text('{"fps": 5, "quality": 50}')
             # Change image to trigger another frame
-            api_module._current_image = Image.new('RGB', (100, 100), (255, 0, 0))
+            api_module._current_image = make_test_surface(100, 100, (255, 0, 0))
             data = ws.receive_bytes()
             self.assertTrue(data[:2] == b'\xff\xd8')
 
@@ -982,7 +983,7 @@ class TestOverlayLoop(unittest.TestCase):
         api_module._system_svc = mock_system
         mock_svc.send_pil.return_value = True
 
-        bg = Image.new('RGB', (320, 320), 'black')
+        bg = make_test_surface(320, 320, (0, 0, 0))
 
         ok = api_module.start_overlay_loop(bg, "/nonexistent/config1.dc", 320, 320)
         self.assertTrue(ok)
@@ -1128,7 +1129,7 @@ class TestIPCFrameSharing(unittest.TestCase):
         api_module._display_dispatcher = IPCDisplayProxy()
 
         with patch('trcc.api.display._fetch_ipc_frame') as mock_fetch:
-            mock_fetch.return_value = Image.new('RGB', (320, 320), 'red')
+            mock_fetch.return_value = make_test_surface(320, 320, (255, 0, 0))
             resp = self.client.get("/display/preview")
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.headers["content-type"], "image/png")
@@ -1137,7 +1138,7 @@ class TestIPCFrameSharing(unittest.TestCase):
     def test_preview_uses_local_image_in_standalone(self):
         """GET /preview reads _current_image when no IPC proxy."""
         api_module._display_dispatcher = None
-        api_module._current_image = Image.new('RGB', (320, 320), 'green')
+        api_module._current_image = make_test_surface(320, 320, (0, 128, 0))
 
         resp = self.client.get("/display/preview")
         self.assertEqual(resp.status_code, 200)

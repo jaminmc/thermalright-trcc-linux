@@ -1,28 +1,12 @@
-"""Image processing service — delegates to Renderer ABC.
-
-Thin facade over the active Renderer.  Callers use ``ImageService.method()``
-without knowing whether Qt or PIL is behind it.  The renderer is set once
-at startup via ``set_renderer()``.
-"""
+"""Image processing service — delegates to Renderer ABC (QtRenderer)."""
 from __future__ import annotations
 
 import logging
 from typing import Any, ClassVar
 
-from PIL import Image as PILImage  # noqa: F401 — used in to_ansi/metrics_to_ansi
-
 from ..core.ports import Renderer
 
 log = logging.getLogger(__name__)
-
-# Cap decompression to 4x the largest LCD (1920x720).
-PILImage.MAX_IMAGE_PIXELS = 1920 * 720 * 4  # 5,529,600 pixels
-
-
-def _get_draw(img: Any) -> Any:
-    """Lazy-import ImageDraw and return a Draw object."""
-    from PIL import ImageDraw
-    return ImageDraw.Draw(img)
 
 
 class ImageService:
@@ -84,9 +68,9 @@ class ImageService:
     @staticmethod
     def open_and_resize(path: Any, w: int, h: int) -> Any:
         """Open image file, resize to target dimensions."""
-        r = ImageService._r()
-        img = r.open_image(path)
-        return r.resize(img, w, h)
+        rnd = ImageService._r()
+        img = rnd.open_image(path)
+        return rnd.resize(img, w, h)
 
     # Square resolutions that skip the 90° device pre-rotation.
     _SQUARE_NO_ROTATE = {(240, 240), (320, 320), (480, 480)}
@@ -121,55 +105,42 @@ class ImageService:
         """
         from ..core.models import get_profile
 
-        r = ImageService._r()
-        if hasattr(img, 'mode'):  # PIL Image → native surface
-            img = r.from_pil(img)
+        rnd = ImageService._r()
         profile = get_profile(fbl) if fbl is not None else None
 
         # Ensure image matches device native resolution before encoding.
         # User rotation may have swapped dimensions (640x480 -> 480x640).
         native_w, native_h = resolution
         if native_w and native_h and native_w != native_h:
-            img_w, img_h = r.surface_size(img)
+            img_w, img_h = rnd.surface_size(img)
             if (img_w, img_h) != (native_w, native_h):
-                img = r.resize(img, native_w, native_h)
+                img = rnd.resize(img, native_w, native_h)
 
         if use_jpeg or (profile and profile.jpeg):
             return ImageService.to_jpeg(img)
 
         if profile and profile.rotate:
-            img = r.apply_rotation(img, 90)
+            img = rnd.apply_rotation(img, 90)
         byte_order = profile.byte_order if profile else '<'
         return ImageService.to_rgb565(img, byte_order)
 
-    # ── ANSI preview (CLI cold path — still uses PIL directly) ────
+    # ── ANSI preview (CLI cold path) ──────────────────────────────
 
     @staticmethod
     def to_ansi(img: Any, cols: int = 60) -> str:
         """Render surface as ANSI true-color block art for terminal preview."""
-        # Convert to PIL for pixel access (CLI-only, not hot path)
-        if isinstance(img, PILImage.Image):
-            pil_img = img
-        else:
-            pil_img = ImageService._r().to_pil(img)
-        if pil_img.mode != 'RGB':
-            pil_img = pil_img.convert('RGB')
-
-        w, h = pil_img.size
+        rnd = ImageService._r()
+        w, h = rnd.surface_size(img)
         rows = max(1, int(cols * h / w))
         rows += rows % 2
-        thumb = pil_img.resize((cols, rows), PILImage.Resampling.LANCZOS)
-        pixels = thumb.load()
+        pixels = rnd.get_pixels_rgb(img, cols, rows)
 
         lines: list[str] = []
         for y in range(0, rows, 2):
             parts: list[str] = []
             for x in range(cols):
-                tr, tg, tb = pixels[x, y]  # type: ignore[index]
-                if y + 1 < rows:
-                    br, bg_, bb = pixels[x, y + 1]  # type: ignore[index]
-                else:
-                    br, bg_, bb = 0, 0, 0
+                tr, tg, tb = pixels[y][x]
+                br, bg_, bb = pixels[y + 1][x] if y + 1 < rows else (0, 0, 0)
                 parts.append(
                     f'\033[38;2;{tr};{tg};{tb}m'
                     f'\033[48;2;{br};{bg_};{bb}m\u2580'
@@ -220,13 +191,15 @@ class ImageService:
         h = max(40, padding + total_lines * line_h + padding)
         w = int(cols * 2.5)
 
-        # ANSI dashboard uses PIL directly (cold path, terminal only)
-        img = PILImage.new('RGB', (w, h), (10, 10, 30))
-        draw = _get_draw(img)
+        rnd = ImageService._r()
+        font_label = rnd.get_font(13, bold=True)
+        font_value = rnd.get_font(12)
+        surf = rnd.create_surface(w, h, (10, 10, 30))
 
         y = padding
         for _, (label, fields, color) in items.items():
-            draw.text((8, y), label, fill=color)
+            color_str = '#{:02x}{:02x}{:02x}'.format(*color)
+            rnd.draw_text(surf, 8, y, label, color_str, font_label, anchor='lt')
             y += line_h
             for f in fields:
                 v = getattr(metrics, f, 0.0)
@@ -234,15 +207,14 @@ class ImageService:
                     continue
                 formatted = SystemService.format_metric(f, v)
                 name = f.replace('_', ' ').title()
-                draw.text((16, y), f'{name}:', fill=(140, 140, 160))
-                draw.text((w // 2, y), formatted, fill=(220, 220, 220))
+                rnd.draw_text(surf, 16, y, f'{name}:', '#8c8ca0', font_value, anchor='lt')
+                rnd.draw_text(surf, w // 2, y, formatted, '#dcdcdc', font_value, anchor='lt')
                 if 'percent' in f or 'usage' in f or 'activity' in f:
                     bar_x = w * 3 // 4
                     bar_w = int((w - bar_x - 8) * min(v, 100) / 100)
-                    draw.rectangle([bar_x, y + 2, bar_x + bar_w, y + 14],
-                                   fill=color)
-                    draw.rectangle([bar_x, y + 2, w - 8, y + 14],
-                                   outline=(50, 50, 50))
+                    rnd.fill_rect(surf, bar_x, y + 2, bar_w, 12, color)
+                    rnd.draw_rect_outline(surf, bar_x, y + 2,
+                                          w - 8 - bar_x, 12, (50, 50, 50))
                 y += line_h
 
-        return ImageService.to_ansi(img, cols=cols)
+        return ImageService.to_ansi(surf, cols=cols)

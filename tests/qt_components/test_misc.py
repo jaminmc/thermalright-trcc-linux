@@ -17,8 +17,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image as PILImage
+from PySide6.QtGui import QImage
 
+from tests.conftest import make_test_surface
 from trcc.qt_components.uc_about import UCAbout
 from trcc.qt_components.uc_activity_sidebar import (
     CATEGORY_COLORS,
@@ -224,7 +225,7 @@ class TestImageCutWidget:
 
     def test_load_landscape_image(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (800, 600), (128, 0, 0))
+        img = make_test_surface(800, 600, (128, 0, 0))
         w.load_image(img, 320, 320)
         assert w._source_image is not None
         assert w._target_w == 320
@@ -235,14 +236,14 @@ class TestImageCutWidget:
 
     def test_load_portrait_image(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (400, 800), (128, 0, 0))
+        img = make_test_surface(400, 800, (128, 0, 0))
         w.load_image(img, 320, 320)
         # Portrait -> height fit -> zoom = 320/800
         assert w._zoom == pytest.approx(320 / 800)
 
     def test_on_rotate(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (400, 300), (0, 0, 0))
+        img = make_test_surface(400, 300, (0, 0, 0))
         w.load_image(img, 320, 320)
         assert w._rotation == 0
         w._on_rotate()
@@ -256,7 +257,7 @@ class TestImageCutWidget:
 
     def test_rotate_resets_pan(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (400, 300), (0, 0, 0))
+        img = make_test_surface(400, 300, (0, 0, 0))
         w.load_image(img, 320, 320)
         w._pan_x = 50
         w._pan_y = 30
@@ -266,11 +267,12 @@ class TestImageCutWidget:
 
     def test_get_cropped_output(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (640, 480), (255, 0, 0))
+        img = make_test_surface(640, 480, (255, 0, 0))
         w.load_image(img, 320, 320)
         output = w._get_cropped_output()
         assert output is not None
-        assert output.size == (320, 320)
+        assert isinstance(output, QImage)
+        assert output.width() == 320 and output.height() == 320
 
     def test_get_cropped_output_no_image(self):
         w = UCImageCut()
@@ -278,14 +280,14 @@ class TestImageCutWidget:
 
     def test_ok_emits_signal(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (200, 200), (0, 255, 0))
+        img = make_test_surface(200, 200, (0, 255, 0))
         w.load_image(img, 320, 320)
         received = []
         w.image_cut_done.connect(received.append)
         w._on_ok()
         assert len(received) == 1
         assert received[0] is not None
-        assert isinstance(received[0], PILImage.Image)
+        assert isinstance(received[0], QImage)
 
     def test_close_emits_none(self):
         w = UCImageCut()
@@ -297,7 +299,7 @@ class TestImageCutWidget:
 
     def test_fit_width(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (800, 600), (0, 0, 0))
+        img = make_test_surface(800, 600, (0, 0, 0))
         w.load_image(img, 640, 480)
         w._fit_width()
         assert w._zoom == pytest.approx(640 / 800)
@@ -306,7 +308,7 @@ class TestImageCutWidget:
 
     def test_fit_height(self):
         w = UCImageCut()
-        img = PILImage.new("RGB", (800, 600), (0, 0, 0))
+        img = make_test_surface(800, 600, (0, 0, 0))
         w.load_image(img, 640, 480)
         w._fit_height()
         assert w._zoom == pytest.approx(480 / 600)
@@ -1057,8 +1059,8 @@ class TestUCThemeWeb:
         web_dir = tmp_path / "web"
         web_dir.mkdir()
         # Create some preview PNGs
-        PILImage.new("RGB", (120, 120), (0, 0, 0)).save(str(web_dir / "bg001.png"))
-        PILImage.new("RGB", (120, 120), (0, 0, 0)).save(str(web_dir / "bg002.png"))
+        make_test_surface(120, 120, (0, 0, 0)).save(str(web_dir / "bg001.png"))
+        make_test_surface(120, 120, (0, 0, 0)).save(str(web_dir / "bg002.png"))
         widget.web_directory = web_dir
         widget.load_themes()
         assert len(widget.items) == 2
@@ -1066,8 +1068,8 @@ class TestUCThemeWeb:
     def test_load_themes_with_category_filter(self, widget, tmp_path):
         web_dir = tmp_path / "web"
         web_dir.mkdir()
-        PILImage.new("RGB", (120, 120), (0, 0, 0)).save(str(web_dir / "cat_a_01.png"))
-        PILImage.new("RGB", (120, 120), (0, 0, 0)).save(str(web_dir / "cat_b_01.png"))
+        make_test_surface(120, 120, (0, 0, 0)).save(str(web_dir / "cat_a_01.png"))
+        make_test_surface(120, 120, (0, 0, 0)).save(str(web_dir / "cat_b_01.png"))
         widget.web_directory = web_dir
         widget.current_category = "a"
         widget.load_themes()
@@ -1147,7 +1149,7 @@ class TestUCThemeMask:
         # Create a local mask directory with Theme.png
         local = mask_dir / "000a"
         local.mkdir()
-        PILImage.new("RGB", (120, 120), (0, 0, 0)).save(str(local / "Theme.png"))
+        make_test_surface(120, 120, (0, 0, 0)).save(str(local / "Theme.png"))
         widget.mask_directory = mask_dir
         widget.refresh_masks()
         # One local + (120 - 1) cloud = 120 total

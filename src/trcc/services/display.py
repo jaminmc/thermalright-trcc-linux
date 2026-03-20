@@ -196,10 +196,8 @@ class DisplayService:
         if isinstance(first, RawFrame):
             self.media._frames = [r.from_raw_rgb24(f) for f in frames]
         else:
-            try:
-                r.surface_size(first)
-            except (AttributeError, TypeError):
-                self.media._frames = [r.from_pil(f) for f in frames]
+            # Already native surfaces (QImage) — use as-is
+            self.media._frames = list(frames)
 
     # -- Theme loading (delegates to ThemeLoader) --------------------------
 
@@ -429,11 +427,13 @@ class DisplayService:
             cf = self.media.state.current_frame
             total = self.media.state.total_frames
             index = (cf - 1) % total if total > 0 else 0
+            preview, encoded = self._cache.get_frame(index)
             return {
-                'preview': self._cache.get_preview(index),
+                'preview': preview,
+                'frame_index': index,
                 'progress': progress,
                 'send_image': None,
-                'encoded': self._cache.get_encoded(index),
+                'encoded': encoded,
             }
 
         # Fallback: original pipeline (overlay disabled, or cache not built)

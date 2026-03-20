@@ -194,7 +194,7 @@ class ScreenCaptureOverlay(BaseScreenOverlay):
     """Full-screen overlay for selecting a screen region.
 
     Shows a frozen screenshot. User draws a selection rectangle.
-    The selected region is emitted as a PIL Image.
+    The selected region is emitted as a QPixmap.
 
     Usage:
         overlay = ScreenCaptureOverlay()
@@ -202,7 +202,7 @@ class ScreenCaptureOverlay(BaseScreenOverlay):
         overlay.show()
     """
 
-    captured = Signal(object)  # PIL Image or None
+    captured = Signal(object)  # QPixmap or None
 
     # Visual constants
     _DIM_COLOR = QColor(0, 0, 0, 120)
@@ -305,14 +305,11 @@ class ScreenCaptureOverlay(BaseScreenOverlay):
         return QRect(self._start, self._end).normalized()
 
     def _confirm(self, rect: QRect):
-        """Crop the selected region and emit as PIL Image."""
+        """Crop the selected region and emit as QPixmap."""
         self.hide()
         try:
             cropped = self._screenshot.copy(rect)
-            # Convert QPixmap → PIL Image
-            from .base import pixmap_to_pil
-            pil_img = pixmap_to_pil(cropped)
-            self.captured.emit(pil_img)
+            self.captured.emit(cropped)
         except Exception:
             log.debug("Screen capture region crop/convert failed", exc_info=True)
             self.captured.emit(None)

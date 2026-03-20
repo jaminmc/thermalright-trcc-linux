@@ -182,24 +182,28 @@ class LCDDriver:
         return pixel * (width * height)
 
     def load_image(self, path: str) -> bytes:
-        """Load and convert image to device format"""
+        """Load and convert image to device RGB565 format via ffmpeg."""
         if not self.implementation:
             raise RuntimeError("No implementation loaded")
 
-        try:
-            from PIL import Image
-            width, height = self.implementation.resolution
-            img = Image.open(path).convert('RGB').resize((width, height))
-            byte_order = byte_order_for(
-                'scsi', self.implementation.resolution, self.implementation.fbl)
-            data = bytearray()
-            for y in range(height):
-                for x in range(width):
-                    r, g, b = img.getpixel((x, y))  # type: ignore[misc]
-                    data.extend(rgb_to_bytes(r, g, b, byte_order))
-            return bytes(data)
-        except ImportError:
-            raise RuntimeError("PIL not installed. Run: pip install Pillow")
+        import subprocess
+
+        from ...core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
+        width, height = self.implementation.resolution
+        byte_order = byte_order_for(
+            'scsi', self.implementation.resolution, self.implementation.fbl)
+        result = subprocess.run([
+            'ffmpeg', '-i', path,
+            '-vf', f'scale={width}:{height}',
+            '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-v', 'error', 'pipe:1',
+        ], capture_output=True, timeout=30, creationflags=_NO_WINDOW)
+        if result.returncode != 0 or not result.stdout:
+            raise RuntimeError(f"ffmpeg failed to load image: {path}")
+        rgb = result.stdout[:width * height * 3]
+        data = bytearray()
+        for i in range(0, len(rgb), 3):
+            data.extend(rgb_to_bytes(rgb[i], rgb[i + 1], rgb[i + 2], byte_order))
+        return bytes(data)
 
     def get_info(self) -> dict:
         """Get device and implementation info"""

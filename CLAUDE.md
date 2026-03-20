@@ -78,7 +78,7 @@ UsbDevice (ABC) — handshake() + close()
 #### Adapter Layer (`adapters/device/abstract_factory.py`)
 ```
 DeviceProtocol (ABC) — Template Method: handshake() concrete, _do_handshake() abstract
-├── LCDMixin — send_image() (abstract) + send_pil() (concrete, ISP)
+├── LCDMixin — send_image() (abstract, ISP)
 ├── LEDMixin — send_led_data() (abstract, ISP)
 │
 ├── ScsiProtocol  (DeviceProtocol + LCDMixin, wraps ScsiDevice)
@@ -92,7 +92,7 @@ DeviceProtocolFactory — @register() decorator for self-registration (OCP)
 #### Other ABCs
 | ABC | File | Subclasses | Purpose |
 |-----|------|------------|---------|
-| `Renderer` | `core/ports.py` | QtRenderer, PilRenderer (2) | Image rendering ABC — compositing, text, encoding, rotation. QtRenderer is the primary (QImage/QPainter), PilRenderer is fallback |
+| `Renderer` | `core/ports.py` | QtRenderer (1) | Image rendering ABC — compositing, text, encoding, rotation. QtRenderer is the sole implementation (QImage/QPainter). PIL eliminated. |
 | `UsbTransport` | `adapters/device/hid.py` | PyUsbTransport, HidApiTransport (2) | USB I/O abstraction — mockable for tests |
 | `SegmentDisplay` | `adapters/device/led_segment.py` | AX120, PA120, AK120, LC1, LF8, LF12, LF10, CZ1, LC2, LF11 (10) | LED 7-segment mask computation per product |
 | `BasePanel` | `qt_components/base.py` | UCDevice, UCAbout, UCPreview, UCThemeSetting, BaseThemeBrowser (5+3 indirect) | GUI panel lifecycle: `_setup_ui()` enforced, `apply_language()`, `get_state()`/`set_state()`, timer helpers |
@@ -313,7 +313,7 @@ When the user says one bare word — `patch`, `minor`, or `major` — execute th
   - **SRP** — each class has one reason to change. Services own logic, views own rendering, models own data.
   - **OCP** — `@DeviceProtocolFactory.register()` decorator for self-registering protocols. New devices = new data, not modified logic.
   - **LSP** — no fake implementations (e.g. `send_image()` returning False on LED devices). If a subclass can't fulfill the contract, it shouldn't inherit it.
-  - **ISP** — `LCDMixin` (send_image, send_pil) + `LEDMixin` (send_led_data) instead of one fat `DeviceProtocol`. Clients depend only on what they use.
+  - **ISP** — `LCDMixin` (send_image) + `LEDMixin` (send_led_data) instead of one fat `DeviceProtocol`. Clients depend only on what they use.
   - **DIP** — inject dependencies at runtime (`get_protocol` param, `set_renderer()`). Core logic never imports concrete adapters.
 - **Hexagonal Purity** — dependencies point inward ONLY: adapters → services → core. Services and core NEVER import from adapters. Infrastructure deps (USB, filesystem, rendering) are injected via constructor params with lazy defaults in module-level factory functions. Adapter entry points (CLI, GUI, API) are composition roots that wire concrete implementations.
 - **No Fallback Imports** — services must not lazy-import adapter implementations as fallbacks. If a service needs an adapter, it must be injected. `RuntimeError` if not provided. Composition roots (`cli/__init__.py`, `trcc_app.py`, `api/__init__.py`) create and inject concrete adapters.

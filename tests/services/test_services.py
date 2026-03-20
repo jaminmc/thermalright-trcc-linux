@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PIL import Image
+from PySide6.QtGui import QColor, QImage
 
 from tests.conftest import get_pixel, make_device_service, make_test_surface, surface_size
 from trcc.services.image import ImageService
@@ -221,14 +221,14 @@ class TestImageServiceDeviceRotation(unittest.TestCase):
         # Use solid-color halves to survive smooth transformation interpolation.
         # Left half red, right half green → after 90° CW rotation (device pre-rot):
         # top half = red, bottom half = green.
-        pil_img = Image.new('RGB', (40, 20), (0, 0, 0))
+        img = QImage(40, 20, QImage.Format.Format_RGB32)
+        red, green = QColor(255, 0, 0), QColor(0, 255, 0)
         for x in range(20):
             for y in range(20):
-                pil_img.putpixel((x, y), (255, 0, 0))  # left half = red
+                img.setPixelColor(x, y, red)   # left half = red
         for x in range(20, 40):
             for y in range(20):
-                pil_img.putpixel((x, y), (0, 255, 0))  # right half = green
-        img = ImageService._r().from_pil(pil_img)
+                img.setPixelColor(x, y, green)  # right half = green
         result = ImageService.apply_device_rotation(img, (40, 20))
         self.assertEqual(surface_size(result), (20, 40))
         # After 90° CW rotation: left-half red → top region,
@@ -287,17 +287,17 @@ class TestImageServiceToAnsi(unittest.TestCase):
     """Test ANSI true-color terminal rendering."""
 
     def test_returns_string(self):
-        img = Image.new('RGB', (4, 4), (255, 0, 0))
+        img = make_test_surface(4, 4, (255, 0, 0))
         result = ImageService.to_ansi(img, cols=4)
         self.assertIsInstance(result, str)
 
     def test_contains_half_block(self):
-        img = Image.new('RGB', (4, 4), (0, 255, 0))
+        img = make_test_surface(4, 4, (0, 255, 0))
         result = ImageService.to_ansi(img, cols=4)
         self.assertIn('\u2580', result)
 
     def test_contains_ansi_escapes(self):
-        img = Image.new('RGB', (4, 4), (255, 0, 0))
+        img = make_test_surface(4, 4, (255, 0, 0))
         result = ImageService.to_ansi(img, cols=4)
         self.assertIn('\033[38;2;', result)   # foreground
         self.assertIn('\033[48;2;', result)   # background
@@ -305,24 +305,24 @@ class TestImageServiceToAnsi(unittest.TestCase):
 
     def test_red_contains_red_color(self):
         """Solid red should produce 255;0;0 (or close) in ANSI escapes."""
-        img = Image.new('RGB', (2, 2), (255, 0, 0))
+        img = make_test_surface(2, 2, (255, 0, 0))
         result = ImageService.to_ansi(img, cols=2)
         self.assertIn('255;0;0', result)
 
     def test_rgba_input(self):
         """RGBA images should render without error."""
-        img = Image.new('RGBA', (4, 4), (0, 0, 255, 128))
+        img = make_test_surface(4, 4, (0, 0, 255, 128))
         result = ImageService.to_ansi(img, cols=4)
         self.assertIn('\u2580', result)
 
     def test_cursor_home_variant(self):
-        img = Image.new('RGB', (4, 4), (0, 0, 0))
+        img = make_test_surface(4, 4, (0, 0, 0))
         result = ImageService.to_ansi_cursor_home(img, cols=4)
         self.assertTrue(result.startswith('\033[H'))
 
     def test_cols_parameter(self):
         """Smaller cols = shorter lines."""
-        img = Image.new('RGB', (100, 100), (128, 128, 128))
+        img = make_test_surface(100, 100, (128, 128, 128))
         narrow = ImageService.to_ansi(img, cols=10)
         wide = ImageService.to_ansi(img, cols=40)
         # Wider output should have more characters

@@ -1,5 +1,4 @@
-"""
-PyQt6 UCImageCut - Image cropper panel.
+"""Image cropper panel — Qt-native, no PIL.
 
 Matches Windows TRCC UCImageCut functionality (500x702).
 Provides pan, zoom, rotation, and fit-mode controls for cropping
@@ -7,21 +6,21 @@ images to LCD target resolution.
 """
 from __future__ import annotations
 
-from PIL import Image as PILImage
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QImage,
     QPainter,
     QPalette,
     QPen,
+    QPixmap,
+    QTransform,
 )
 from PySide6.QtWidgets import QWidget
 
-from trcc.services import ImageService
-
 from .assets import Assets
-from .base import make_icon_button, pil_to_pixmap
+from .base import make_icon_button
 
 # ============================================================================
 # Constants
@@ -59,10 +58,10 @@ class UCImageCut(QWidget):
     """Image cropper panel (500x702).
 
     Provides zoom slider, pan via drag, rotation, fit modes.
-    Returns cropped PIL Image at target resolution on OK, or None on cancel.
+    Returns cropped QImage at target resolution on OK, or None on cancel.
 
     Signals:
-        image_cut_done(object): PIL Image on OK, None on cancel.
+        image_cut_done(object): QImage on OK, None on cancel.
     """
 
     image_cut_done = Signal(object)
@@ -73,25 +72,25 @@ class UCImageCut(QWidget):
         self.setMouseTracking(True)
 
         # Image state
-        self._source_image = None   # Original PIL Image (never modified)
+        self._source_image: QImage | None = None  # Original (never modified)
         self._target_w = 320
         self._target_h = 320
 
         # View state
-        self._zoom = 1.0          # bili factor
-        self._pan_x = 0           # offset in source pixels
+        self._zoom = 1.0
+        self._pan_x = 0
         self._pan_y = 0
-        self._rotation = 0        # degrees (0, 90, 180, 270)
+        self._rotation = 0  # degrees (0, 90, 180, 270)
 
         # Interaction state
-        self._slider_x = SLIDER_CENTER   # zoom slider handle position
+        self._slider_x = SLIDER_CENTER
         self._dragging_slider = False
         self._dragging_image = False
         self._drag_start = QPoint()
         self._pan_multiplier = 1
 
         # Cached display pixmap
-        self._display_pixmap = None
+        self._display_pixmap: QPixmap | None = None
 
         # Dark background
         palette = self.palette()
@@ -117,18 +116,19 @@ class UCImageCut(QWidget):
     # Public API
     # =========================================================================
 
-    def load_image(self, pil_image, target_w, target_h):
-        """Load a PIL Image for cropping.
-
-        Args:
-            pil_image: Source PIL Image
-            target_w: Target width for LCD
-            target_h: Target height for LCD
-        """
-        if pil_image is None:
+    def load_image(self, image: QImage | str, target_w: int, target_h: int) -> None:
+        """Load a QImage (or file path) for cropping."""
+        if image is None:
             return
 
-        self._source_image = pil_image.copy()
+        if isinstance(image, str):
+            loaded = QImage(image)
+            if loaded.isNull():
+                return
+            self._source_image = loaded
+        else:
+            self._source_image = image.copy()
+
         self._target_w = target_w
         self._target_h = target_h
         self._rotation = 0
@@ -137,8 +137,7 @@ class UCImageCut(QWidget):
         self._pan_multiplier = _PAN_MULTIPLIERS.get((target_w, target_h), 1)
 
         # Auto-fit: portrait → height fit, landscape → width fit
-        src_w, src_h = pil_image.size
-        if src_h > src_w:
+        if self._source_image.height() > self._source_image.width():
             self._fit_height()
         else:
             self._fit_width()
@@ -151,8 +150,7 @@ class UCImageCut(QWidget):
             palette.setBrush(QPalette.ColorRole.Window, QBrush(bg_pix))
             self.setPalette(palette)
 
-    def set_resolution(self, w, h):
-        """Set target resolution."""
+    def set_resolution(self, w: int, h: int) -> None:
         self._target_w = w
         self._target_h = h
         self._pan_multiplier = _PAN_MULTIPLIERS.get((w, h), 1)
@@ -161,31 +159,27 @@ class UCImageCut(QWidget):
     # Internal: zoom / fit
     # =========================================================================
 
-    def _calc_zoom_from_slider(self, cx):
-        """Windows zoom formula: bili = f(slider_x)."""
+    def _calc_zoom_from_slider(self, cx: int) -> float:
         if cx > SLIDER_CENTER:
             return 1.0 + (cx - SLIDER_CENTER) * 0.03
         else:
             denom = 1.0 + (SLIDER_CENTER - cx) * 0.03
             return 1.0 / denom if denom > 0 else 1.0
 
-    def _slider_x_from_zoom(self, zoom):
-        """Inverse of zoom formula → slider position."""
+    def _slider_x_from_zoom(self, zoom: float) -> int:
         if zoom >= 1.0:
             return int(SLIDER_CENTER + (zoom - 1.0) / 0.03)
         else:
-            # zoom = 1 / (1 + d*0.03) → d = (1/zoom - 1)/0.03
             d = (1.0 / zoom - 1.0) / 0.03 if zoom > 0 else 0
             return int(SLIDER_CENTER - d)
 
-    def _fit_width(self):
-        """Fit image to target width."""
+    def _fit_width(self) -> None:
         if not self._source_image:
             return
         img = self._get_rotated_source()
         if img is None:
             return
-        src_w, src_h = img.size
+        src_w = img.width()
         self._zoom = self._target_w / src_w if src_w > 0 else 1.0
         self._slider_x = max(SLIDER_X_MIN, min(SLIDER_X_MAX,
                              self._slider_x_from_zoom(self._zoom)))
@@ -193,14 +187,13 @@ class UCImageCut(QWidget):
         self._pan_y = 0
         self._rebuild_display()
 
-    def _fit_height(self):
-        """Fit image to target height."""
+    def _fit_height(self) -> None:
         if not self._source_image:
             return
         img = self._get_rotated_source()
         if img is None:
             return
-        src_w, src_h = img.size
+        src_h = img.height()
         self._zoom = self._target_h / src_h if src_h > 0 else 1.0
         self._slider_x = max(SLIDER_X_MIN, min(SLIDER_X_MAX,
                              self._slider_x_from_zoom(self._zoom)))
@@ -208,61 +201,59 @@ class UCImageCut(QWidget):
         self._pan_y = 0
         self._rebuild_display()
 
-    def _get_rotated_source(self):
-        """Get source image with rotation applied.
-
-        ``_source_image`` is PIL (from file dialog).  ``ImageService`` operates
-        on native renderer surfaces, so we convert at the boundary and convert
-        back to PIL for the crop/paste operations downstream.
-        """
-        if not self._source_image:
+    def _get_rotated_source(self) -> QImage | None:
+        """Return source image with rotation applied (Qt QTransform)."""
+        if self._source_image is None or self._source_image.isNull():
             return None
         if self._rotation == 0:
             return self._source_image
-        renderer = ImageService._r()
-        native = renderer.from_pil(self._source_image)
-        rotated = renderer.apply_rotation(native, self._rotation)
-        return renderer.to_pil(rotated)
+        t = QTransform().rotate(float(self._rotation))
+        return self._source_image.transformed(t, Qt.TransformationMode.SmoothTransformation)
 
-    def _get_cropped_output(self):
-        """Get the final cropped PIL Image at target resolution."""
+    def _get_cropped_output(self) -> QImage | None:
+        """Return the final cropped QImage at target resolution."""
         img = self._get_rotated_source()
         if img is None:
             return None
 
-        src_w, src_h = img.size
+        src_w, src_h = img.width(), img.height()
         new_w = int(src_w * self._zoom)
         new_h = int(src_h * self._zoom)
         if new_w < 1 or new_h < 1:
             return None
 
-        scaled = img.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
+        scaled = img.scaled(new_w, new_h,
+                            Qt.AspectRatioMode.IgnoreAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
 
-        # Create black canvas at target resolution
-        output = PILImage.new('RGB', (self._target_w, self._target_h), (0, 0, 0))
+        # Black canvas at target resolution
+        output = QImage(self._target_w, self._target_h, QImage.Format.Format_RGB32)
+        output.fill(QColor(0, 0, 0))
 
         # Paste scaled image with pan offset centered
         cx = (self._target_w - new_w) // 2 + self._pan_x
         cy = (self._target_h - new_h) // 2 + self._pan_y
-        output.paste(scaled, (cx, cy))
+
+        painter = QPainter(output)
+        painter.drawImage(cx, cy, scaled)
+        painter.end()
 
         return output
 
-    def _rebuild_display(self):
-        """Rebuild the display pixmap for the preview area."""
+    def _rebuild_display(self) -> None:
         output = self._get_cropped_output()
         if output is None:
             self._display_pixmap = None
             self.update()
             return
 
-        # Scale to fit preview area
-        pw, ph = output.size
+        pw, ph = output.width(), output.height()
         scale = min(PREVIEW_W / pw, PREVIEW_H / ph)
         disp_w, disp_h = int(pw * scale), int(ph * scale)
-        display = output.resize((disp_w, disp_h), PILImage.Resampling.LANCZOS)
-
-        self._display_pixmap = pil_to_pixmap(display)
+        display = output.scaled(disp_w, disp_h,
+                                Qt.AspectRatioMode.IgnoreAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation)
+        self._display_pixmap = QPixmap.fromImage(display)
         self.update()
 
     # =========================================================================
@@ -310,13 +301,11 @@ class UCImageCut(QWidget):
             return
         x, y = int(event.position().x()), int(event.position().y())
 
-        # Check slider area
         if SLIDER_Y <= y <= SLIDER_Y + SLIDER_H:
             self._dragging_slider = True
             self._update_slider(x)
             return
 
-        # Check preview area → start pan
         if PREVIEW_Y <= y <= PREVIEW_Y + PREVIEW_H:
             self._dragging_image = True
             self._drag_start = QPoint(x, y)
@@ -339,24 +328,23 @@ class UCImageCut(QWidget):
         self._dragging_image = False
 
     def wheelEvent(self, event):
-        """Zoom via mouse wheel."""
         delta = event.angleDelta().y()
         step = 20 if delta > 0 else -20
         self._update_slider(self._slider_x + step)
 
-    def _update_slider(self, x):
-        """Update zoom slider position and recalculate zoom."""
+    def _update_slider(self, x: int) -> None:
         old_zoom = self._zoom
         self._slider_x = max(SLIDER_X_MIN, min(SLIDER_X_MAX, x))
         self._zoom = self._calc_zoom_from_slider(self._slider_x)
 
-        # Compensate pan to keep center stable
         if self._source_image and old_zoom > 0:
             img = self._get_rotated_source()
             if img:
-                sw, sh = img.size
-                old_w, old_h = int(sw * old_zoom), int(sh * old_zoom)
-                new_w, new_h = int(sw * self._zoom), int(sh * self._zoom)
+                sw, sh = img.width(), img.height()
+                old_w = int(sw * old_zoom)
+                old_h = int(sh * old_zoom)
+                new_w = int(sw * self._zoom)
+                new_h = int(sh * self._zoom)
                 self._pan_x -= (new_w - old_w) // 2
                 self._pan_y -= (new_h - old_h) // 2
 
@@ -376,11 +364,9 @@ class UCImageCut(QWidget):
         self._rotation = (self._rotation + 90) % 360
         self._pan_x = 0
         self._pan_y = 0
-        # Re-fit after rotation
         img = self._get_rotated_source()
         if img:
-            src_w, src_h = img.size
-            if src_h > src_w:
+            if img.height() > img.width():
                 self._fit_height()
             else:
                 self._fit_width()

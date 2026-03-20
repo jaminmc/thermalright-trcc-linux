@@ -321,45 +321,43 @@ class QtRenderer(Renderer):
                 QImage.Format.Format_ARGB32_Premultiplied)
         return img.convertToFormat(QImage.Format.Format_RGB32)
 
-    # ── Legacy boundary ───────────────────────────────────────────
-
-    def to_pil(self, surface: Any) -> Any:
-        """QImage → PIL Image (legacy callers only)."""
-        from PIL import Image as PILImage
-
-        # Convert to RGB888 for PIL (3 bytes/pixel, no padding issues)
-        rgb888 = surface.convertToFormat(QImage.Format.Format_RGB888)
-        w, h = rgb888.width(), rgb888.height()
-        bpl = rgb888.bytesPerLine()
-        raw = bytes(rgb888.constBits())
-        if bpl == w * 3:
-            return PILImage.frombytes('RGB', (w, h), raw)
-        rows = []
-        for y in range(h):
-            rows.append(raw[y * bpl:y * bpl + w * 3])
-        return PILImage.frombytes('RGB', (w, h), b''.join(rows))
-
     def from_raw_rgb24(self, frame: Any) -> Any:
         """RawFrame (RGB24 bytes) → QImage (RGB32)."""
         qimg = QImage(frame.data, frame.width, frame.height,
                       frame.width * 3, QImage.Format.Format_RGB888)
         return qimg.convertToFormat(QImage.Format.Format_RGB32)
 
-    def from_pil(self, image: Any) -> Any:
-        """PIL Image → QImage (legacy input only)."""
-        if image.mode == 'RGBA':
-            data = image.tobytes('raw', 'BGRA')
-            # PIL stores straight (non-premultiplied) alpha — load as ARGB32,
-            # then let Qt premultiply correctly.  Without this, transparent
-            # white pixels (255,255,255,0) appear as solid white in SourceOver.
-            qimg = QImage(data, image.width, image.height,
-                          image.width * 4, QImage.Format.Format_ARGB32)
-            return qimg.convertToFormat(
-                QImage.Format.Format_ARGB32_Premultiplied)
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        data = image.tobytes('raw', 'RGB')
-        qimg = QImage(data, image.width, image.height,
-                      image.width * 3, QImage.Format.Format_RGB888)
-        # Convert RGB888 → RGB32 for QPainter compatibility, copy to own data
-        return qimg.convertToFormat(QImage.Format.Format_RGB32)
+    # ── Drawing primitives ────────────────────────────────────────
+
+    def fill_rect(self, surface: Any, x: int, y: int,
+                  w: int, h: int, color: tuple[int, ...]) -> None:
+        painter = QPainter(surface)
+        painter.fillRect(x, y, w, h, QColor(*color))
+        painter.end()
+
+    def draw_rect_outline(self, surface: Any, x: int, y: int,
+                          w: int, h: int, color: tuple[int, ...]) -> None:
+        painter = QPainter(surface)
+        painter.setPen(QColor(*color))
+        painter.drawRect(x, y, w - 1, h - 1)
+        painter.end()
+
+    def get_pixels_rgb(self, surface: Any, cols: int,
+                       rows: int) -> list[list[tuple[int, int, int]]]:
+        thumb = surface.scaled(
+            cols, rows,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ).convertToFormat(QImage.Format.Format_RGB888)
+        return [
+            [
+                (
+                    thumb.pixelColor(x, y).red(),
+                    thumb.pixelColor(x, y).green(),
+                    thumb.pixelColor(x, y).blue(),
+                )
+                for x in range(cols)
+            ]
+            for y in range(rows)
+        ]
+

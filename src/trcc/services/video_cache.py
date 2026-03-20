@@ -104,7 +104,7 @@ class VideoFrameCache:
             try:
                 r.surface_size(first)
             except (AttributeError, TypeError):
-                frames = [r.from_pil(f) for f in frames]
+                frames = list(frames)  # Already native surfaces (QImage)
 
         self._brightness = brightness
         self._rotation = rotation
@@ -148,19 +148,26 @@ class VideoFrameCache:
 
     # -- Per-tick access -------------------------------------------------------
 
-    def get_encoded(self, index: int) -> bytes | None:
-        """Get encoded bytes for frame index.
+    def get_frame(self, index: int) -> tuple[Any | None, bytes | None]:
+        """Get preview + encoded bytes for frame index in one call.
 
-        First access: composites text + encodes, stores in L3.
-        Subsequent accesses with same settings: pure list lookup.
+        Calls _ensure_frame once per tick instead of twice.
+        Returns (preview, encoded).
         """
+        if not (0 <= index < len(self._masked_frames)):
+            return None, None
+        self._ensure_frame(index)
+        return self._l3_preview[index], self._l3_encoded[index]
+
+    def get_encoded(self, index: int) -> bytes | None:
+        """Get encoded bytes for frame index. Use get_frame() when preview is also needed."""
         if not (0 <= index < len(self._masked_frames)):
             return None
         self._ensure_frame(index)
         return self._l3_encoded[index]
 
     def get_preview(self, index: int) -> Any | None:
-        """Get composited preview for frame index. Pure lookup after first access."""
+        """Get composited preview for frame index. Use get_frame() when encoded is also needed."""
         if not (0 <= index < len(self._masked_frames)):
             return None
         self._ensure_frame(index)

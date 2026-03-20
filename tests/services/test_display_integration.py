@@ -230,13 +230,14 @@ class TestBrightnessRotationRealImages:
     ) -> None:
         """set_rotation(90) must move pixels to rotated positions."""
         # Create image with red top-left quadrant, blue elsewhere
-        from PIL import Image
-        pil = Image.new('RGB', (320, 320), (0, 0, 255))
+        from PySide6.QtGui import QColor, QImage
+        img = QImage(320, 320, QImage.Format.Format_RGB32)
+        img.fill(QColor(0, 0, 255))
         # Paint top-left 10x10 red
+        red = QColor(255, 0, 0)
         for x in range(10):
             for y in range(10):
-                pil.putpixel((x, y), (255, 0, 0))
-        img = renderer.from_pil(pil)
+                img.setPixelColor(x, y, red)
 
         display_svc.current_image = img
         display_svc._clean_background = img

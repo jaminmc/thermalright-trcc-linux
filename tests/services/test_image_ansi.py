@@ -11,8 +11,9 @@ Open source contributors: run this to verify ANSI rendering works on your termin
 """
 import unittest
 
-from PIL import Image
+from PySide6.QtGui import QColor
 
+from tests.conftest import make_test_surface
 from trcc.core.models import HardwareMetrics, LEDMode, LEDState
 from trcc.services.image import ImageService
 from trcc.services.led import LEDService
@@ -198,7 +199,7 @@ class TestAnsiLcdImages(unittest.TestCase):
             for color_name, rgb in [('red', (255, 0, 0)), ('green', (0, 255, 0)),
                                      ('blue', (0, 0, 255)), ('white', (255, 255, 255))]:
                 with self.subTest(res=f'{w}x{h}', color=color_name):
-                    img = Image.new('RGB', (w, h), rgb)
+                    img = make_test_surface(w, h, rgb)
                     result = ImageService.to_ansi(img, cols=30)
                     self.assertIn('\u2580', result)
                     self.assertIn('\033[0m', result)
@@ -207,10 +208,11 @@ class TestAnsiLcdImages(unittest.TestCase):
         """Gradient image → ANSI at every resolution."""
         for w, h in self.RESOLUTIONS:
             with self.subTest(res=f'{w}x{h}'):
-                img = Image.new('RGB', (w, h))
+                img = make_test_surface(w, h, (0, 0, 0))
                 for x in range(w):
                     for y in range(min(h, 4)):  # only fill a few rows for speed
-                        img.putpixel((x, y), (int(255 * x / w), 0, int(255 * y / max(h, 1))))
+                        img.setPixelColor(x, y, QColor(
+                            int(255 * x / w), 0, int(255 * y / max(h, 1))))
                 result = ImageService.to_ansi(img, cols=30)
                 self.assertIn('\u2580', result)
 
@@ -259,7 +261,7 @@ def _visual_demo():
     print(f'{"─" * 60}')
     for color_name, rgb in [('Red', (255, 0, 0)), ('Green', (0, 255, 0)),
                              ('Blue', (0, 0, 255)), ('Cyan', (0, 255, 255))]:
-        img = Image.new('RGB', (120, 40), rgb)
+        img = make_test_surface(120, 40, rgb)
         print(f'\n  {color_name}:')
         print(ImageService.to_ansi(img, cols=30))
 

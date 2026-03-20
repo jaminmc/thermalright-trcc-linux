@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import hmac
-import io
 import json
 import logging
 import uuid
@@ -284,18 +283,16 @@ _VIDEO_SUFFIXES = frozenset({'.mp4', '.zt', '.webm', '.avi', '.mkv'})
 
 
 def _is_animated(path: Path) -> bool:
-    """Return True if path is a video or an animated GIF (n_frames > 1)."""
+    """Return True if path is a video or an animated GIF (nb_frames > 1)."""
     suffix = path.suffix.lower()
     if suffix in _VIDEO_SUFFIXES:
         return True
     if suffix == '.gif':
+        from trcc.adapters.infra.media_player import is_animated_gif
         try:
-            from PIL import Image
-            with Image.open(path) as img:
-                return getattr(img, 'n_frames', 1) > 1
+            return is_animated_gif(path)
         except Exception as e:
             log.warning("GIF animation check failed for %s: %s", path, e)
-            return False
     return False
 
 
@@ -441,7 +438,7 @@ def _fetch_ipc_frame():
 
 
 def _encode_frame(frame: object, fmt: str = 'JPEG', quality: int = 85) -> bytes | None:
-    """Encode a frame (QImage or PIL) to image bytes."""
+    """Encode a frame (QImage or raw bytes) to image bytes."""
     from PySide6.QtGui import QImage
 
     if isinstance(frame, bytes):
@@ -450,20 +447,17 @@ def _encode_frame(frame: object, fmt: str = 'JPEG', quality: int = 85) -> bytes 
         from PySide6.QtCore import QBuffer, QByteArray, QIODevice
         buf = QByteArray()
         qbuf = QBuffer(buf)
-        qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
-        frame.save(qbuf, fmt.encode(), quality)
+        qbuf.open(QIODevice.OpenModeFlag.ReadWrite)  # PNG needs seek
+        frame.save(qbuf, fmt, quality)  # type: ignore[call-overload]
         qbuf.close()
         return bytes(buf.data())
-    # PIL Image fallback
-    bio = io.BytesIO()
-    frame.save(bio, format=fmt, quality=quality)  # type: ignore[union-attr]
-    return bio.getvalue()
+    return None
 
 
 def _get_lcd_frame():
     """Get current LCD frame — from IPC daemon if active, otherwise local state.
 
-    Returns the raw frame object (QImage, PIL Image, or pre-encoded bytes).
+    Returns the raw frame object (QImage or pre-encoded bytes).
     """
     from trcc.api import _current_image, _display_dispatcher
     from trcc.ipc import IPCDisplayProxy

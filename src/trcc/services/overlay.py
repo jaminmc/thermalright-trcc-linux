@@ -1,7 +1,7 @@
 """Overlay rendering service — config, mask, metrics → composited image.
 
 Renderer-agnostic — delegates all image ops to the Renderer ABC.
-Returns native surfaces (QImage when QtRenderer, PIL Image when PilRenderer).
+Returns native surfaces (QImage).
 """
 from __future__ import annotations
 
@@ -120,9 +120,9 @@ class OverlayService:
     def set_background(self, image: Any) -> None:
         """Set background image.
 
-        Accepts native surfaces or PIL Images (auto-converted via from_pil).
-        Optimized for video playback — skips copy/resize if image is
-        already the correct size (VideoPlayer pre-resizes frames).
+        Accepts native surfaces (QImage). Optimized for video playback —
+        skips copy/resize if image is already the correct size
+        (VideoPlayer pre-resizes frames).
         """
         if image is None:
             log.debug("overlay.set_background: None")
@@ -130,11 +130,6 @@ class OverlayService:
             return
 
         r = self._renderer
-
-        # Convert PIL Image → native surface if needed
-        native = self._is_native_surface(image)
-        if not native:
-            image = r.from_pil(image)
 
         if not self.width or not self.height:
             self.background = image
@@ -250,8 +245,6 @@ class OverlayService:
             return
 
         r = self._renderer
-        if not self._is_native_surface(image):
-            image = r.from_pil(image)
         image = r.convert_to_rgba(image)
         self.theme_mask = image
 

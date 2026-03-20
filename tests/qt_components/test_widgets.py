@@ -27,7 +27,7 @@ from PySide6.QtWidgets import QApplication
 
 _app = QApplication.instance() or QApplication(sys.argv)
 
-from PIL import Image  # noqa: E402
+from tests.conftest import make_test_surface  # noqa: E402
 
 # ============================================================================
 # Assets
@@ -206,7 +206,7 @@ class TestUCPreview(unittest.TestCase):
 
     def test_set_image(self):
         preview = UCPreview(320, 320)
-        img = Image.new('RGB', (320, 320), (128, 128, 128))
+        img = make_test_surface(320, 320, (128, 128, 128))
         preview.set_image(img)
         self.assertFalse(preview.preview_label.pixmap().isNull())
 

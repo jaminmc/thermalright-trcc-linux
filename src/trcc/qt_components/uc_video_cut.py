@@ -12,16 +12,16 @@ import os
 import struct
 import subprocess
 import tempfile
-from io import BytesIO
 
-from PIL import Image as PILImage
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QImage,
     QPainter,
     QPalette,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
 
@@ -30,7 +30,7 @@ from trcc.core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 from trcc.services import ImageService
 
 from .assets import Assets
-from .base import make_icon_button, pil_to_pixmap
+from .base import make_icon_button
 
 # ============================================================================
 # Constants
@@ -132,7 +132,8 @@ class ExportWorker(QThread):
         ]
         if vf_filters:
             cmd.extend(['-vf', ','.join(vf_filters)])
-        cmd.extend(['-f', 'image2', os.path.join(frames_dir, '%04d.bmp')])
+        cmd.extend(['-f', 'image2', '-q:v', '5',
+                    os.path.join(frames_dir, '%04d.jpg')])
 
         self.progress.emit(5, "Extracting frames...")
         result = subprocess.run(cmd, capture_output=True, timeout=600,
@@ -141,29 +142,26 @@ class ExportWorker(QThread):
             self.error.emit(f"FFmpeg error: {result.stderr.decode()[:200]}")
             return
 
-        # Convert BMPs to JPEG
-        bmp_files = sorted(
-            f for f in os.listdir(frames_dir) if f.endswith('.bmp')
+        # Collect JPEG files (ffmpeg wrote them directly)
+        jpg_files = sorted(
+            f for f in os.listdir(frames_dir) if f.endswith('.jpg')
         )
-        if not bmp_files:
+        if not jpg_files:
             self.error.emit("No frames extracted")
             return
 
-        total = len(bmp_files)
-        self.progress.emit(20, f"Converting {total} frames...")
+        total = len(jpg_files)
+        self.progress.emit(20, f"Packaging {total} frames...")
         jpeg_data_list = []
 
-        for i, bmp_name in enumerate(bmp_files):
-            bmp_path = os.path.join(frames_dir, bmp_name)
-            img = PILImage.open(bmp_path)
-            buf = BytesIO()
-            img.save(buf, format='JPEG', quality=85)
-            jpeg_data_list.append(buf.getvalue())
-
-            os.remove(bmp_path)
+        for i, jpg_name in enumerate(jpg_files):
+            jpg_path = os.path.join(frames_dir, jpg_name)
+            with open(jpg_path, 'rb') as fh:
+                jpeg_data_list.append(fh.read())
+            os.remove(jpg_path)
             pct = 20 + int(60 * (i + 1) / total)
             if i % 10 == 0:
-                self.progress.emit(pct, f"Converting {i+1}/{total}...")
+                self.progress.emit(pct, f"Packaging {i+1}/{total}...")
 
         # Write Theme.zt
         self.progress.emit(85, "Writing Theme.zt...")
@@ -532,19 +530,23 @@ class UCVideoCut(QWidget):
             if result.returncode != 0 or not result.stdout:
                 return
 
-            img = PILImage.open(BytesIO(result.stdout)).convert('RGB')
+            img = QImage.fromData(result.stdout)
+            if img.isNull():
+                return
         except Exception:
             return
 
         # Apply rotation and scale to fit preview
         img = ImageService.apply_rotation(img, self._rotation)
-        w, h = img.size
+        w, h = img.width(), img.height()
         scale = min(PREVIEW_W / w, PREVIEW_H / h)
         new_w, new_h = int(w * scale), int(h * scale)
         if new_w > 0 and new_h > 0:
-            img = img.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
+            img = img.scaled(new_w, new_h,
+                             Qt.AspectRatioMode.IgnoreAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
 
-        self._preview_pixmap = pil_to_pixmap(img)
+        self._preview_pixmap = QPixmap.fromImage(img)
         self._lbl_current.setText(_format_time(ms))
         self.update()
 

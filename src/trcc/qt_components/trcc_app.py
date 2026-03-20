@@ -383,23 +383,24 @@ class ScreencastHandler:
     def _tick(self):
         if not self._active or self._w <= 0 or self._h <= 0:
             return
-        from PIL import Image as PILImage
-        pil_img = None
+        from PySide6.QtCore import QRect
+        from PySide6.QtGui import QImage
+        from PySide6.QtGui import Qt as QtGui_Qt
+        frame_img: QImage | None = None
 
         if self._pipewire_cast is not None and self._pipewire_cast.is_running:
             frame = self._pipewire_cast.grab_frame()
             if frame is not None:
                 fw, fh, rgb_bytes = frame
-                full = PILImage.frombytes('RGB', (fw, fh), rgb_bytes)
-                x2 = min(self._x + self._w, fw)
-                y2 = min(self._y + self._h, fh)
+                full = QImage(rgb_bytes, fw, fh, fw * 3, QImage.Format.Format_RGB888)
                 x1 = min(self._x, fw)
                 y1 = min(self._y, fh)
+                x2 = min(self._x + self._w, fw)
+                y2 = min(self._y + self._h, fh)
                 if x2 > x1 and y2 > y1:
-                    pil_img = full.crop((x1, y1, x2, y2))
+                    frame_img = full.copy(QRect(x1, y1, x2 - x1, y2 - y1))
 
-        if pil_img is None:
-            from .base import pixmap_to_pil
+        if frame_img is None:
             from .screen_capture import grab_screen_region
             pixmap = grab_screen_region(self._x, self._y, self._w, self._h)
             if pixmap.isNull():
@@ -408,11 +409,13 @@ class ScreencastHandler:
                     self._capture_warn_logged = True
                 return
             self._capture_warn_logged = False
-            pil_img = pixmap_to_pil(pixmap)
+            frame_img = pixmap.toImage()
 
-        pil_img = pil_img.resize(
-            (self._lcd_w, self._lcd_h), PILImage.Resampling.LANCZOS)
-        self._on_frame(pil_img)
+        frame_img = frame_img.scaled(
+            self._lcd_w, self._lcd_h,
+            QtGui_Qt.AspectRatioMode.IgnoreAspectRatio,
+            QtGui_Qt.TransformationMode.SmoothTransformation)
+        self._on_frame(frame_img)
 
 
 # =============================================================================
@@ -1485,9 +1488,9 @@ class TRCCApp(QMainWindow):
             if last_path:
                 self._lcd_handler.select_theme_from_path(Path(last_path))
 
-    def _on_screencast_frame(self, pil_img):
+    def _on_screencast_frame(self, image):
         if self._lcd_handler:
-            self._lcd_handler.on_screencast_frame(pil_img)
+            self._lcd_handler.on_screencast_frame(image)
 
     # ── File Dialogs ───────────────────────────────────────────────
 
@@ -1535,14 +1538,14 @@ class TRCCApp(QMainWindow):
             self, "Open Image", "",
             "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
         if path and self._lcd_handler:
-            try:
-                from PIL import Image as PILImage
-                pil_img = PILImage.open(path)
+            from PySide6.QtGui import QImage as _QImage
+            img = _QImage(path)
+            if img.isNull():
+                self.uc_preview.set_status("Error: could not load image")
+            else:
                 w, h = self._lcd_handler.display.lcd_size
-                self.uc_image_cut.load_image(pil_img, w, h)
+                self.uc_image_cut.load_image(img, w, h)
                 self._show_cutter('image')
-            except Exception as e:
-                self.uc_preview.set_status(f"Error: {e}")
 
     def _on_mask_upload_clicked(self):
         """Open file picker for mask PNG, then show crop dialog."""
@@ -1551,16 +1554,16 @@ class TRCCApp(QMainWindow):
             self, "Upload Mask Image", "",
             "PNG Images (*.png);;All Files (*)")
         if path and self._lcd_handler:
-            try:
-                from PIL import Image as PILImage
-                self._mask_upload_filename = Path(path).stem
-                pil_img = PILImage.open(path)
-                w, h = self._lcd_handler.display.lcd_size
-                self.uc_image_cut.load_image(pil_img, w, h)
-                self._show_cutter('image')
-            except Exception as e:
-                self.uc_preview.set_status(f"Error: {e}")
+            from PySide6.QtGui import QImage as _QImage
+            img = _QImage(path)
+            if img.isNull():
+                self.uc_preview.set_status("Error: could not load image")
                 self._cut_mode = 'background'
+            else:
+                self._mask_upload_filename = Path(path).stem
+                w, h = self._lcd_handler.display.lcd_size
+                self.uc_image_cut.load_image(img, w, h)
+                self._show_cutter('image')
 
     def _on_save_clicked(self):
         name = self.theme_name_input.text().strip()
@@ -1614,15 +1617,20 @@ class TRCCApp(QMainWindow):
             self.uc_preview.set_status("Image loaded")
         self._cut_mode = 'background'
 
-    def _save_and_apply_custom_mask(self, cropped_pil):
-        """Save cropped PIL image as a custom mask and apply it."""
+    def _save_and_apply_custom_mask(self, cropped: object) -> None:
+        """Save cropped QImage as a custom mask and apply it."""
         import re
 
-        from PIL import Image as PILImage
+        from PySide6.QtGui import QImage as _QImage
+        from PySide6.QtGui import QPainter as _QPainter
 
         from ..core.models import MaskItem
 
         if not self._lcd_handler:
+            return
+
+        # Accept QImage only — UCImageCut now emits QImage
+        if not isinstance(cropped, _QImage) or cropped.isNull():
             return
 
         w, h = self._lcd_handler.display.lcd_size
@@ -1631,9 +1639,7 @@ class TRCCApp(QMainWindow):
 
         # Name from original filename stem — sanitize and deduplicate
         raw_name = self._mask_upload_filename or 'custom_001'
-        # Keep only safe characters
         mask_name = re.sub(r'[^\w\-]', '_', raw_name).strip('_') or 'custom'
-        # Deduplicate if exists
         base_name = mask_name
         counter = 1
         while (user_dir / mask_name).exists():
@@ -1643,21 +1649,31 @@ class TRCCApp(QMainWindow):
         mask_dir = user_dir / mask_name
         mask_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save mask at LCD resolution → 01.png (already cropped by UCImageCut)
-        img = cropped_pil.convert('RGBA')
-        if img.size != (w, h):
-            img = img.resize((w, h), PILImage.Resampling.LANCZOS)
-        img.save(mask_dir / '01.png')
+        # Ensure ARGB32 and correct size → 01.png
+        from PySide6.QtCore import Qt as _Qt
+        img = cropped.convertToFormat(_QImage.Format.Format_ARGB32)
+        if img.width() != w or img.height() != h:
+            img = img.scaled(w, h,
+                             _Qt.AspectRatioMode.IgnoreAspectRatio,
+                             _Qt.TransformationMode.SmoothTransformation)
+        img.save(str(mask_dir / '01.png'))
 
         # Generate thumbnail → Theme.png (120x120 black bg, centered)
         thumb_size = 120
-        thumb = img.copy()
-        thumb.thumbnail((thumb_size, thumb_size), PILImage.Resampling.LANCZOS)
-        bg = PILImage.new('RGB', (thumb_size, thumb_size), (0, 0, 0))
-        offset = ((thumb_size - thumb.width) // 2,
-                  (thumb_size - thumb.height) // 2)
-        bg.paste(thumb, offset, thumb if thumb.mode == 'RGBA' else None)
-        bg.save(mask_dir / 'Theme.png')
+        scale = min(thumb_size / max(img.width(), 1), thumb_size / max(img.height(), 1))
+        tw = int(img.width() * scale)
+        th = int(img.height() * scale)
+        thumb = img.scaled(tw, th,
+                           _Qt.AspectRatioMode.IgnoreAspectRatio,
+                           _Qt.TransformationMode.SmoothTransformation)
+        bg = _QImage(thumb_size, thumb_size, _QImage.Format.Format_RGB32)
+        bg.fill(0)
+        px = (thumb_size - tw) // 2
+        py = (thumb_size - th) // 2
+        painter = _QPainter(bg)
+        painter.drawImage(px, py, thumb)
+        painter.end()
+        bg.save(str(mask_dir / 'Theme.png'))
 
         log.info("Imported custom mask: %s", mask_name)
 
@@ -1841,12 +1857,19 @@ class TRCCApp(QMainWindow):
         self._capture_overlay.captured.connect(self._on_screen_captured)
         self._capture_overlay.show()
 
-    def _on_screen_captured(self, pil_img):
+    def _on_screen_captured(self, pixmap):
         self._capture_overlay = None
-        if pil_img is None or not self._lcd_handler:
+        if pixmap is None or not self._lcd_handler:
+            return
+        from PySide6.QtGui import QPixmap as _QPixmap
+        if isinstance(pixmap, _QPixmap):
+            img = pixmap.toImage()
+        else:
+            img = pixmap  # already QImage
+        if img.isNull():
             return
         w, h = self._lcd_handler.display.lcd_size
-        self.uc_image_cut.load_image(pil_img, w, h)
+        self.uc_image_cut.load_image(img, w, h)
         self._show_cutter('image')
 
     def _on_eyedropper_requested(self):

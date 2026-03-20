@@ -1,11 +1,9 @@
 """Device detection, selection, and image send endpoints."""
 from __future__ import annotations
 
-import io
 import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile
-from PIL import Image
 
 from trcc.api.models import DeviceResponse
 from trcc.services import ImageService
@@ -167,15 +165,10 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit")
 
-    try:
-        pil_img = Image.open(io.BytesIO(data))
-        pil_img.load()  # Force decode to catch corrupt files
-    except Exception:
+    from PySide6.QtGui import QImage
+    img = QImage.fromData(bytes(data))
+    if img.isNull():
         raise HTTPException(status_code=400, detail="Invalid image format")
-
-    # Convert PIL → native renderer surface
-    r = ImageService._r()
-    img = r.from_pil(pil_img)
 
     # Apply rotation and brightness
     if rotation:

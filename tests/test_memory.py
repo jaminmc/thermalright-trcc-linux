@@ -68,7 +68,7 @@ def led_svc(led_state):
 def lcd_png(tmp_path):
     """320x320 PNG file on disk."""
     p = tmp_path / "lcd.png"
-    Image.new("RGB", (320, 320), (0, 128, 0)).save(str(p), "PNG")
+    make_test_surface(320, 320, (0, 128, 0)).save(str(p), "PNG")
     return str(p)
 
 
@@ -183,11 +183,11 @@ class TestOverlayRenderCycles:
 
     def test_set_background_releases_old(self, overlay_svc):
         """Old background is reclaimable after set_background() with new image."""
-        img_a = Image.new("RGB", (320, 320), (255, 0, 0))
+        img_a = make_test_surface(320, 320, (255, 0, 0))
         ref_a = weakref.ref(img_a)
         overlay_svc.set_background(img_a)
 
-        img_b = Image.new("RGB", (320, 320), (0, 0, 255))
+        img_b = make_test_surface(320, 320, (0, 0, 255))
         overlay_svc.set_background(img_b)
         del img_a
         gc.collect()
@@ -196,11 +196,11 @@ class TestOverlayRenderCycles:
 
     def test_set_mask_releases_old(self, overlay_svc):
         """Old mask is reclaimable after set_mask() with new image."""
-        mask_a = Image.new("RGBA", (320, 320), (255, 255, 255, 128))
+        mask_a = make_test_surface(320, 320, (255, 255, 255, 128))
         ref_a = weakref.ref(mask_a)
         overlay_svc.set_mask(mask_a)
 
-        mask_b = Image.new("RGBA", (320, 320), (0, 0, 0, 128))
+        mask_b = make_test_surface(320, 320, (0, 0, 0, 128))
         overlay_svc.set_mask(mask_b)
         del mask_a
         gc.collect()
@@ -209,8 +209,8 @@ class TestOverlayRenderCycles:
 
     def test_clear_releases_all_surfaces(self, overlay_svc):
         """clear() makes background, mask, and cache all reclaimable."""
-        bg = Image.new("RGB", (320, 320), (100, 100, 100))
-        mask = Image.new("RGBA", (320, 320), (255, 255, 255, 128))
+        bg = make_test_surface(320, 320, (100, 100, 100))
+        mask = make_test_surface(320, 320, (255, 255, 255, 128))
         ref_bg = weakref.ref(bg)
         ref_mask = weakref.ref(mask)
 
@@ -225,7 +225,7 @@ class TestOverlayRenderCycles:
 
     def test_repeated_render_bounded_memory(self, overlay_svc, request):
         """50 render cycles with varying metrics stay within memory bounds."""
-        bg = Image.new("RGB", (320, 320), (50, 50, 50))
+        bg = make_test_surface(320, 320, (50, 50, 50))
         overlay_svc.set_background(bg)
         overlay_svc.enabled = True
 
@@ -400,7 +400,7 @@ class TestGarbageCollectability:
         garbage_before = len(gc.garbage)
 
         svc = OverlayService(320, 320, renderer=ImageService._r())
-        bg = Image.new("RGB", (320, 320), (100, 100, 100))
+        bg = make_test_surface(320, 320, (100, 100, 100))
         svc.set_background(bg)
         svc.render(metrics=HardwareMetrics())
         del svc, bg
@@ -702,36 +702,33 @@ class TestQtWidgetMemory:
         preview = UCPreview()
         # Set an image
         img = make_test_surface(320, 320, (255, 0, 0))
-        r = ImageService._r()
-        pil = r.to_pil(img)
-        preview.set_image(pil)
+        preview.set_image(img)
 
-        ref = weakref.ref(pil)
-        del pil, img
+        ref = weakref.ref(img)
+        del img
         preview.deleteLater()
         self._process()
         del preview
         gc.collect()
 
-        # PIL image should be reclaimable (Qt pixmap is a copy)
-        assert ref() is None, "PIL image not released after preview destruction"
+        # QImage should be reclaimable (Qt pixmap is a copy)
+        assert ref() is None, "QImage not released after preview destruction"
 
     def test_repeated_set_image_bounded(self, request):
         """50 set_image() calls on UCPreview stay within memory bounds."""
         from trcc.qt_components.uc_preview import UCPreview
 
         preview = UCPreview()
-        r = ImageService._r()
 
         tracemalloc.start()
         img = make_test_surface(320, 320, (0, 0, 0))
-        preview.set_image(r.to_pil(img))
+        preview.set_image(img)
         gc.collect()
         _, peak_before = tracemalloc.get_traced_memory()
 
         for i in range(50):
             img = make_test_surface(320, 320, (i * 5, 0, 0))
-            preview.set_image(r.to_pil(img))
+            preview.set_image(img)
             del img
 
         gc.collect()

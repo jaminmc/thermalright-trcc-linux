@@ -215,13 +215,23 @@ class ThemeLoader:
 
     @staticmethod
     def _is_animated_gif(path: Path) -> bool:
-        """Check if a GIF file has multiple frames."""
+        """Check if a GIF file has multiple frames (ffprobe)."""
+        import subprocess
+
+        from ..core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
         try:
-            from PIL import Image
-            with Image.open(path) as img:
-                return getattr(img, 'n_frames', 1) > 1
+            result = subprocess.run([
+                'ffprobe', '-v', 'error',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=nb_frames',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                str(path),
+            ], capture_output=True, timeout=5, text=True, creationflags=_NO_WINDOW)
+            if result.returncode == 0 and result.stdout.strip().isdigit():
+                return int(result.stdout.strip()) > 1
         except Exception:
-            return False
+            pass
+        return False
 
     def _load_mask(self, mask_path: Path, dc_path: Path | None,
                    lcd_size: tuple[int, int]) -> None:

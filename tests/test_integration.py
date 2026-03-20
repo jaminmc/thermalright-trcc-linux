@@ -437,26 +437,19 @@ class TestThemeLoadRender(unittest.TestCase):
 
     def test_theme_with_mask_overlay(self):
         """Load background + mask → composite → convert to RGB565."""
-        from PIL import Image
-
         from trcc.services import ImageService
 
         with tempfile.TemporaryDirectory() as td:
-            # Create background and mask files (PIL for file I/O)
-            bg = Image.new("RGB", (320, 320), (255, 0, 0))
-            bg.save(os.path.join(td, "00.png"))
+            # Create background and mask files via Qt
+            make_test_surface(320, 320, (255, 0, 0)).save(os.path.join(td, "00.png"), "PNG")
+            make_test_surface(320, 320, (0, 0, 0, 128)).save(os.path.join(td, "01.png"), "PNG")
 
-            mask = Image.new("RGBA", (320, 320), (0, 0, 0, 128))
-            mask.save(os.path.join(td, "01.png"))
-
-            # Re-open and composite in PIL
-            bg = Image.open(os.path.join(td, "00.png")).convert("RGB")
-            mask = Image.open(os.path.join(td, "01.png")).convert("RGBA")
-            composite = bg.copy()
-            composite.paste(mask, (0, 0), mask)
-
-            # Convert composite to native surface for encoding
-            surface = ImageService._r().from_pil(composite)
+            # Open and composite via Qt renderer
+            r = ImageService._r()
+            bg = r.open_image(os.path.join(td, "00.png"))
+            mask = r.open_image(os.path.join(td, "01.png"))
+            mask_rgba = r.convert_to_rgba(mask)
+            surface = r.composite(r.copy_surface(bg), mask_rgba, (0, 0))
 
             frame = ImageService.to_rgb565(surface)
             self.assertEqual(len(frame), 320 * 320 * 2)
@@ -479,14 +472,13 @@ class TestBrightnessRotation(unittest.TestCase):
 
     def test_apply_rotation_90(self):
         """90° rotation swaps dimensions correctly."""
+        from PySide6.QtGui import QColor  # noqa: I001
+
         from trcc.services import ImageService
 
         # Red background with a green marker at (0,0)
         surface = make_test_surface(320, 320, (255, 0, 0))
-        # Draw marker via PIL round-trip so we can set a single pixel
-        pil = ImageService._r().to_pil(surface)
-        pil.putpixel((0, 0), (0, 255, 0))
-        surface = ImageService._r().from_pil(pil)
+        surface.setPixelColor(0, 0, QColor(0, 255, 0))
 
         rotated = ImageService.apply_rotation(surface, 90)
         self.assertEqual(surface_size(rotated), (320, 320))
@@ -497,35 +489,36 @@ class TestBrightnessRotation(unittest.TestCase):
 
     def test_apply_rotation_0_noop(self):
         """0° rotation returns identical image."""
+        from PySide6.QtGui import QColor  # noqa: I001
+
         from trcc.services import ImageService
 
         # Red background with a green marker at (5,5)
         surface = make_test_surface(320, 320, (255, 0, 0))
-        pil = ImageService._r().to_pil(surface)
-        pil.putpixel((5, 5), (0, 255, 0))
-        surface = ImageService._r().from_pil(pil)
+        surface.setPixelColor(5, 5, QColor(0, 255, 0))
 
         rotated = ImageService.apply_rotation(surface, 0)
         self.assertEqual(get_pixel(rotated, 5, 5)[:3], (0, 255, 0))
 
     def test_brightness_reduces_values(self):
-        """50% brightness reduces pixel values."""
-        from PIL import Image, ImageEnhance
+        """50% brightness reduces pixel values via ImageService.apply_brightness."""
+        from trcc.services import ImageService
 
-        img = Image.new("RGB", (10, 10), (200, 200, 200))
-        enhanced = ImageEnhance.Brightness(img).enhance(0.5)
-        r, g, b = enhanced.getpixel((5, 5))
+        img = make_test_surface(10, 10, (200, 200, 200))
+        result = ImageService.apply_brightness(img, 50)
+        r, g, b = get_pixel(result, 5, 5)
         self.assertLess(r, 200)
         self.assertLess(g, 200)
         self.assertLess(b, 200)
 
     def test_brightness_100_percent_unchanged(self):
-        """100% brightness leaves pixels unchanged."""
-        from PIL import Image, ImageEnhance
+        """100% brightness leaves pixels unchanged via ImageService.apply_brightness."""
+        from trcc.services import ImageService
 
-        img = Image.new("RGB", (10, 10), (200, 200, 200))
-        enhanced = ImageEnhance.Brightness(img).enhance(1.0)
-        self.assertEqual(enhanced.getpixel((5, 5)), (200, 200, 200))
+        img = make_test_surface(10, 10, (200, 200, 200))
+        result = ImageService.apply_brightness(img, 100)
+        r, g, b = get_pixel(result, 5, 5)
+        self.assertEqual((r, g, b), (200, 200, 200))
 
 
 # ── Pipeline: SCSI header + CRC integrity ───────────────────────────────────

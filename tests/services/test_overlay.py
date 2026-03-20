@@ -14,8 +14,7 @@ Tests cover:
 import os
 import unittest
 
-from conftest import get_pixel, surface_size
-from PIL import Image
+from conftest import get_pixel, make_test_surface, surface_size
 
 from trcc.core.models import HardwareMetrics
 from trcc.services.image import ImageService
@@ -76,7 +75,7 @@ class TestSetResolution(unittest.TestCase):
     def test_clears_background_on_change(self):
         """Test that background is cleared on resolution change."""
         renderer = OverlayRenderer(renderer=_R())
-        renderer.set_background(Image.new('RGB', (320, 320), 'red'))
+        renderer.set_background(make_test_surface(320, 320, (255, 0, 0)))
         renderer.set_resolution(480, 480)
         self.assertIsNone(renderer.background)
 
@@ -144,7 +143,7 @@ class TestSetBackground(unittest.TestCase):
     def test_set_background_image(self):
         """Test setting background image."""
         renderer = OverlayRenderer(renderer=_R())
-        img = Image.new('RGB', (100, 100), 'blue')
+        img = make_test_surface(100, 100, (0, 0, 255))
         renderer.set_background(img)
         self.assertIsNotNone(renderer.background)
         self.assertEqual(surface_size(renderer.background), (320, 320))
@@ -152,24 +151,25 @@ class TestSetBackground(unittest.TestCase):
     def test_set_background_none(self):
         """Test clearing background with None."""
         renderer = OverlayRenderer(renderer=_R())
-        renderer.set_background(Image.new('RGB', (320, 320)))
+        renderer.set_background(make_test_surface(320, 320))
         renderer.set_background(None)
         self.assertIsNone(renderer.background)
 
     def test_background_is_resized(self):
         """Test that background is resized to LCD dimensions."""
         renderer = OverlayRenderer(width=480, height=480, renderer=_R())
-        img = Image.new('RGB', (200, 200), 'green')
+        img = make_test_surface(200, 200, (0, 255, 0))
         renderer.set_background(img)
         self.assertEqual(surface_size(renderer.background), (480, 480))
 
     def test_background_is_copied(self):
         """Test that background image is copied, not referenced."""
         renderer = OverlayRenderer(renderer=_R())
-        img = Image.new('RGB', (320, 320), 'red')
+        img = make_test_surface(320, 320, (255, 0, 0))
         renderer.set_background(img)
         # Modify original
-        img.putpixel((0, 0), (0, 0, 255))
+        from PySide6.QtGui import QColor
+        img.setPixelColor(0, 0, QColor(0, 0, 255))
         # Renderer's copy should be unchanged
         self.assertIsNotNone(renderer.background)
 
@@ -180,7 +180,7 @@ class TestSetThemeMask(unittest.TestCase):
     def test_set_mask_none(self):
         """Test clearing mask with None."""
         renderer = OverlayRenderer(renderer=_R())
-        renderer.set_theme_mask(Image.new('RGBA', (320, 320)))
+        renderer.set_theme_mask(make_test_surface(320, 320, (0, 0, 0, 255)))
         renderer.set_theme_mask(None)
         self.assertIsNone(renderer.theme_mask)
         self.assertEqual(renderer.theme_mask_position, (0, 0))
@@ -188,7 +188,7 @@ class TestSetThemeMask(unittest.TestCase):
     def test_set_mask_with_explicit_position(self):
         """Test setting mask with explicit position."""
         renderer = OverlayRenderer(renderer=_R())
-        mask = Image.new('RGBA', (320, 320), (255, 0, 0, 128))
+        mask = make_test_surface(320, 320, (255, 0, 0, 128))
         renderer.set_theme_mask(mask, position=(10, 20))
         self.assertIsNotNone(renderer.theme_mask)
         self.assertEqual(renderer.theme_mask_position, (10, 20))
@@ -197,7 +197,7 @@ class TestSetThemeMask(unittest.TestCase):
         """Test auto-positioning partial mask at top-left (C# default)."""
         renderer = OverlayRenderer(width=320, height=320, renderer=_R())
         # Partial mask (height < display height)
-        mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
+        mask = make_test_surface(320, 100, (255, 0, 0, 128))
         renderer.set_theme_mask(mask)
         # C# defaults to center of mask image → top-left (0, 0)
         self.assertEqual(renderer.theme_mask_position, (0, 0))
@@ -205,14 +205,14 @@ class TestSetThemeMask(unittest.TestCase):
     def test_mask_auto_position_full(self):
         """Test auto-positioning full-size mask at origin."""
         renderer = OverlayRenderer(width=320, height=320, renderer=_R())
-        mask = Image.new('RGBA', (320, 320), (255, 0, 0, 128))
+        mask = make_test_surface(320, 320, (255, 0, 0, 128))
         renderer.set_theme_mask(mask)
         self.assertEqual(renderer.theme_mask_position, (0, 0))
 
     def test_rgb_mask_converted_to_rgba(self):
         """Test that RGB mask is converted to RGBA (no error on conversion)."""
         renderer = OverlayRenderer(renderer=_R())
-        mask = Image.new('RGB', (320, 320), 'red')
+        mask = make_test_surface(320, 320, (255, 0, 0))
         renderer.set_theme_mask(mask)
         self.assertIsNotNone(renderer.theme_mask)
 
@@ -230,7 +230,7 @@ class TestRender(unittest.TestCase):
     def test_render_with_background(self):
         """Test rendering with background."""
         renderer = OverlayRenderer(renderer=_R())
-        bg = Image.new('RGB', (320, 320), 'blue')
+        bg = make_test_surface(320, 320, (0, 0, 255))
         renderer.set_background(bg)
         img = renderer.render()
         self.assertEqual(surface_size(img), (320, 320))
@@ -238,8 +238,8 @@ class TestRender(unittest.TestCase):
     def test_render_with_mask(self):
         """Test rendering with mask overlay."""
         renderer = OverlayRenderer(renderer=_R())
-        bg = Image.new('RGB', (320, 320), 'blue')
-        mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
+        bg = make_test_surface(320, 320, (0, 0, 255))
+        mask = make_test_surface(320, 100, (255, 0, 0, 128))
         renderer.set_background(bg)
         renderer.set_theme_mask(mask)
         img = renderer.render()
@@ -363,8 +363,8 @@ class TestClear(unittest.TestCase):
         """Test that clear resets all settings."""
         renderer = OverlayRenderer(renderer=_R())
         renderer.set_config({'key': 'value'})
-        renderer.set_background(Image.new('RGB', (320, 320)))
-        renderer.set_theme_mask(Image.new('RGBA', (320, 100)))
+        renderer.set_background(make_test_surface(320, 320))
+        renderer.set_theme_mask(make_test_surface(320, 100, (0, 0, 0, 255)))
 
         renderer.clear()
 
@@ -401,11 +401,11 @@ class TestRenderIntegration(unittest.TestCase):
         renderer = OverlayRenderer(width=320, height=320, renderer=_R())
 
         # Set background
-        bg = Image.new('RGB', (320, 320), (30, 30, 30))
+        bg = make_test_surface(320, 320, (30, 30, 30))
         renderer.set_background(bg)
 
         # Set mask
-        mask = Image.new('RGBA', (320, 80), (255, 255, 255, 200))
+        mask = make_test_surface(320, 80, (255, 255, 255, 200))
         renderer.set_theme_mask(mask)
 
         # Set config
@@ -581,8 +581,8 @@ class TestRenderMaskScaling(unittest.TestCase):
         """Lines 332-338: mask is scaled when scale_factor != 1."""
         renderer = OverlayRenderer(width=480, height=480, renderer=_R())
         renderer.set_config_resolution(320, 320)
-        renderer.set_background(Image.new('RGB', (480, 480), 'blue'))
-        mask = Image.new('RGBA', (320, 100), (255, 0, 0, 128))
+        renderer.set_background(make_test_surface(480, 480, (0, 0, 255)))
+        mask = make_test_surface(320, 100, (255, 0, 0, 128))
         renderer.set_theme_mask(mask, position=(0, 220))
         # Config with something so has_overlays is true
         renderer.set_config({})
@@ -658,8 +658,8 @@ class TestSetMaskVisible(unittest.TestCase):
     def test_render_with_mask_hidden(self):
         """Mask set but not visible → not composited."""
         renderer = OverlayRenderer(renderer=_R())
-        renderer.set_background(Image.new('RGB', (320, 320), 'blue'))
-        renderer.set_theme_mask(Image.new('RGBA', (320, 100), (255, 0, 0, 200)))
+        renderer.set_background(make_test_surface(320, 320, (0, 0, 255)))
+        renderer.set_theme_mask(make_test_surface(320, 100, (255, 0, 0, 200)))
         renderer.set_mask_visible(False)
         renderer.set_config({'x': {'x': 0, 'y': 0, 'text': 'hi', 'enabled': True}})
         img = renderer.render()

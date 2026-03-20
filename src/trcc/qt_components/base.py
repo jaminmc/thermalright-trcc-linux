@@ -3,7 +3,7 @@ Base widget classes for PySide6 TRCC components.
 
 Provides common functionality:
 - BasePanel: delegate pattern, resource loading
-- ImageLabel: fast PIL image display
+- ImageLabel: fast image display
 - ClickableFrame: QFrame with clicked signal
 - BaseThumbnail: shared thumbnail widget (120x140)
 - BaseThemeBrowser: shared scroll+grid browser panel (732x652)
@@ -16,9 +16,8 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
-from PIL import Image
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
+from PySide6.QtCore import QEvent, QObject, QRect, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -187,13 +186,13 @@ class ImageLabel(QLabel):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
 
     def set_image(self, image, fast: bool = False):
-        """Set image from QImage or PIL Image.
-
-        Accepts QImage (hot path — direct QPixmap conversion) or
-        PIL Image (cold path — legacy callers).
-        """
+        """Set image from QPixmap or QImage."""
         if image is None:
             self.clear()
+            return
+
+        if isinstance(image, QPixmap):
+            self.setPixmap(image)
             return
 
         if isinstance(image, QImage):
@@ -204,13 +203,6 @@ class ImageLabel(QLabel):
                     self._width, self._height,
                     Qt.AspectRatioMode.IgnoreAspectRatio, mode)
             self.setPixmap(QPixmap.fromImage(image))
-            return
-
-        # PIL Image fallback (cold path)
-        if image.size != (self._width, self._height):
-            resampling = Image.Resampling.BILINEAR if fast else Image.Resampling.LANCZOS
-            image = image.resize((self._width, self._height), resampling)
-        self.setPixmap(pil_to_pixmap(image))
 
     def set_rgb565(self, data: bytes, width: int, height: int,
                    byte_order: str = '>'):
@@ -278,38 +270,6 @@ class ClickableFrame(QFrame):
         super().mousePressEvent(event)
 
 
-def pil_to_pixmap(pil_image):
-    """
-    Convert PIL Image to QPixmap efficiently.
-
-    Args:
-        pil_image: PIL Image
-
-    Returns:
-        QPixmap
-    """
-    if pil_image is None:
-        return QPixmap()
-
-    # Convert to RGB if needed
-    if pil_image.mode == 'RGBA':
-        bg = Image.new('RGB', pil_image.size, (0, 0, 0))
-        bg.paste(pil_image, mask=pil_image.split()[3])
-        pil_image = bg
-    elif pil_image.mode != 'RGB':
-        pil_image = pil_image.convert('RGB')
-
-    data = pil_image.tobytes()
-    qimage = QImage(
-        data,
-        pil_image.width,
-        pil_image.height,
-        pil_image.width * 3,
-        QImage.Format.Format_RGB888
-    )
-    return QPixmap.fromImage(qimage)
-
-
 def rgb565_to_pixmap(data: bytes, width: int, height: int,
                      byte_order: str = '>') -> QPixmap:
     """Create QPixmap from RGB565 bytes.
@@ -331,24 +291,6 @@ def rgb565_to_pixmap(data: bytes, width: int, height: int,
     qimage = QImage(buf, width, height, width * 2,
                     QImage.Format.Format_RGB16)
     return QPixmap.fromImage(qimage)
-
-
-def pixmap_to_pil(pixmap):
-    """Convert QPixmap to PIL Image.
-
-    Args:
-        pixmap: QPixmap
-
-    Returns:
-        PIL Image (RGB)
-    """
-    qimage = pixmap.toImage().convertToFormat(QImage.Format.Format_RGB888)
-    width = qimage.width()
-    height = qimage.height()
-    ptr = qimage.bits()
-    # PySide6 returns memoryview directly; PyQt6 returned sip.voidptr needing setsize()
-    return Image.frombytes('RGB', (width, height), bytes(ptr), 'raw', 'RGB',
-                           qimage.bytesPerLine())
 
 
 class _BgPaintFilter(QObject):
@@ -575,16 +517,24 @@ class BaseThumbnail(ClickableFrame):
         path = self._get_image_path(self.item_info)
         if path and Path(path).exists():
             try:
-                img = Image.open(path)
-                size = (Sizes.THUMB_IMAGE, Sizes.THUMB_IMAGE)
-                img.thumbnail(size, Image.Resampling.LANCZOS)
-                bg = Image.new('RGB', size, (0, 0, 0))
-                offset = ((size[0] - img.width) // 2,
-                          (size[1] - img.height) // 2)
-                bg.paste(img, offset)
-                self.thumb_label.setPixmap(pil_to_pixmap(bg))
-            except Exception as e:
-                log.warning("Failed to load thumbnail: %s", e)
+                thumb_size = Sizes.THUMB_IMAGE
+                src = QImage(str(path))
+                if src.isNull():
+                    raise ValueError("QImage failed to load")
+                scaled = src.scaled(
+                    thumb_size, thumb_size,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
+                bg = QImage(thumb_size, thumb_size, QImage.Format.Format_RGB32)
+                bg.fill(QColor(0, 0, 0))
+                px = (thumb_size - scaled.width()) // 2
+                py = (thumb_size - scaled.height()) // 2
+                painter = QPainter(bg)
+                painter.drawImage(px, py, scaled)
+                painter.end()
+                self.thumb_label.setPixmap(QPixmap.fromImage(bg))
+            except Exception as exc:
+                log.warning("Failed to load thumbnail: %s", exc)
                 self._show_placeholder()
         else:
             self._show_placeholder()
@@ -592,15 +542,22 @@ class BaseThumbnail(ClickableFrame):
     def _show_placeholder(self):
         """Show a labeled placeholder when thumbnail image is missing."""
         try:
-            from PIL import ImageDraw
-            size = (Sizes.THUMB_IMAGE, Sizes.THUMB_IMAGE)
-            img = Image.new('RGB', size, color=Colors.PLACEHOLDER_BG)
-            draw = ImageDraw.Draw(img)
+            thumb_size = Sizes.THUMB_IMAGE
+            bg = QImage(thumb_size, thumb_size, QImage.Format.Format_RGB32)
+            bg.fill(QColor(*Colors.PLACEHOLDER_BG))
             name = self._get_display_name(self.item_info)
             text = f"\u2b07\n{name}" if not self.is_local else name
-            draw.text((size[0] // 2, size[1] // 2),
-                     text, fill=(100, 100, 100), anchor='mm', align='center')
-            self.thumb_label.setPixmap(pil_to_pixmap(img))
+            painter = QPainter(bg)
+            painter.setPen(QColor(100, 100, 100))
+            font = QFont()
+            font.setPointSize(8)
+            painter.setFont(font)
+            painter.drawText(
+                QRect(0, 0, thumb_size, thumb_size),
+                Qt.AlignmentFlag.AlignCenter,
+                text)
+            painter.end()
+            self.thumb_label.setPixmap(QPixmap.fromImage(bg))
         except Exception:
             pass
 

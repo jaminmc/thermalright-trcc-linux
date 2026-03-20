@@ -75,7 +75,6 @@ def _patch_theme_assets(qapp):
         patch("trcc.qt_components.uc_theme_local.Assets.load_pixmap",
               side_effect=_null_pixmap),
         patch("trcc.qt_components.base.set_background_pixmap"),
-        patch("trcc.qt_components.base.Image.open"),
     ):
         yield
 
@@ -1122,14 +1121,14 @@ class TestUCThemeLocal:
         assert panel._all_themes == []
 
     def test_load_themes_with_directory(self, qapp, tmp_path):
-        from PIL import Image as PILImage
+        from tests.conftest import make_test_surface
         # Create real theme directories with real PNG thumbnails
         theme_dir = tmp_path / "themes"
         theme_dir.mkdir()
         for name in ["Default01", "Default02", "User01"]:
             td = theme_dir / name
             td.mkdir()
-            PILImage.new("RGB", (10, 10), (0, 0, 0)).save(str(td / "Theme.png"))
+            make_test_surface(10, 10, (0, 0, 0)).save(str(td / "Theme.png"))
 
         panel = UCThemeLocal()
         panel.theme_directory = theme_dir

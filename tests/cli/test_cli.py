@@ -379,14 +379,22 @@ class TestScreencast(unittest.TestCase):
             self.assertEqual(_display.screencast(), 1)
 
     def test_keyboard_interrupt(self):
-        """Ctrl+C stops cleanly."""
+        """Ctrl+C stops cleanly — Popen.stdout.read raises KeyboardInterrupt."""
         svc = _mock_service()
-        mock_img = MagicMock()
+        mock_proc = MagicMock()
+        mock_proc.stdout.read.side_effect = KeyboardInterrupt
         with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('PIL.ImageGrab.grab', side_effect=KeyboardInterrupt), \
-             patch('trcc.services.ImageService.resize', return_value=mock_img):
+             patch('subprocess.Popen', return_value=mock_proc):
             result = _display.screencast()
             self.assertEqual(result, 0)
+
+    def test_ffmpeg_not_found(self):
+        """Missing ffmpeg returns 1 with error message."""
+        svc = _mock_service()
+        with patch('trcc.cli._device._get_service', return_value=svc), \
+             patch('subprocess.Popen', side_effect=FileNotFoundError):
+            result = _display.screencast()
+            self.assertEqual(result, 1)
 
 
 # =========================================================================

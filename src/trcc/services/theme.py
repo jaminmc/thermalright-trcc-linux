@@ -228,11 +228,21 @@ class ThemeService:
                         data.is_animated = True
                     elif bg_path.suffix == '.gif':
                         try:
-                            from PIL import Image
-                            with Image.open(bg_path) as im:
-                                if getattr(im, 'n_frames', 1) > 1:
-                                    data.animation_path = bg_path
-                                    data.is_animated = True
+                            import subprocess
+
+                            from ..core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
+                            probe = subprocess.run([
+                                'ffprobe', '-v', 'error',
+                                '-select_streams', 'v:0',
+                                '-show_entries', 'stream=nb_frames',
+                                '-of', 'default=noprint_wrappers=1:nokey=1',
+                                str(bg_path),
+                            ], capture_output=True, timeout=5, text=True,
+                               creationflags=_NO_WINDOW)
+                            nb_frames = probe.stdout.strip()
+                            if probe.returncode == 0 and nb_frames.isdigit() and int(nb_frames) > 1:
+                                data.animation_path = bg_path
+                                data.is_animated = True
                         except Exception:
                             pass
                     else:
@@ -544,14 +554,14 @@ class ThemeService:
         if not mask_file.exists():
             return
         try:
-            from PIL import Image
-
-            with Image.open(mask_file) as mask_img:
-                mask_img.load()
-                position = self._parse_mask_position(
-                    dc_path or (td.dc if td.dc.exists() else None),
-                    mask_img.width, mask_img.height, w, h)
-                data.mask = mask_img
+            from .image import ImageService
+            r = ImageService._r()
+            mask_img = r.open_image(str(mask_file))
+            mask_w, mask_h = r.surface_size(mask_img)
+            position = self._parse_mask_position(
+                dc_path or (td.dc if td.dc.exists() else None),
+                mask_w, mask_h, w, h)
+            data.mask = mask_img
             data.mask_position = position
             data.mask_source_dir = td.path
         except Exception as e:

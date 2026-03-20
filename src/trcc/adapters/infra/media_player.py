@@ -11,7 +11,6 @@ Decoders:
 
 from __future__ import annotations
 
-import io
 import logging
 import os
 import struct
@@ -238,15 +237,30 @@ class ThemeZtDecoder:
     @staticmethod
     def _decode_jpeg(jpeg_bytes: bytes,
                      target_size: tuple[int, int] | None) -> RawFrame:
-        """Decode JPEG bytes → RawFrame. PIL used once at load time only."""
-        from PIL import Image as _PILImage
-        img = _PILImage.open(io.BytesIO(jpeg_bytes))
-        if target_size and img.size != target_size:
-            img = img.resize(target_size, _PILImage.Resampling.LANCZOS)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        w, h = img.size
-        return RawFrame(img.tobytes(), w, h)
+        """Decode JPEG bytes → RawFrame via ffmpeg pipe."""
+        vf_args: list[str] = []
+        if target_size:
+            tw, th = target_size
+            vf_args = ['-vf', f'scale={tw}:{th}']
+        cmd = [
+            'ffmpeg', '-f', 'jpeg_pipe', '-i', 'pipe:0',
+            *vf_args,
+            '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-v', 'error', 'pipe:1',
+        ]
+        try:
+            result = subprocess.run(
+                cmd, input=jpeg_bytes, capture_output=True,
+                timeout=10, creationflags=_NO_WINDOW,
+            )
+            if result.returncode != 0 or not result.stdout:
+                raise ValueError(f"ffmpeg decode failed: {result.stderr[:100]!r}")
+        except Exception as exc:
+            log.warning("ThemeZtDecoder: JPEG decode failed (%s), returning blank", exc)
+            w, h = target_size if target_size else (320, 320)
+            return RawFrame(bytes(w * h * 3), w, h)
+
+        w, h = target_size if target_size else (320, 320)
+        return RawFrame(result.stdout[:w * h * 3], w, h)
 
     @property
     def frame_count(self) -> int:
@@ -262,6 +276,23 @@ class ThemeZtDecoder:
 
     def close(self) -> None:
         self.frames = []
+
+
+def is_animated_gif(path: str | os.PathLike) -> bool:
+    """Return True if the GIF at *path* has more than one frame (ffprobe)."""
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=nb_frames',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            str(path),
+        ], capture_output=True, timeout=5, text=True, creationflags=_NO_WINDOW)
+        if result.returncode == 0 and result.stdout.strip().isdigit():
+            return int(result.stdout.strip()) > 1
+    except Exception:
+        pass
+    return False
 
 
 # Backward-compat aliases

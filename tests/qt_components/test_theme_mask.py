@@ -6,7 +6,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image
+from PySide6.QtGui import QImage
+
+from tests.conftest import make_test_surface
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -14,10 +16,8 @@ def _make_mask_dir(parent: Path, name: str) -> Path:
     """Create a minimal mask directory with 01.png and Theme.png."""
     d = parent / name
     d.mkdir(parents=True, exist_ok=True)
-    img = Image.new('RGBA', (320, 320), (255, 0, 0, 128))
-    img.save(d / '01.png')
-    thumb = Image.new('RGB', (120, 120), (0, 0, 0))
-    thumb.save(d / 'Theme.png')
+    make_test_surface(320, 320, (255, 0, 0, 128)).save(str(d / '01.png'))
+    make_test_surface(120, 120, (0, 0, 0)).save(str(d / 'Theme.png'))
     return d
 
 
@@ -261,7 +261,7 @@ class TestSaveCustomMask:
         from trcc.qt_components.trcc_app import TRCCApp
 
         user_dir = tmp_path / 'user_masks'
-        cropped = Image.new('RGBA', (320, 320), (0, 255, 0, 200))
+        cropped = make_test_surface(320, 320, (0, 255, 0, 200))
 
         app = MagicMock(spec=TRCCApp)
         app._lcd_handler = MagicMock()
@@ -285,7 +285,7 @@ class TestSaveCustomMask:
         from trcc.qt_components.trcc_app import TRCCApp
 
         user_dir = tmp_path / 'user_masks'
-        cropped = Image.new('RGBA', (320, 320), (0, 0, 255, 128))
+        cropped = make_test_surface(320, 320, (0, 0, 255, 128))
 
         app = MagicMock(spec=TRCCApp)
         app._lcd_handler = MagicMock()
@@ -299,8 +299,8 @@ class TestSaveCustomMask:
         _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
         TRCCApp._save_and_apply_custom_mask(app, cropped)
 
-        thumb = Image.open(user_dir / 'test_mask' / 'Theme.png')
-        assert thumb.size == (120, 120)
+        thumb = QImage(str(user_dir / 'test_mask' / 'Theme.png'))
+        assert thumb.width() == 120 and thumb.height() == 120
 
     def test_dedup_existing_name(self, tmp_path):
         """Duplicate name gets _2 suffix."""
@@ -308,7 +308,7 @@ class TestSaveCustomMask:
 
         user_dir = tmp_path / 'user_masks'
         _make_mask_dir(user_dir, 'my_mask')
-        cropped = Image.new('RGBA', (320, 320), (255, 0, 0, 255))
+        cropped = make_test_surface(320, 320, (255, 0, 0, 255))
 
         app = MagicMock(spec=TRCCApp)
         app._lcd_handler = MagicMock()
@@ -329,7 +329,7 @@ class TestSaveCustomMask:
         from trcc.qt_components.trcc_app import TRCCApp
 
         user_dir = tmp_path / 'user_masks'
-        cropped = Image.new('RGBA', (320, 320), (0, 0, 0, 255))
+        cropped = make_test_surface(320, 320, (0, 0, 0, 255))
 
         app = MagicMock(spec=TRCCApp)
         app._lcd_handler = MagicMock()

@@ -121,19 +121,31 @@ class Renderer(ABC):
     def open_image(self, path: Any) -> Any:
         """Load image file into native surface."""
 
+    # ── Drawing primitives ────────────────────────────────────────
+
+    @abstractmethod
+    def fill_rect(self, surface: Any, x: int, y: int,
+                  w: int, h: int, color: tuple[int, ...]) -> None:
+        """Fill a rectangle on the surface with solid color."""
+
+    @abstractmethod
+    def draw_rect_outline(self, surface: Any, x: int, y: int,
+                          w: int, h: int, color: tuple[int, ...]) -> None:
+        """Draw an unfilled rectangle outline on the surface."""
+
+    @abstractmethod
+    def get_pixels_rgb(self, surface: Any, cols: int,
+                       rows: int) -> list[list[tuple[int, int, int]]]:
+        """Return pixel grid scaled to cols×rows as (r, g, b) tuples.
+
+        Used for ANSI terminal output — cold path, not hot path.
+        """
+
     # ── Legacy boundary ───────────────────────────────────────────
 
     @abstractmethod
     def from_raw_rgb24(self, frame: "RawFrame") -> Any:
         """Convert RawFrame (RGB24 bytes) → native surface."""
-
-    @abstractmethod
-    def to_pil(self, surface: Any) -> Any:
-        """Convert native surface → PIL Image (legacy callers only)."""
-
-    @abstractmethod
-    def from_pil(self, image: Any) -> Any:
-        """Convert PIL Image → native surface (legacy input only)."""
 
 
 # =========================================================================

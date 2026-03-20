@@ -11,8 +11,6 @@ import tracemalloc
 from typing import Any, Callable
 from unittest.mock import MagicMock
 
-from PIL import Image
-
 from ..core.models import HardwareMetrics, LEDMode, LEDState, PlaybackState
 from ..core.perf import PerfReport
 
@@ -140,7 +138,7 @@ def run_benchmarks() -> PerfReport:
         overlay=OverlayService(320, 320, renderer=r),
         media=MediaService(),
     )
-    frames = [Image.new("RGB", (320, 320), (i * 25, 0, 0)) for i in range(10)]
+    frames = [r.create_surface(320, 320, (i * 25, 0, 0)) for i in range(10)]
     dsvc2.media._frames = frames
     dsvc2.media._state.total_frames = 10
     dsvc2.media._state.fps = 30

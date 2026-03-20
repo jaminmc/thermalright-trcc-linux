@@ -14,7 +14,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PIL import Image
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
 from trcc.adapters.render.qt import QtRenderer
@@ -75,10 +75,12 @@ def get_pixel(surface: Any, x: int, y: int) -> tuple[int, ...]:
     """Get pixel color from any renderer surface.
 
     Returns (r, g, b) for RGB surfaces, (r, g, b, a) for RGBA.
-    Converts to PIL internally for uniform pixel access.
     """
-    pil = ImageService._r().to_pil(surface)
-    return pil.getpixel((x, y))
+    img: QImage = surface
+    color = QColor(img.pixel(x, y))
+    if img.hasAlphaChannel():
+        return (color.red(), color.green(), color.blue(), color.alpha())
+    return (color.red(), color.green(), color.blue())
 
 # =========================================================================
 # Tier 0: Environment — disable live IPC daemon
@@ -211,12 +213,12 @@ def theme_dir(tmp_path):
         td = tmp_path / name
         td.mkdir(exist_ok=True)
         if has_bg:
-            Image.new("RGB", (320, 320), (0, 0, 0)).save(str(td / "00.png"))
+            make_test_surface(320, 320, (0, 0, 0)).save(str(td / "00.png"))
         if has_dc:
             # Minimal 0xDD format stub
             (td / "config1.dc").write_bytes(b"\xDD" + b"\x00" * 100)
         if has_mask:
-            Image.new("RGBA", (320, 320), (255, 255, 255, 128)).save(
+            make_test_surface(320, 320, (255, 255, 255, 128)).save(
                 str(td / "mask.png"))
         return td
     return _make
@@ -227,7 +229,7 @@ def png_factory(tmp_path):
     """Factory fixture: write a minimal PNG and return its path."""
     def _make(filename: str = "test.png", w: int = 320, h: int = 320) -> str:
         path = str(tmp_path / filename)
-        Image.new("RGB", (w, h), (128, 0, 0)).save(path, "PNG")
+        make_test_surface(w, h, (128, 0, 0)).save(path, "PNG")
         return path
     return _make
 
