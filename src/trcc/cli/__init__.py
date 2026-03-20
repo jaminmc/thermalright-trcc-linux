@@ -39,6 +39,9 @@ def _ensure_renderer() -> None:
     QtRenderer requires a QApplication/QCoreApplication to exist
     (for QFontDatabase, QImage, etc.). Create one if needed.
 
+    QT_QPA_PLATFORM is always forced to 'offscreen' — CLI never opens windows
+    and must not negotiate a display platform even when DISPLAY is set.
+
     The QApplication instance is stored in _qt_app so the Python wrapper
     is never garbage-collected — without this, PySide6 destroys Qt on exit
     in a bad order and segfaults (reproducible with PySide6 ≥ 6.10).
@@ -47,7 +50,7 @@ def _ensure_renderer() -> None:
     from trcc.services.image import ImageService
     if ImageService._renderer is None:
         import os
-        os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
         from PySide6.QtWidgets import QApplication
         if QApplication.instance() is None:
             log.debug("Creating QApplication for CLI renderer (offscreen)")

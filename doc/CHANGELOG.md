@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.0.8
+
+### Fixes
+- **`QT_QPA_PLATFORM` always forced to `offscreen` for CLI**: Previously set with `setdefault`, so a `QT_QPA_PLATFORM` already in the environment (e.g. `xcb`) would be respected. CLI never opens windows and must not negotiate a display platform — the variable is now unconditionally set to `offscreen`. Users no longer need to set it manually before running `trcc theme-load` or any other CLI command
+
 ## v9.0.7
 
 ### Fixes
