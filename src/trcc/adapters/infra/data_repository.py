@@ -27,9 +27,9 @@ from ...core.paths import (
     RESOURCES_DIR,  # noqa: F401 — re-export (package resource dir)
     USER_CONFIG_DIR,  # noqa: F401 — re-export (universal config dir)
 )
+from ...core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 
 log = logging.getLogger(__name__)
-_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 _THIS_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_DIR = os.path.dirname(_THIS_DIR)

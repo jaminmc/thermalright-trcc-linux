@@ -7,12 +7,17 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 
 LINUX = sys.platform.startswith('linux')
 WINDOWS = sys.platform == 'win32'
 MACOS = sys.platform == 'darwin'
 BSD = 'bsd' in sys.platform
+
+# Suppress console window when spawning subprocesses from a GUI app on Windows.
+# On Linux/macOS this is 0 (no-op). Pass as creationflags= to subprocess.run().
+SUBPROCESS_NO_WINDOW: int = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 def platform_name() -> str:

@@ -428,7 +428,8 @@ class UCAbout(BasePanel):
         """Background thread: run upgrade via pip/pipx/package manager."""
         import subprocess
         import tempfile
-        _no_window = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
+        from trcc.core.platform import SUBPROCESS_NO_WINDOW as _no_window
         method = self._install_method
         ver = self._latest_version or ""
 

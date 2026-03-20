@@ -21,11 +21,11 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QMovie
 
 from ..core.models import CloudThemeItem
+from ..core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 from .base import BaseThumbnail, DownloadableThemeBrowser
 from .constants import Layout, Sizes
 
 log = logging.getLogger(__name__)
-_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 def _ensure_thumb_gif(mp4_path: str, size: int = Sizes.THUMB_IMAGE) -> str | None:

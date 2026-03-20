@@ -18,7 +18,7 @@ import subprocess
 
 from PIL import Image
 
-_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+from trcc.core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 
 log = logging.getLogger(__name__)
 

@@ -26,12 +26,11 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
 
 from trcc.adapters.infra.media_player import FFMPEG_AVAILABLE
+from trcc.core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 from trcc.services import ImageService
 
 from .assets import Assets
 from .base import make_icon_button, pil_to_pixmap
-
-_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 # ============================================================================
 # Constants
