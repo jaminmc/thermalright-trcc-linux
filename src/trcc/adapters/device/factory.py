@@ -396,19 +396,19 @@ class WindowsScsiProtocol(DeviceProtocol):
                 else:
                     break
 
-            if not response:
-                log.error(
-                    "Windows SCSI poll returned empty response on %s "
-                    "(VID=%04X PID=%04X)",
+            if response:
+                fbl = response[0]
+                log.info(
+                    "Windows SCSI poll OK: FBL=%d (VID=%04X PID=%04X)",
+                    fbl, self._vid, self._pid,
+                )
+            else:
+                fbl = 100
+                log.warning(
+                    "Windows SCSI poll returned empty on %s (VID=%04X PID=%04X)"
+                    " — defaulting to FBL 100 (320x320)",
                     self._path, self._vid, self._pid,
                 )
-                return None
-
-            fbl = response[0]
-            log.info(
-                "Windows SCSI poll OK: FBL=%d (VID=%04X PID=%04X)",
-                fbl, self._vid, self._pid,
-            )
 
             # Step 2: Init write — wakes device for frame reception
             init_header = ScsiDevice._build_header(0x1F5, 0xE100)

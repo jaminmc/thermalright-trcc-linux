@@ -881,13 +881,15 @@ class TestWindowsScsiProtocolHandshake:
         assert result.model_id == 72
         assert result.resolution == (480, 480)
 
-    def test_empty_poll_returns_none(self):
-        """Empty poll response → handshake fails (no fallback)."""
+    def test_empty_poll_falls_back_to_fbl_100(self):
+        """Empty poll response (error 121 on Windows) → fallback to FBL 100 (320x320)."""
         proto = self._make_proto(poll_response=b'')
 
         result = proto._do_handshake()
 
-        assert result is None
+        assert result is not None
+        assert result.model_id == 100
+        assert result.resolution == (320, 320)
 
     def test_constructor_accepts_vid_pid(self):
         from trcc.adapters.device.factory import WindowsScsiProtocol
