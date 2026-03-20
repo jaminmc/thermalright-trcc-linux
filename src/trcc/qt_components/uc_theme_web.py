@@ -25,6 +25,7 @@ from .base import BaseThumbnail, DownloadableThemeBrowser
 from .constants import Layout, Sizes
 
 log = logging.getLogger(__name__)
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 def _ensure_thumb_gif(mp4_path: str, size: int = Sizes.THUMB_IMAGE) -> str | None:
@@ -42,7 +43,7 @@ def _ensure_thumb_gif(mp4_path: str, size: int = Sizes.THUMB_IMAGE) -> str | Non
                    f'pad={size}:{size}:(ow-iw)/2:(oh-ih)/2:black,'
                    'fps=8',
             '-loop', '0', '-y', str(gif_path),
-        ], capture_output=True, timeout=30)
+        ], capture_output=True, timeout=30, creationflags=_NO_WINDOW)
         if gif_path.exists():
             return str(gif_path)
     except Exception:
@@ -265,7 +266,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
                 subprocess.run([
                     'ffmpeg', '-i', str(mp4_path),
                     '-vframes', '1', '-y', str(png_path)
-                ], capture_output=True, timeout=10)
+                ], capture_output=True, timeout=10, creationflags=_NO_WINDOW)
         except Exception:
             pass
 

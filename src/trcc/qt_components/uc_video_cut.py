@@ -31,6 +31,8 @@ from trcc.services import ImageService
 from .assets import Assets
 from .base import make_icon_button, pil_to_pixmap
 
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
 # ============================================================================
 # Constants
 # ============================================================================
@@ -134,7 +136,8 @@ class ExportWorker(QThread):
         cmd.extend(['-f', 'image2', os.path.join(frames_dir, '%04d.bmp')])
 
         self.progress.emit(5, "Extracting frames...")
-        result = subprocess.run(cmd, capture_output=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, timeout=600,
+                                creationflags=_NO_WINDOW)
         if result.returncode != 0:
             self.error.emit(f"FFmpeg error: {result.stderr.decode()[:200]}")
             return
@@ -441,7 +444,7 @@ class UCVideoCut(QWidget):
                 '-show_entries', 'format=duration',
                 '-of', 'csv=p=0',
                 self._video_path,
-            ], capture_output=True, text=True, timeout=10)
+            ], capture_output=True, text=True, timeout=10, creationflags=_NO_WINDOW)
             if result.returncode != 0:
                 self._lbl_info.setText("Failed to open video")
                 self._lbl_info.setVisible(True)
@@ -526,7 +529,7 @@ class UCVideoCut(QWidget):
                 'ffmpeg', '-ss', str(ss), '-i', self._video_path,
                 '-vframes', '1', '-f', 'image2pipe', '-vcodec', 'bmp',
                 '-v', 'error', '-y', '-',
-            ], capture_output=True, timeout=5)
+            ], capture_output=True, timeout=5, creationflags=_NO_WINDOW)
             if result.returncode != 0 or not result.stdout:
                 return
 

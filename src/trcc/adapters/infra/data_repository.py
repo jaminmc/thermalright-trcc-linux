@@ -29,6 +29,7 @@ from ...core.paths import (
 )
 
 log = logging.getLogger(__name__)
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 _THIS_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SRC_DIR = os.path.dirname(_THIS_DIR)
@@ -163,6 +164,7 @@ class DataManager:
             listing = subprocess.run(
                 ['7z', 'l', '-slt', archive],
                 capture_output=True, text=True, timeout=30,
+                creationflags=_NO_WINDOW,
             )
             if listing.returncode == 0:
                 archive_norm = os.path.normpath(archive)
@@ -179,6 +181,7 @@ class DataManager:
             result = subprocess.run(
                 ['7z', 'x', archive, f'-o{target_dir}', '-y'],
                 capture_output=True, timeout=120,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
                 log.info("Extracted %s", os.path.basename(archive))

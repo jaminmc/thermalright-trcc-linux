@@ -428,6 +428,7 @@ class UCAbout(BasePanel):
         """Background thread: run upgrade via pip/pipx/package manager."""
         import subprocess
         import tempfile
+        _no_window = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         method = self._install_method
         ver = self._latest_version or ""
 
@@ -466,7 +467,8 @@ class UCAbout(BasePanel):
             return
 
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True,
+                           creationflags=_no_window)
             log.info("Upgrade to %s successful — restart to apply", ver)
             self._upgrade_finished.emit(True)
         except subprocess.CalledProcessError as e:

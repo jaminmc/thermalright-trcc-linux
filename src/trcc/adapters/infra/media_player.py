@@ -18,6 +18,8 @@ import subprocess
 
 from PIL import Image
 
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
 log = logging.getLogger(__name__)
 
 
@@ -26,6 +28,7 @@ def _check_ffmpeg() -> bool:
     try:
         result = subprocess.run(
             ['ffmpeg', '-version'], capture_output=True, timeout=5,
+            creationflags=_NO_WINDOW,
         )
         return result.returncode == 0
     except Exception:
@@ -80,7 +83,7 @@ class VideoDecoder:
             '-vf', f'scale={scale_w}:{scale_h}',
             '-f', 'rawvideo', '-pix_fmt', 'rgb24',
             '-loglevel', 'error', 'pipe:1',
-        ], capture_output=True, timeout=300)
+        ], capture_output=True, timeout=300, creationflags=_NO_WINDOW)
 
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg failed: {result.stderr.decode()[:200]}")
@@ -123,7 +126,7 @@ class VideoDecoder:
                 '-show_entries', 'stream=width,height',
                 '-of', 'csv=p=0',
                 video_path,
-            ], capture_output=True, timeout=10, text=True)
+            ], capture_output=True, timeout=10, text=True, creationflags=_NO_WINDOW)
             if result.returncode == 0 and result.stdout.strip():
                 parts = result.stdout.strip().split(',')
                 if len(parts) >= 2:
@@ -163,7 +166,8 @@ class VideoDecoder:
         cmd.extend(['-f', 'image2', os.path.join(output_dir, 'frame_%04d.png')])
 
         try:
-            result = subprocess.run(cmd, capture_output=True, timeout=600)
+            result = subprocess.run(cmd, capture_output=True, timeout=600,
+                                    creationflags=_NO_WINDOW)
             if result.returncode != 0:
                 log.error("FFmpeg error: %s", result.stderr.decode()[:200])
                 return 0
