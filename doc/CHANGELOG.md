@@ -1,5 +1,17 @@
 # Changelog
 
+## v9.0.6
+
+### Fixes
+- **CMD window flash on Windows when clicking a theme**: All subprocess calls (`7z`, `ffmpeg`, `ffprobe`) in GUI code paths now use `CREATE_NO_WINDOW`. Centralised as `SUBPROCESS_NO_WINDOW` in `core/platform.py` (zero-value no-op on Linux/macOS)
+- **`ModuleNotFoundError: trcc.adapters.system._shared` on Windows PyInstaller bundle**: `_shared.py` was untracked and missing from the bundle. Linux-specific CLI functions (`setup_udev`, `setup_selinux`, `setup_polkit`, `install_desktop`) now lazy-import `linux/setup.py` after the `_require_linux()` guard instead of at module level — prevents the import from running on Windows at all
+
+### Internal
+- **Hexagonal platform branching eliminated**: `doctor.py` and `debug_report.py` are now fully OS-blind — driven by `DoctorPlatformConfig` / `ReportPlatformConfig` dataclasses returned by each platform's `PlatformSetup` adapter. Zero `if LINUX/WINDOWS/MACOS/BSD` outside `adapters/system/`, `adapters/device/`, `core/platform.py`, and `core/builder.py`
+- **`trcc_app.py` OS-blind**: Instance lock and signal raising delegated to `PlatformSetup.acquire_instance_lock()` / `raise_existing_instance()`
+- **`adapters/system/_shared.py`**: Shared helpers (`_confirm`, `_print_summary`, `_copy_assets_to_user_dir`, `_psutil_process_usage_lines`, `_posix_acquire_instance_lock`, `_posix_raise_existing_instance`) consolidated from 4 platform adapters into one module
+- **Logging gaps fixed**: Silent `except: pass` blocks in `_discover_resolution`, DC config parse, `_fetch_ipc_frame`, GIF animation check, autostart refresh, sysfs USB scan, LHM discovery, WMI thermal zones, NVIDIA poll, and computed I/O now emit `log.warning` / `log.debug` with context
+
 ## v9.0.5
 
 ### Features
