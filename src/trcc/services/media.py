@@ -154,7 +154,7 @@ class MediaService:
     def advance_frame(self) -> Any | None:
         """Advance to next frame and return it.
 
-        Returns PIL Image or None if not playing.
+        Returns native surface (QImage) or None if not playing.
         """
         if self._state.state != PlaybackState.PLAYING:
             return None

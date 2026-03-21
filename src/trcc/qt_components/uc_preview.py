@@ -224,7 +224,7 @@ class UCPreview(BasePanel):
         self.invoke_delegate(self.CMD_VIDEO_SEEK, value)
 
     def set_image(self, image, fast: bool = False):
-        """Set preview image (QImage or PIL Image)."""
+        """Set preview image (QImage)."""
         self.preview_label.set_image(image, fast=fast)
 
     def set_status(self, text):

@@ -14,7 +14,7 @@ Security:
     - Localhost-only by default (bind 127.0.0.1)
     - Optional token auth via --token flag (X-API-Token header)
     - Optional TLS via --tls flag (auto-generates self-signed cert)
-    - 10 MB upload limit with PIL format validation
+    - 10 MB upload limit with image format validation
 """
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ _display_dispatcher = None  # LCDDevice | None
 _led_dispatcher = None      # LEDDevice | None
 
 # Last frame sent to LCD — updated by display/theme endpoints for preview
-_current_image = None  # QImage | PIL Image | None
+_current_image = None  # QImage | None
 
 
 def set_current_image(img) -> None:

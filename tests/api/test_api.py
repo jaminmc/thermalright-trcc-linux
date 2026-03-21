@@ -10,7 +10,7 @@ import pytest
 from conftest import make_test_surface
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from PIL import Image
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 
 import trcc.api as api_module
 from trcc.api import _device_svc, app, configure_auth
@@ -181,9 +181,7 @@ class TestSendImage(unittest.TestCase):
 
     @patch.object(_device_svc, 'send_pil', return_value=True)
     def test_send_image_success(self, mock_send):
-        img = Image.new('RGB', (100, 100), (255, 0, 0))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        buf = io.BytesIO(_png_bytes(100, 100))
         buf.seek(0)
 
         resp = self.client.post(
@@ -196,9 +194,7 @@ class TestSendImage(unittest.TestCase):
 
     @patch.object(_device_svc, 'send_pil', return_value=False)
     def test_send_image_failure(self, mock_send):
-        img = Image.new('RGB', (100, 100), (0, 0, 255))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        buf = io.BytesIO(_png_bytes(100, 100))
         buf.seek(0)
 
         resp = self.client.post(
@@ -225,9 +221,7 @@ class TestSendImage(unittest.TestCase):
 
     def test_send_image_device_not_found(self):
         _device_svc._devices = []
-        img = Image.new('RGB', (10, 10))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        buf = io.BytesIO(_png_bytes(10, 10))
         buf.seek(0)
 
         resp = self.client.post(
@@ -238,9 +232,7 @@ class TestSendImage(unittest.TestCase):
 
     @patch.object(_device_svc, 'send_pil', return_value=True)
     def test_send_with_rotation(self, mock_send):
-        img = Image.new('RGB', (100, 100), (0, 255, 0))
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        buf = io.BytesIO(_png_bytes(100, 100))
         buf.seek(0)
 
         resp = self.client.post(
@@ -267,9 +259,7 @@ class TestSendImage(unittest.TestCase):
             mock_protocol.handshake.return_value = mock_result
             mock_factory.get_protocol.return_value = mock_protocol
 
-            img = Image.new('RGB', (100, 100), (255, 0, 0))
-            buf = io.BytesIO()
-            img.save(buf, format='PNG')
+            buf = io.BytesIO(_png_bytes(100, 100))
             buf.seek(0)
 
             resp = self.client.post(
@@ -1018,8 +1008,7 @@ class TestIPCFrameSharing(unittest.TestCase):
         from trcc.ipc import IPCServer
 
         server = IPCServer(None, None)
-        img = Image.new('RGB', (320, 320), 'blue')
-        server.capture_frame(img)
+        server.capture_frame(make_test_surface(320, 320, (0, 0, 255)))
 
         result = server._get_frame()
         self.assertTrue(result["success"])
@@ -1363,8 +1352,7 @@ class TestDispatchResult:
         assert dispatch_result(result) == {"success": True, "message": "ok", "value": 42}
 
     def test_strips_image_key(self):
-        img = Image.new("RGB", (10, 10))
-        result = {"success": True, "image": img, "message": "sent"}
+        result = {"success": True, "image": make_test_surface(10, 10, (0, 0, 0)), "message": "sent"}
         out = dispatch_result(result)
         assert "image" not in out
         assert out["message"] == "sent"
@@ -1391,10 +1379,13 @@ class TestDispatchResult:
 
 
 def _png_bytes(w: int = 50, h: int = 50) -> bytes:
-    img = Image.new("RGB", (w, h), (128, 64, 32))
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    img = make_test_surface(w, h, (128, 64, 32))
+    ba = QByteArray()
+    qbuf = QBuffer(ba)
+    qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
+    img.save(qbuf, 'PNG')
+    qbuf.close()
+    return bytes(ba.data())
 
 
 def _scsi_dev(**overrides) -> DeviceInfo:

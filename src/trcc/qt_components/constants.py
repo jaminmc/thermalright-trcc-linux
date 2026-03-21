@@ -40,7 +40,7 @@ class Colors:
     STATUS_TEXT = '#888'
     EMPTY_TEXT = '#666'
     MUTED_TEXT = '#444'
-    PLACEHOLDER_BG = (40, 40, 45)  # RGB tuple for PIL
+    PLACEHOLDER_BG = (40, 40, 45)  # RGB tuple
 
     # Device button gradients
     DEVICE_SELECTED_TOP = '#3B6B9A'

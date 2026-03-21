@@ -395,7 +395,7 @@ class OverlayService:
             metrics: HardwareMetrics DTO (uses stored metrics if None).
 
         Returns:
-            Native surface (QImage or PIL Image depending on renderer).
+            Native surface (QImage).
         """
         if background is not None and background is not self.background:
             self.set_background(background)
@@ -448,7 +448,7 @@ class OverlayService:
     def _composite_onto_background(self, r: Renderer) -> Any:
         """Composite cached overlay layer onto current background.
 
-        Returns native surface (QImage or PIL Image depending on renderer).
+        Returns native surface (QImage).
         """
         if self.background is None:
             base = r.create_surface(self.width, self.height)

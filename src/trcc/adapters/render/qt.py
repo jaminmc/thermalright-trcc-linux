@@ -1,9 +1,8 @@
-"""Qt rendering backend — QImage/QPainter, zero PIL in hot path.
+"""Qt rendering backend — QImage/QPainter.
 
 PySide6 is a required dependency, so this renderer is always available.
 QImage is CPU-based software rendering — works headless (CLI) and with
-a display (GUI).  QPainter on QImage is C++ native, faster than PIL's
-Python-called C extensions for compositing, text, and transforms.
+a display (GUI). QPainter on QImage is C++ native.
 """
 from __future__ import annotations
 

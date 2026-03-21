@@ -36,7 +36,7 @@ class ControllerBuilder:
     # ── Fluent setters ─────────────────────────────────────────────
 
     def with_renderer(self, renderer: Renderer) -> ControllerBuilder:
-        """Set rendering backend (QtRenderer for GUI, PIL for CLI/API)."""
+        """Set rendering backend (QtRenderer)."""
         self._renderer = renderer
         return self
 

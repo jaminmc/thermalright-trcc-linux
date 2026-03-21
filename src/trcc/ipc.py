@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
-from PySide6.QtGui import QImage
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ def _socket_path() -> Path:
     return Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / _SOCK_NAME
 
 
-# Non-serializable keys to strip from dispatcher results (PIL Image, etc.)
+# Non-serializable keys to strip from dispatcher results (QImage, etc.)
 _NON_SERIALIZABLE = frozenset({"image", "colors"})
 
 # SOLID routing: display methods route through LCDDevice composed capabilities.
@@ -84,7 +83,7 @@ class IPCServer:
         self._led = led_dispatcher
         self._sock: socket.socket | None = None
         self._notifier: Any = None  # QSocketNotifier
-        self._current_frame: Any = None  # PIL Image — last frame sent to LCD
+        self._current_frame: Any = None  # Last frame sent to LCD (QImage)
 
     @property
     def display(self) -> Any:
@@ -235,20 +234,12 @@ class IPCServer:
 
         frame = self._current_frame
 
-        # QImage path (hot — Qt renderer)
-        if isinstance(frame, QImage):
-            buf = QByteArray()
-            qbuf = QBuffer(buf)
-            qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
-            frame.save(qbuf, 'jpeg', 85)  # type: ignore[call-overload]
-            qbuf.close()
-            jpeg_data = bytes(buf.data())
-        else:
-            # PIL Image fallback
-            import io
-            bio = io.BytesIO()
-            frame.save(bio, format="JPEG", quality=85)
-            jpeg_data = bio.getvalue()
+        buf = QByteArray()
+        qbuf = QBuffer(buf)
+        qbuf.open(QIODevice.OpenModeFlag.WriteOnly)
+        frame.save(qbuf, 'jpeg', 85)  # type: ignore[call-overload]
+        qbuf.close()
+        jpeg_data = bytes(buf.data())
 
         return {
             "success": True,

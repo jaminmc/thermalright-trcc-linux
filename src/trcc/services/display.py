@@ -55,14 +55,14 @@ class DisplayService:
         self.working_dir = Path(tempfile.mkdtemp(prefix='trcc_work_'))
 
         # State
-        self.current_image: Any | None = None  # Native surface (QImage or PIL)
+        self.current_image: Any | None = None  # Native surface (QImage)
         self._clean_background: Any | None = None  # Original bg before overlay
         self.current_theme_path: Path | None = None
         self.auto_send = True
         self.rotation = 0         # directionB: 0, 90, 180, 270
         self.brightness = 100     # percent (0-100), config restores actual value
         self.split_mode = 0       # myLddVal: 0=off, 1-3=Dynamic Island style
-        self._split_overlay_cache: dict[tuple[int, int], Any] = {}  # (style,rot)->PIL
+        self._split_overlay_cache: dict[tuple[int, int], Any] = {}  # (style,rot)->surface
 
         # Pre-baked video frame cache (None when inactive)
         self._cache: Any | None = None  # VideoFrameCache
@@ -184,7 +184,6 @@ class DisplayService:
         """Convert decoded frames to native renderer surfaces.
 
         RawFrame (from VideoDecoder/ThemeZtDecoder) → native surface via renderer.
-        PIL Images (legacy path) also handled via from_pil().
         Converts in-place once at load time.
         """
         from ..core.ports import RawFrame
@@ -207,7 +206,7 @@ class DisplayService:
         result = self._loader.load_local_theme(
             theme, self.lcd_size, self.working_dir)
 
-        # Convert PIL frames → native renderer surfaces (if animated)
+        # Convert decoded frames to native renderer surfaces (if animated)
         if result.get('is_animated'):
             self._convert_media_frames()
 
@@ -249,7 +248,7 @@ class DisplayService:
             self._mask_source_dir = result['mask_source_dir']
         self.current_theme_path = result.get('theme_path')
 
-        # Convert PIL frames → native renderer surfaces
+        # Convert decoded frames to native renderer surfaces
         self._convert_media_frames()
         log.debug("load_cloud_theme: frames converted, count=%d",
                   len(self.media._frames) if self.media._frames else 0)
@@ -422,7 +421,7 @@ class DisplayService:
 
         self.current_image = frame
 
-        # Fast path: pre-baked cache active — zero PIL work per tick
+        # Fast path: pre-baked cache active — use directly
         if self._cache and self._cache.active:
             cf = self.media.state.current_frame
             total = self.media.state.total_frames

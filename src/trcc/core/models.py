@@ -87,10 +87,10 @@ class MaskItem(ThemeItem):
 @dataclass
 class ThemeData:
     """Bundle returned after loading a theme — everything needed to display it."""
-    background: Any = None               # PIL Image
+    background: Any = None               # native surface (QImage)
     animation_path: Optional[Path] = None  # video/zt path
     is_animated: bool = False
-    mask: Any = None                     # PIL Image
+    mask: Any = None                     # native surface (QImage)
     mask_position: Optional[Tuple[int, int]] = None
     mask_source_dir: Optional[Path] = None
 

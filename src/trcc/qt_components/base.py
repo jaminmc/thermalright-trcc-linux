@@ -208,8 +208,7 @@ class ImageLabel(QLabel):
                    byte_order: str = '>'):
         """Set image from pre-converted RGB565 bytes.
 
-        Skips PIL→RGB888→QImage conversion — creates QPixmap directly from
-        the same RGB565 bytes sent to the LCD device.
+        Creates QPixmap directly from the RGB565 bytes sent to the LCD device.
         """
         pixmap = rgb565_to_pixmap(data, width, height, byte_order)
         if (width, height) != (self._width, self._height):

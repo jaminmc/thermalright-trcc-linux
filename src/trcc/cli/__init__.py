@@ -201,8 +201,6 @@ def gui(verbose=0, decorated=False, start_hidden=False):
         datefmt='%Y-%m-%d %H:%M:%S'))
     root.addHandler(file_handler)
 
-    # Suppress noisy PIL debug logging
-    logging.getLogger('PIL').setLevel(logging.WARNING)
 
     try:
         # Clear offscreen platform set by _ensure_qt() for CLI commands —

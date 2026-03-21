@@ -39,7 +39,7 @@ class ThemeLoader:
         """Load a local theme with DC config, mask, and overlay.
 
         Returns dict with keys:
-            'image': PIL Image (rendered preview) or None
+            'image': native surface (QImage, rendered preview) or None
             'is_animated': bool
             'status': str
             'mask_source_dir': Path or None (for caller to store)

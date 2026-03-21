@@ -756,7 +756,7 @@ class LCDDevice(Device):
         # Also update clean_background so render_overlay() uses this image
         # as the base (C# sets both bitmapBGK and imagePicture).
         # Use overlay.background (already converted to native QImage)
-        # to avoid PIL→QImage re-conversion on every render tick.
+        # to avoid re-conversion on every render tick.
         if image is not None:
             self._display_svc.set_clean_background(
                 self._display_svc.overlay.background)

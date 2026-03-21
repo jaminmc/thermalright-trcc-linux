@@ -5,7 +5,7 @@ Matches Windows FormScreenshot functionality but adapted for Linux:
 - Captures full screen (X11 + Wayland compatible)
 - Shows frozen screenshot with dimmed overlay
 - User draws selection rectangle
-- Cropped region emitted as PIL Image
+- Cropped region emitted as QImage
 
 Works on both X11 and Wayland via fallback chain.
 """
