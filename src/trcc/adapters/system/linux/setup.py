@@ -524,7 +524,6 @@ class LinuxSetup(PlatformSetup):
             collect_selinux=True,
             collect_rapl=True,
             collect_device_permissions=True,
-            get_process_lines_fn=_linux_process_usage_lines,
         )
 
     def run(self, auto_yes: bool = False) -> int:
@@ -677,20 +676,5 @@ class LinuxSetup(PlatformSetup):
         return 0
 
 
-def _linux_process_usage_lines() -> list[str]:
-    """Return formatted process usage lines for trcc processes (Linux ps)."""
-    result = subprocess.run(
-        ["ps", "-eo", "pid,pcpu,pmem,rss,comm", "--no-headers"],
-        capture_output=True, text=True, timeout=5,
-    )
-    lines = []
-    for line in result.stdout.splitlines():
-        if "trcc" in line.split()[-1]:
-            parts = line.strip().split(None, 4)
-            if len(parts) >= 5:
-                pid, cpu, mem, rss, cmd = parts
-                rss_mb = f"{int(rss) / 1024:.0f}"
-                lines.append(f"  {pid:>6}  {cpu:>5}  {mem:>4}  {rss_mb:>7}  {cmd}")
-    return lines
 
 

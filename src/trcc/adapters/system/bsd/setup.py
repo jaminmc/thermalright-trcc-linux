@@ -15,7 +15,6 @@ from trcc.adapters.system._shared import (
     _posix_acquire_instance_lock,
     _posix_raise_existing_instance,
     _print_summary,
-    _psutil_process_usage_lines,
 )
 from trcc.core.ports import PlatformSetup
 
@@ -112,7 +111,6 @@ class BSDSetup(PlatformSetup):
             collect_selinux=False,
             collect_rapl=False,
             collect_device_permissions=False,
-            get_process_lines_fn=_psutil_process_usage_lines,
         )
 
     def run(self, auto_yes: bool = False) -> int:

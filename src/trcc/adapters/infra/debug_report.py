@@ -66,8 +66,8 @@ class DebugReport:
         if self._config.collect_device_permissions:
             self._device_permissions()
         self._handshakes()
-        self._process_usage()
         self._app_config()
+        self._last_cpu_baseline()
         self._recent_log()
 
     @property
@@ -286,18 +286,6 @@ class DebugReport:
         except Exception as e:
             sec.lines.append(f"  Error: {e}")
 
-    def _process_usage(self) -> None:
-        sec = self._add("Process usage")
-        try:
-            lines = self._config.get_process_lines_fn()
-            if not lines:
-                sec.lines.append("  (no trcc process running)")
-                return
-            sec.lines.append("  PID    %CPU  %MEM   RSS(MB)  CMD")
-            sec.lines.extend(lines)
-        except Exception as e:
-            sec.lines.append(f"  Error: {e}")
-
     def _app_config(self) -> None:
         sec = self._add("Config")
         try:
@@ -473,6 +461,22 @@ class DebugReport:
                 sec.lines.append(f"    raw[0:64]={result.raw_response[:64].hex()}")
         finally:
             protocol.close()
+
+    def _last_cpu_baseline(self) -> None:
+        sec = self._add("CPU baseline (last theme cache)")
+        log_path = Path.home() / ".trcc" / "trcc.log"
+        if not log_path.exists():
+            sec.lines.append("  (no log file — load a theme in the GUI first)")
+            return
+        try:
+            lines = log_path.read_text(errors="replace").splitlines()
+            for line in reversed(lines):
+                if "trcc CPU" in line:
+                    sec.lines.append(f"  {line.strip()}")
+                    return
+            sec.lines.append("  (not found — load a theme in the GUI first)")
+        except Exception as e:
+            sec.lines.append(f"  Error reading log: {e}")
 
     def _recent_log(self) -> None:
         sec = self._add("Recent log (last 50 lines)")

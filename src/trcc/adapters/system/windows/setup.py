@@ -12,7 +12,6 @@ from trcc.adapters.system._shared import (
     _confirm,
     _copy_assets_to_user_dir,
     _print_summary,
-    _psutil_process_usage_lines,
 )
 from trcc.core.ports import PlatformSetup
 
@@ -128,7 +127,6 @@ class WindowsSetup(PlatformSetup):
             collect_selinux=False,
             collect_rapl=False,
             collect_device_permissions=False,
-            get_process_lines_fn=_psutil_process_usage_lines,
         )
 
     def run(self, auto_yes: bool = False) -> int:

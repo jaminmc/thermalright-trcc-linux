@@ -481,6 +481,12 @@ class DisplayService:
             use_jpeg=use_jpeg,
         )
         self._cache = cache
+        try:
+            import psutil
+            cpu = psutil.Process().cpu_percent(interval=0.5)
+            log.info("video cache built: %d frames, trcc CPU %.1f%%", len(self.media._frames), cpu)
+        except Exception:
+            log.info("video cache built: %d frames", len(self.media._frames))
 
     def rebuild_video_cache_metrics(self, metrics: Any) -> None:
         """Rebuild video cache with new metrics text."""

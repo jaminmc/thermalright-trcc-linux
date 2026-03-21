@@ -291,7 +291,6 @@ class ReportPlatformConfig:
     collect_selinux: bool
     collect_rapl: bool
     collect_device_permissions: bool
-    get_process_lines_fn: Callable[[], list[str]]
 
 
 # =========================================================================

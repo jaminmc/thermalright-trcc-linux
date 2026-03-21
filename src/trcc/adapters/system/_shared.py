@@ -61,19 +61,6 @@ def _copy_assets_to_user_dir(pkg_assets_dir: Path) -> Path:
 
 # ── Process listing (psutil — Windows / macOS / BSD) ─────────────────────────
 
-def _psutil_process_usage_lines() -> list[str]:
-    """Return formatted process usage lines for trcc processes (psutil)."""
-    import psutil
-    lines = []
-    for p in psutil.process_iter(['pid', 'name', 'cpu_percent',
-                                   'memory_percent', 'memory_info']):
-        if 'trcc' in (p.info['name'] or '').lower():
-            info = p.info
-            rss_mb = f"{(info['memory_info'].rss / 1024 / 1024):.0f}"
-            lines.append(
-                f"  {info['pid']:>6}  {info['cpu_percent']:>5.1f}  "
-                f"{info['memory_percent']:>4.1f}  {rss_mb:>7}  {info['name']}")
-    return lines
 
 
 # ── Single-instance lock (POSIX — Linux / macOS / BSD) ───────────────────────
