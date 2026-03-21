@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QIcon, QPixmap
 
 import trcc.conf as _conf
@@ -29,6 +29,11 @@ from ..core.models import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class _DataReadyNotifier(QObject):
+    """Thread-safe notifier: emits ready() from background thread to main thread."""
+    ready = Signal()
 
 
 class LCDHandler:
@@ -70,6 +75,10 @@ class LCDHandler:
         # Avoids QImage→QPixmap conversion on every tick when L3 cache is warm.
         self._pixmap_cache: dict[int, tuple[int, QPixmap]] = {}
 
+        # Thread-safe notifier for background data download → UI refresh
+        self._data_notifier = _DataReadyNotifier()
+        self._data_notifier.ready.connect(self._update_theme_directories)
+
         # Timers (created by parent, owned by this handler)
         self._animation_timer: QTimer = make_timer(self._on_video_tick)
         self._slideshow_timer: QTimer = make_timer(self._on_slideshow_tick)
@@ -104,10 +113,7 @@ class LCDHandler:
 
         # Wire background extraction callback — refresh theme browsers when done
         if self._lcd._display_svc:
-            from PySide6.QtCore import QTimer
-            def _on_data_ready():
-                QTimer.singleShot(0, self._update_theme_directories)
-            self._lcd._display_svc.on_data_ready = _on_data_ready
+            self._lcd._display_svc.on_data_ready = self._data_notifier.ready.emit
 
         # Restore per-device settings
         cfg = Settings.get_device_config(self._device_key)
@@ -238,6 +244,7 @@ class LCDHandler:
 
     def _select_theme(self, theme: ThemeInfo) -> None:
         """Select theme via LCDDevice and handle result."""
+        log.info("Theme selected: %s (animated=%s)", theme.name, theme.is_animated)
         self._pixmap_cache.clear()
         result = self._lcd.theme.select(theme)
         image = result.get('image')
@@ -502,16 +509,35 @@ class LCDHandler:
 
     def on_overlay_tick(self, metrics: Any) -> None:
         """Metrics subscriber: render overlay when values change."""
+        if not self._lcd.overlay.enabled:
+            return
+
         self._lcd.overlay.update_metrics(metrics)
 
         if self._lcd.video.playing:
             if self._lcd.overlay.has_changed(metrics):
+                log.debug("overlay_tick: video playing, metrics changed — rebuilding cache")
                 self._lcd.overlay.rebuild_video_cache(metrics)
+            else:
+                log.debug("overlay_tick: video playing, no change — skip")
             return
 
         if not self._lcd.overlay.has_changed(metrics):
+            log.debug("overlay_tick: static theme, no change — skip send")
             return
 
+        log.debug("overlay_tick: static theme, metrics changed — render+send")
+        self._render_and_send()
+
+    def keepalive(self) -> None:
+        """Periodic keepalive: resend current frame to prevent USB standby.
+
+        Fires every ~20 s via the metrics mediator. Skipped when video is
+        playing (the animation timer already sends frames continuously).
+        """
+        if self._lcd.video.playing:
+            return
+        log.debug("keepalive: resending frame")
         self._render_and_send()
 
     def flash_element(self, index: int) -> None:
@@ -629,13 +655,17 @@ class LCDHandler:
         result = self._lcd.overlay.render()
         image = result.get('image')
         if not image or not self._lcd.auto_send:
+            log.debug("_render_and_send: skipped (no image or auto_send off)")
             return
         if self._is_visible():
             self._w['preview'].set_image(image)
         if not self._lcd.connected:
+            log.debug("_render_and_send: skipped (not connected)")
             return
         if skip_if_video and self._lcd.video.playing:
+            log.debug("_render_and_send: skipped (video playing)")
             return
+        log.debug("_render_and_send: sending frame")
         self._lcd.frame.send(image)
 
     def render_and_preview(self) -> Any:

@@ -92,8 +92,12 @@ jobs:
         run: |
           TESTS=$(grep -oP '\d+ passed' pytest-output.txt | grep -oP '\d+' || true)
           COV=$(grep -oP 'TOTAL.*\K\d+(?=%)' pytest-output.txt || true)
-          [ -n "$TESTS" ] && sed -i "s/tests-[0-9]*_passed/tests-${TESTS}_passed/" README.md
-          [ -n "$COV" ] && sed -i "s/coverage-[0-9]*%25/coverage-${COV}%25/" README.md
+          if [ -n "$TESTS" ]; then
+            sed -i "s/tests-[0-9]*_passed/tests-${TESTS}_passed/" README.md
+          fi
+          if [ -n "$COV" ]; then
+            sed -i "s/coverage-[0-9]*%25/coverage-${COV}%25/" README.md
+          fi
 
       - name: Commit if changed
         run: |

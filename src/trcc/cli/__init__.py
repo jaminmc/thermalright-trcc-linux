@@ -196,16 +196,18 @@ def gui(verbose=0, decorated=False, start_hidden=False):
     root.handlers.clear()  # remove early basicConfig handler from __main__.py
 
     # Console handler — verbosity-controlled
+    _fmt = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    _datefmt = '%H:%M:%S'
     console = logging.StreamHandler()
     if verbose >= 2:
         console.setLevel(logging.DEBUG)
-        console.setFormatter(logging.Formatter('[%(levelname)s] %(name)s: %(message)s'))
+        console.setFormatter(logging.Formatter(_fmt, datefmt=_datefmt))
     elif verbose == 1:
         console.setLevel(logging.INFO)
-        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+        console.setFormatter(logging.Formatter(_fmt, datefmt=_datefmt))
     else:
         console.setLevel(logging.WARNING)
-        console.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+        console.setFormatter(logging.Formatter(_fmt, datefmt=_datefmt))
     root.addHandler(console)
 
     # File handler — always DEBUG, rotated (1MB × 3 backups)

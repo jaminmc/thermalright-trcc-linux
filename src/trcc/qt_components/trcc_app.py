@@ -450,6 +450,8 @@ class TRCCApp(QMainWindow):
 
     def __init__(self, data_dir: Path | None = None, decorated: bool = False):
         super().__init__()
+        from trcc.__version__ import __version__
+        log.info("TRCC v%s starting", __version__)
 
         self._decorated = decorated
         self._drag_pos = None
@@ -1339,21 +1341,25 @@ class TRCCApp(QMainWindow):
 
     def _on_device_poll(self):
         try:
-            devices = find_lcd_devices()
-            self.uc_device.update_devices(devices)
-
-            # Auto-select first device
             has_lcd = self._lcd_handler and self._lcd_handler.display.connected
-            if devices and not has_lcd and not self._led.active:
-                device = DeviceInfo.from_dict(devices[0])
-                if device.implementation == 'hid_led':
-                    self._led.show(device)
-                    self._show_view('led')
-                    self._mediator.ensure_running()
-                else:
-                    self._on_device_selected(device)
-
             has_device = has_lcd or self._led.active
+
+            if not has_device:
+                devices = find_lcd_devices()
+                self.uc_device.update_devices(devices)
+
+                # Auto-select first device
+                if devices and not self._led.active:
+                    device = DeviceInfo.from_dict(devices[0])
+                    if device.implementation == 'hid_led':
+                        self._led.show(device)
+                        self._show_view('led')
+                        self._mediator.ensure_running()
+                    else:
+                        self._on_device_selected(device)
+
+                has_device = has_lcd or self._led.active
+
             interval = 15000 if has_device else 5000
             if self._device_timer.interval() != interval:
                 self._device_timer.start(interval)
@@ -1921,10 +1927,13 @@ class TRCCApp(QMainWindow):
         self._mediator.subscribe(
             self._on_overlay_tick, period=1,
             guard=lambda: (
-                (self._lcd_handler is not None
-                 and self._lcd_handler.display.is_overlay_enabled)
-                or (self._lcd_handler is not None
-                    and self._lcd_handler.is_background_active)))
+                self._lcd_handler is not None
+                and self._lcd_handler.display.connected))
+        self._mediator.subscribe(
+            self._on_keepalive_tick, period=20,
+            guard=lambda: (
+                self._lcd_handler is not None
+                and self._lcd_handler.display.connected))
         self._mediator.subscribe(
             self._on_led_metrics, period=1,
             guard=lambda: self._led.active)
@@ -1938,6 +1947,10 @@ class TRCCApp(QMainWindow):
     def _on_overlay_tick(self, metrics) -> None:
         if self._lcd_handler:
             self._lcd_handler.on_overlay_tick(metrics)
+
+    def _on_keepalive_tick(self, metrics) -> None:
+        if self._lcd_handler:
+            self._lcd_handler.keepalive()
 
     def _on_led_metrics(self, metrics) -> None:
         if self._led.has_controller:
