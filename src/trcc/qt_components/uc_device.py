@@ -7,11 +7,12 @@ Shows connected LCD devices as clickable buttons.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 
-from ..adapters.device.scsi import find_lcd_devices
 from .assets import Assets
 from .base import BasePanel, create_image_button, set_background_pixmap
 from .constants import Colors, Layout, Sizes
@@ -133,9 +134,11 @@ class UCDevice(BasePanel):
     about_clicked = Signal()
     home_clicked = Signal()
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None,
+                 detect_fn: Callable[[], list[dict]] | None = None):
         super().__init__(parent, width=Sizes.SIDEBAR_W, height=Sizes.SIDEBAR_H)
 
+        self._detect_fn = detect_fn
         self.devices: list[dict] = []
         self.device_buttons: list[QPushButton] = []
         self.selected_device: dict | None = None
@@ -229,7 +232,7 @@ class UCDevice(BasePanel):
 
     def _detect_devices(self) -> None:
         """Detect connected LCD devices."""
-        self.devices = find_lcd_devices()
+        self.devices = self._detect_fn() if self._detect_fn is not None else []
         self._build_device_buttons(self.devices)
         if self.device_buttons:
             self._select_device(self.devices[0])

@@ -78,6 +78,11 @@ def get_web_masks_dir(width: int, height: int) -> str:
     return _resolve_web_subdir(f'zt{width}{height}', check_fn=_has_themes)
 
 
+def is_safe_archive_member(name: str) -> bool:
+    """Check that an archive member path doesn't escape the destination (zip slip)."""
+    return not (os.path.isabs(name) or '..' in name.split('/'))
+
+
 def get_user_masks_dir(width: int, height: int) -> str:
     """Get user-created masks directory for a resolution.
 

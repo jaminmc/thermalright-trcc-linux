@@ -660,7 +660,7 @@ class TRCCApp(QMainWindow):
             self._pixmap_refs.append(pix_form1)
 
         # Device sidebar
-        self.uc_device = UCDevice(central)
+        self.uc_device = UCDevice(central, detect_fn=find_lcd_devices)
         self.uc_device.setGeometry(*Layout.SIDEBAR)
 
         # FormCZTV container
@@ -703,7 +703,10 @@ class TRCCApp(QMainWindow):
         self._set_panel_bg(self.uc_theme_local, Assets.THEME_LOCAL_BG)
         self.panel_stack.addWidget(self.uc_theme_local)
 
-        self.uc_theme_web = UCThemeWeb()                  # panel 1
+        from ..adapters.infra.theme_cloud import CloudThemeDownloader
+        def _download_theme(theme_id: str, resolution: str, cache_dir: str) -> str | None:
+            return CloudThemeDownloader(resolution=resolution, cache_dir=cache_dir).download_theme(theme_id)
+        self.uc_theme_web = UCThemeWeb(download_fn=_download_theme)  # panel 1
         self._set_panel_bg(self.uc_theme_web, Assets.THEME_WEB_BG)
         self.panel_stack.addWidget(self.uc_theme_web)
 
@@ -740,7 +743,10 @@ class TRCCApp(QMainWindow):
         set_instance(self._system_svc)
 
         # System info dashboard
-        self.uc_system_info = UCSystemInfo(self._system_sensors, parent=central)
+        from ..adapters.system.config import SysInfoConfig
+        self.uc_system_info = UCSystemInfo(self._system_sensors,
+                                           sysinfo_config=SysInfoConfig(),
+                                           parent=central)
         self.uc_system_info.setGeometry(*Layout.SYSINFO_PANEL)
         self.uc_system_info.setVisible(False)
 

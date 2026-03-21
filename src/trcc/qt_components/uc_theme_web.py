@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QMovie
@@ -102,10 +103,13 @@ class UCThemeWeb(DownloadableThemeBrowser):
     CMD_THEME_SELECTED = 16
     CMD_CATEGORY_CHANGED = 4
 
-    def __init__(self, parent=None):
+    def __init__(self,
+                 download_fn: Callable[[str, str, str], str | None] | None = None,
+                 parent=None):
         self.current_category = 'all'
         self.web_directory = None
         self._resolution = "320x320"
+        self._download_fn = download_fn
         super().__init__(parent)
 
     def showEvent(self, event) -> None:  # noqa: N802
@@ -243,12 +247,12 @@ class UCThemeWeb(DownloadableThemeBrowser):
         if not self.web_directory:
             return
 
+        _fn = self._download_fn
+        if _fn is None:
+            return
+
         def download_fn():
-            from ..adapters.infra.theme_cloud import CloudThemeDownloader
-            downloader = CloudThemeDownloader(
-                resolution=self._resolution,
-                cache_dir=str(self.web_directory))
-            result = downloader.download_theme(theme_id)
+            result = _fn(theme_id, self._resolution, str(self.web_directory))
             if result:
                 self._extract_preview(theme_id)
             return bool(result)

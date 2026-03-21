@@ -261,22 +261,18 @@ class TestUCDevice(unittest.TestCase):
 
     def test_init(self):
         """UCDevice initializes without crashing."""
-        with patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[]):
-            sidebar = UCDevice()
+        sidebar = UCDevice()
         self.assertEqual(sidebar.width(), 180)
         self.assertEqual(sidebar.height(), 800)
 
     def test_no_devices(self):
-        with patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[]):
-            sidebar = UCDevice()
+        sidebar = UCDevice()
         self.assertEqual(sidebar.get_devices(), [])
         self.assertIsNone(sidebar.get_selected_device())
 
     def test_update_devices(self):
         """update_devices creates device buttons."""
-        with patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[]):
-            sidebar = UCDevice()
-
+        sidebar = UCDevice()
         devices = [
             {'name': 'LCD1', 'path': '/dev/sg0'},
             {'name': 'LCD2', 'path': '/dev/sg1'},
@@ -285,16 +281,14 @@ class TestUCDevice(unittest.TestCase):
         self.assertEqual(len(sidebar.device_buttons), 2)
 
     def test_about_signal(self):
-        with patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[]):
-            sidebar = UCDevice()
+        sidebar = UCDevice()
         fired = []
         sidebar.about_clicked.connect(lambda: fired.append(True))
         sidebar.about_btn.click()
         self.assertTrue(fired)
 
     def test_home_signal(self):
-        with patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[]):
-            sidebar = UCDevice()
+        sidebar = UCDevice()
         fired = []
         sidebar.home_clicked.connect(lambda: fired.append(True))
         sidebar.sensor_btn.click()

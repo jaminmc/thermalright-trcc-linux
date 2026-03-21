@@ -5,6 +5,7 @@ All three adapters (CLI, GUI, API) use this to construct devices.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from ..services.system import SystemService
     from .lcd_device import LCDDevice
     from .led_device import LEDDevice
+
+log = logging.getLogger(__name__)
 
 
 class ControllerBuilder:
@@ -85,10 +88,19 @@ class ControllerBuilder:
                 load_config_json_fn=load_config_json,
                 dc_config_cls=DcConfig,
             )
+            try:
+                import psutil as _psutil
+                _proc = _psutil.Process()
+                def _cpu_percent() -> float:
+                    return _proc.cpu_percent(interval=0.5)
+            except ImportError:
+                log.warning("psutil not available — CPU baseline logging disabled")
+                _cpu_percent = None  # type: ignore[assignment]
             display_svc = DisplayService(
                 device_svc, overlay_svc, media_svc,
                 ensure_data_fn=DataManager.ensure_all,
                 theme_svc=theme_svc,
+                cpu_percent_fn=_cpu_percent,
             )
             return {
                 'display_svc': display_svc,

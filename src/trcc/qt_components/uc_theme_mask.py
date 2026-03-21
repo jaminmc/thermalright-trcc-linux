@@ -15,9 +15,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QMenu
 
 import trcc.conf as _conf
-from trcc.adapters.infra.data_repository import DataManager
 
 from ..core.models import MaskItem
+from ..core.paths import is_safe_archive_member
 from .base import BaseThumbnail, DownloadableThemeBrowser
 
 log = logging.getLogger(__name__)
@@ -249,7 +249,7 @@ class UCThemeMask(DownloadableThemeBrowser):
                     with zipfile.ZipFile(io.BytesIO(data)) as zf:
                         mask_dir.mkdir(parents=True, exist_ok=True)
                         for info in zf.infolist():
-                            if not DataManager.is_safe_archive_member(info.filename):
+                            if not is_safe_archive_member(info.filename):
                                 continue
                             zf.extract(info, mask_dir)
                         log.info("Extracted mask %s", mask_id)

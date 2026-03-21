@@ -11,7 +11,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Callable, Tuple
 
 import trcc.conf as _conf
 
@@ -40,12 +40,14 @@ class DisplayService:
                  overlay: OverlayService,
                  media: MediaService,
                  ensure_data_fn: Any = None,
-                 theme_svc: Any = None) -> None:
+                 theme_svc: Any = None,
+                 cpu_percent_fn: Callable[[], float] | None = None) -> None:
         # Sub-services (injected)
         self.devices = devices
         self.overlay = overlay
         self.media = media
         self._ensure_data_fn = ensure_data_fn
+        self._cpu_percent_fn = cpu_percent_fn
 
         # Theme loader (injected with same sub-services)
         self._loader = ThemeLoader(overlay, media, theme_svc=theme_svc)
@@ -481,11 +483,10 @@ class DisplayService:
             use_jpeg=use_jpeg,
         )
         self._cache = cache
-        try:
-            import psutil
-            cpu = psutil.Process().cpu_percent(interval=0.5)
-            log.info("video cache built: %d frames, trcc CPU %.1f%%", len(self.media._frames), cpu)
-        except Exception:
+        if self._cpu_percent_fn is not None:
+            log.info("video cache built: %d frames, trcc CPU %.1f%%",
+                     len(self.media._frames), self._cpu_percent_fn())
+        else:
             log.info("video cache built: %d frames", len(self.media._frames))
 
     def rebuild_video_cache_metrics(self, metrics: Any) -> None:

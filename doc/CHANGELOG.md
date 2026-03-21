@@ -1,5 +1,17 @@
 # Changelog
 
+## v9.1.0
+
+### Internal
+- **Strict hexagonal architecture**: All GUI views now receive infrastructure dependencies via injection — no view imports adapter-layer code directly
+  - `UCDevice` — `find_lcd_devices` injected as `detect_fn` from composition root (`trcc_app.py`)
+  - `UCThemeWeb` — `CloudThemeDownloader` injected as `download_fn`
+  - `UCSystemInfo` — `SysInfoConfig` injected; `SensorBinding`/`PanelConfig` moved to `core/models`
+  - `UCThemeMask` — `is_safe_archive_member` moved to `core/paths` (pure function, no adapter dep)
+  - `UCLedControl` — `LED_STYLES`/`PmRegistry` imported from `core/models` (was adapters)
+- **`SystemService._mem_clock_cache`**: Module-level mutable global eliminated — cache moved to instance variable, sentinel pattern preserved
+- **CPU baseline logging**: `psutil.ImportError` now logs a warning instead of silently setting fn to None; `builder.py` gets a proper logger
+
 ## v9.0.9
 
 ### Fixes

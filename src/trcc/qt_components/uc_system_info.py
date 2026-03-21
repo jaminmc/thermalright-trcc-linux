@@ -21,12 +21,12 @@ from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter
 from PySide6.QtWidgets import QLabel, QLineEdit, QPushButton, QWidget
 
-from ..adapters.system.config import (
+from ..adapters.system.config import SysInfoConfig
+from ..core.models import (
     CATEGORY_COLORS,
     CATEGORY_IMAGES,
     PanelConfig,
     SensorBinding,
-    SysInfoConfig,
 )
 from ..core.ports import SensorEnumerator
 from .assets import Assets
@@ -234,13 +234,15 @@ class UCSystemInfo(QWidget):
 
     panel_clicked = Signal(object)  # SystemInfoPanel
 
-    def __init__(self, enumerator: SensorEnumerator, parent=None):
+    def __init__(self, enumerator: SensorEnumerator,
+                 sysinfo_config: SysInfoConfig | None = None,
+                 parent=None):
         super().__init__(parent)
         _, _, w, h = Layout.SYSINFO_PANEL
         self.setFixedSize(w, h)
 
         self._enumerator = enumerator
-        self._config = SysInfoConfig()
+        self._config = sysinfo_config if sysinfo_config is not None else SysInfoConfig()
         self._page = 0
         self._temp_unit = 0  # 0=Celsius, 1=Fahrenheit
         self._panels_list: list[SystemInfoPanel] = []

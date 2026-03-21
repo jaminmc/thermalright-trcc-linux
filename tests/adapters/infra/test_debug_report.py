@@ -1078,53 +1078,56 @@ class TestEbusyFallback:
 
 
 # ---------------------------------------------------------------------------
-# _process_usage
+# _last_cpu_baseline
 # ---------------------------------------------------------------------------
 
 class TestProcessUsageExtra:
-    """_process_usage edge cases."""
+    """_last_cpu_baseline edge cases."""
 
-    @patch("trcc.adapters.system.linux.setup.subprocess.run")
-    def test_trcc_proc_found(self, mock_run):
-        mock_run.return_value = MagicMock(stdout=(
-            "  123  0.5  0.2  51200 trcc\n"
-        ))
+    def test_cpu_baseline_found(self, tmp_path):
+        log_file = tmp_path / ".trcc" / "trcc.log"
+        log_file.parent.mkdir(parents=True)
+        log_file.write_text(
+            "2026-01-01 INFO some line\n"
+            "2026-01-01 INFO video cache built: 162 frames, trcc CPU 5.3%\n"
+            "2026-01-01 INFO another line\n"
+        )
         rpt = DebugReport()
-        rpt._process_usage()
+        with patch("trcc.adapters.infra.debug_report.Path.home", return_value=tmp_path):
+            rpt._last_cpu_baseline()
         _, body = _section(rpt)
-        assert "123" in body
-        assert "trcc" in body
-        assert "50" in body  # RSS in MB
+        assert "trcc CPU" in body
+        assert "5.3%" in body
 
-    @patch("trcc.adapters.system.linux.setup.subprocess.run")
-    def test_no_trcc_proc(self, mock_run):
-        mock_run.return_value = MagicMock(stdout=(
-            "  1    0.0  0.0  4096 systemd\n"
-        ))
+    def test_cpu_baseline_returns_last_match(self, tmp_path):
+        log_file = tmp_path / ".trcc" / "trcc.log"
+        log_file.parent.mkdir(parents=True)
+        log_file.write_text(
+            "2026-01-01 INFO video cache built: 50 frames, trcc CPU 6.1%\n"
+            "2026-01-01 INFO video cache built: 90 frames, trcc CPU 5.3%\n"
+        )
         rpt = DebugReport()
-        rpt._process_usage()
+        with patch("trcc.adapters.infra.debug_report.Path.home", return_value=tmp_path):
+            rpt._last_cpu_baseline()
         _, body = _section(rpt)
-        assert "no trcc process running" in body
+        assert "5.3%" in body
 
-    @patch("trcc.adapters.system.linux.setup.subprocess.run",
-           side_effect=RuntimeError("ps failed"))
-    def test_subprocess_error(self, _):
+    def test_cpu_baseline_no_log(self, tmp_path):
         rpt = DebugReport()
-        rpt._process_usage()
+        with patch("trcc.adapters.infra.debug_report.Path.home", return_value=tmp_path):
+            rpt._last_cpu_baseline()
         _, body = _section(rpt)
-        assert "Error" in body
+        assert "no log file" in body
 
-    @patch("trcc.adapters.system.linux.setup.subprocess.run")
-    def test_multiple_trcc_procs(self, mock_run):
-        mock_run.return_value = MagicMock(stdout=(
-            "  100  1.0  0.1  20480 trcc\n"
-            "  101  0.5  0.1  20480 trcc-gui\n"
-        ))
+    def test_cpu_baseline_not_found_in_log(self, tmp_path):
+        log_file = tmp_path / ".trcc" / "trcc.log"
+        log_file.parent.mkdir(parents=True)
+        log_file.write_text("2026-01-01 INFO some unrelated line\n")
         rpt = DebugReport()
-        rpt._process_usage()
+        with patch("trcc.adapters.infra.debug_report.Path.home", return_value=tmp_path):
+            rpt._last_cpu_baseline()
         _, body = _section(rpt)
-        assert "100" in body
-        assert "101" in body
+        assert "not found" in body
 
 
 # ---------------------------------------------------------------------------

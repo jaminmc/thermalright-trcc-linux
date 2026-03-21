@@ -17,7 +17,7 @@ import os
 # Must set before ANY Qt import
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from PySide6.QtGui import QPixmap
@@ -247,27 +247,22 @@ def _make_device(path: str = '/dev/sg0', name: str = 'LCD',
 class TestUCDeviceConstruction:
     """Test UCDevice widget construction."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_construction_no_devices(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_construction_no_devices(self, qapp: object) -> None:
         panel = UCDevice()
         assert panel.devices == []
         assert panel.device_buttons == []
         assert panel.selected_device is None
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_construction_with_devices(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_construction_with_devices(self, qapp: object) -> None:
         dev = _make_device()
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         assert len(panel.devices) == 1
         assert len(panel.device_buttons) == 1
         assert panel.selected_device is dev
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_construction_with_multiple_devices(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_construction_with_multiple_devices(self, qapp: object) -> None:
         devices = [_make_device(f'/dev/sg{i}', f'LCD {i}') for i in range(3)]
-        mock_find.return_value = devices
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: devices)
         assert len(panel.device_buttons) == 3
         # First device auto-selected
         assert panel.selected_device is devices[0]
@@ -276,83 +271,66 @@ class TestUCDeviceConstruction:
 class TestUCDeviceBuildButtons:
     """Test _build_device_buttons() behavior."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_no_devices_shows_labels(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_no_devices_shows_labels(self, qapp: object) -> None:
         panel = UCDevice()
         # Use isHidden() — isVisible() requires the entire parent chain to be shown
         assert not panel.no_devices_label.isHidden()
         assert not panel.hint_label.isHidden()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_devices_hide_labels(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_devices_hide_labels(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         assert panel.no_devices_label.isHidden()
         assert panel.hint_label.isHidden()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_button_text_fallback(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_button_text_fallback(self, qapp: object) -> None:
         """When no image is found, button shows fallback text."""
         dev = _make_device(name='My Custom LCD Device')
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         btn = panel.device_buttons[0]
         # Fallback text is truncated to 18 chars
         assert btn.text() == 'My Custom LCD Devi'
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_buttons_are_checkable(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_buttons_are_checkable(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         assert panel.device_buttons[0].isCheckable()
 
 
 class TestUCDeviceSelection:
     """Test device selection, deselection, and signals."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_select_device_emits_signal(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_select_device_emits_signal(self, qapp: object) -> None:
         dev = _make_device()
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         received: list[dict] = []
         panel.device_selected.connect(lambda d: received.append(d))
         panel._select_device(dev)
         assert len(received) == 1
         assert received[0] == dev
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_select_device_deselects_header_buttons(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_select_device_deselects_header_buttons(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         panel.sensor_btn.setChecked(True)
         panel.about_btn.setChecked(True)
         panel._select_device(_make_device())
         assert not panel.sensor_btn.isChecked()
         assert not panel.about_btn.isChecked()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_select_device_checks_correct_button(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_select_device_checks_correct_button(self, qapp: object) -> None:
         dev_a = _make_device('/dev/sg0', 'A')
         dev_b = _make_device('/dev/sg1', 'B')
-        mock_find.return_value = [dev_a, dev_b]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev_a, dev_b])
         panel._select_device(dev_b)
         assert not panel.device_buttons[0].isChecked()
         assert panel.device_buttons[1].isChecked()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_deselect_all_devices(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device('/dev/sg0'), _make_device('/dev/sg1')]
-        panel = UCDevice()
+    def test_deselect_all_devices(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device('/dev/sg0'), _make_device('/dev/sg1')])
         panel._deselect_all_devices()
         for btn in panel.device_buttons:
             assert not btn.isChecked()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_deselect_header_buttons(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_deselect_header_buttons(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         panel.sensor_btn.setChecked(True)
         panel.about_btn.setChecked(True)
         panel._deselect_header_buttons()
@@ -363,10 +341,8 @@ class TestUCDeviceSelection:
 class TestUCDeviceHeaderClicks:
     """Test home/about button state transitions."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_on_home_clicked(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_on_home_clicked(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         home_fired: list[bool] = []
         panel.home_clicked.connect(lambda: home_fired.append(True))
         panel._on_home_clicked()
@@ -376,10 +352,8 @@ class TestUCDeviceHeaderClicks:
             assert not btn.isChecked()
         assert home_fired
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_on_about_clicked(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_on_about_clicked(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         about_fired: list[bool] = []
         panel.about_clicked.connect(lambda: about_fired.append(True))
         panel._on_about_clicked()
@@ -389,10 +363,8 @@ class TestUCDeviceHeaderClicks:
             assert not btn.isChecked()
         assert about_fired
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_home_then_about_toggles(self, mock_find: MagicMock, qapp: object) -> None:
-        mock_find.return_value = [_make_device()]
-        panel = UCDevice()
+    def test_home_then_about_toggles(self, qapp: object) -> None:
+        panel = UCDevice(detect_fn=lambda: [_make_device()])
         panel._on_home_clicked()
         assert panel.sensor_btn.isChecked()
         panel._on_about_clicked()
@@ -403,8 +375,7 @@ class TestUCDeviceHeaderClicks:
 class TestUCDeviceUpdateDevices:
     """Test hot-plug update_devices() behavior."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_same_paths_no_rebuild(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_same_paths_no_rebuild(self, qapp: object) -> None:
         panel = UCDevice()
         dev = _make_device('/dev/sg0')
         panel.devices = [dev]
@@ -414,8 +385,7 @@ class TestUCDeviceUpdateDevices:
         # Same paths -> no rebuild, same button objects
         assert panel.device_buttons == old_buttons
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_changed_paths_rebuilds(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_changed_paths_rebuilds(self, qapp: object) -> None:
         panel = UCDevice()
         dev_a = _make_device('/dev/sg0')
         panel.devices = [dev_a]
@@ -429,8 +399,7 @@ class TestUCDeviceUpdateDevices:
         # New device auto-selected
         assert panel.selected_device is dev_b
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_update_devices_restores_selection(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_devices_restores_selection(self, qapp: object) -> None:
         panel = UCDevice()
         dev_a = _make_device('/dev/sg0')
         dev_b = _make_device('/dev/sg1')
@@ -442,8 +411,7 @@ class TestUCDeviceUpdateDevices:
         panel.update_devices([dev_a, dev_b, dev_c])
         assert panel.selected_device is dev_b
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_update_to_empty(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_to_empty(self, qapp: object) -> None:
         panel = UCDevice()
         dev = _make_device()
         panel.devices = [dev]
@@ -453,8 +421,7 @@ class TestUCDeviceUpdateDevices:
         assert panel.selected_device is None
         assert panel.device_buttons == []
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_update_devices_prev_gone_selects_first(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_devices_prev_gone_selects_first(self, qapp: object) -> None:
         """When previously selected device is gone, selects first new device."""
         panel = UCDevice()
         dev_a = _make_device('/dev/sg0')
@@ -469,12 +436,10 @@ class TestUCDeviceUpdateDevices:
 class TestUCDeviceRestoreSelection:
     """Test restore_device_selection()."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_restore_device_selection(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_restore_device_selection(self, qapp: object) -> None:
         dev_a = _make_device('/dev/sg0', 'A')
         dev_b = _make_device('/dev/sg1', 'B')
-        mock_find.return_value = [dev_a, dev_b]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev_a, dev_b])
         panel._select_device(dev_b)
         # Simulate going to About
         panel._on_about_clicked()
@@ -486,8 +451,7 @@ class TestUCDeviceRestoreSelection:
         assert panel.device_buttons[1].isChecked()
         assert not panel.device_buttons[0].isChecked()
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_restore_no_selection_noop(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_restore_no_selection_noop(self, qapp: object) -> None:
         """restore_device_selection() with no selected_device is a safe no-op."""
         panel = UCDevice()
         panel.restore_device_selection()
@@ -498,12 +462,10 @@ class TestUCDeviceRestoreSelection:
 class TestUCDeviceButtonUpdate:
     """Test update_device_button() post-handshake."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_update_device_button_with_image(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_device_button_with_image(self, qapp: object) -> None:
         """After handshake, button icon is updated if image is found."""
         dev = _make_device(name='Generic')
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         # Simulate handshake resolving the product
         dev['button_image'] = 'A1FROZEN WARFRAME'
         with patch('trcc.qt_components.uc_device._get_device_images') as mock_img:
@@ -515,23 +477,19 @@ class TestUCDeviceButtonUpdate:
         btn = panel.device_buttons[0]
         assert btn.text() == ''  # Text cleared when icon set
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_update_device_button_no_match(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_device_button_no_match(self, qapp: object) -> None:
         """If _get_device_images returns (None, None), button is not changed."""
         dev = _make_device(name='Unknown')
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         original_text = panel.device_buttons[0].text()
         with patch('trcc.qt_components.uc_device._get_device_images', return_value=(None, None)):
             panel.update_device_button(dev)
         assert panel.device_buttons[0].text() == original_text
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_update_device_button_wrong_device(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_update_device_button_wrong_device(self, qapp: object) -> None:
         """Updating a device_info not in buttons list is a safe no-op."""
         dev = _make_device(name='Known')
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         other_dev = _make_device('/dev/sg9', 'Other')
         panel.update_device_button(other_dev)  # Should not raise
 
@@ -539,27 +497,21 @@ class TestUCDeviceButtonUpdate:
 class TestUCDeviceGetters:
     """Test get_selected_device() and get_devices()."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_get_selected_device(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_get_selected_device(self, qapp: object) -> None:
         dev = _make_device()
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         assert panel.get_selected_device() is dev
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_get_selected_device_none(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_get_selected_device_none(self, qapp: object) -> None:
         panel = UCDevice()
         assert panel.get_selected_device() is None
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_get_devices(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_get_devices(self, qapp: object) -> None:
         devices = [_make_device(f'/dev/sg{i}') for i in range(3)]
-        mock_find.return_value = devices
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: devices)
         assert panel.get_devices() == devices
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_get_devices_empty(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_get_devices_empty(self, qapp: object) -> None:
         panel = UCDevice()
         assert panel.get_devices() == []
 
@@ -567,19 +519,16 @@ class TestUCDeviceGetters:
 class TestUCDeviceDelegateSignals:
     """Test that delegate signals fire with correct CMDs."""
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices')
-    def test_select_device_delegate(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_select_device_delegate(self, qapp: object) -> None:
         dev = _make_device()
-        mock_find.return_value = [dev]
-        panel = UCDevice()
+        panel = UCDevice(detect_fn=lambda: [dev])
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
         panel._select_device(dev)
         cmds = [r[0] for r in received]
         assert UCDevice.CMD_SELECT_DEVICE in cmds
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_home_delegate(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_home_delegate(self, qapp: object) -> None:
         panel = UCDevice()
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
@@ -587,8 +536,7 @@ class TestUCDeviceDelegateSignals:
         cmds = [r[0] for r in received]
         assert UCDevice.CMD_HOME in cmds
 
-    @patch('trcc.qt_components.uc_device.find_lcd_devices', return_value=[])
-    def test_about_delegate(self, mock_find: MagicMock, qapp: object) -> None:
+    def test_about_delegate(self, qapp: object) -> None:
         panel = UCDevice()
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))

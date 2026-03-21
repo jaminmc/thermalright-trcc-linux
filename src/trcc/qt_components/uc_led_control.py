@@ -838,7 +838,7 @@ class UCLedControl(QWidget):
         self._preview.set_style(style_id, segment_count)
 
         # Load device preview background (PM-specific or style default)
-        from ..adapters.device.led import LED_STYLES, PmRegistry
+        from ..core.models import LED_STYLES, PmRegistry
         style = LED_STYLES.get(style_id)
         if style:
             # Resolve preview: check PmRegistry for model-specific image,
@@ -908,8 +908,8 @@ class UCLedControl(QWidget):
 
     def apply_localized_background(self) -> None:
         """Re-apply localized background for current settings.lang."""
-        from ..adapters.device.led import LED_STYLES
         from ..conf import settings
+        from ..core.models import LED_STYLES
         style = LED_STYLES.get(self._style_id)
         if style:
             bg_name = Assets.get_localized(style.background_base, settings.lang)

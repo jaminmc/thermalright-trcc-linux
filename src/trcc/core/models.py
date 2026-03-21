@@ -1925,6 +1925,26 @@ CATEGORY_COLORS: dict[int, str] = {
 
 
 # =============================================================================
+# Sensor Dashboard Panel Configuration — pure domain dataclasses
+# =============================================================================
+
+@dataclass
+class SensorBinding:
+    """Maps a single dashboard panel row to a sensor."""
+    label: str        # Row label displayed on panel ("TEMP", "Usage", etc.)
+    sensor_id: str    # SensorEnumerator ID ("hwmon:coretemp:temp1")
+    unit: str         # Display unit suffix ("°C", "%", "MHz", etc.)
+
+
+@dataclass
+class PanelConfig:
+    """Configuration for a single sensor dashboard panel."""
+    category_id: int                          # 0=Custom,1=CPU,2=GPU,3=Memory,4=HDD,5=Network,6=Fan
+    name: str                                  # Panel display name
+    sensors: list[SensorBinding] = field(default_factory=list)
+
+
+# =============================================================================
 # Metric formatting — single source of truth (matches Windows TRCC)
 # =============================================================================
 

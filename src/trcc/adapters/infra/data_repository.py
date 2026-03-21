@@ -149,7 +149,8 @@ class DataManager:
     @staticmethod
     def is_safe_archive_member(name: str) -> bool:
         """Check that an archive member path doesn't escape the destination (zip slip)."""
-        return not (os.path.isabs(name) or '..' in name.split('/'))
+        from trcc.core.paths import is_safe_archive_member
+        return is_safe_archive_member(name)
 
     # ------------------------------------------------------------------
     # Archive extraction

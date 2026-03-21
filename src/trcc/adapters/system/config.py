@@ -10,32 +10,17 @@ image selection, and a user-editable name.
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from pathlib import Path
 
-from trcc.core.models import CATEGORY_COLORS, CATEGORY_IMAGES  # noqa: F401
+from trcc.core.models import (  # noqa: F401
+    CATEGORY_COLORS,
+    CATEGORY_IMAGES,
+    PanelConfig,
+    SensorBinding,
+)
 
 log = logging.getLogger(__name__)
-
-
-@dataclass
-class SensorBinding:
-    """Maps a single panel row to a sensor."""
-    label: str        # Row label displayed on panel ("TEMP", "Usage", etc.)
-    sensor_id: str    # SensorEnumerator ID ("hwmon:coretemp:temp1")
-    unit: str         # Display unit suffix ("°C", "%", "MHz", etc.)
-
-
-@dataclass
-class PanelConfig:
-    """Configuration for a single dashboard panel."""
-    category_id: int  # 0=Custom, 1=CPU, 2=GPU, 3=Memory, 4=HDD, 5=Network, 6=Fan
-    name: str         # Panel display name
-    sensors: list[SensorBinding] = field(default_factory=list)
-
-
-# Domain data re-exported from core.models (canonical location):
-# CATEGORY_IMAGES, CATEGORY_COLORS
 
 
 class SysInfoConfig:

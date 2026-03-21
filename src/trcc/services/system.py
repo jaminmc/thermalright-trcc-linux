@@ -36,10 +36,8 @@ def _read_sysfs(path: str) -> Optional[str]:
         return None
 
 
-# Module-level cache: memory clock never changes at runtime.
-# _SENTINEL distinguishes "not yet queried" from "queried, returned None".
+# Sentinel: distinguishes "not yet queried" from "queried, returned None".
 _SENTINEL = object()
-_mem_clock_cache: object | float | None = _SENTINEL
 
 
 class SystemService:
@@ -56,6 +54,7 @@ class SystemService:
         # Cached fallback values — computed once, reused on subsequent calls
         self._fallback_cache: Optional[Dict[str, float]] = None
         self._fallback_lock = threading.Lock()
+        self._mem_clock_cache: object | float | None = _SENTINEL
 
     # ── Sensor discovery ──────────────────────────────────────────────
 
@@ -385,14 +384,12 @@ class SystemService:
             log.debug("mem_temp fallback failed: %s", e)
         return None
 
-    @staticmethod
-    def _fallback_mem_clock() -> Optional[float]:
+    def _fallback_mem_clock(self) -> Optional[float]:
         """Memory clock via dmidecode / lshw / EDAC.  Cached after first call."""
-        global _mem_clock_cache  # noqa: PLW0603
-        if _mem_clock_cache is not _SENTINEL:
-            return _mem_clock_cache  # type: ignore[return-value]
-        value = SystemService._probe_mem_clock()
-        _mem_clock_cache = value
+        if self._mem_clock_cache is not _SENTINEL:
+            return self._mem_clock_cache  # type: ignore[return-value]
+        value = self._probe_mem_clock()
+        self._mem_clock_cache = value
         return value
 
     @staticmethod
