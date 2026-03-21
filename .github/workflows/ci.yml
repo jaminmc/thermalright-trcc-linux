@@ -86,6 +86,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: pytest-output
+          path: .
 
       - name: Parse and update badges
         run: |
