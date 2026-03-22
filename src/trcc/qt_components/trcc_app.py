@@ -938,8 +938,9 @@ class TRCCApp(QMainWindow):
         ]
         for tx, key in zip(tab_x_positions, tab_keys):
             text = 'HUD' if key is None else tr(key, lang)
-            _lbl(self.uc_theme_web, text,
-                 tx, GALLERY_TAB_Y, 90, GALLERY_TAB_H, GALLERY_TAB_FONT, key)
+            lbl = _lbl(self.uc_theme_web, text,
+                       tx, GALLERY_TAB_Y, 90, GALLERY_TAB_H, GALLERY_TAB_FONT, key)
+            lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
         # About panel
         about_items: list[tuple[str, tuple[int, ...]]] = [

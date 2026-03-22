@@ -158,6 +158,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
         self._resolution = resolution
 
     def _set_category(self, category):
+        log.debug("_set_category called: category=%r, _downloading=%s", category, self._downloading)
         if self._downloading:
             return  # Windows isDownLoad guard
         self.current_category = category
@@ -209,7 +210,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
         for png in sorted(self.web_directory.glob('*.png')):
             theme_id = png.stem
             if self.current_category != 'all':
-                if self.current_category not in theme_id:
+                if not theme_id.startswith(self.current_category):
                     continue
             known_ids.append(theme_id)
 
@@ -226,8 +227,8 @@ class UCThemeWeb(DownloadableThemeBrowser):
                 is_local=is_local,
             ))
 
-        log.debug("load_themes: %d themes (%d cached), dir=%s",
-                   len(themes), len(cached), self.web_directory)
+        log.debug("load_themes: category=%r, %d themes (%d cached), dir=%s",
+                   self.current_category, len(themes), len(cached), self.web_directory)
         self._populate_grid(themes)
 
     def _on_item_clicked(self, item_info: CloudThemeItem):
