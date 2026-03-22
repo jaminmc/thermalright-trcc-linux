@@ -94,7 +94,7 @@ pyinstaller `
   --hidden-import wmi `
   --collect-submodules trcc `
   --noconfirm `
-  src/trcc/__main__.py 2>&1 | Tee-Object -Append -FilePath $logFile
+  src/trcc/__main__.py
 
 if ($LASTEXITCODE -ne 0) {
   Log "ERROR: CLI build failed (exit code $LASTEXITCODE)"
@@ -117,7 +117,7 @@ pyinstaller `
   --hidden-import wmi `
   --collect-submodules trcc `
   --noconfirm `
-  src/trcc/__main__.py 2>&1 | Tee-Object -Append -FilePath $logFile
+  src/trcc/__main__.py
 
 if ($LASTEXITCODE -ne 0) {
   Log "ERROR: GUI build failed (exit code $LASTEXITCODE)"
