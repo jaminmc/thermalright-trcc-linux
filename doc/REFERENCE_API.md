@@ -131,7 +131,7 @@ Upload and send an image directly to the device LCD.
 | `rotation` | int | 0 | Rotation in degrees (0, 90, 180, 270) |
 | `brightness` | int | 100 | Brightness percentage (0-100) |
 
-**Limits:** 10 MB max upload size. PIL format validation on upload.
+**Limits:** 10 MB max upload size. Validated by file extension.
 
 **Response:**
 ```json

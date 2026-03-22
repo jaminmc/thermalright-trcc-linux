@@ -496,8 +496,7 @@ src/trcc/
 │   │   ├── factory.py           # Protocol factory (SCSI/HID/LED/Bulk/LY routing)
 │   │   └── _usb_helpers.py      # Shared USB utility functions
 │   ├── render/                  # Rendering backends (Strategy pattern)
-│   │   ├── qt.py                # QtRenderer — QImage/QPainter (primary, hot path)
-│   │   └── pil.py               # PilRenderer — PIL/Pillow (fallback)
+│   │   └── qt.py                # QtRenderer — QImage/QPainter (sole renderer)
 │   ├── system/                  # System integration
 │   │   ├── sensors.py           # Hardware sensor discovery + collection
 │   │   ├── hardware.py          # Hardware info (CPU, GPU, RAM, disk)

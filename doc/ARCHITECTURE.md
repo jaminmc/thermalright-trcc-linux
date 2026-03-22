@@ -42,8 +42,7 @@ src/trcc/
 │   │   ├── facade_lcd.py             # SCSI RGB565 frame send
 │   │   └── registry_detector.py      # USB device scan + registries
 │   ├── render/                  # Rendering backends (Strategy pattern)
-│   │   ├── qt.py                # QtRenderer — primary (QImage/QPainter)
-│   │   └── pil.py               # PilRenderer — CPU-only PIL/Pillow fallback
+│   │   └── qt.py                # QtRenderer — primary (QImage/QPainter)
 │   ├── system/                  # System integration
 │   │   ├── sensors.py           # Hardware sensor discovery + collection
 │   │   ├── hardware.py          # Hardware info (CPU, GPU, RAM, disk)
