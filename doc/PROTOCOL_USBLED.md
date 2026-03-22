@@ -480,6 +480,6 @@ Cache keys include the USB bus path (e.g. `2-1.4`) to disambiguate multiple devi
 
 ## See Also
 
-- [USBLCD_PROTOCOL.md](USBLCD_PROTOCOL.md) — SCSI protocol from USBLCD.exe
 - [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md) — USB bulk protocol from USBLCDNEW.exe
+- [REFERENCE_TECHNICAL.md](REFERENCE_TECHNICAL.md) — SCSI protocol and full technical reference
 - [REFERENCE_TECHNICAL.md](REFERENCE_TECHNICAL.md) — Full project technical reference
