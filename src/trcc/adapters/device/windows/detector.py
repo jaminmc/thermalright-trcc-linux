@@ -42,6 +42,7 @@ class WindowsDeviceDetector:
             return []
 
         devices: List[DetectedDevice] = []
+        seen_paths: set[str] = set()
         try:
             w = wmi.WMI()
             for usb in w.Win32_USBControllerDevice():
@@ -51,7 +52,8 @@ class WindowsDeviceDetector:
                     continue
 
                 device = _match_device(vid, pid, dependent)
-                if device:
+                if device and device.path not in seen_paths:
+                    seen_paths.add(device.path)
                     devices.append(device)
 
         except Exception:
