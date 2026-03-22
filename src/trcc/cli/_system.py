@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from trcc.core.platform import LINUX, WINDOWS, detect_install_method, is_root
+from trcc.core.platform import LINUX, detect_install_method, is_root
 
 
 def _require_linux(command: str) -> int | None:
@@ -136,7 +136,8 @@ def setup_winusb():
 
     HID, Bulk, and LY devices need WinUSB — installed via Zadig.
     """
-    if not WINDOWS:
+    from trcc.core.builder import ControllerBuilder
+    if not ControllerBuilder.build_setup().supports_winusb():
         print("This command is for Windows only.")
         print("On Linux, use: trcc setup-udev")
         return 1

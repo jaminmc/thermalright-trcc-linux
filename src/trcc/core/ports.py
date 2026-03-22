@@ -430,6 +430,39 @@ class PlatformSetup(ABC):
         Returns the resolved Path.
         """
 
+    def configure_dpi(self) -> None:
+        """Apply platform DPI configuration before QApplication is created.
+
+        Override on platforms that need it (e.g. Windows DPI awareness).
+        Default: no-op.
+        """
+
+    def wire_ipc_raise(self, app: Any, window: Any) -> None:
+        """Wire the IPC signal that raises the window when a second instance starts.
+
+        Unix: installs SIGUSR1 handler via AF_UNIX socketpair + QSocketNotifier.
+        Windows: no-op (IPC raise is handled via named pipe / win32 API).
+        Default: no-op.
+        """
+
+    def get_screencast_capture(
+        self, x: int, y: int, w: int, h: int,
+    ) -> tuple[str, str, list[str]] | None:
+        """Return (fmt, inp, region_args) for ffmpeg screen capture, or None if unsupported.
+
+        fmt       — ffmpeg input format (x11grab, gdigrab, avfoundation, ...)
+        inp       — ffmpeg input source string
+        region_args — extra ffmpeg args to select a sub-region
+        """
+        return None
+
+    def supports_winusb(self) -> bool:
+        """Return True if this platform supports WinUSB driver setup.
+
+        Windows: True.  All other platforms: False.
+        """
+        return False
+
     @abstractmethod
     def minimize_on_close(self) -> bool:
         """Return True if the window should minimize to taskbar on close.

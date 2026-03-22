@@ -70,6 +70,29 @@ class WindowsSetup(PlatformSetup):
             "  winget install 7zip.7zip"
         )
 
+    def configure_dpi(self) -> None:
+        """Declare per-monitor DPI awareness so Windows doesn't bitmap-stretch our window.
+
+        Our layout uses fixed pixel coordinates (96 DPI / 100% scale).
+        Without this, Windows applies GDI virtualization at >100% display scale,
+        displacing and clipping widgets.
+        """
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    def get_screencast_capture(
+        self, x: int, y: int, w: int, h: int,
+    ) -> tuple[str, str, list[str]] | None:
+        region_args = ['-offset_x', str(x), '-offset_y', str(y),
+                       '-video_size', f'{w}x{h}'] if (w and h) else []
+        return 'gdigrab', 'desktop', region_args
+
+    def supports_winusb(self) -> bool:
+        return True
+
     def minimize_on_close(self) -> bool:
         return True
 

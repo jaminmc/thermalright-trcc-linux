@@ -2058,6 +2058,9 @@ def run_app(data_dir: Path | None = None, decorated: bool = False,
 
     os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.services=false")
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
+
+    setup.configure_dpi()
+
     QApplication.setDesktopFileName("trcc-linux")
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -2091,37 +2094,8 @@ def run_app(data_dir: Path | None = None, decorated: bool = False,
     # SIGUSR1 handler (Unix only — Windows has no SIGUSR1 or AF_UNIX sockets)
     import signal
 
-    from ..core.platform import WINDOWS
-
     signal.signal(signal.SIGINT, lambda *_: app.quit())
-
-    if not WINDOWS:
-        import socket
-        rsock, wsock = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
-        rsock.setblocking(False)
-        wsock.setblocking(False)
-
-        def _on_sigusr1(signum, frame):
-            try:
-                wsock.send(b'\x01')
-            except OSError:
-                pass
-
-        signal.signal(signal.SIGUSR1, _on_sigusr1)
-
-        from PySide6.QtCore import QSocketNotifier
-        notifier = QSocketNotifier(rsock.fileno(), QSocketNotifier.Type.Read, app)
-
-        def _raise_window():
-            try:
-                rsock.recv(1)
-            except OSError:
-                pass
-            window.showNormal()
-            window.raise_()
-            window.activateWindow()
-
-        notifier.activated.connect(_raise_window)
+    setup.wire_ipc_raise(app, window)
 
     if not start_hidden:
         window.show()

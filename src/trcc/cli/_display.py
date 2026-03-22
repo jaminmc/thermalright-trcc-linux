@@ -217,7 +217,7 @@ def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
     from PySide6.QtGui import QImage
 
     from trcc.cli import _ensure_renderer
-    from trcc.core.platform import LINUX, MACOS, WINDOWS
+    from trcc.core.builder import ControllerBuilder
     from trcc.services import ImageService
 
     _ensure_renderer()
@@ -229,29 +229,11 @@ def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
     dev = svc.selected
     lcd_w, lcd_h = dev.resolution
 
-    # Build platform-appropriate ffmpeg screen capture arguments.
-    # ffmpeg scales output to LCD resolution — no Python resize needed.
-    region_args: list[str] = []
-    if LINUX:
-        display = os.environ.get('DISPLAY', ':0.0')
-        fmt = 'x11grab'
-        inp = f'{display}+{x},{y}' if (w and h) else display
-        if w and h:
-            region_args = ['-video_size', f'{w}x{h}']
-    elif MACOS:
-        fmt = 'avfoundation'
-        inp = '1:none'
-        if w and h:
-            region_args = ['-video_size', f'{w}x{h}']
-    elif WINDOWS:
-        fmt = 'gdigrab'
-        inp = 'desktop'
-        if w and h:
-            region_args = ['-offset_x', str(x), '-offset_y', str(y),
-                           '-video_size', f'{w}x{h}']
-    else:
+    capture = ControllerBuilder.build_setup().get_screencast_capture(x, y, w, h)
+    if capture is None:
         print("Error: Screencast not supported on this platform.")
         return 1
+    fmt, inp, region_args = capture
 
     cmd = [
         'ffmpeg', '-hide_banner', '-loglevel', 'error',

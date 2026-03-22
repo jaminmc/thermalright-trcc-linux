@@ -68,6 +68,44 @@ class BSDSetup(PlatformSetup):
             "  sudo pkg install p7zip"
         )
 
+    def wire_ipc_raise(self, app: Any, window: Any) -> None:
+        """Install SIGUSR1 handler via AF_UNIX socketpair + QSocketNotifier."""
+        import signal
+        import socket
+
+        from PySide6.QtCore import QSocketNotifier
+        rsock, wsock = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+        rsock.setblocking(False)
+        wsock.setblocking(False)
+
+        def _on_sigusr1(signum: Any, frame: Any) -> None:
+            try:
+                wsock.send(b'\x01')
+            except OSError:
+                pass
+
+        signal.signal(signal.SIGUSR1, _on_sigusr1)
+        notifier = QSocketNotifier(rsock.fileno(), QSocketNotifier.Type.Read, app)
+
+        def _raise_window() -> None:
+            try:
+                rsock.recv(1)
+            except OSError:
+                pass
+            window.showNormal()
+            window.raise_()
+            window.activateWindow()
+
+        notifier.activated.connect(_raise_window)
+
+    def get_screencast_capture(
+        self, x: int, y: int, w: int, h: int,
+    ) -> tuple[str, str, list[str]] | None:
+        display = os.environ.get('DISPLAY', ':0.0')
+        inp = f'{display}+{x},{y}' if (w and h) else display
+        region_args = ['-video_size', f'{w}x{h}'] if (w and h) else []
+        return 'x11grab', inp, region_args
+
     def minimize_on_close(self) -> bool:
         return False
 
