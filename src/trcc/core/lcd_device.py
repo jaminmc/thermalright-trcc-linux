@@ -801,6 +801,11 @@ class LCDDevice(Device):
         return self._display_svc.overlay.enabled if self._display_svc else False
 
     @property
+    def last_metrics(self) -> Any:
+        """Most recently received metrics, or None before first tick."""
+        return self._display_svc.overlay.metrics if self._display_svc else None
+
+    @property
     def service(self) -> Any:
         """Direct OverlayService access (for flash_skip_index etc.)."""
         return self._display_svc.overlay if self._display_svc else None

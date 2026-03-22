@@ -304,6 +304,11 @@ class OverlayService:
         """Update system metrics for hardware overlay elements."""
         self._metrics = metrics
 
+    @property
+    def metrics(self) -> HardwareMetrics | None:
+        """Most recently received metrics, or None before first tick."""
+        return self._metrics
+
     # ── Overlay cache ────────────────────────────────────────────────
 
     def _invalidate_cache(self) -> None:

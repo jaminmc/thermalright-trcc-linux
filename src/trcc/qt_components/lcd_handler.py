@@ -502,7 +502,12 @@ class LCDHandler:
         if not self._lcd.overlay.enabled:
             self._lcd.overlay.enable(True)
         self._lcd.overlay.set_config(element_data)
-        self._render_and_send(skip_if_video=True)
+        if self._lcd.video.playing and self._lcd.overlay.last_metrics is not None:
+            log.debug("on_overlay_changed: video playing — forcing cache rebuild")
+            self._rebuild_debounce_timer.stop()
+            self._lcd.overlay.rebuild_video_cache(self._lcd.overlay.last_metrics)
+        else:
+            self._render_and_send()
 
         if self._device_key:
             Settings.save_device_setting(self._device_key, 'overlay', {
