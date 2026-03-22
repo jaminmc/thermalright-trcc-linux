@@ -66,7 +66,7 @@ class Assets:
     # Theme panel backgrounds (732x652)
     THEME_LOCAL_BG = 'App_theme_base.png'
     THEME_WEB_BG = 'App_theme_gallery.png'
-    THEME_MASK_BG = 'App_theme_base.png'
+    THEME_MASK_BG = 'App_theme_gallery.png'
     THEME_SETTING_BG = 'P0主题设置.png'
 
     # Preview frame backgrounds (500x500)

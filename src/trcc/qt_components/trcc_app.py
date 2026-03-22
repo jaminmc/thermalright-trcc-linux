@@ -924,10 +924,10 @@ class TRCCApp(QMainWindow):
         _lbl(self.uc_theme_local, tr('Local Theme', lang), x, y, w, h, pt,
              'Local Theme')
 
-        # Online/Mask theme browser
+        # Cloud masks browser
         x, y, w, h, pt = ONLINE_THEME_POS
-        _lbl(self.uc_theme_mask, tr('Online Theme', lang), x, y, w, h, pt,
-             'Online Theme')
+        _lbl(self.uc_theme_mask, tr('Cloud Masks', lang), x, y, w, h, pt,
+             'Cloud Masks')
 
         # Gallery (cloud backgrounds) — title + category tabs
         x, y, w, h, pt = GALLERY_TITLE_POS
