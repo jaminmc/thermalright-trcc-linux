@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.1.4
+
+### Internal
+- **Command Pattern (GoF)**: All three interfaces (CLI, API, GUI) dispatch through `CommandBus` — frozen dataclass commands as pure value objects, middleware chain (logging, timing, rate-limit), per-context buses with context-appropriate handlers. GUI LED bus calls `update_*` (state-only, preserved tick architecture); CLI/API buses call `set_*` (immediate send). `CommandBus` is required — handlers raise `ValueError` at construction if not injected
+
 ## v9.1.3
 
 ### Fixes
