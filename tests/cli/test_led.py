@@ -617,7 +617,7 @@ class TestLEDDeviceTick:
     """tick() — advance one animation frame."""
 
     def test_tick_returns_colors(self, led, mock_svc):
-        result = led.tick()
+        result = led.tick_with_result()
         assert "colors" in result
         assert result["colors"] == mock_svc.tick.return_value
 
@@ -631,7 +631,7 @@ class TestLEDDeviceTick:
         mock_svc.send_colors.assert_called_once_with(colors)
 
     def test_tick_returns_display_colors(self, led, mock_svc):
-        result = led.tick()
+        result = led.tick_with_result()
         assert "display_colors" in result
 
 
@@ -642,11 +642,7 @@ class TestLEDDeviceTick:
 class TestCLIHelpers:
     """CLI presentation helpers in _led.py."""
 
-    def _patch_builder(self, fake_led):
-        """Patch ControllerBuilder to return a pre-built fake LED device."""
-        mock_builder = MagicMock()
-        mock_builder.build_led.return_value = fake_led
-        return patch("trcc.core.builder.ControllerBuilder", return_value=mock_builder)
+    # _connect_or_fail takes builder directly — no ControllerBuilder patching needed.
 
     def test_connect_or_fail_success(self, capsys):
         from trcc.cli._led import _connect_or_fail
@@ -654,12 +650,13 @@ class TestCLIHelpers:
         fake_led = LEDDevice()
         fake_led._svc = MagicMock()
         fake_led._init_status = "AX120"
+        mock_builder = MagicMock()
+        mock_builder.build_led.return_value = fake_led
 
-        with self._patch_builder(fake_led), \
-             patch.object(fake_led, "connect",
+        with patch.object(fake_led, "connect",
                           return_value={"success": True, "status": "AX120"}), \
              patch(_IPC, return_value=None):
-            led, rc = _connect_or_fail()
+            led, rc = _connect_or_fail(mock_builder)
 
         assert rc == 0
         assert led.connected is True
@@ -669,13 +666,14 @@ class TestCLIHelpers:
         from trcc.cli._led import _connect_or_fail
 
         fake_led = LEDDevice()
+        mock_builder = MagicMock()
+        mock_builder.build_led.return_value = fake_led
 
-        with self._patch_builder(fake_led), \
-             patch.object(fake_led, "connect",
+        with patch.object(fake_led, "connect",
                           return_value={"success": False,
                                         "error": "No LED device found"}), \
              patch(_IPC, return_value=None):
-            led, rc = _connect_or_fail()
+            led, rc = _connect_or_fail(mock_builder)
 
         assert rc == 1
         assert "No LED device" in capsys.readouterr().out
@@ -685,12 +683,13 @@ class TestCLIHelpers:
 
         fake_led = LEDDevice()
         fake_led._svc = MagicMock()
+        mock_builder = MagicMock()
+        mock_builder.build_led.return_value = fake_led
 
-        with self._patch_builder(fake_led), \
-             patch.object(fake_led, "connect",
+        with patch.object(fake_led, "connect",
                           return_value={"success": True}), \
              patch(_IPC, return_value=None):
-            _, rc = _connect_or_fail()
+            _, rc = _connect_or_fail(mock_builder)
 
         assert rc == 0
         assert capsys.readouterr().out.strip() == ""
@@ -746,41 +745,38 @@ class TestCLIHelpers:
             _print_result(result, preview=True)
         mock_ansi.assert_not_called()
 
-    def test_led_command_no_device(self, mock_connect_fail, capsys):
+    def test_led_command_no_device(self, mock_connect_fail):
         from trcc.cli._led import _led_command
 
-        rc = _led_command("off")
+        rc = _led_command(MagicMock(), "off")
         assert rc == 1
 
-    def test_led_command_success(self, mock_connect, capsys):
+    def test_led_command_success(self, mock_connect):
         from trcc.cli._led import _led_command
 
-        rc = _led_command("off")
+        rc = _led_command(MagicMock(), "off")
         assert rc == 0
 
-    def test_get_led_service_no_device(self):
+    def test_get_led_service_no_device(self, _mock_builder):
         """Backward-compat _get_led_service returns (None, None)."""
         from trcc.cli._led import _get_led_service
 
         dev = LEDDevice()
-        with patch('trcc.cli._led.LEDDevice', return_value=dev), \
-             patch.object(dev, 'connect',
-                          return_value={"success": False,
-                                        "error": "no device"}):
+        _mock_builder.build_led.return_value = dev
+        with patch.object(dev, 'connect',
+                          return_value={"success": False, "error": "no device"}):
             svc, status = _get_led_service()
         assert svc is None
         assert status is None
 
-    def test_get_led_service_success(self, mock_svc):
+    def test_get_led_service_success(self, mock_svc, _mock_builder):
         """Backward-compat _get_led_service returns (svc, status)."""
         from trcc.cli._led import _get_led_service
 
         dev = LEDDevice(svc=mock_svc)
         dev._init_status = "PA120"
-        mock_builder = MagicMock()
-        mock_builder.build_led.return_value = dev
-        with patch('trcc.core.builder.ControllerBuilder', return_value=mock_builder), \
-             patch.object(dev, 'connect',
+        _mock_builder.build_led.return_value = dev
+        with patch.object(dev, 'connect',
                           return_value={"success": True, "status": "PA120"}):
             svc, status = _get_led_service()
         assert svc is mock_svc
@@ -788,283 +784,323 @@ class TestCLIHelpers:
 
 
 # =========================================================================
-# TestCLISetColor
+# TestCLISetColor — test through the Typer boundary (CliRunner)
 # =========================================================================
 
 class TestCLISetColor:
-    """set_color CLI command — valid/invalid hex, preview."""
+    """set_color CLI command — valid/invalid hex, preview.
 
-    def test_set_color_valid_hex(self, mock_connect, capsys):
-        from trcc.cli._led import set_color
+    Uses CliRunner so TrccApp injection flows through the real Typer boundary.
+    _connect_or_fail is patched to avoid hardware; output is in result.stdout.
+    """
 
-        rc = set_color("ff0000")
-        assert rc == 0
-        assert "ff0000" in capsys.readouterr().out
+    def test_set_color_valid_hex(self, mock_connect):
+        from typer.testing import CliRunner
 
-    def test_set_color_with_hash_prefix(self, mock_connect, capsys):
-        from trcc.cli._led import set_color
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-color', 'ff0000'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
+        assert "ff0000" in result.stdout
 
-        rc = set_color("#00ff00")
-        assert rc == 0
+    def test_set_color_with_hash_prefix(self, mock_connect):
+        from typer.testing import CliRunner
 
-    def test_set_color_invalid_hex(self, capsys):
-        from trcc.cli._led import set_color
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-color', '#00ff00'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-        rc = set_color("zzzzzz")
-        assert rc == 1
-        assert "Invalid hex" in capsys.readouterr().out
+    def test_set_color_invalid_hex(self):
+        from typer.testing import CliRunner
 
-    def test_set_color_too_short_hex(self, capsys):
-        from trcc.cli._led import set_color
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-color', 'zzzzzz'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
+        assert "Invalid hex" in result.stdout
 
-        rc = set_color("ff00")
-        assert rc == 1
+    def test_set_color_too_short_hex(self):
+        from typer.testing import CliRunner
 
-    def test_set_color_no_device(self, mock_connect_fail, capsys):
-        from trcc.cli._led import set_color
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-color', 'ff00'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-        rc = set_color("ff0000")
-        assert rc == 1
+    def test_set_color_no_device(self, mock_connect_fail):
+        from typer.testing import CliRunner
 
-    def test_set_color_with_preview(self, mock_connect, capsys):
-        from trcc.cli._led import set_color
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-color', 'ff0000'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-        with patch('trcc.services.LEDService.zones_to_ansi',
-                   return_value="[ANSI]"):
-            rc = set_color("0000ff", preview=True)
-        assert rc == 0
-        assert "[ANSI]" in capsys.readouterr().out
+    def test_set_color_with_preview(self, mock_connect):
+        from typer.testing import CliRunner
+
+        from trcc.cli import app
+        with patch('trcc.services.LEDService.zones_to_ansi', return_value="[ANSI]"):
+            result = CliRunner().invoke(app, ['led-color', '0000ff', '--preview'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
+        assert "[ANSI]" in result.stdout
 
 
 # =========================================================================
-# TestCLISetMode
+# TestCLISetMode — test through the Typer boundary (CliRunner)
 # =========================================================================
 
 class TestCLISetMode:
     """set_mode CLI — static/animated/unknown, preview, KeyboardInterrupt."""
 
-    def test_set_mode_static(self, mock_connect, capsys):
-        from trcc.cli._led import set_mode
+    def test_set_mode_static(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_mode("static")
-        assert rc == 0
-        assert "static" in capsys.readouterr().out.lower()
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-mode', 'static'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
+        assert "static" in result.stdout.lower()
 
-    def test_set_mode_unknown(self, mock_connect, capsys):
-        from trcc.cli._led import set_mode
+    def test_set_mode_unknown(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_mode("fireworks")
-        assert rc == 1
-        assert "fireworks" in capsys.readouterr().out
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-mode', 'fireworks'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
+        assert "fireworks" in result.stdout
 
-    def test_set_mode_unknown_prints_available(self, mock_connect, capsys):
-        from trcc.cli._led import set_mode
+    def test_set_mode_unknown_prints_available(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_mode("bad")
-        assert rc == 1
-        assert "Available" in capsys.readouterr().out
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-mode', 'bad'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
+        assert "Available" in result.stdout
 
-    def test_set_mode_no_device(self, mock_connect_fail, capsys):
-        from trcc.cli._led import set_mode
+    def test_set_mode_no_device(self, mock_connect_fail):
+        from typer.testing import CliRunner
 
-        rc = set_mode("static")
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-mode', 'static'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_mode_animated_runs_loop(self, mock_connect, capsys):
+    def test_set_mode_animated_runs_loop(self, mock_connect):
         """Animated mode enters loop; KeyboardInterrupt exits cleanly."""
-        from trcc.cli._led import set_mode
+        from typer.testing import CliRunner
 
+        from trcc.cli import app
         with patch('time.sleep', side_effect=KeyboardInterrupt), \
              patch('trcc.services.LEDService.zones_to_ansi', return_value=""):
-            rc = set_mode("breathing", preview=False)
-        assert rc == 0
-        assert "Stopped" in capsys.readouterr().out
+            result = CliRunner().invoke(app, ['led-mode', 'breathing'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
+        assert "Stopped" in result.stdout
 
-    def test_set_mode_animated_with_preview(self, mock_connect, mock_svc,
-                                            capsys):
+    def test_set_mode_animated_with_preview(self, mock_connect, mock_svc):
         """Animated preview calls zones_to_ansi on each tick."""
-        from trcc.cli._led import set_mode
+        from typer.testing import CliRunner
 
+        from trcc.cli import app
         mock_svc.tick.return_value = [(255, 0, 0)]
         with patch('time.sleep', side_effect=KeyboardInterrupt), \
              patch('trcc.services.LEDService.zones_to_ansi',
                    return_value="[ANSI]") as mock_ansi:
-            rc = set_mode("rainbow", preview=True)
-        assert rc == 0
+            result = CliRunner().invoke(app, ['led-mode', 'rainbow', '--preview'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
         mock_ansi.assert_called()
 
-    def test_set_mode_static_with_preview(self, mock_connect, capsys):
-        from trcc.cli._led import set_mode
+    def test_set_mode_static_with_preview(self, mock_connect):
+        from typer.testing import CliRunner
 
-        with patch('trcc.services.LEDService.zones_to_ansi',
-                   return_value="[ANSI]"):
-            rc = set_mode("static", preview=True)
-        assert rc == 0
-        assert "[ANSI]" in capsys.readouterr().out
+        from trcc.cli import app
+        with patch('trcc.services.LEDService.zones_to_ansi', return_value="[ANSI]"):
+            result = CliRunner().invoke(app, ['led-mode', 'static', '--preview'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
+        assert "[ANSI]" in result.stdout
 
 
 # =========================================================================
-# TestCLICommands — remaining thin CLI wrappers
+# TestCLICommands — remaining thin CLI wrappers (CliRunner)
 # =========================================================================
 
 class TestCLICommands:
     """set_led_brightness, led_off, set_sensor_source, zone/segment commands."""
 
-    def test_set_led_brightness_success(self, mock_connect, capsys):
-        from trcc.cli._led import set_led_brightness
+    def test_set_led_brightness_success(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_led_brightness(60)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-brightness', '60'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_led_brightness_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import set_led_brightness
+    def test_set_led_brightness_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_led_brightness(200)
-        assert rc == 1
-        assert "0-100" in capsys.readouterr().out
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-brightness', '200'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
+        assert "0-100" in result.stdout
 
-    def test_led_off_success(self, mock_connect, capsys):
-        from trcc.cli._led import led_off
+    def test_led_off_success(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = led_off()
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-off'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_led_off_no_device(self, mock_connect_fail, capsys):
-        from trcc.cli._led import led_off
+    def test_led_off_no_device(self, mock_connect_fail):
+        from typer.testing import CliRunner
 
-        rc = led_off()
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-off'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_sensor_source_cpu(self, mock_connect, capsys):
-        from trcc.cli._led import set_sensor_source
+    def test_set_sensor_source_cpu(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_sensor_source("cpu")
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-sensor', 'cpu'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_sensor_source_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import set_sensor_source
+    def test_set_sensor_source_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_sensor_source("fan")
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-sensor', 'fan'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_zone_color_valid(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_color
+    def test_set_zone_color_valid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_color(0, "ff0000")
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-color', '0', 'ff0000'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_zone_color_invalid_hex(self, capsys):
-        from trcc.cli._led import set_zone_color
+    def test_set_zone_color_invalid_hex(self):
+        from typer.testing import CliRunner
 
-        rc = set_zone_color(0, "xyz")
-        assert rc == 1
-        assert "Invalid hex" in capsys.readouterr().out
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-color', '0', 'xyz'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
+        assert "Invalid hex" in result.stdout
 
-    def test_set_zone_color_no_device(self, mock_connect_fail, capsys):
-        from trcc.cli._led import set_zone_color
+    def test_set_zone_color_no_device(self, mock_connect_fail):
+        from typer.testing import CliRunner
 
-        rc = set_zone_color(0, "ff0000")
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-color', '0', 'ff0000'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_zone_mode_valid(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_mode
+    def test_set_zone_mode_valid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_mode(0, "static")
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-mode', '0', 'static'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_zone_mode_invalid_zone(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_mode
+    def test_set_zone_mode_invalid_zone(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_mode(99, "static")
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-mode', '99', 'static'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_zone_brightness_valid(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_brightness
+    def test_set_zone_brightness_valid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_brightness(0, 75)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-brightness', '0', '75'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_zone_brightness_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_brightness
+    def test_set_zone_brightness_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_brightness(0, 999)
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-brightness', '0', '999'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_toggle_zone_on(self, mock_connect, capsys):
-        from trcc.cli._led import toggle_zone
+    def test_toggle_zone_on(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = toggle_zone(1, True)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-toggle', '1', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_toggle_zone_off(self, mock_connect, capsys):
-        from trcc.cli._led import toggle_zone
+    def test_toggle_zone_off(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = toggle_zone(2, False)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-toggle', '2', 'false'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_toggle_zone_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import toggle_zone
+    def test_toggle_zone_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = toggle_zone(99, True)
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-toggle', '99', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_zone_sync_enabled(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_sync
+    def test_set_zone_sync_enabled(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_sync(True)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-sync', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_zone_sync_disabled(self, mock_connect, capsys):
-        from trcc.cli._led import set_zone_sync
+    def test_set_zone_sync_disabled(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_zone_sync(False)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-sync', 'false'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_zone_sync_with_interval(self, mock_connect, mock_svc, capsys):
-        from trcc.cli._led import set_zone_sync
+    def test_set_zone_sync_with_interval(self, mock_connect, mock_svc):
+        from typer.testing import CliRunner
 
-        rc = set_zone_sync(True, interval=3)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-zone-sync', 'true', '--interval', '3'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
         mock_svc.set_zone_sync_interval.assert_called_once_with(3)
 
-    def test_toggle_segment_on(self, mock_connect, capsys):
-        from trcc.cli._led import toggle_segment
+    def test_toggle_segment_on(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = toggle_segment(0, True)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-segment', '0', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_toggle_segment_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import toggle_segment
+    def test_toggle_segment_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = toggle_segment(99, True)
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-segment', '99', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1
 
-    def test_set_clock_format_24h(self, mock_connect, capsys):
-        from trcc.cli._led import set_clock_format
+    def test_set_clock_format_24h(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_clock_format(True)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-clock', 'true'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_clock_format_12h(self, mock_connect, capsys):
-        from trcc.cli._led import set_clock_format
+    def test_set_clock_format_12h(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_clock_format(False)
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-clock', 'false'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_temp_unit_celsius(self, mock_connect, capsys):
-        from trcc.cli._led import set_temp_unit
+    def test_set_temp_unit_celsius(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_temp_unit("C")
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-temp-unit', 'C'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_temp_unit_fahrenheit(self, mock_connect, capsys):
-        from trcc.cli._led import set_temp_unit
+    def test_set_temp_unit_fahrenheit(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_temp_unit("F")
-        assert rc == 0
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-temp-unit', 'F'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 0
 
-    def test_set_temp_unit_invalid(self, mock_connect, capsys):
-        from trcc.cli._led import set_temp_unit
+    def test_set_temp_unit_invalid(self, mock_connect):
+        from typer.testing import CliRunner
 
-        rc = set_temp_unit("X")
-        assert rc == 1
+        from trcc.cli import app
+        result = CliRunner().invoke(app, ['led-temp-unit', 'X'], standalone_mode=False, catch_exceptions=False)
+        assert result.return_value == 1

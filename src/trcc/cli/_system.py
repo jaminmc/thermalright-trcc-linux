@@ -15,7 +15,7 @@ def _require_linux(command: str) -> int | None:
     if not LINUX:
         print(f"'{command}' is for Linux only.")
         from trcc.core.builder import ControllerBuilder
-        hint = ControllerBuilder.build_setup().linux_command_hint()
+        hint = ControllerBuilder.for_current_os().build_setup().linux_command_hint()
         if hint:
             print(hint)
         return 1
@@ -69,10 +69,12 @@ def _sudo_run(cmd):
     return subprocess.run(["sudo"] + cmd)
 
 
-def show_info(*, preview: bool = False, metric: str | None = None):
+def show_info(builder=None, *, preview: bool = False, metric: str | None = None):
     """Show system metrics, optionally as ANSI terminal art.
 
     Args:
+        builder: OS-specific builder (from ctx.obj at CLI boundary).
+            None is accepted for test/direct invocation — skips _ensure_system.
         preview: Render metrics as ANSI colored dashboard.
         metric: Filter to a group — cpu, gpu, mem, disk, net, fan, time.
     """
@@ -80,7 +82,8 @@ def show_info(*, preview: bool = False, metric: str | None = None):
         from trcc.cli import _ensure_system
         from trcc.services.system import format_metric, get_all_metrics
 
-        _ensure_system()
+        if builder is not None:
+            _ensure_system(builder)
         metrics = get_all_metrics()
 
         if preview:
@@ -139,20 +142,15 @@ def setup_winusb():
     HID, Bulk, and LY devices need WinUSB — installed via Zadig.
     """
     from trcc.core.builder import ControllerBuilder
-    if not ControllerBuilder.build_setup().supports_winusb():
+    if not ControllerBuilder.for_current_os().build_setup().supports_winusb():
         print("This command is for Windows only.")
         print("On Linux, use: trcc setup-udev")
         return 1
 
     # Detect which devices are connected and need WinUSB
-    from trcc.adapters.device.detector import (
-        _BULK_DEVICES,
-        _HID_LCD_DEVICES,
-        _LED_DEVICES,
-        _LY_DEVICES,
-    )
+    from trcc.core.models import BULK_DEVICES, HID_LCD_DEVICES, LED_DEVICES, LY_DEVICES
     winusb_vids = set()
-    for registry in (_BULK_DEVICES, _HID_LCD_DEVICES, _LED_DEVICES, _LY_DEVICES):
+    for registry in (BULK_DEVICES, HID_LCD_DEVICES, LED_DEVICES, LY_DEVICES):
         for vid, pid in registry:
             winusb_vids.add((vid, pid))
 
@@ -170,7 +168,7 @@ def setup_winusb():
     print("  Devices that need WinUSB:")
     for vid, pid in sorted(winusb_vids):
         # Look up friendly name
-        for registry in (_BULK_DEVICES, _HID_LCD_DEVICES, _LED_DEVICES, _LY_DEVICES):
+        for registry in (BULK_DEVICES, HID_LCD_DEVICES, LED_DEVICES, LY_DEVICES):
             if (vid, pid) in registry:
                 entry = registry[(vid, pid)]
                 print(f"    {vid:04X}:{pid:04X}  {entry.product}")
@@ -203,7 +201,7 @@ def uninstall(*, yes: bool = False):
 
     # Files that require root to remove (platform-specific)
     from trcc.core.builder import ControllerBuilder
-    root_files = ControllerBuilder.build_setup().get_system_files()
+    root_files = ControllerBuilder.for_current_os().build_setup().get_system_files()
 
     # User files/dirs to remove
     user_items = [
@@ -246,7 +244,7 @@ def uninstall(*, yes: bool = False):
 
     # Disable autostart via platform manager
     from trcc.core.builder import ControllerBuilder
-    autostart = ControllerBuilder.build_autostart()
+    autostart = ControllerBuilder.for_current_os().build_autostart()
     if autostart.is_enabled():
         autostart.disable()
         removed.append("autostart entry")
@@ -355,4 +353,4 @@ def _confirm(prompt: str, auto_yes: bool) -> bool:
 def run_setup(auto_yes: bool = False) -> int:
     """Interactive setup wizard — dispatches to platform-specific adapter."""
     from trcc.core.builder import ControllerBuilder
-    return ControllerBuilder.build_setup().run(auto_yes=auto_yes)
+    return ControllerBuilder.for_current_os().build_setup().run(auto_yes=auto_yes)

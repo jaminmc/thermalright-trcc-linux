@@ -14,7 +14,7 @@ def _make_device_service():
     from trcc.services import DeviceService
 
     return DeviceService(
-        detect_fn=ControllerBuilder.build_detect_fn(),
+        detect_fn=ControllerBuilder.for_current_os().build_detect_fn(),
         probe_led_fn=probe_led_model,
         get_protocol=DeviceProtocolFactory.get_protocol,
         get_protocol_info=DeviceProtocolFactory.get_protocol_info,
@@ -150,9 +150,9 @@ def detect(show_all=False, detect_fn=None, platform_setup=None):
     from trcc.core.builder import ControllerBuilder
 
     if detect_fn is None:
-        detect_fn = ControllerBuilder.build_detect_fn()
+        detect_fn = ControllerBuilder.for_current_os().build_detect_fn()
     if platform_setup is None:
-        platform_setup = ControllerBuilder.build_setup()
+        platform_setup = ControllerBuilder.for_current_os().build_setup()
     devices = detect_fn()
 
     if not devices:
@@ -191,7 +191,7 @@ def select(number, detect_fn=None):
     from trcc.core.builder import ControllerBuilder
 
     if detect_fn is None:
-        detect_fn = ControllerBuilder.build_detect_fn()
+        detect_fn = ControllerBuilder.for_current_os().build_detect_fn()
     devices = detect_fn()
     if not devices:
         print("No devices found.")

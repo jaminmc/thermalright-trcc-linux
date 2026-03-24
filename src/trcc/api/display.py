@@ -393,9 +393,7 @@ async def create_theme(
     if overlay_config:
         from trcc.adapters.infra.dc_config import DcConfig
         from trcc.adapters.infra.dc_parser import load_config_json
-        from trcc.cli import _ensure_system
         from trcc.services.overlay import OverlayService
-        _ensure_system()
         overlay_svc = OverlayService(
             w, h, renderer=api._renderer,
             load_config_json_fn=load_config_json,

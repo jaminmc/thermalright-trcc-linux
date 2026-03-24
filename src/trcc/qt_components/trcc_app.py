@@ -1,19 +1,20 @@
-"""TRCCApp — thin shell main window (C# Form1 equivalent).
+"""TRCCApp — thin shell main window (AppObserver).
 
-Owns: window chrome, tray, device sidebar, panel stack, timers.
-Creates one LCDHandler or LEDHandler per connected device.
-All business logic lives in handlers — this is pure shell.
+Pure GUI adapter. Knows nothing about builders, detectors, or OS adapters.
+Receives Device objects injected via on_app_event() from TrccApp (core).
+
+One LCDHandler or LEDHandler per connected device, keyed by USB path.
+Panel stack shows the currently selected device; all devices tick in background.
 """
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QRegularExpression as QRE
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPalette, QRegularExpressionValidator
+from PySide6.QtGui import QColor, QIcon, QPalette, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -31,11 +32,13 @@ from PySide6.QtWidgets import (
 import trcc.conf as _conf
 from trcc.conf import Settings
 
-from ..adapters.device.scsi import find_lcd_devices
 from ..adapters.infra.dc_writer import read_carousel_config
-from ..core.builder import ControllerBuilder
+from ..core.app import AppEvent
+from ..core.lcd_device import LCDDevice
 from ..core.led_device import LEDDevice
 from ..core.models import DeviceInfo
+from ..core.ports import AutostartManager, GetDiskInfoFn, GetMemoryInfoFn, PlatformSetup
+from ..services.system import SystemService
 from .assets import Assets
 from .base import create_image_button, set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
@@ -54,35 +57,36 @@ from .uc_theme_setting import UCThemeSetting
 from .uc_theme_web import UCThemeWeb
 from .uc_video_cut import UCVideoCut
 
+if TYPE_CHECKING:
+    pass
+
 log = logging.getLogger(__name__)
 
 
 # =============================================================================
-# LED Handler — uses LEDDevice (no callbacks, result dicts only)
+# LED Handler — mediator for one LED device
 # =============================================================================
 
 class LEDHandler:
-    """Mediator for LED device control.
+    """Mediator for a single LED device.
 
-    Owns LEDDevice lifecycle, animation timer, sensor polling,
-    and signal wiring.  GUI signal handlers update state only —
-    the 150 ms tick timer handles animation + USB send (C# pattern:
-    FormLED.MyTimer_Event does all work, color/mode changes just
-    set variables for the next tick).
+    Owns LEDDevice lifecycle, animation timer, signal wiring.
+    GUI signal handlers update state only — the 150ms tick handles animation + send.
     """
 
     _SAVE_INTERVAL = 20  # save config every N ticks (~3 s)
 
-    def __init__(self, panel: UCLedControl, on_temp_unit_changed):
+    def __init__(self, led: LEDDevice, panel: UCLedControl, on_temp_unit_changed: Any):
         self._panel = panel
         self._on_temp_unit_changed = on_temp_unit_changed
-        self._led: LEDDevice | None = None
+        self._led = led
         self._active = False
         self._style_id = 0
         self._save_counter = 0
 
         self._timer = QTimer(panel)
         self._timer.timeout.connect(self._on_tick)
+        self._connect_signals()
 
     @property
     def active(self) -> bool:
@@ -96,15 +100,9 @@ class LEDHandler:
     def led_port(self) -> LEDDevice | None:
         return self._led
 
-    def show(self, device: DeviceInfo):
+    def show(self, device: DeviceInfo) -> None:
         """Initialize LED device and start animation."""
         model = device.model or ''
-        if self._led is None:
-            from ..core.builder import ControllerBuilder
-            self._led = ControllerBuilder().build_led()
-            self._connect_signals()
-            log.debug("LED: created LEDDevice, signals wired")
-
         from ..services.led import LEDService
         led_style = device.led_style_id or LEDService.resolve_style_id(model)
 
@@ -125,10 +123,9 @@ class LEDHandler:
 
         self._active = True
         self._timer.start(150)
-        log.info("LED: show model=%s style=%d, tick timer started (150ms)",
-                 model, led_style)
+        log.info("LED: show model=%s style=%d, tick timer started (150ms)", model, led_style)
 
-    def stop(self):
+    def stop(self) -> None:
         log.info("LED: stop (active=%s)", self._active)
         self._timer.stop()
         self._active = False
@@ -136,163 +133,142 @@ class LEDHandler:
             self._led.save_config()
             self._led.cleanup()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         log.info("LED: cleanup")
         self._timer.stop()
         if self._led:
             self._led.save_config()
             self._led.cleanup()
 
-    def set_temp_unit(self, unit: str):
+    def set_temp_unit(self, unit: str) -> None:
         if self._led:
             log.debug("LED: temp_unit=%s", unit)
             self._led.set_seg_temp_unit(unit)
 
-    def _sync_ui_from_state(self):
+    def update_from_metrics(self, metrics: Any) -> None:
+        if not self._led:
+            return
+        self._led.update_metrics(metrics)
+        self._panel.update_metrics(metrics)
+
+    def _sync_ui_from_state(self) -> None:
         if not self._led:
             return
         state = self._led.state
         if state.zones:
             z = state.zones[0]
-            self._panel.load_zone_state(
-                0, z.mode.value, z.color, z.brightness, z.on)
+            self._panel.load_zone_state(0, z.mode.value, z.color, z.brightness, z.on)
         else:
             self._panel.load_zone_state(
-                0, state.mode.value, state.color, state.brightness,
-                state.global_on)
+                0, state.mode.value, state.color, state.brightness, state.global_on)
         log.debug("LED: synced UI from state (zones=%d)", len(state.zones))
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
         if not self._led:
             return
-        panel = self._panel
+        p = self._panel
+        p.mode_changed.connect(self._on_mode_changed)
+        p.color_changed.connect(self._on_color_changed)
+        p.brightness_changed.connect(self._on_brightness_changed)
+        p.global_toggled.connect(self._on_global_toggled)
+        p.segment_clicked.connect(self._on_segment_clicked)
+        p.zone_selected.connect(self._on_zone_selected)
+        p.zone_toggled.connect(self._on_zone_toggled)
+        p.carousel_changed.connect(self._on_carousel_changed)
+        p.carousel_zone_changed.connect(self._on_carousel_zone_changed)
+        p.carousel_interval_changed.connect(self._on_carousel_interval_changed)
+        p.clock_format_changed.connect(self._on_clock_format_changed)
+        p.week_start_changed.connect(self._on_week_start_changed)
+        p.temp_unit_changed.connect(self._on_temp_unit_changed)
+        p.disk_index_changed.connect(self._on_disk_index_changed)
+        p.memory_ratio_changed.connect(self._on_memory_ratio_changed)
+        p.test_mode_changed.connect(self._on_test_mode_changed)
 
-        panel.mode_changed.connect(self._on_mode_changed)
-        panel.color_changed.connect(self._on_color_changed)
-        panel.brightness_changed.connect(self._on_brightness_changed)
-        panel.global_toggled.connect(self._on_global_toggled)
-        panel.segment_clicked.connect(self._on_segment_clicked)
-        panel.zone_selected.connect(self._on_zone_selected)
-        panel.zone_toggled.connect(self._on_zone_toggled)
-        panel.carousel_changed.connect(self._on_carousel_changed)
-        panel.carousel_zone_changed.connect(self._on_carousel_zone_changed)
-        panel.carousel_interval_changed.connect(
-            self._on_carousel_interval_changed)
-        panel.clock_format_changed.connect(self._on_clock_format_changed)
-        panel.week_start_changed.connect(self._on_week_start_changed)
-        panel.temp_unit_changed.connect(self._on_temp_unit_changed)
-        panel.disk_index_changed.connect(self._on_disk_index_changed)
-        panel.memory_ratio_changed.connect(self._on_memory_ratio_changed)
-        panel.test_mode_changed.connect(self._on_test_mode_changed)
+    # -- GUI signal handlers (state-only, timer sends) --
 
-    # -- GUI signal handlers (state-only, timer sends) ----------------
-    # C# pattern: FormLED event handlers set rgbR1/myLedMode/etc.
-    # MyTimer_Event picks them up next tick → SendHidVal.
-    # All handlers call LEDDevice.update_*() (state-only, no tick/send).
-
-    def _on_mode_changed(self, mode):
+    def _on_mode_changed(self, mode: Any) -> None:
         if not self._led:
             return
-        log.debug("LED: mode=%s", mode)
         self._led.update_mode(mode)
         if self._led.state.zones:
             self._led.update_zone_mode(self._panel.selected_zone, mode)
-        self._save_counter = self._SAVE_INTERVAL  # force save next tick
+        self._save_counter = self._SAVE_INTERVAL
 
-    def _on_color_changed(self, r, g, b):
+    def _on_color_changed(self, r: int, g: int, b: int) -> None:
         if not self._led:
             return
-        log.debug("LED: color=(%d,%d,%d)", r, g, b)
         self._led.update_color(r, g, b)
         if self._led.state.zones:
             self._led.update_zone_color(self._panel.selected_zone, r, g, b)
 
-    def _on_brightness_changed(self, val):
+    def _on_brightness_changed(self, val: int) -> None:
         if not self._led:
             return
-        log.debug("LED: brightness=%d", val)
         self._led.update_brightness(val)
         if self._led.state.zones:
             self._led.update_zone_brightness(self._panel.selected_zone, val)
 
-    def _on_global_toggled(self, on):
+    def _on_global_toggled(self, on: bool) -> None:
         if self._led:
-            log.debug("LED: global_on=%s", on)
             self._led.update_global_on(on)
 
-    def _on_segment_clicked(self, idx):
+    def _on_segment_clicked(self, idx: int) -> None:
         if self._led and 0 <= idx < len(self._led.state.segment_on):
-            new_state = not self._led.state.segment_on[idx]
-            log.debug("LED: segment[%d]=%s", idx, new_state)
-            self._led.update_segment(idx, new_state)
+            self._led.update_segment(idx, not self._led.state.segment_on[idx])
 
-    def _on_zone_selected(self, zone_index):
+    def _on_zone_selected(self, zone_index: int) -> None:
         if not self._led or not self._led.state.zones:
             return
-        log.debug("LED: zone_selected=%d", zone_index)
         self._led.update_selected_zone(zone_index)
         zones = self._led.state.zones
         if 0 <= zone_index < len(zones):
             z = zones[zone_index]
-            self._panel.load_zone_state(
-                zone_index, z.mode.value, z.color, z.brightness, z.on)
+            self._panel.load_zone_state(zone_index, z.mode.value, z.color, z.brightness, z.on)
 
-    def _on_zone_toggled(self, zi, on):
+    def _on_zone_toggled(self, zi: int, on: bool) -> None:
         if self._led:
-            log.debug("LED: zone[%d]=%s", zi, on)
             self._led.update_zone_on(zi, on)
 
-    def _on_carousel_changed(self, on):
+    def _on_carousel_changed(self, on: bool) -> None:
         if self._led:
-            log.debug("LED: carousel=%s", on)
             self._led.update_zone_sync(on)
 
-    def _on_carousel_zone_changed(self, zi, sel):
+    def _on_carousel_zone_changed(self, zi: int, sel: Any) -> None:
         if self._led:
-            log.debug("LED: carousel_zone[%d]=%s", zi, sel)
             self._led.update_zone_sync_zone(zi, sel)
 
-    def _on_carousel_interval_changed(self, secs):
+    def _on_carousel_interval_changed(self, secs: int) -> None:
         if self._led:
-            log.debug("LED: carousel_interval=%ds", secs)
             self._led.update_zone_sync_interval(secs)
 
-    def _on_clock_format_changed(self, is_24h):
+    def _on_clock_format_changed(self, is_24h: bool) -> None:
         if self._led:
-            log.debug("LED: clock_24h=%s", is_24h)
             self._led.update_clock_format(is_24h)
 
-    def _on_week_start_changed(self, is_sun):
+    def _on_week_start_changed(self, is_sun: bool) -> None:
         if self._led:
-            log.debug("LED: week_start_sunday=%s", is_sun)
             self._led.update_week_start(is_sun)
 
-    def _on_disk_index_changed(self, idx):
+    def _on_disk_index_changed(self, idx: int) -> None:
         if self._led:
-            log.debug("LED: disk_index=%d", idx)
             self._led.update_disk_index(idx)
 
-    def _on_memory_ratio_changed(self, ratio):
+    def _on_memory_ratio_changed(self, ratio: int) -> None:
         if self._led:
-            log.debug("LED: memory_ratio=%d", ratio)
             self._led.update_memory_ratio(ratio)
 
-    def _on_test_mode_changed(self, on):
+    def _on_test_mode_changed(self, on: bool) -> None:
         if self._led:
-            log.debug("LED: test_mode=%s", on)
             self._led.update_test_mode(on)
 
-    # -- Tick (animation + send + periodic save) ----------------------
-
-    def _on_tick(self):
+    def _on_tick(self) -> None:
         if not (self._led and self._active):
             return
         try:
-            result = self._led.tick()
+            result = self._led.tick_with_result()
             display_colors = result.get('display_colors')
             if display_colors is not None:
                 self._panel.set_led_colors(display_colors)
-            # Periodic config save (~every 3 s)
             self._save_counter += 1
             if self._save_counter >= self._SAVE_INTERVAL:
                 self._save_counter = 0
@@ -300,33 +276,24 @@ class LEDHandler:
         except Exception:
             log.exception("LED tick error")
 
-    def update_from_metrics(self, metrics) -> None:
-        if not self._led:
-            return
-        self._led.update_metrics(metrics)
-        self._panel.update_metrics(metrics)
-
 
 # =============================================================================
 # Screencast Handler
 # =============================================================================
 
 class ScreencastHandler:
-    """Mediator for screencast (screen capture -> LCD)."""
+    """Mediator for screencast (screen capture → LCD)."""
 
-    def __init__(self, parent: QWidget, on_frame):
+    def __init__(self, parent: QWidget, on_frame: Any):
         self._on_frame = on_frame
         self._active = False
-        self._x = 0
-        self._y = 0
-        self._w = 0
-        self._h = 0
+        self._x = self._y = self._w = self._h = 0
         self._border = True
         self._pipewire_cast = None
         self._lcd_w = 320
         self._lcd_h = 320
-
         self._capture_warn_logged = False
+
         self._timer = QTimer(parent)
         self._timer.timeout.connect(self._tick)
 
@@ -334,11 +301,11 @@ class ScreencastHandler:
     def active(self) -> bool:
         return self._active
 
-    def set_lcd_size(self, w: int, h: int):
+    def set_lcd_size(self, w: int, h: int) -> None:
         self._lcd_w = w
         self._lcd_h = h
 
-    def toggle(self, enabled: bool):
+    def toggle(self, enabled: bool) -> None:
         self._active = enabled
         if enabled:
             from .screen_capture import is_wayland
@@ -349,38 +316,38 @@ class ScreencastHandler:
             self._timer.stop()
             self._stop_pipewire()
 
-    def stop(self):
+    def stop(self) -> None:
         self._timer.stop()
         self._active = False
 
-    def set_params(self, x: int, y: int, w: int, h: int):
+    def set_params(self, x: int, y: int, w: int, h: int) -> None:
         self._x, self._y, self._w, self._h = x, y, w, h
 
-    def set_border(self, visible: bool):
+    def set_border(self, visible: bool) -> None:
         self._border = visible
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         self._timer.stop()
         self._stop_pipewire()
 
-    def _try_start_pipewire(self):
+    def _try_start_pipewire(self) -> None:
         from .pipewire_capture import PIPEWIRE_AVAILABLE, PipeWireScreenCast
         if not PIPEWIRE_AVAILABLE:
             return
         import threading
         cast = PipeWireScreenCast()
         self._pipewire_cast = cast
-        def _start():
+        def _start() -> None:
             if not cast.start(timeout=30):
                 self._pipewire_cast = None
         threading.Thread(target=_start, daemon=True).start()
 
-    def _stop_pipewire(self):
+    def _stop_pipewire(self) -> None:
         if self._pipewire_cast is not None:
             self._pipewire_cast.stop()
             self._pipewire_cast = None
 
-    def _tick(self):
+    def _tick(self) -> None:
         if not self._active or self._w <= 0 or self._h <= 0:
             return
         from PySide6.QtCore import QRect
@@ -393,10 +360,8 @@ class ScreencastHandler:
             if frame is not None:
                 fw, fh, rgb_bytes = frame
                 full = QImage(rgb_bytes, fw, fh, fw * 3, QImage.Format.Format_RGB888)
-                x1 = min(self._x, fw)
-                y1 = min(self._y, fh)
-                x2 = min(self._x + self._w, fw)
-                y2 = min(self._y + self._h, fh)
+                x1, y1 = min(self._x, fw), min(self._y, fh)
+                x2, y2 = min(self._x + self._w, fw), min(self._y + self._h, fh)
                 if x2 > x1 and y2 > y1:
                     frame_img = full.copy(QRect(x1, y1, x2 - x1, y2 - y1))
 
@@ -405,7 +370,7 @@ class ScreencastHandler:
             pixmap = grab_screen_region(self._x, self._y, self._w, self._h)
             if pixmap.isNull():
                 if not self._capture_warn_logged:
-                    log.warning("Screencast: all capture methods failed — no frame available")
+                    log.warning("Screencast: all capture methods failed")
                     self._capture_warn_logged = True
                 return
             self._capture_warn_logged = False
@@ -419,21 +384,30 @@ class ScreencastHandler:
 
 
 # =============================================================================
-# TRCCApp — Main Window (C# Form1 equivalent)
+# TRCCApp — Main Window / AppObserver
 # =============================================================================
 
 class TRCCApp(QMainWindow):
-    """Main TRCC window — thin shell like C# Form1.
+    """Main TRCC window — pure GUI adapter, AppObserver.
 
-    Owns window chrome, tray, device sidebar, panel stack.
-    Creates one handler per connected device via _handlers dict
-    (C# formDeviceArray equivalent).
+    Receives Device objects injected by TrccApp via on_app_event().
+    Knows nothing about builders, detectors, or OS internals.
+
+    One handler per device keyed by USB path:
+      _lcd_handlers: dict[str, LCDHandler]
+      _led_handlers: dict[str, LEDHandler]
+
+    Panel stack shows the active device; all devices tick in background.
     """
 
-    _handshake_done = Signal(object, object)
+    # Thread-safe bridge: core metrics loop → Qt main thread
+    _metrics_signal: Signal = Signal(object)
+    _device_added_signal: Signal = Signal(object)   # Device
+    _device_removed_signal: Signal = Signal(object) # Device
+
     _instance: TRCCApp | None = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> TRCCApp:
         if cls._instance is not None:
             raise RuntimeError("TRCCApp is a singleton — use instance()")
         inst = super().__new__(cls)
@@ -445,57 +419,54 @@ class TRCCApp(QMainWindow):
         return cls._instance
 
     def is_app_visible(self) -> bool:
-        """True only when the main window is on screen and not minimized."""
         return self.isVisible() and not self._minimized_to_taskbar
 
-    def __init__(self, data_dir: Path | None = None, decorated: bool = False):
+    def __init__(
+        self,
+        system_svc: SystemService,
+        setup: PlatformSetup,
+        autostart: AutostartManager,
+        mem_fn: GetMemoryInfoFn,
+        disk_fn: GetDiskInfoFn,
+        decorated: bool = False,
+    ) -> None:
         super().__init__()
         from trcc.__version__ import __version__
         log.info("TRCC v%s starting", __version__)
+
+        # Injected platform deps — no builder, no OS imports
+        self._system_svc = system_svc
+        self._minimize_on_close = setup.minimize_on_close()
+        self._autostart_manager = autostart
 
         self._decorated = decorated
         self._drag_pos = None
         self._force_quit = False
         self._minimized_to_taskbar = False
-        self._data_dir = data_dir or _conf.settings.user_data_dir
+        self._data_dir = _conf.settings.user_data_dir
 
         self.setWindowTitle("TRCC-Linux - Thermalright LCD Control Center")
         self.setFixedSize(Sizes.WINDOW_W, Sizes.WINDOW_H)
         if not decorated:
-            self.setWindowFlags(
-                Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
 
-        # Per-device handlers (C# formDeviceArray)
-        self._lcd_handler: LCDHandler | None = None
-        self._active_device_key = ''
-        self._handshake_pending = False  # guard against duplicate handshakes
-        self._prev_had_lcd = False  # tracks last known LCD connected state for disconnect log
-        self._cut_mode = 'background'  # 'background' or 'mask' — what image cut is for
-        self._mask_upload_filename = ''  # original filename for mask naming
+        # Per-device handlers keyed by USB path
+        self._lcd_handlers: dict[str, LCDHandler] = {}
+        self._led_handlers: dict[str, LEDHandler] = {}
+        self._active_path = ''       # path of device currently shown in panel stack
 
-        # Pixmap refs to prevent GC
+        self._handshake_pending = False
+        self._cut_mode = 'background'
+        self._mask_upload_filename = ''
         self._pixmap_refs: list = []
 
-        # IPC server (set by run_app after window creation)
+        # IPC server (set by composition root after construction)
         from ..ipc import IPCServer
         self._ipc_server: IPCServer | None = None
 
         # Build UI
         self._apply_dark_theme()
-        self._setup_ui()
-
-        # Inject platform-specific hardware callables and window close behaviour
-        from ..core.builder import ControllerBuilder
-        _platform = ControllerBuilder.build_setup()
-        self._minimize_on_close = _platform.minimize_on_close()
-        mem_fn, disk_fn = ControllerBuilder.build_hardware_fns()
-        self.uc_led_control.set_hardware_fns(mem_fn, disk_fn)
-
-        # Build initial display controller for the default resolution
-        self._build_lcd_handler()
-
-        # LED handler
-        self._led = LEDHandler(self.uc_led_control, self._on_temp_unit_changed)
+        self._setup_ui(mem_fn, disk_fn)
 
         # Screencast handler
         self._screencast = ScreencastHandler(self, self._on_screencast_frame)
@@ -503,16 +474,23 @@ class TRCCApp(QMainWindow):
         # Connect widget signals
         self._connect_view_signals()
 
-        # Metrics mediator
-        self._setup_mediator()
-        saved_interval = _conf.settings.refresh_interval
-        if saved_interval != 1:
-            self._mediator.set_interval(saved_interval * 1000)
+        # Thread-safe signal bridges
+        self._metrics_signal.connect(self._on_metrics_main_thread)
+        self._device_added_signal.connect(self._on_device_added_main_thread)
+        self._device_removed_signal.connect(self._on_device_removed_main_thread)
+
+        # Handshake signal
+        self._handshake_done = Signal(object, object)  # type: ignore[assignment]
+        # Use a QObject notifier for handshake (thread → main thread)
+        from PySide6.QtCore import QObject
+        from PySide6.QtCore import Signal as _Signal
+        class _HandshakeNotifier(QObject):
+            done = _Signal(object, object)
+        self._hs_notifier = _HandshakeNotifier(self)
+        self._hs_notifier.done.connect(self._on_handshake_done)
 
         # Restore temp unit
         saved_unit = _conf.settings.temp_unit
-        if self._lcd_handler:
-            self._lcd_handler.display.set_overlay_temp_unit(saved_unit)
         self.uc_system_info.set_temp_unit(saved_unit)
         self.uc_led_control.set_temp_unit(saved_unit)
         if saved_unit == 1:
@@ -529,48 +507,204 @@ class TRCCApp(QMainWindow):
         # Sleep monitor
         self._setup_sleep_monitor()
 
-        # Handshake signal
-        self._handshake_done.connect(self._on_handshake_done)
+    # ── AppObserver ─────────────────────────────────────────────────
 
-        # Device poll timer
-        self._device_timer = self._make_timer(self._on_device_poll)
-        self._on_device_poll()
-        self._device_timer.start(5000)
+    def on_app_event(self, event: AppEvent, data: Any) -> None:
+        """Receive events from TrccApp (called from any thread)."""
+        if event == AppEvent.DEVICES_CHANGED:
+            # data = list[Device] — full rescan result
+            self._device_added_signal.emit(('changed', data))
+        elif event == AppEvent.DEVICE_CONNECTED:
+            self._device_added_signal.emit(('connected', data))
+        elif event == AppEvent.DEVICE_LOST:
+            self._device_removed_signal.emit(data)
+        elif event == AppEvent.METRICS_UPDATED:
+            self._metrics_signal.emit(data)
 
-    def _build_lcd_handler(self) -> None:
-        """Build LCDDevice + LCDHandler for initial resolution."""
-        from ..adapters.render.qt import QtRenderer
-        display = (ControllerBuilder()
-            .with_renderer(QtRenderer())
-            .with_data_dir(self._data_dir)
-            .build_lcd())
+    # ── Device event handlers (main thread) ─────────────────────────
 
-        widgets = {
-            'preview': self.uc_preview,
-            'theme_setting': self.uc_theme_setting,
-            'theme_local': self.uc_theme_local,
-            'theme_web': self.uc_theme_web,
-            'theme_mask': self.uc_theme_mask,
-            'image_cut': self.uc_image_cut,
-            'video_cut': self.uc_video_cut,
-            'rotation_combo': self.rotation_combo,
-        }
-        self._lcd_handler = LCDHandler(
-            display, widgets, self._make_timer, self._data_dir,
-            is_visible_fn=self.is_app_visible)
+    def _on_device_added_main_thread(self, payload: Any) -> None:
+        kind, data = payload
+        if kind == 'changed':
+            self._rebuild_all_handlers(data)
+        else:
+            self._add_handler(data)
 
-    # ── Timers ─────────────────────────────────────────────────────
+    def _on_device_removed_main_thread(self, device: Any) -> None:
+        path = device.device_info.path if device.device_info else ''
+        self._remove_handler(path)
 
-    def _make_timer(self, callback, *, single_shot: bool = False) -> QTimer:
+    def _rebuild_all_handlers(self, devices: list) -> None:
+        """Replace all handlers with new device list from scan()."""
+        # Stop and remove existing
+        for handler in list(self._lcd_handlers.values()):
+            handler.cleanup()
+        for handler in list(self._led_handlers.values()):
+            handler.cleanup()
+        self._lcd_handlers.clear()
+        self._led_handlers.clear()
+        self._active_path = ''
+
+        for device in devices:
+            self._add_handler(device)
+
+        self._refresh_sidebar()
+
+        # Auto-select first device
+        if self._lcd_handlers:
+            first_path = next(iter(self._lcd_handlers))
+            self._activate_device(first_path)
+        elif self._led_handlers:
+            first_path = next(iter(self._led_handlers))
+            self._activate_device(first_path)
+
+    def _add_handler(self, device: Any) -> None:
+        """Create handler for one new device."""
+        info = device.device_info
+        if info is None:
+            log.warning("Device has no device_info, skipping")
+            return
+        path = info.path
+
+        if isinstance(device, LEDDevice):
+            if path not in self._led_handlers:
+                handler = LEDHandler(device, self.uc_led_control, self._on_temp_unit_changed)
+                self._led_handlers[path] = handler
+                log.info("LED handler added: %s", path)
+        elif isinstance(device, LCDDevice):
+            if path not in self._lcd_handlers:
+                widgets = {
+                    'preview': self.uc_preview,
+                    'theme_setting': self.uc_theme_setting,
+                    'theme_local': self.uc_theme_local,
+                    'theme_web': self.uc_theme_web,
+                    'theme_mask': self.uc_theme_mask,
+                    'image_cut': self.uc_image_cut,
+                    'video_cut': self.uc_video_cut,
+                    'rotation_combo': self.rotation_combo,
+                }
+                handler = LCDHandler(
+                    device, widgets, self._make_timer, self._data_dir,
+                    is_visible_fn=self.is_app_visible)
+                self._lcd_handlers[path] = handler
+                log.info("LCD handler added: %s", path)
+                # Wire IPC frame capture if server is already running
+                if self._ipc_server and handler.display.device_service:
+                    handler.display.device_service.on_frame_sent = self._ipc_server.capture_frame
+
+        self._refresh_sidebar()
+
+    def _remove_handler(self, path: str) -> None:
+        """Remove and cleanup one device handler."""
+        if path in self._lcd_handlers:
+            self._lcd_handlers.pop(path).cleanup()
+            log.info("LCD handler removed: %s", path)
+        elif path in self._led_handlers:
+            self._led_handlers.pop(path).cleanup()
+            log.info("LED handler removed: %s", path)
+
+        if self._active_path == path:
+            self._active_path = ''
+            # Auto-switch to first remaining device
+            remaining = list(self._lcd_handlers) + list(self._led_handlers)
+            if remaining:
+                self._activate_device(remaining[0])
+
+        self._refresh_sidebar()
+
+    def _refresh_sidebar(self) -> None:
+        """Update UCDevice with current device list."""
+        devices: list[dict] = []
+        for path, handler in self._lcd_handlers.items():
+            info = handler.display.device_info if handler.display else None
+            if info:
+                devices.append(info.to_dict() if hasattr(info, 'to_dict') else {'path': path})
+        for path, handler in self._led_handlers.items():
+            info = handler.led_port.device_info if handler.led_port else None
+            if info:
+                devices.append(info.to_dict() if hasattr(info, 'to_dict') else {'path': path})
+        self.uc_device.update_devices(devices)
+
+    def _activate_device(self, path: str) -> None:
+        """Switch panel stack to show the given device."""
+        self._active_path = path
+
+        if path in self._lcd_handlers:
+            handler = self._lcd_handlers[path]
+            if handler.display.connected:
+                info = handler.display.device_info
+                if info:
+                    w, h = info.resolution
+                    if (w, h) == (0, 0):
+                        self._start_handshake(info)
+                    else:
+                        handler.apply_device_config(info, w, h)
+                        self._update_ldd_icon()
+            if self._led_handlers:
+                # Keep LED ticking but hide its panel
+                pass
+            self._show_view('form')
+
+        elif path in self._led_handlers:
+            handler = self._led_handlers[path]
+            info = handler.led_port.device_info if handler.led_port else None
+            if info and not handler.active:
+                handler.show(info)
+            self._show_view('led')
+
+    # ── Metrics (main thread only) ───────────────────────────────────
+
+    def _on_metrics_main_thread(self, metrics: Any) -> None:
+        """Update GUI-only subscribers. Devices are already ticked by TrccApp."""
+        if self.uc_info_module.isVisible():
+            self.uc_info_module.update_from_metrics(metrics)
+        if self.is_app_visible() and self.uc_activity_sidebar.isVisible():
+            self.uc_activity_sidebar.update_from_metrics(metrics)
+
+        # Active LCD overlay tick
+        if self._active_path in self._lcd_handlers:
+            self._lcd_handlers[self._active_path].on_overlay_tick(metrics)
+
+        # Periodic keepalive for active LCD
+        # (keepalive is handled inside LCDHandler on its own timer)
+
+    # ── Sleep monitor ───────────────────────────────────────────────
+
+    def _setup_sleep_monitor(self) -> None:
+        try:
+            from PySide6.QtDBus import QDBusConnection  # pyright: ignore[reportMissingImports]
+            bus = QDBusConnection.systemBus()
+            if not bus.isConnected():
+                return
+            bus.connect(  # pyright: ignore[reportCallIssue]
+                'org.freedesktop.login1', '/org/freedesktop/login1',
+                'org.freedesktop.login1.Manager', 'PrepareForSleep',
+                self._on_sleep_signal)
+            log.info("Sleep monitor: QDBus listener active")
+        except Exception:
+            log.debug("Sleep monitor: QDBus not available")
+
+    def _on_sleep_signal(self, sleeping: bool) -> None:
+        if sleeping:
+            log.info("System suspending — stopping timers")
+            for h in self._lcd_handlers.values():
+                h.stop_timers()
+            self._screencast.stop()
+        else:
+            log.info("System resuming — TrccApp metrics loop handles device ticking")
+
+    # ── Timers ──────────────────────────────────────────────────────
+
+    def _make_timer(self, callback: Any, *, single_shot: bool = False) -> QTimer:
         timer = QTimer(self)
         if single_shot:
             timer.setSingleShot(True)
         timer.timeout.connect(callback)
         return timer
 
-    # ── Dark theme ─────────────────────────────────────────────────
+    # ── Dark theme ──────────────────────────────────────────────────
 
-    def _apply_dark_theme(self):
+    def _apply_dark_theme(self) -> None:
         palette = self.palette()
         palette.setColor(QPalette.ColorRole.Window, QColor(Colors.WINDOW_BG))
         palette.setColor(QPalette.ColorRole.WindowText, QColor(Colors.WINDOW_TEXT))
@@ -580,9 +714,9 @@ class TRCCApp(QMainWindow):
         palette.setColor(QPalette.ColorRole.ButtonText, QColor(Colors.BUTTON_TEXT))
         self.setPalette(palette)
 
-    # ── System tray ────────────────────────────────────────────────
+    # ── System tray ─────────────────────────────────────────────────
 
-    def _setup_systray(self):
+    def _setup_systray(self) -> None:
         icon_path = Path(__file__).parent.parent / 'assets' / 'icons' / 'trcc.png'
         icon = QIcon(str(icon_path)) if icon_path.exists() else QIcon()
         self.setWindowIcon(icon)
@@ -602,39 +736,11 @@ class TRCCApp(QMainWindow):
         self._tray.activated.connect(self._on_tray_activated)
         self._tray.show()
 
-    def _setup_sleep_monitor(self):
-        try:
-            from PySide6.QtDBus import QDBusConnection  # pyright: ignore[reportMissingImports]
-            bus = QDBusConnection.systemBus()
-            if not bus.isConnected():
-                return
-            bus.connect(  # pyright: ignore[reportCallIssue]
-                'org.freedesktop.login1', '/org/freedesktop/login1',
-                'org.freedesktop.login1.Manager', 'PrepareForSleep',
-                self._on_sleep_signal)
-            log.info("Sleep monitor: QDBus listener active")
-        except Exception:
-            log.debug("Sleep monitor: QDBus not available")
-
-    def _on_sleep_signal(self, sleeping: bool):
-        if sleeping:
-            log.info("System suspending — stopping timers")
-            self._device_timer.stop()
-            if self._lcd_handler:
-                self._lcd_handler.stop_timers()
-            self._mediator.stop()
-            self._screencast.stop()
-        else:
-            log.info("System resuming — restarting timers (USB handles preserved)")
-            self._device_timer.start(5000)
-            self._mediator.ensure_running()
-            self._on_device_poll()
-
-    def _on_tray_activated(self, reason):
+    def _on_tray_activated(self, reason: Any) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
             self._toggle_visibility()
 
-    def _toggle_visibility(self):
+    def _toggle_visibility(self) -> None:
         if self.isVisible():
             self.hide()
         else:
@@ -643,14 +749,14 @@ class TRCCApp(QMainWindow):
             self.activateWindow()
             self.raise_()
 
-    def _quit_app(self):
+    def _quit_app(self) -> None:
         self._force_quit = True
         self.close()
 
-    # ── UI Setup ───────────────────────────────────────────────────
+    # ── UI Setup ────────────────────────────────────────────────────
 
-    def _setup_ui(self):
-        """Build main UI layout matching Windows TRCC."""
+    def _setup_ui(self, mem_fn: GetMemoryInfoFn, disk_fn: GetDiskInfoFn) -> None:
+        """Build main UI layout."""
         central = QWidget()
         self.setCentralWidget(central)
 
@@ -660,14 +766,13 @@ class TRCCApp(QMainWindow):
         if pix_form1:
             self._pixmap_refs.append(pix_form1)
 
-        # Device sidebar
-        self.uc_device = UCDevice(central, detect_fn=find_lcd_devices)
+        # Device sidebar — no detect_fn, populated via on_app_event
+        self.uc_device = UCDevice(central)
         self.uc_device.setGeometry(*Layout.SIDEBAR)
 
         # FormCZTV container
         self.form_container = QWidget(central)
         self.form_container.setGeometry(*Layout.FORM_CONTAINER)
-
         pix = set_background_pixmap(self.form_container, Assets.FORM_CZTV_BG,
             fallback_style=f"background-color: {Colors.WINDOW_BG};")
         if pix:
@@ -695,12 +800,11 @@ class TRCCApp(QMainWindow):
         # Mode tabs
         self._create_mode_tabs()
 
-        # Theme panels
+        # Theme panel stack
         self.panel_stack = QStackedWidget(self.form_container)
         self.panel_stack.setGeometry(*Layout.PANEL_STACK)
 
-        # C# ButtonNewMode order: 1=Local, 2=CloudBG, 3=Settings, 4=CloudMasks
-        self.uc_theme_local = UCThemeLocal()              # panel 0
+        self.uc_theme_local = UCThemeLocal()
         self._set_panel_bg(self.uc_theme_local, Assets.THEME_LOCAL_BG)
         self.panel_stack.addWidget(self.uc_theme_local)
 
@@ -711,14 +815,14 @@ class TRCCApp(QMainWindow):
         def _extract_theme(archive: str, dest: str) -> None:
             DataManager.extract_7z(archive, dest)
             DataManager._unwrap_nested_dir(dest)
-        self.uc_theme_web = UCThemeWeb(download_fn=_download_theme, extract_fn=_extract_theme)  # panel 1
+        self.uc_theme_web = UCThemeWeb(download_fn=_download_theme, extract_fn=_extract_theme)
         self._set_panel_bg(self.uc_theme_web, Assets.THEME_WEB_BG)
         self.panel_stack.addWidget(self.uc_theme_web)
 
-        self.uc_theme_setting = UCThemeSetting()          # panel 2
+        self.uc_theme_setting = UCThemeSetting()
         self.panel_stack.addWidget(self.uc_theme_setting)
 
-        self.uc_theme_mask = UCThemeMask()                # panel 3
+        self.uc_theme_mask = UCThemeMask()
         self._set_panel_bg(self.uc_theme_mask, Assets.THEME_MASK_BG)
         self.panel_stack.addWidget(self.uc_theme_mask)
 
@@ -732,33 +836,25 @@ class TRCCApp(QMainWindow):
         self._create_title_buttons()
         self._apply_settings_backgrounds()
 
-        # About panel — build platform autostart manager and inject
-        from ..core.builder import ControllerBuilder
-        self._autostart_manager = ControllerBuilder.build_autostart()
+        # About panel
         self.uc_about = UCAbout(parent=central, autostart_manager=self._autostart_manager)
         self.uc_about.setGeometry(*Layout.FORM_CONTAINER)
         self.uc_about.setVisible(False)
 
-        # System service (via builder — routes to platform-correct enumerator)
-        from ..services.system import set_instance
-        builder = ControllerBuilder()
-        self._system_svc = builder.build_system()
-        self._system_sensors = self._system_svc.enumerator
-        self._system_svc.discover()
-        set_instance(self._system_svc)
-
         # System info dashboard
         from ..adapters.system.config import SysInfoConfig
-        self.uc_system_info = UCSystemInfo(self._system_sensors,
-                                           sysinfo_config=SysInfoConfig(),
-                                           parent=central)
+        self.uc_system_info = UCSystemInfo(
+            self._system_svc.enumerator,
+            sysinfo_config=SysInfoConfig(),
+            parent=central)
         self.uc_system_info.setGeometry(*Layout.SYSINFO_PANEL)
         self.uc_system_info.setVisible(False)
 
-        # LED panel
+        # LED panel — hardware fns injected
         self.uc_led_control = UCLedControl(central)
         self.uc_led_control.setGeometry(*Layout.FORM_CONTAINER)
         self.uc_led_control.setVisible(False)
+        self.uc_led_control.set_hardware_fns(mem_fn, disk_fn)
 
         # Form1 buttons
         self.form1_close_btn = create_image_button(
@@ -773,19 +869,138 @@ class TRCCApp(QMainWindow):
         self.form1_help_btn.setToolTip("Help")
         self.form1_help_btn.clicked.connect(self._on_help_clicked)
 
-        # i18n overlay preview (red text to verify positioning)
         self._create_i18n_overlays()
-
-        # Theme directories
         self._init_theme_directories()
 
-    def _set_panel_bg(self, widget: QWidget, asset_name: str):
+    def _set_panel_bg(self, widget: QWidget, asset_name: str) -> None:
         pix = set_background_pixmap(widget, asset_name)
         if pix:
             self._pixmap_refs.append(pix)
 
+    def _create_mode_tabs(self) -> None:
+        self.mode_buttons = []
+        tab_configs = [
+            (Layout.TAB_LOCAL, Assets.TAB_LOCAL, Assets.TAB_LOCAL_ACTIVE, 0, "Local themes"),
+            (Layout.TAB_MASK, Assets.TAB_MASK, Assets.TAB_MASK_ACTIVE, 3, "Cloud masks"),
+            (Layout.TAB_CLOUD, Assets.TAB_CLOUD, Assets.TAB_CLOUD_ACTIVE, 1, "Cloud backgrounds"),
+            (Layout.TAB_SETTINGS, Assets.TAB_SETTINGS, Assets.TAB_SETTINGS_ACTIVE, 2, "Settings"),
+        ]
+        for rect, normal_img, active_img, panel_idx, tooltip in tab_configs:
+            x, y, w, h = rect
+            btn = create_image_button(
+                self.form_container, x, y, w, h,
+                normal_img, active_img, checkable=True)
+            btn.setToolTip(tooltip)
+            btn.clicked.connect(lambda checked, idx=panel_idx: self._show_panel(idx))
+            self.mode_buttons.append(btn)
+        if self.mode_buttons:
+            self.mode_buttons[0].setChecked(True)
+
+    def _create_bottom_controls(self) -> None:
+        self.rotation_combo = QComboBox(self.form_container)
+        self.rotation_combo.setGeometry(*Layout.ROTATION_COMBO)
+        self.rotation_combo.addItems(["0°", "90°", "180°", "270°"])
+        self.rotation_combo.setStyleSheet(
+            "QComboBox { background-color: #2A2A2A; color: white; border: 1px solid #555;"
+            " font-size: 10px; padding-left: 5px; }"
+            "QComboBox::drop-down { border: none; width: 20px; }"
+            "QComboBox QAbstractItemView { background-color: #2A2A2A; color: white;"
+            " selection-background-color: #4A6FA5; }")
+        self.rotation_combo.setToolTip("LCD rotation")
+        self.rotation_combo.currentIndexChanged.connect(self._on_rotation_change)
+
+        self._ldd_pixmaps: dict = {}
+        for level in range(4):
+            pix = Assets.load_pixmap(f'PL{level}.png')
+            if not pix.isNull():
+                self._ldd_pixmaps[level] = pix
+
+        self.ldd_btn = QPushButton(self.form_container)
+        self.ldd_btn.setGeometry(*Layout.BRIGHTNESS_BTN)
+        self.ldd_btn.setToolTip("Cycle brightness (Low / Medium / High)")
+        self.ldd_btn.clicked.connect(self._on_ldd_click)
+        self._update_ldd_icon()
+
+        self.theme_name_input = QLineEdit(self.form_container)
+        self.theme_name_input.setGeometry(*Layout.THEME_NAME_INPUT)
+        self.theme_name_input.setText("Theme1")
+        self.theme_name_input.setMaxLength(10)
+        self.theme_name_input.setToolTip("Theme name for saving")
+        self.theme_name_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.theme_name_input.setStyleSheet(
+            "background-color: #232227; color: white; border: none;"
+            " font-family: 'Microsoft YaHei'; font-size: 9pt;")
+        self.theme_name_input.setValidator(
+            QRegularExpressionValidator(QRE(r'[^/\\:*?"<>|\x00-\x1f]+')))
+
+        self.save_btn = self._icon_btn(*Layout.SAVE_BTN, Assets.BTN_SAVE, "S")
+        self.save_btn.setToolTip("Save theme")
+        self.save_btn.clicked.connect(self._on_save_clicked)
+
+        self.export_btn = self._icon_btn(*Layout.EXPORT_BTN, Assets.BTN_EXPORT, "Exp")
+        self.export_btn.setToolTip("Export theme to file")
+        self.export_btn.clicked.connect(self._on_export_clicked)
+
+        self.import_btn = self._icon_btn(*Layout.IMPORT_BTN, Assets.BTN_IMPORT, "Imp")
+        self.import_btn.setToolTip("Import theme from file")
+        self.import_btn.clicked.connect(self._on_import_clicked)
+
+    def _icon_btn(self, x: int, y: int, w: int, h: int,
+                  icon_name: str, fallback_text: str) -> QPushButton:
+        btn = QPushButton(self.form_container)
+        btn.setGeometry(x, y, w, h)
+        pix = Assets.load_pixmap(icon_name, w, h)
+        if not pix.isNull():
+            btn.setIcon(QIcon(pix))
+            btn.setIconSize(btn.size())
+            btn.setStyleSheet(Styles.ICON_BUTTON_HOVER)
+            self._pixmap_refs.append(pix)
+        else:
+            btn.setText(fallback_text)
+            btn.setStyleSheet(Styles.TEXT_BUTTON)
+        return btn
+
+    def _create_title_buttons(self) -> None:
+        help_btn = create_image_button(
+            self.form_container, *Layout.HELP_BTN, Assets.BTN_HELP, None, fallback_text="?")
+        help_btn.setToolTip("Help")
+        help_btn.clicked.connect(self._on_help_clicked)
+
+        close_btn = create_image_button(
+            self.form_container, *Layout.CLOSE_BTN,
+            Assets.BTN_POWER, Assets.BTN_POWER_HOVER, fallback_text="X")
+        close_btn.setToolTip("Close")
+        close_btn.clicked.connect(self.close)
+
+    def _apply_settings_backgrounds(self) -> None:
+        s = self.uc_theme_setting
+        for panel, bg_name in [
+            (s.mask_panel, 'Panel_background.png'),
+            (s.background_panel, 'Panel_background.png'),
+            (s.screencast_panel, 'Panel_background.png'),
+            (s.video_panel, 'Panel_background.png'),
+            (s.overlay_grid, 'Panel_overlay.png'),
+            (s.color_panel, 'Panel_params.png'),
+        ]:
+            self._set_panel_bg(panel, bg_name)
+
+    def _init_theme_directories(self) -> None:
+        w, h = _conf.settings.width, _conf.settings.height
+        td = _conf.settings.theme_dir
+        if td:
+            self.uc_theme_local.set_theme_directory(td.path)
+            if td.exists():
+                self._load_carousel_config(td.path)
+        if _conf.settings.web_dir:
+            self.uc_theme_web.set_web_directory(_conf.settings.web_dir)
+        self.uc_theme_web.set_resolution(f'{w}x{h}')
+        if _conf.settings.masks_dir:
+            self.uc_theme_mask.set_mask_directory(_conf.settings.masks_dir)
+        self.uc_theme_mask.set_resolution(f'{w}x{h}')
+
+    # ── i18n overlays ───────────────────────────────────────────────
+
     def _create_i18n_overlays(self) -> None:
-        """Add QLabel overlays for every i18n text position."""
         from ..core.i18n import (
             ABOUT_AUTOSTART_POS,
             ABOUT_HDD_POS,
@@ -831,15 +1046,13 @@ class TRCCApp(QMainWindow):
                  pt: int, key: str | None = None,
                  bold: bool = False, color: str = 'white',
                  wrap: bool = False, center: bool = False) -> QLabel:
-            """Place a QLabel at PNG pixel coords — auto-adjusts for font metrics."""
             y_offset = max(2, pt // 4)
             lbl = QLabel(text, parent)
             lbl.setGeometry(x, y - y_offset, w, h)
             weight = " font-weight: bold;" if bold else ""
             lbl.setStyleSheet(
                 f"color: {color}; font-family: 'Microsoft YaHei';"
-                f" font-size: {pt}pt;{weight} background: transparent;"
-            )
+                f" font-size: {pt}pt;{weight} background: transparent;")
             if wrap:
                 lbl.setWordWrap(True)
             if center:
@@ -848,11 +1061,9 @@ class TRCCApp(QMainWindow):
             self._i18n_labels.append((lbl, key))
             return lbl
 
-        # Gold title bar — on form_container
         x, y, w, h, pt = TITLE_BAR_POS
         _lbl(self.form_container, TITLE_BAR_TEXT, x, y, w, h, pt, bold=True, color='#434343')
 
-        # Main view bottom — on form_container
         for key, pos in [
             ('Display Angle', DISPLAY_ANGLE_POS),
             ('Save As', SAVE_AS_POS),
@@ -861,15 +1072,11 @@ class TRCCApp(QMainWindow):
             x, y, w, h, pt = pos
             _lbl(self.form_container, tr(key, lang), x, y, w, h, pt, key)
 
-        # Overlay grid — on uc_theme_setting.data_table
         grid = self.uc_theme_setting.data_table
-        for key, pos in [
-            ('Double-click to delete card', OVERLAY_GRID_HINT_POS),
-        ]:
-            x, y, w, h, pt = pos
-            _lbl(grid, tr(key, lang), x, y, w, h, pt, key)
+        x, y, w, h, pt = OVERLAY_GRID_HINT_POS
+        _lbl(grid, tr('Double-click to delete card', lang), x, y, w, h, pt,
+             'Double-click to delete card')
 
-        # Parameter panel — on uc_theme_setting.right_stack
         rpanel = self.uc_theme_setting.right_stack
         for key, pos in [
             ('Coordinate', PARAM_COORDINATE_POS),
@@ -879,7 +1086,6 @@ class TRCCApp(QMainWindow):
             x, y, w, h, pt = pos
             _lbl(rpanel, tr(key, lang), x, y, w, h, pt, key)
 
-        # Display mode panel titles — set directly on each panel's built-in label
         s = self.uc_theme_setting
         s.mask_panel.set_title(tr('Layer Mask', lang))
         s.background_panel.set_title(tr('Background', lang))
@@ -892,7 +1098,6 @@ class TRCCApp(QMainWindow):
             (s.video_panel, 'Media Player'),
         ]
 
-        # Mask panel sub-labels — on uc_theme_setting.mask_panel
         mp = s.mask_panel
         x, y, w, h, pt = MASK_LOAD_POS
         _lbl(mp, tr('Masks', lang), x, y, w, h, pt, 'Masks', center=True)
@@ -903,49 +1108,38 @@ class TRCCApp(QMainWindow):
              x, y, w, h, pt,
              'PNG format, resolution must not exceed screen resolution', wrap=True)
 
-        # Background panel sub-labels
         bp = s.background_panel
-        for key, pos in [
-            ('Load Image', BACKGROUND_LOAD_IMG_POS),
-            ('Load Video', BACKGROUND_LOAD_VIDEO_POS),
-        ]:
+        for key, pos in [('Load Image', BACKGROUND_LOAD_IMG_POS),
+                         ('Load Video', BACKGROUND_LOAD_VIDEO_POS)]:
             x, y, w, h, pt = pos
             _lbl(bp, tr(key, lang), x, y, w, h, pt, key)
 
-        # Video/Media player panel sub-labels
         vp = s.video_panel
         x, y, w, h, pt = MEDIA_PLAYER_LOAD_POS
         _lbl(vp, tr('Load Video', lang), x, y, w, h, pt, 'Load Video')
 
-        # Local theme browser
         x, y, w, h, pt = LOCAL_THEME_POS
-        _lbl(self.uc_theme_local, tr('Local Theme', lang), x, y, w, h, pt,
-             'Local Theme')
+        _lbl(self.uc_theme_local, tr('Local Theme', lang), x, y, w, h, pt, 'Local Theme')
 
-        # Cloud masks browser
         x, y, w, h, pt = ONLINE_THEME_POS
-        _lbl(self.uc_theme_mask, tr('Cloud Masks', lang), x, y, w, h, pt,
-             'Cloud Masks')
+        _lbl(self.uc_theme_mask, tr('Cloud Masks', lang), x, y, w, h, pt, 'Cloud Masks')
 
-        # Gallery (cloud backgrounds) — title + category tabs
         x, y, w, h, pt = GALLERY_TITLE_POS
         _lbl(self.uc_theme_web, tr('Gallery', lang), x, y, w, h, pt, 'Gallery')
         tab_x_positions = [45, 135, 235, 335, 430, 525, 635]
-        tab_keys: list[str | None] = [
-            'All', 'Tech', None, 'Light', 'Nature', 'Aesthetic', 'Other',
-        ]
+        tab_keys: list[str | None] = ['All', 'Tech', None, 'Light', 'Nature', 'Aesthetic', 'Other']
         for tx, key in zip(tab_x_positions, tab_keys):
             text = 'HUD' if key is None else tr(key, lang)
             lbl = _lbl(self.uc_theme_web, text,
                        tx, GALLERY_TAB_Y, 90, GALLERY_TAB_H, GALLERY_TAB_FONT, key)
             lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-        # About panel
         about_items: list[tuple[str, tuple[int, ...]]] = [
             ('Start automatically', ABOUT_AUTOSTART_POS),
             ('Unit', ABOUT_UNIT_POS),
             ('Hard disk information', ABOUT_HDD_POS),
-            ('Reading hard disk information may cause some mechanical hard drives to read and write frequently. If you encounter this issue, please close the project.', ABOUT_HDD_WARN_POS),
+            ('Reading hard disk information may cause some mechanical hard drives to read and write frequently. If you encounter this issue, please close the project.',
+             ABOUT_HDD_WARN_POS),
             ('Data refresh time', ABOUT_REFRESH_POS),
             ('Running Mode', ABOUT_RUNNING_MODE_POS),
             ('Single-threaded (low resource usage)', ABOUT_SINGLE_THREAD_POS),
@@ -958,7 +1152,6 @@ class TRCCApp(QMainWindow):
             x, y, w, h, pt = pos
             _lbl(self.uc_about, tr(key, lang), x, y, w, h, pt, key)
 
-        # Language dropdown preview — replaces 10 checkboxes
         lang_combo = QComboBox(self.uc_about)
         lang_combo.setGeometry(297, 413, 200, 28)
         for code in sorted(LANGUAGE_NAMES, key=lambda c: LANGUAGE_NAMES[c]):
@@ -971,11 +1164,9 @@ class TRCCApp(QMainWindow):
             " font-size: 10pt; padding-left: 5px; }"
             "QComboBox::drop-down { border: none; width: 20px; }"
             "QComboBox QAbstractItemView { background: #2A2A2A; color: white;"
-            " selection-background-color: #3A3A3A; }"
-        )
+            " selection-background-color: #3A3A3A; }")
         lang_combo.raise_()
 
-        # Wire combo to update all overlay labels live
         def _on_preview_lang(index: int) -> None:
             new_lang = lang_combo.itemData(index)
             for lbl, key in self._i18n_labels:
@@ -987,159 +1178,22 @@ class TRCCApp(QMainWindow):
 
         lang_combo.currentIndexChanged.connect(_on_preview_lang)
 
-        # System Info panel
-        for key, pos in [
-            ('NAME', SYSINFO_NAME_POS),
-            ('Value', SYSINFO_VALUE_POS),
-        ]:
+        for key, pos in [('NAME', SYSINFO_NAME_POS), ('Value', SYSINFO_VALUE_POS)]:
             x, y, w, h, pt = pos
             _lbl(self.uc_system_info, tr(key, lang), x, y, w, h, pt, key)
 
-    def _create_mode_tabs(self):
-        self.mode_buttons = []
-        # C# visual x-order: BDZT(542)=Local, YDMB(612)=Masks, YDZT(682)=CloudBG, ZTSZ(882)=Settings
-        tab_configs = [
-            (Layout.TAB_LOCAL, Assets.TAB_LOCAL, Assets.TAB_LOCAL_ACTIVE, 0, "Local themes"),
-            (Layout.TAB_MASK, Assets.TAB_MASK, Assets.TAB_MASK_ACTIVE, 3, "Cloud masks"),
-            (Layout.TAB_CLOUD, Assets.TAB_CLOUD, Assets.TAB_CLOUD_ACTIVE, 1, "Cloud backgrounds"),
-            (Layout.TAB_SETTINGS, Assets.TAB_SETTINGS, Assets.TAB_SETTINGS_ACTIVE, 2, "Settings"),
-        ]
-        for rect, normal_img, active_img, panel_idx, tooltip in tab_configs:
-            x, y, w, h = rect
-            btn = create_image_button(
-                self.form_container, x, y, w, h,
-                normal_img, active_img, checkable=True)
-            btn.setToolTip(tooltip)
-            btn.clicked.connect(
-                lambda checked, idx=panel_idx: self._show_panel(idx))
-            self.mode_buttons.append(btn)
-        if self.mode_buttons:
-            self.mode_buttons[0].setChecked(True)
+    # ── View Navigation ─────────────────────────────────────────────
 
-    def _create_bottom_controls(self):
-        # Rotation combo
-        self.rotation_combo = QComboBox(self.form_container)
-        self.rotation_combo.setGeometry(*Layout.ROTATION_COMBO)
-        self.rotation_combo.addItems(["0\u00b0", "90\u00b0", "180\u00b0", "270\u00b0"])
-        self.rotation_combo.setStyleSheet(
-            "QComboBox { background-color: #2A2A2A; color: white; border: 1px solid #555;"
-            " font-size: 10px; padding-left: 5px; }"
-            "QComboBox::drop-down { border: none; width: 20px; }"
-            "QComboBox QAbstractItemView { background-color: #2A2A2A; color: white;"
-            " selection-background-color: #4A6FA5; }")
-        self.rotation_combo.setToolTip("LCD rotation")
-        self.rotation_combo.currentIndexChanged.connect(self._on_rotation_change)
-
-        # Brightness/split button
-        self._ldd_pixmaps: dict = {}
-        for level in range(4):
-            pix = Assets.load_pixmap(f'PL{level}.png')
-            if not pix.isNull():
-                self._ldd_pixmaps[level] = pix
-
-        self.ldd_btn = QPushButton(self.form_container)
-        self.ldd_btn.setGeometry(*Layout.BRIGHTNESS_BTN)
-        self.ldd_btn.setToolTip("Cycle brightness (Low / Medium / High)")
-        self.ldd_btn.clicked.connect(self._on_ldd_click)
-        self._update_ldd_icon()
-
-        # Theme name input
-        self.theme_name_input = QLineEdit(self.form_container)
-        self.theme_name_input.setGeometry(*Layout.THEME_NAME_INPUT)
-        self.theme_name_input.setText("Theme1")
-        self.theme_name_input.setMaxLength(10)
-        self.theme_name_input.setToolTip("Theme name for saving")
-        self.theme_name_input.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.theme_name_input.setStyleSheet(
-            "background-color: #232227; color: white; border: none;"
-            " font-family: 'Microsoft YaHei'; font-size: 9pt;")
-        self.theme_name_input.setValidator(
-            QRegularExpressionValidator(QRE(r'[^/\\:*?"<>|\x00-\x1f]+')))
-
-        # Save/Export/Import buttons
-        self.save_btn = self._icon_btn(
-            *Layout.SAVE_BTN, Assets.BTN_SAVE, "S")
-        self.save_btn.setToolTip("Save theme")
-        self.save_btn.clicked.connect(self._on_save_clicked)
-
-        self.export_btn = self._icon_btn(
-            *Layout.EXPORT_BTN, Assets.BTN_EXPORT, "Exp")
-        self.export_btn.setToolTip("Export theme to file")
-        self.export_btn.clicked.connect(self._on_export_clicked)
-
-        self.import_btn = self._icon_btn(
-            *Layout.IMPORT_BTN, Assets.BTN_IMPORT, "Imp")
-        self.import_btn.setToolTip("Import theme from file")
-        self.import_btn.clicked.connect(self._on_import_clicked)
-
-    def _icon_btn(self, x, y, w, h, icon_name, fallback_text):
-        btn = QPushButton(self.form_container)
-        btn.setGeometry(x, y, w, h)
-        pix = Assets.load_pixmap(icon_name, w, h)
-        if not pix.isNull():
-            btn.setIcon(QIcon(pix))
-            btn.setIconSize(btn.size())
-            btn.setStyleSheet(Styles.ICON_BUTTON_HOVER)
-            self._pixmap_refs.append(pix)
-        else:
-            btn.setText(fallback_text)
-            btn.setStyleSheet(Styles.TEXT_BUTTON)
-        return btn
-
-    def _create_title_buttons(self):
-        help_btn = create_image_button(
-            self.form_container, *Layout.HELP_BTN,
-            Assets.BTN_HELP, None, fallback_text="?")
-        help_btn.setToolTip("Help")
-        help_btn.clicked.connect(self._on_help_clicked)
-
-        close_btn = create_image_button(
-            self.form_container, *Layout.CLOSE_BTN,
-            Assets.BTN_POWER, Assets.BTN_POWER_HOVER, fallback_text="X")
-        close_btn.setToolTip("Close")
-        close_btn.clicked.connect(self.close)
-
-    def _apply_settings_backgrounds(self):
-        s = self.uc_theme_setting
-        for panel, bg_name in [
-            (s.mask_panel, 'Panel_background.png'),
-            (s.background_panel, 'Panel_background.png'),
-            (s.screencast_panel, 'Panel_background.png'),
-            (s.video_panel, 'Panel_background.png'),
-            (s.overlay_grid, 'Panel_overlay.png'),
-            (s.color_panel, 'Panel_params.png'),
-        ]:
-            self._set_panel_bg(panel, bg_name)
-
-    def _init_theme_directories(self):
-        w, h = _conf.settings.width, _conf.settings.height
-        td = _conf.settings.theme_dir
-        if td:
-            self.uc_theme_local.set_theme_directory(td.path)
-            if td.exists():
-                self._load_carousel_config(td.path)
-        if _conf.settings.web_dir:
-            self.uc_theme_web.set_web_directory(_conf.settings.web_dir)
-        self.uc_theme_web.set_resolution(f'{w}x{h}')
-        if _conf.settings.masks_dir:
-            self.uc_theme_mask.set_mask_directory(_conf.settings.masks_dir)
-        self.uc_theme_mask.set_resolution(f'{w}x{h}')
-
-    # ── View Navigation ────────────────────────────────────────────
-
-    def _show_panel(self, index):
-        # Panel stack: 0=Local, 1=CloudBG, 2=Settings, 3=Masks
-        # Button order: 0=Local, 1=Masks, 2=CloudBG, 3=Settings
+    def _show_panel(self, index: int) -> None:
         self.panel_stack.setCurrentIndex(index)
         panel_to_button = {0: 0, 1: 2, 2: 3, 3: 1}
         active_btn = panel_to_button.get(index, 0)
         for i, btn in enumerate(self.mode_buttons):
             btn.setChecked(i == active_btn)
-        # Hide activity sidebar when leaving settings tab (index 2)
         if index != 2:
             self.uc_activity_sidebar.setVisible(False)
 
-    def _show_view(self, view: str):
+    def _show_view(self, view: str) -> None:
         self.form_container.setVisible(view == 'form')
         self.uc_about.setVisible(view == 'about')
         self.uc_system_info.setVisible(view == 'sysinfo')
@@ -1155,15 +1209,13 @@ class TRCCApp(QMainWindow):
         else:
             self.uc_system_info.stop_updates()
 
-    # ── Signal Wiring ──────────────────────────────────────────────
+    # ── Signal Wiring ───────────────────────────────────────────────
 
-    def _connect_view_signals(self):
-        # Device
+    def _connect_view_signals(self) -> None:
         self.uc_device.device_selected.connect(self._on_device_widget_clicked)
         self.uc_device.home_clicked.connect(lambda: self._show_view('sysinfo'))
         self.uc_device.about_clicked.connect(lambda: self._show_view('about'))
 
-        # Theme panels
         self.uc_theme_local.theme_selected.connect(self._on_local_theme_clicked)
         self.uc_theme_local.delete_requested.connect(self._on_delete_theme)
         self.uc_theme_local.delegate.connect(self._on_local_delegate)
@@ -1180,7 +1232,6 @@ class TRCCApp(QMainWindow):
             lambda mask_id, ok: self.uc_preview.set_status(
                 f"{'Downloaded' if ok else 'Failed'}: {mask_id}"))
 
-        # Preview
         self.uc_preview.delegate.connect(self._on_preview_delegate)
         self.uc_preview.element_drag_start.connect(self._on_drag_start)
         self.uc_preview.element_drag_move.connect(self._on_drag_move)
@@ -1191,7 +1242,6 @@ class TRCCApp(QMainWindow):
         self._drag_elem_x = 0
         self._drag_elem_y = 0
 
-        # Settings panel
         self.uc_theme_setting.background_changed.connect(self._on_background_toggle)
         self.uc_theme_setting.screencast_changed.connect(self._on_screencast_toggle)
         self.uc_theme_setting.delegate.connect(self._on_settings_delegate)
@@ -1199,113 +1249,70 @@ class TRCCApp(QMainWindow):
             self._on_overlay_add_requested)
         self.uc_theme_setting.add_panel.element_added.connect(
             lambda _: self.uc_activity_sidebar.setVisible(False))
-        self.uc_theme_setting.overlay_grid.toggle_changed.connect(
-            self._on_overlay_toggle)
-        self.uc_theme_setting.overlay_grid.element_selected.connect(
-            self._on_element_flash)
+        self.uc_theme_setting.overlay_grid.toggle_changed.connect(self._on_overlay_toggle)
+        self.uc_theme_setting.overlay_grid.element_selected.connect(self._on_element_flash)
         self.uc_theme_setting.screencast_params_changed.connect(
             lambda x, y, w, h: self._screencast.set_params(x, y, w, h))
-        self.uc_theme_setting.screencast_panel.border_toggled.connect(
-            self._screencast.set_border)
+        self.uc_theme_setting.screencast_panel.border_toggled.connect(self._screencast.set_border)
         self.uc_theme_setting.capture_requested.connect(self._on_capture_requested)
-        self.uc_theme_setting.eyedropper_requested.connect(
-            self._on_eyedropper_requested)
+        self.uc_theme_setting.eyedropper_requested.connect(self._on_eyedropper_requested)
 
-        # Image/video cutters
         self.uc_image_cut.image_cut_done.connect(self._on_image_cut_done)
         self.uc_video_cut.video_cut_done.connect(self._on_video_cut_done)
 
-        # Activity sidebar
-        self.uc_activity_sidebar.sensor_clicked.connect(
-            self._on_sensor_element_add)
+        self.uc_activity_sidebar.sensor_clicked.connect(self._on_sensor_element_add)
 
-        # About/LED close
         self.uc_about.close_requested.connect(
-            lambda: (self._show_view('form'),
-                     self.uc_device.restore_device_selection()))
+            lambda: (self._show_view('form'), self.uc_device.restore_device_selection()))
         self.uc_led_control.close_requested.connect(
-            lambda: (self._show_view('form'),
-                     self.uc_device.restore_device_selection()))
+            lambda: (self._show_view('form'), self.uc_device.restore_device_selection()))
         self.uc_about.language_changed.connect(self._set_language)
         self.uc_about.temp_unit_changed.connect(self._on_temp_unit_changed)
         self.uc_about.hdd_toggle_changed.connect(self._on_hdd_toggle_changed)
         self.uc_about.refresh_changed.connect(self._on_refresh_changed)
 
-    # ── Device Selection ───────────────────────────────────────────
+    # ── Device Selection ────────────────────────────────────────────
 
-    def _on_device_widget_clicked(self, device_info: dict):
-        device = DeviceInfo.from_dict(device_info)
-        if device.implementation == 'hid_led':
-            if self._lcd_handler:
-                self._lcd_handler.stop_timers()
-            self._screencast.stop()
-            self._led.show(device)
-            self._show_view('led')
-            self._mediator.ensure_running()
-            # Wire IPC LED device
-            led = self._led.led_port
-            if self._ipc_server and led:
-                from ..core.led_device import LEDDevice as LEDDev
-                self._ipc_server.led = LEDDev(svc=led.service)
-        else:
-            if self._led.active:
-                self._led.stop()
-            self._show_view('form')
-            self._on_device_selected(device)
+    def _on_device_widget_clicked(self, device_info: dict) -> None:
+        """User clicked a device in the sidebar."""
+        path = device_info.get('path', '')
+        if path:
+            self._activate_device(path)
 
-    def _on_device_selected(self, device: DeviceInfo):
-        log.info("Device selected: %s [%04X:%04X] %s %s",
-                 device.path, device.vid, device.pid,
-                 device.protocol, device.resolution)
-        self._active_device_key = Settings.device_config_key(
-            device.device_index, device.vid, device.pid)
+    def _active_lcd(self) -> LCDHandler | None:
+        return self._lcd_handlers.get(self._active_path)
 
-        self.uc_preview.set_status(f"Device: {device.path}")
+    def _active_led(self) -> LEDHandler | None:
+        return self._led_handlers.get(self._active_path)
 
-        # Resolution (0,0) = needs handshake
-        w, h = device.resolution
-        if (w, h) == (0, 0):
-            self.uc_preview.set_status("Connecting to device...")
-            self._start_handshake(device)
-            return
+    # ── Handshake (LCD resolution discovery) ────────────────────────
 
-        if self._lcd_handler:
-            self._lcd_handler.display.select_device(device)
-            self._lcd_handler.apply_device_config(device, w, h)
-            self._update_ldd_icon()
-            # Show info module if configured
-            if Settings.show_info_module():
-                self.uc_info_module.setVisible(True)
-            self._mediator.ensure_running()
-
-    def _start_handshake(self, device: DeviceInfo):
+    def _start_handshake(self, device: DeviceInfo) -> None:
         if self._handshake_pending:
-            log.debug("Handshake already in progress, skipping")
             return
         self._handshake_pending = True
+        self.uc_preview.set_status("Connecting to device...")
 
         import threading
-        def worker():
+        def worker() -> None:
             try:
                 from ..adapters.device.factory import DeviceProtocolFactory
                 protocol = DeviceProtocolFactory.get_protocol(device)
                 result = protocol.handshake()
                 if result:
                     resolution = getattr(result, 'resolution', None)
-                    fbl = getattr(result, 'fbl', None) or getattr(
-                        result, 'model_id', None)
+                    fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
                     pm = getattr(result, 'pm_byte', 0)
                     sub = getattr(result, 'sub_byte', 0)
-                    self._handshake_done.emit(
-                        device, (resolution, fbl, pm, sub))
+                    self._hs_notifier.done.emit(device, (resolution, fbl, pm, sub))
                 else:
-                    self._handshake_done.emit(device, None)
+                    self._hs_notifier.done.emit(device, None)
             except Exception as e:
-                log.warning("Background handshake failed: %s", e)
-                self._handshake_done.emit(device, None)
+                log.warning("Handshake failed: %s", e)
+                self._hs_notifier.done.emit(device, None)
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_handshake_done(self, device: DeviceInfo, data: tuple | None):
+    def _on_handshake_done(self, device: DeviceInfo, data: tuple | None) -> None:
         self._handshake_pending = False
         if not data:
             self.uc_preview.set_status("Handshake failed — replug device")
@@ -1314,16 +1321,21 @@ class TRCCApp(QMainWindow):
         if not resolution or resolution == (0, 0):
             self.uc_preview.set_status("Handshake failed — no resolution")
             return
-        log.info("Handshake OK: %s -> %s (FBL=%s, PM=%s, SUB=%s)",
-                 device.path, resolution, fbl, pm, sub)
+        log.info("Handshake OK: %s -> %s (FBL=%s)", device.path, resolution, fbl)
         device.resolution = resolution
         if fbl:
             device.fbl_code = fbl
             self._resolve_device_identity(device, pm or fbl, sub)
-        # use_jpeg is computed from protocol + fbl — no propagation needed
-        self._on_device_selected(device)
 
-    def _resolve_device_identity(self, device: DeviceInfo, pm: int, sub: int = 0):
+        handler = self._lcd_handlers.get(device.path)
+        if handler:
+            w, h = resolution
+            handler.apply_device_config(device, w, h)
+            self._update_ldd_icon()
+            if Settings.show_info_module():
+                self.uc_info_module.setVisible(True)
+
+    def _resolve_device_identity(self, device: DeviceInfo, pm: int, sub: int = 0) -> None:
         from ..core.models import get_button_image
         btn_img = get_button_image(pm, sub)
         if not btn_img:
@@ -1336,69 +1348,38 @@ class TRCCApp(QMainWindow):
                 dev['name'] = f"Thermalright {product}"
                 self.uc_device.update_device_button(dev)
                 break
-        Settings.save_device_setting(
-            self._active_device_key, 'resolved_button_image', btn_img)
-        Settings.save_device_setting(
-            self._active_device_key, 'resolved_product', product)
+        active_key = Settings.device_config_key(device.device_index, device.vid, device.pid)
+        Settings.save_device_setting(active_key, 'resolved_button_image', btn_img)
+        Settings.save_device_setting(active_key, 'resolved_product', product)
 
-    # ── Device Poll ────────────────────────────────────────────────
+    # ── Theme Event Handlers ─────────────────────────────────────────
 
-    def _on_device_poll(self):
-        try:
-            has_lcd = bool(self._lcd_handler and self._lcd_handler.display.connected)
-            has_device = has_lcd or self._led.active
-
-            if getattr(self, '_prev_had_lcd', False) and not has_lcd:
-                log.info("LCD device disconnected — resuming scan")
-            self._prev_had_lcd = has_lcd
-
-            if not has_device:
-                devices = find_lcd_devices()
-                self.uc_device.update_devices(devices)
-
-                # Auto-select first device
-                if devices and not self._led.active:
-                    device = DeviceInfo.from_dict(devices[0])
-                    if device.implementation == 'hid_led':
-                        self._led.show(device)
-                        self._show_view('led')
-                        self._mediator.ensure_running()
-                    else:
-                        self._on_device_selected(device)
-
-                has_device = has_lcd or self._led.active
-
-            interval = 15000 if has_device else 5000
-            if self._device_timer.interval() != interval:
-                self._device_timer.start(interval)
-        except Exception as e:
-            log.error("Device poll error: %s", e)
-
-    # ── Theme Event Handlers ───────────────────────────────────────
-
-    def _on_local_theme_clicked(self, theme_info):
-        if self._lcd_handler:
-            self._lcd_handler.select_theme_from_path(Path(theme_info.path))
-            self._mediator.ensure_running()
+    def _on_local_theme_clicked(self, theme_info: Any) -> None:
+        h = self._active_lcd()
+        if h:
+            h.select_theme_from_path(Path(theme_info.path))
             name = theme_info.name
             if name.startswith('Custom_'):
                 name = name[len('Custom_'):]
             self.theme_name_input.setText(name)
 
-    def _on_cloud_theme_clicked(self, theme_info):
-        if self._lcd_handler:
-            self._lcd_handler.select_cloud_theme(theme_info)
-            self._mediator.ensure_running()
+    def _on_cloud_theme_clicked(self, theme_info: Any) -> None:
+        h = self._active_lcd()
+        if h:
+            h.select_cloud_theme(theme_info)
 
-    def _on_mask_clicked(self, mask_info):
-        if self._lcd_handler:
-            self._lcd_handler.apply_mask(mask_info)
+    def _on_mask_clicked(self, mask_info: Any) -> None:
+        h = self._active_lcd()
+        if h:
+            h.apply_mask(mask_info)
 
-    def _on_local_delegate(self, cmd, info, data):
-        if cmd == UCThemeLocal.CMD_SLIDESHOW and self._lcd_handler:
-            self._lcd_handler.on_slideshow_delegate()
+    def _on_local_delegate(self, cmd: Any, info: Any, data: Any) -> None:
+        if cmd == UCThemeLocal.CMD_SLIDESHOW:
+            h = self._active_lcd()
+            if h:
+                h.on_slideshow_delegate()
 
-    def _on_delete_theme(self, theme_info):
+    def _on_delete_theme(self, theme_info: Any) -> None:
         from PySide6.QtWidgets import QMessageBox
         reply = QMessageBox.question(
             self, "Delete Theme", f"Delete theme '{theme_info.name}'?",
@@ -1406,172 +1387,163 @@ class TRCCApp(QMainWindow):
             QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.uc_theme_local.delete_theme(theme_info)
-            if (self._lcd_handler
-                    and self._lcd_handler.display.current_theme_path
-                    and str(self._lcd_handler.display.current_theme_path) == theme_info.path):
-                self._lcd_handler.display.current_image = None
+            h = self._active_lcd()
+            if (h and h.display.current_theme_path
+                    and str(h.display.current_theme_path) == theme_info.path):
+                h.display.current_image = None
                 self.uc_preview.set_image(None)
             self.uc_preview.set_status(f"Deleted: {theme_info.name}")
 
-    # ── Settings Delegates ─────────────────────────────────────────
+    # ── Settings Delegates ──────────────────────────────────────────
 
-    def _on_settings_delegate(self, cmd, info, data):
+    def _on_settings_delegate(self, cmd: Any, info: Any, data: Any) -> None:
+        h = self._active_lcd()
         if cmd == UCThemeSetting.CMD_BACKGROUND_LOAD_IMAGE:
             self._on_load_image_clicked()
         elif cmd == UCThemeSetting.CMD_BACKGROUND_LOAD_VIDEO:
             self._on_load_video_clicked()
         elif cmd == UCThemeSetting.CMD_MASK_TOGGLE:
-            if self._lcd_handler:
-                self._lcd_handler.display.set_overlay_mask_visible(info)
-                self._lcd_handler._render_and_send()
+            if h:
+                h.display.set_overlay_mask_visible(info)
+                h._render_and_send()
         elif cmd == UCThemeSetting.CMD_MASK_UPLOAD:
             self._on_mask_upload_clicked()
         elif cmd == UCThemeSetting.CMD_MASK_POSITION:
-            if self._lcd_handler and info:
-                self._lcd_handler.update_mask_position(info[0], info[1])
+            if h and info:
+                h.update_mask_position(info[0], info[1])
         elif cmd == UCThemeSetting.CMD_MASK_VISIBILITY:
-            if self._lcd_handler:
-                self._lcd_handler.display.set_overlay_mask_visible(info)
-                self._lcd_handler._render_and_send()
+            if h:
+                h.display.set_overlay_mask_visible(info)
+                h._render_and_send()
         elif cmd == UCThemeSetting.CMD_MASK_LOAD:
             self._show_panel(3)
         elif cmd == UCThemeSetting.CMD_MASK_CLOUD:
-            self._show_panel(3)  # C# buttonYDMB_Click — cloud masks
+            self._show_panel(3)
         elif cmd == UCThemeSetting.CMD_VIDEO_LOAD:
             self._on_media_player_load_clicked()
-        elif cmd == 51:  # C# buttonYDZT_Click — switch to cloud theme panel
+        elif cmd == 51:
             self._show_panel(1)
         elif cmd == UCThemeSetting.CMD_VIDEO_TOGGLE:
             self._on_video_display_toggle(info)
         elif cmd == UCThemeSetting.CMD_OVERLAY_CHANGED:
-            if self._lcd_handler:
-                self._lcd_handler.on_overlay_changed(
-                    info if isinstance(info, dict) else {})
+            if h:
+                h.on_overlay_changed(info if isinstance(info, dict) else {})
 
-    def _on_preview_delegate(self, cmd, info, data):
-        if not self._lcd_handler:
+    def _on_preview_delegate(self, cmd: Any, info: Any, data: Any) -> None:
+        h = self._active_lcd()
+        if not h:
             return
         if cmd == UCPreview.CMD_VIDEO_PLAY_PAUSE:
-            self._lcd_handler.play_pause()
+            h.play_pause()
         elif cmd == UCPreview.CMD_VIDEO_SEEK:
-            self._lcd_handler.seek(info)
+            h.seek(info)
         elif cmd == UCPreview.CMD_VIDEO_FIT_WIDTH:
-            self._lcd_handler.set_video_fit_mode('width')
+            h.set_video_fit_mode('width')
         elif cmd == UCPreview.CMD_VIDEO_FIT_HEIGHT:
-            self._lcd_handler.set_video_fit_mode('height')
+            h.set_video_fit_mode('height')
 
-    # ── Background / Screencast / Video Toggles ────────────────────
-    # C# mutual exclusion: each mode sets the other two to false.
-    # UI panels already disable each other in _on_mode_changed;
-    # these handlers clean up the backend state of the displaced mode.
+    # ── Background / Screencast / Video Toggles ─────────────────────
 
-    def _on_background_toggle(self, enabled: bool):
-        if not self._lcd_handler:
+    def _on_background_toggle(self, enabled: bool) -> None:
+        h = self._active_lcd()
+        if not h:
             return
         if enabled:
-            # C# case 1: myTpxs=false, mySpxs=false
             self._screencast.toggle(False)
-        self._lcd_handler.on_background_toggle(enabled)
-        self._mediator.ensure_running()
+        h.on_background_toggle(enabled)
 
-    def _on_screencast_toggle(self, enabled: bool):
-        if not self._lcd_handler:
+    def _on_screencast_toggle(self, enabled: bool) -> None:
+        h = self._active_lcd()
+        if not h:
             return
         if enabled:
-            # C# case 2: myBjxs=false, mySpxs=false
-            self._lcd_handler.stop_timers()
-            self._lcd_handler.display.stop_video()
-            self._lcd_handler.is_background_active = False
-            w, h = self._lcd_handler.display.lcd_size
-            self._screencast.set_lcd_size(w, h)
+            h.stop_timers()
+            h.display.stop_video()
+            h.is_background_active = False
+            w, hw = h.display.lcd_size
+            self._screencast.set_lcd_size(w, hw)
         self._screencast.toggle(enabled)
-        self.uc_preview.set_status(
-            f"Screencast: {'On' if enabled else 'Off'}")
+        self.uc_preview.set_status(f"Screencast: {'On' if enabled else 'Off'}")
 
-    def _on_video_display_toggle(self, enabled):
-        if not self._lcd_handler:
+    def _on_video_display_toggle(self, enabled: bool) -> None:
+        h = self._active_lcd()
+        if not h:
             return
-        if enabled:
-            # Toggle ON: UI gate only — enable Load button, don't touch display
-            pass
-        else:
-            # Toggle OFF: stop media player video and resume the background theme
-            if self._lcd_handler.display.video_has_frames():
-                self._lcd_handler._animation_timer.stop()
-                self._lcd_handler.display.stop_video()
+        if not enabled:
+            if h.display.video_has_frames():
+                h._animation_timer.stop()
+                h.display.stop_video()
                 self.uc_preview.set_playing(False)
                 self.uc_preview.show_video_controls(False)
-            # Always reload last theme on toggle OFF
-            last_path = self._lcd_handler.display.current_theme_path
+            last_path = h.display.current_theme_path
             if last_path:
-                self._lcd_handler.select_theme_from_path(Path(last_path))
+                h.select_theme_from_path(Path(last_path))
 
-    def _on_screencast_frame(self, image):
-        if self._lcd_handler:
-            self._lcd_handler.on_screencast_frame(image)
+    def _on_screencast_frame(self, image: Any) -> None:
+        h = self._active_lcd()
+        if h:
+            h.on_screencast_frame(image)
 
-    # ── File Dialogs ───────────────────────────────────────────────
+    # ── File Dialogs ────────────────────────────────────────────────
 
-    def _on_load_video_clicked(self):
+    def _on_load_video_clicked(self) -> None:
         web_dir = str(_conf.settings.web_dir) if _conf.settings.web_dir else ""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Video", web_dir,
             "Video Files (*.mp4 *.avi *.mov *.gif);;All Files (*)")
-        if path and self._lcd_handler:
-            w, h = self._lcd_handler.display.lcd_size
-            self.uc_video_cut.set_resolution(w, h)
+        h = self._active_lcd()
+        if path and h:
+            w, hw = h.display.lcd_size
+            self.uc_video_cut.set_resolution(w, hw)
             self.uc_video_cut.load_video(path)
             self._show_cutter('video')
 
-    def _on_media_player_load_clicked(self):
-        """Load and play a video directly on the LCD — no cutter, no Theme.zt encoding."""
+    def _on_media_player_load_clicked(self) -> None:
         web_dir = str(_conf.settings.web_dir) if _conf.settings.web_dir else ""
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Video", web_dir,
             "Video Files (*.mp4 *.avi *.mkv *.mov *.gif);;All Files (*)")
-        if not path or not self._lcd_handler:
+        h = self._active_lcd()
+        if not path or not h:
             return
-
-        # Stop all competing sources before loading: background, screencast, overlay
         self._screencast.toggle(False)
-        self._lcd_handler.is_background_active = False
-        self._lcd_handler._animation_timer.stop()
-        self._lcd_handler.display.stop_video()
-        self._lcd_handler.display.enable(False)  # overlay off — don't overwrite video frames
-
-        result = self._lcd_handler.display.load_video(path)
+        h.is_background_active = False
+        h._animation_timer.stop()
+        h.display.stop_video()
+        h.display.enable(False)
+        result = h.display.load_video(path)
         if not result.get("success"):
             self.uc_preview.set_status(f"Error: {result.get('error', 'Failed to load video')}")
             return
-        self._lcd_handler.display.play_video()
-        interval = self._lcd_handler.display.interval
-        self._lcd_handler._animation_timer.start(interval)
+        h.display.play_video()
+        h._animation_timer.start(h.display.interval)
         self.uc_preview.set_playing(True)
         self.uc_preview.show_video_controls(True)
         self.uc_preview.set_status(f"Playing: {Path(path).name}")
 
-    def _on_load_image_clicked(self):
+    def _on_load_image_clicked(self) -> None:
         self._cut_mode = 'background'
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Image", "",
             "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)")
-        if path and self._lcd_handler:
+        h = self._active_lcd()
+        if path and h:
             from PySide6.QtGui import QImage as _QImage
             img = _QImage(path)
             if img.isNull():
                 self.uc_preview.set_status("Error: could not load image")
             else:
-                w, h = self._lcd_handler.display.lcd_size
-                self.uc_image_cut.load_image(img, w, h)
+                w, hw = h.display.lcd_size
+                self.uc_image_cut.load_image(img, w, hw)
                 self._show_cutter('image')
 
-    def _on_mask_upload_clicked(self):
-        """Open file picker for mask PNG, then show crop dialog."""
+    def _on_mask_upload_clicked(self) -> None:
         self._cut_mode = 'mask'
         path, _ = QFileDialog.getOpenFileName(
             self, "Upload Mask Image", "",
             "PNG Images (*.png);;All Files (*)")
-        if path and self._lcd_handler:
+        h = self._active_lcd()
+        if path and h:
             from PySide6.QtGui import QImage as _QImage
             img = _QImage(path)
             if img.isNull():
@@ -1579,83 +1551,80 @@ class TRCCApp(QMainWindow):
                 self._cut_mode = 'background'
             else:
                 self._mask_upload_filename = Path(path).stem
-                w, h = self._lcd_handler.display.lcd_size
-                self.uc_image_cut.load_image(img, w, h)
+                w, hw = h.display.lcd_size
+                self.uc_image_cut.load_image(img, w, hw)
                 self._show_cutter('image')
 
-    def _on_save_clicked(self):
+    def _on_save_clicked(self) -> None:
         name = self.theme_name_input.text().strip()
         if not name:
             self.uc_preview.set_status("Enter a theme name first")
             return
-        if self._lcd_handler:
-            self._lcd_handler.save_theme(name)
+        h = self._active_lcd()
+        if h:
+            h.save_theme(name)
 
-    def _on_export_clicked(self):
+    def _on_export_clicked(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Theme", "",
             "Theme files (*.tr);;JSON (*.json);;All Files (*)")
-        if path and self._lcd_handler:
-            self._lcd_handler.export_config(Path(path))
+        h = self._active_lcd()
+        if path and h:
+            h.export_config(Path(path))
 
-    def _on_import_clicked(self):
+    def _on_import_clicked(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Import Theme", "",
             "Theme files (*.tr);;JSON (*.json);;All Files (*)")
-        if path and self._lcd_handler:
-            self._lcd_handler.import_config(Path(path))
+        h = self._active_lcd()
+        if path and h:
+            h.import_config(Path(path))
 
-    # ── Image/Video Cutters ────────────────────────────────────────
+    # ── Image/Video Cutters ─────────────────────────────────────────
 
-    def _show_cutter(self, kind: str):
+    def _show_cutter(self, kind: str) -> None:
         self.uc_preview.setVisible(False)
         self.uc_image_cut.setVisible(kind == 'image')
         self.uc_video_cut.setVisible(kind == 'video')
         (self.uc_image_cut if kind == 'image' else self.uc_video_cut).raise_()
 
-    def _hide_cutters(self):
+    def _hide_cutters(self) -> None:
         self.uc_image_cut.setVisible(False)
         self.uc_video_cut.setVisible(False)
         self.uc_preview.setVisible(True)
 
-    def _on_image_cut_done(self, result):
+    def _on_image_cut_done(self, result: Any) -> None:
         self._hide_cutters()
-        if result is None or not self._lcd_handler:
+        h = self._active_lcd()
+        if result is None or not h:
             self.uc_preview.set_status("Image crop cancelled")
             self._cut_mode = 'background'
             return
-
         if self._cut_mode == 'mask':
             self._save_and_apply_custom_mask(result)
         else:
-            # C# UpDateUCImageCut: kill video, set static image
-            self._lcd_handler.stop_video()
-            self._lcd_handler.display.set_overlay_background(result)
-            self._lcd_handler._render_and_send()
+            h.stop_video()
+            h.display.set_overlay_background(result)
+            h._render_and_send()
             self.uc_preview.set_status("Image loaded")
         self._cut_mode = 'background'
 
-    def _save_and_apply_custom_mask(self, cropped: object) -> None:
-        """Save cropped QImage as a custom mask and apply it."""
+    def _save_and_apply_custom_mask(self, cropped: Any) -> None:
         import re
 
         from PySide6.QtGui import QImage as _QImage
         from PySide6.QtGui import QPainter as _QPainter
 
         from ..core.models import MaskItem
-
-        if not self._lcd_handler:
+        h = self._active_lcd()
+        if not h:
             return
-
-        # Accept QImage only — UCImageCut now emits QImage
         if not isinstance(cropped, _QImage) or cropped.isNull():
             return
-
-        w, h = self._lcd_handler.display.lcd_size
-        user_dir = Path(_conf.settings._path_resolver.user_masks_dir(w, h))
+        w, hw = h.display.lcd_size
+        user_dir = Path(_conf.settings._path_resolver.user_masks_dir(w, hw))
         user_dir.mkdir(parents=True, exist_ok=True)
 
-        # Name from original filename stem — sanitize and deduplicate
         raw_name = self._mask_upload_filename or 'custom_001'
         mask_name = re.sub(r'[^\w\-]', '_', raw_name).strip('_') or 'custom'
         base_name = mask_name
@@ -1667,97 +1636,90 @@ class TRCCApp(QMainWindow):
         mask_dir = user_dir / mask_name
         mask_dir.mkdir(parents=True, exist_ok=True)
 
-        # Ensure ARGB32 and correct size → 01.png
         from PySide6.QtCore import Qt as _Qt
         img = cropped.convertToFormat(_QImage.Format.Format_ARGB32)
-        if img.width() != w or img.height() != h:
-            img = img.scaled(w, h,
-                             _Qt.AspectRatioMode.IgnoreAspectRatio,
+        if img.width() != w or img.height() != hw:
+            img = img.scaled(w, hw, _Qt.AspectRatioMode.IgnoreAspectRatio,
                              _Qt.TransformationMode.SmoothTransformation)
         img.save(str(mask_dir / '01.png'))
 
-        # Generate thumbnail → Theme.png (120x120 black bg, centered)
         thumb_size = 120
         scale = min(thumb_size / max(img.width(), 1), thumb_size / max(img.height(), 1))
         tw = int(img.width() * scale)
         th = int(img.height() * scale)
-        thumb = img.scaled(tw, th,
-                           _Qt.AspectRatioMode.IgnoreAspectRatio,
+        thumb = img.scaled(tw, th, _Qt.AspectRatioMode.IgnoreAspectRatio,
                            _Qt.TransformationMode.SmoothTransformation)
         bg = _QImage(thumb_size, thumb_size, _QImage.Format.Format_RGB32)
         bg.fill(0)
-        px = (thumb_size - tw) // 2
-        py = (thumb_size - th) // 2
         painter = _QPainter(bg)
-        painter.drawImage(px, py, thumb)
+        painter.drawImage((thumb_size - tw) // 2, (thumb_size - th) // 2, thumb)
         painter.end()
         bg.save(str(mask_dir / 'Theme.png'))
-
         log.info("Imported custom mask: %s", mask_name)
 
-        # Apply the mask
         new_item = MaskItem(
-            name=mask_name,
-            path=str(mask_dir),
+            name=mask_name, path=str(mask_dir),
             preview=str(mask_dir / 'Theme.png'),
-            is_local=True,
-            is_custom=True,
-        )
-        self._lcd_handler.apply_mask(new_item)
-
-        # Refresh cloud masks grid so the new mask appears
+            is_local=True, is_custom=True)
+        h.apply_mask(new_item)
         if hasattr(self, 'uc_theme_mask'):
             self.uc_theme_mask.refresh_masks()
-
         self.uc_preview.set_status(f"Custom mask '{mask_name}' uploaded")
 
-    def _on_video_cut_done(self, zt_path):
+    def _on_video_cut_done(self, zt_path: Any) -> None:
         self._hide_cutters()
-        if zt_path and self._lcd_handler:
-            # C# UpDateUCVideoCut: load video, start animated playback
-            self._lcd_handler.display.load_video(Path(zt_path))
-            self._lcd_handler.display.play_video()
-            interval = self._lcd_handler.display.video.interval
-            self._lcd_handler._animation_timer.start(interval)
+        h = self._active_lcd()
+        if zt_path and h:
+            h.display.load_video(Path(zt_path))
+            h.display.play_video()
+            h._animation_timer.start(h.display.video.interval)
             self.uc_preview.set_playing(True)
             self.uc_preview.show_video_controls(True)
             self.uc_preview.set_status("Video loaded")
         else:
             self.uc_preview.set_status("Video cut cancelled")
 
-    # ── Activity Sidebar / Overlay ─────────────────────────────────
+    # ── Activity Sidebar / Overlay ───────────────────────────────────
 
-    def _on_overlay_add_requested(self):
+    def _on_overlay_add_requested(self) -> None:
         self.uc_activity_sidebar.setVisible(True)
         self.uc_activity_sidebar.raise_()
-        self._mediator.ensure_running()
 
-    def _on_sensor_element_add(self, config):
+    def _on_sensor_element_add(self, config: Any) -> None:
         self.uc_theme_setting.overlay_grid.add_element(config)
         self.uc_activity_sidebar.setVisible(False)
 
-    def _on_overlay_toggle(self, enabled):
-        if self._lcd_handler:
-            self._lcd_handler.display.enable_overlay(enabled)
-            self._mediator.ensure_running()
-        if self._active_device_key:
-            cfg = Settings.get_device_config(self._active_device_key)
+    def _on_overlay_toggle(self, enabled: bool) -> None:
+        h = self._active_lcd()
+        if h:
+            h.display.enable_overlay(enabled)
+
+        active_key = Settings.device_config_key(
+            *self._active_device_index_vid_pid())
+        if active_key:
+            cfg = Settings.get_device_config(active_key)
             overlay = cfg.get('overlay', {})
             overlay['enabled'] = enabled
-            Settings.save_device_setting(
-                self._active_device_key, 'overlay', overlay)
+            Settings.save_device_setting(active_key, 'overlay', overlay)
 
-    def _on_element_flash(self, index: int, config: dict):
-        if self._lcd_handler:
-            self._lcd_handler.flash_element(index)
+    def _active_device_index_vid_pid(self) -> tuple[int, int, int]:
+        h = self._active_lcd()
+        if h and h.display and h.display.device_info:
+            info = h.display.device_info
+            return info.device_index, info.vid, info.pid
+        return 0, 0, 0
 
-    # ── Drag / Nudge ───────────────────────────────────────────────
+    def _on_element_flash(self, index: int, config: dict) -> None:
+        h = self._active_lcd()
+        if h:
+            h.flash_element(index)
 
-    def _on_drag_start(self, lcd_x: int, lcd_y: int):
+    # ── Drag / Nudge ────────────────────────────────────────────────
+
+    def _on_drag_start(self, lcd_x: int, lcd_y: int) -> None:
         grid = self.uc_theme_setting.overlay_grid
         cfg = grid.get_selected_config()
         if cfg is None:
-            # Auto-select nearest element to click position
             idx = grid.find_nearest_element(lcd_x, lcd_y)
             if idx < 0:
                 return
@@ -1770,42 +1732,40 @@ class TRCCApp(QMainWindow):
         self._drag_elem_x = cfg.x
         self._drag_elem_y = cfg.y
 
-    def _on_drag_move(self, lcd_x: int, lcd_y: int):
+    def _on_drag_move(self, lcd_x: int, lcd_y: int) -> None:
         cfg = self.uc_theme_setting.overlay_grid.get_selected_config()
-        if cfg is None or not self._lcd_handler:
+        h = self._active_lcd()
+        if cfg is None or not h:
             return
-        w, h = self._lcd_handler.display.lcd_size
-        dx = lcd_x - self._drag_origin_x
-        dy = lcd_y - self._drag_origin_y
-        new_x = max(0, min(self._drag_elem_x + dx, w))
-        new_y = max(0, min(self._drag_elem_y + dy, h))
+        w, hw = h.display.lcd_size
+        new_x = max(0, min(self._drag_elem_x + (lcd_x - self._drag_origin_x), w))
+        new_y = max(0, min(self._drag_elem_y + (lcd_y - self._drag_origin_y), hw))
         self.uc_theme_setting.color_panel.set_position(new_x, new_y)
         self.uc_theme_setting._on_position_changed(new_x, new_y)
 
-    def _on_nudge(self, dx: int, dy: int):
-        grid = self.uc_theme_setting.overlay_grid
-        cfg = grid.get_selected_config()
-        if cfg is None:
+    def _on_nudge(self, dx: int, dy: int) -> None:
+        cfg = self.uc_theme_setting.overlay_grid.get_selected_config()
+        h = self._active_lcd()
+        if cfg is None or not h:
             return
-        if not self._lcd_handler:
-            return
-        w, h = self._lcd_handler.display.lcd_size
+        w, hw = h.display.lcd_size
         new_x = max(0, min(cfg.x + dx, w))
-        new_y = max(0, min(cfg.y + dy, h))
+        new_y = max(0, min(cfg.y + dy, hw))
         self.uc_theme_setting.color_panel.set_position(new_x, new_y)
         self.uc_theme_setting._on_position_changed(new_x, new_y)
 
-    # ── Display Settings (rotation, brightness, split) ─────────────
+    # ── Display Settings ────────────────────────────────────────────
 
-    def _on_rotation_change(self, index):
-        if self._lcd_handler:
-            self._lcd_handler.set_rotation(index * 90)
-            self.uc_preview.set_status(f"Rotation: {index * 90}\u00b0")
+    def _on_rotation_change(self, index: int) -> None:
+        h = self._active_lcd()
+        if h:
+            h.set_rotation(index * 90)
+            self.uc_preview.set_status(f"Rotation: {index * 90}°")
 
-    def _on_ldd_click(self):
-        if not self._lcd_handler:
+    def _on_ldd_click(self) -> None:
+        h = self._active_lcd()
+        if not h:
             return
-        h = self._lcd_handler
         if h.ldd_is_split:
             mode = (h.split_mode % 3) + 1
             h.set_split_mode(mode)
@@ -1816,14 +1776,12 @@ class TRCCApp(QMainWindow):
             h.set_brightness(level)
             self._update_ldd_icon()
             from ..core.models import BRIGHTNESS_LEVELS
-            percent = BRIGHTNESS_LEVELS[level]
-            self.uc_preview.set_status(
-                f"Brightness: L{level} ({percent}%)")
+            self.uc_preview.set_status(f"Brightness: L{level} ({BRIGHTNESS_LEVELS[level]}%)")
 
-    def _update_ldd_icon(self):
-        if not self._lcd_handler:
+    def _update_ldd_icon(self) -> None:
+        h = self._active_lcd()
+        if not h:
             return
-        h = self._lcd_handler
         level = h.split_mode if h.ldd_is_split else h.brightness_level
         pix = self._ldd_pixmaps.get(level)
         if pix and not pix.isNull():
@@ -1835,62 +1793,60 @@ class TRCCApp(QMainWindow):
             self.ldd_btn.setText(label)
             self.ldd_btn.setStyleSheet(Styles.TEXT_BUTTON)
 
-    # ── Global Settings ────────────────────────────────────────────
+    # ── Global Settings ─────────────────────────────────────────────
 
-    def _on_temp_unit_changed(self, unit: str):
+    def _on_temp_unit_changed(self, unit: str) -> None:
         temp_int = 1 if unit == 'F' else 0
-        if self._lcd_handler:
-            self._lcd_handler.display.set_overlay_temp_unit(temp_int)
+        h = self._active_lcd()
+        if h:
+            h.display.set_overlay_temp_unit(temp_int)
         self.uc_system_info.set_temp_unit(temp_int)
         self.uc_led_control.set_temp_unit(temp_int)
-        self._led.set_temp_unit(unit)
+        for led_h in self._led_handlers.values():
+            led_h.set_temp_unit(unit)
         _conf.settings.set_temp_unit(temp_int)
-        self.uc_preview.set_status(f"Temperature: \u00b0{unit}")
+        self.uc_preview.set_status(f"Temperature: °{unit}")
 
-    def _on_hdd_toggle_changed(self, on: bool):
+    def _on_hdd_toggle_changed(self, on: bool) -> None:
         _conf.settings.set_hdd_enabled(on)
-        self.uc_preview.set_status(
-            f"HDD info: {'Enabled' if on else 'Disabled'}")
+        self.uc_preview.set_status(f"HDD info: {'Enabled' if on else 'Disabled'}")
 
-    def _on_refresh_changed(self, interval: int):
+    def _on_refresh_changed(self, interval: int) -> None:
         _conf.settings.set_refresh_interval(interval)
-        self._mediator.set_interval(interval * 1000)
         self.uc_preview.set_status(f"Refresh: {interval}s")
 
-    def _set_language(self, lang: str):
+    def _set_language(self, lang: str) -> None:
         _conf.settings.lang = lang
         self._apply_settings_backgrounds()
         self.uc_about.sync_language()
         self.uc_led_control.apply_localized_background()
 
-    def _on_help_clicked(self):
+    def _on_help_clicked(self) -> None:
         import webbrowser
         webbrowser.open(
             'https://github.com/Lexonight1/thermalright-trcc-linux'
             '/blob/main/doc/TROUBLESHOOTING.md')
 
-    def _on_capture_requested(self):
+    def _on_capture_requested(self) -> None:
         from .screen_capture import ScreenCaptureOverlay
         self._capture_overlay = ScreenCaptureOverlay()
         self._capture_overlay.captured.connect(self._on_screen_captured)
         self._capture_overlay.show()
 
-    def _on_screen_captured(self, pixmap):
+    def _on_screen_captured(self, pixmap: Any) -> None:
         self._capture_overlay = None
-        if pixmap is None or not self._lcd_handler:
+        h = self._active_lcd()
+        if pixmap is None or not h:
             return
         from PySide6.QtGui import QPixmap as _QPixmap
-        if isinstance(pixmap, _QPixmap):
-            img = pixmap.toImage()
-        else:
-            img = pixmap  # already QImage
+        img = pixmap.toImage() if isinstance(pixmap, _QPixmap) else pixmap
         if img.isNull():
             return
-        w, h = self._lcd_handler.display.lcd_size
-        self.uc_image_cut.load_image(img, w, h)
+        w, hw = h.display.lcd_size
+        self.uc_image_cut.load_image(img, w, hw)
         self._show_cutter('image')
 
-    def _on_eyedropper_requested(self):
+    def _on_eyedropper_requested(self) -> None:
         from .eyedropper import EyedropperOverlay
         self._eyedropper_overlay = EyedropperOverlay()
         self._eyedropper_overlay.color_picked.connect(self._eyedropper_pick)
@@ -1898,22 +1854,22 @@ class TRCCApp(QMainWindow):
             lambda: setattr(self, '_eyedropper_overlay', None))
         self._eyedropper_overlay.show()
 
-    def _eyedropper_pick(self, r, g, b):
+    def _eyedropper_pick(self, r: int, g: int, b: int) -> None:
         self._eyedropper_overlay = None
         self.uc_theme_setting.color_panel._apply_color(r, g, b)
 
-    # ── Carousel Config ────────────────────────────────────────────
+    # ── Carousel Config ─────────────────────────────────────────────
 
-    def _load_carousel_config(self, theme_dir: Path):
-        config_path = theme_dir / 'Theme.dc'
-        config = read_carousel_config(str(config_path))
+    def _load_carousel_config(self, theme_dir: Path) -> None:
+        config = read_carousel_config(str(theme_dir / 'Theme.dc'))
         if config is None:
             return
         all_themes = self.uc_theme_local._all_themes
-        slideshow_names = []
-        for idx in config.theme_indices:
-            if 0 <= idx < len(all_themes):
-                slideshow_names.append(all_themes[idx].name)
+        slideshow_names = [
+            all_themes[idx].name
+            for idx in config.theme_indices
+            if 0 <= idx < len(all_themes)
+        ]
         self.uc_theme_local._lunbo_array = slideshow_names
         self.uc_theme_local._slideshow = config.enabled
         self.uc_theme_local._slideshow_interval = config.interval_seconds
@@ -1926,61 +1882,17 @@ class TRCCApp(QMainWindow):
                 self.uc_theme_local.slideshow_btn.size())
         self.uc_theme_local._apply_decorations()
 
-    # ── MetricsMediator ────────────────────────────────────────────
+    # ── Window Events ───────────────────────────────────────────────
 
-    def _setup_mediator(self):
-        from .metrics_mediator import MetricsMediator
-        self._mediator = MetricsMediator(
-            self, metrics_fn=lambda: self._system_svc.all_metrics)
-        self._mediator.subscribe(
-            self._on_overlay_tick, period=1,
-            guard=lambda: (
-                self._lcd_handler is not None
-                and self._lcd_handler.display.connected))
-        self._mediator.subscribe(
-            self._on_keepalive_tick, period=20,
-            guard=lambda: (
-                self._lcd_handler is not None
-                and self._lcd_handler.display.connected))
-        self._mediator.subscribe(
-            self._on_led_metrics, period=1,
-            guard=lambda: self._led.active)
-        self._mediator.subscribe(
-            self.uc_info_module.update_from_metrics, period=3,
-            guard=lambda: self.is_app_visible() and self.uc_info_module.isVisible())
-        self._mediator.subscribe(
-            self.uc_activity_sidebar.update_from_metrics, period=1,
-            guard=lambda: self.is_app_visible() and self.uc_activity_sidebar.isVisible())
-
-    def _on_overlay_tick(self, metrics) -> None:
-        if self._lcd_handler:
-            self._lcd_handler.on_overlay_tick(metrics)
-
-    def _on_keepalive_tick(self, metrics) -> None:
-        if self._lcd_handler:
-            self._lcd_handler.keepalive()
-
-    def _on_led_metrics(self, metrics) -> None:
-        if self._led.has_controller:
-            self._led.update_from_metrics(metrics)
-
-    # ── Window Events ──────────────────────────────────────────────
-
-    def hideEvent(self, event):
-        super().hideEvent(event)
-        self._device_timer.stop()
-
-    def showEvent(self, event):
+    def showEvent(self, event: Any) -> None:
         super().showEvent(event)
-        if not self._device_timer.isActive():
-            self._device_timer.start(5000)
-            self._on_device_poll()
-        # Safety: restart LED tick timer if it stopped while hidden
-        if self._led.active and not self._led._timer.isActive():
-            log.warning("LED tick timer was stopped while hidden — restarting")
-            self._led._timer.start(150)
+        # Safety: restart LED tick timers if stopped while hidden
+        for led_h in self._led_handlers.values():
+            if led_h.active and not led_h._timer.isActive():
+                log.warning("LED tick timer was stopped while hidden — restarting")
+                led_h._timer.start(150)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: Any) -> None:
         if self._decorated or event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
         pos = event.position().toPoint()
@@ -1989,16 +1901,16 @@ class TRCCApp(QMainWindow):
                 event.globalPosition().toPoint() - self.frameGeometry().topLeft())
         event.accept()
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: Any) -> None:
         if self._drag_pos is not None:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
         event.accept()
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: Any) -> None:
         self._drag_pos = None
         event.accept()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: Any) -> None:
         if (not self._force_quit
                 and self._tray.isSystemTrayAvailable()
                 and self._tray.isVisible()
@@ -2012,20 +1924,17 @@ class TRCCApp(QMainWindow):
             return
         self._minimized_to_taskbar = False
 
-        # Full quit
         self._tray.hide()
-        self._device_timer.stop()
         self._screencast.cleanup()
-        self._mediator.stop()
-        self._led.cleanup()
+        for h in list(self._led_handlers.values()):
+            h.cleanup()
+        for h in list(self._lcd_handlers.values()):
+            h.cleanup()
         self.uc_system_info.stop_updates()
         self.uc_info_module.stop_updates()
         self.uc_activity_sidebar.stop_updates()
-        if self._lcd_handler:
-            self._lcd_handler.cleanup()
         if self._ipc_server:
             self._ipc_server.shutdown()
-        # Release USB device handles so the device can be reopened
         from ..adapters.device.factory import DeviceProtocolFactory
         DeviceProtocolFactory.close_all()
         TRCCApp._instance = None
@@ -2033,70 +1942,3 @@ class TRCCApp(QMainWindow):
         app = QApplication.instance()
         if app:
             app.quit()
-
-
-# =============================================================================
-# Entry point
-# =============================================================================
-
-def run_app(data_dir: Path | None = None, decorated: bool = False,
-            start_hidden: bool = False):
-    """Run the TRCC application."""
-    from ..conf import init_settings
-    from ..core.builder import ControllerBuilder as _Builder
-    from .assets import _PKG_ASSETS_DIR, set_assets_dir
-
-    setup = _Builder.build_setup()
-    lock = setup.acquire_instance_lock()
-    if lock is None:
-        setup.raise_existing_instance()
-        return 0
-
-    set_assets_dir(setup.resolve_assets_dir(_PKG_ASSETS_DIR))
-    init_settings(setup)
-
-    os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.services=false")
-    os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
-
-    setup.configure_dpi()
-
-    QApplication.setDesktopFileName("trcc-linux")
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
-    app.setProperty("_instance_lock", lock)
-
-    font = QFont("Microsoft YaHei", 10)
-    if not font.exactMatch():
-        font = QFont("Sans Serif", 10)
-    app.setFont(font)
-
-    window = TRCCApp(data_dir, decorated=decorated)
-
-    # IPC server
-    from ..core.builder import ControllerBuilder
-    from ..core.lcd_device import LCDDevice
-    from ..ipc import IPCServer
-
-    ipc_display = LCDDevice(
-        device_svc=window._lcd_handler.display.device_service
-        if window._lcd_handler else None)
-    ipc_led = ControllerBuilder().build_led()
-    ipc_server = IPCServer(ipc_display, ipc_led)
-    ipc_server.start()
-    window._ipc_server = ipc_server
-
-    # Frame capture for API preview
-    if window._lcd_handler:
-        window._lcd_handler.display.device_service.on_frame_sent = (
-            ipc_server.capture_frame)
-
-    # SIGUSR1 handler (Unix only — Windows has no SIGUSR1 or AF_UNIX sockets)
-    import signal
-
-    signal.signal(signal.SIGINT, lambda *_: app.quit())
-    setup.wire_ipc_raise(app, window)
-
-    if not start_hidden:
-        window.show()
-
-    return app.exec()

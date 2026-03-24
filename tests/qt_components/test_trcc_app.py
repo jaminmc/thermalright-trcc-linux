@@ -715,11 +715,11 @@ class TestLEDHandler:
         """Create a LEDHandler with a real QWidget for QTimer parent."""
         from trcc.qt_components.trcc_app import LEDHandler
 
-        # QTimer needs a real QObject parent, so create with a QWidget
-        # then swap _panel to our mock for signal handler testing.
+        # QTimer needs a real QObject parent, so pass QWidget as panel.
+        # led=None keeps _connect_signals() a no-op; swap _panel after.
         real_parent = QWidget()
         on_temp = MagicMock()
-        h = LEDHandler(real_parent, on_temp)
+        h = LEDHandler(None, real_parent, on_temp)
         h._qt_parent = real_parent  # prevent GC
         h._panel = mock_panel
         h._temp_unit_cb = on_temp
@@ -827,12 +827,9 @@ class TestLEDHandler:
 
     def _show_with_mock_led(self, handler, device, mock_led, style_info,
                             style_id=1):
-        """Helper: call handler.show() with a pre-built mock LEDDevice."""
-        mock_builder = MagicMock()
-        mock_builder.build_led.return_value = mock_led
+        """Helper: wire LED into handler then call show()."""
+        handler._led = mock_led
         with (
-            patch("trcc.core.builder.ControllerBuilder",
-                  return_value=mock_builder),
             patch("trcc.services.led.LEDService") as mock_svc,
             patch("trcc.conf.settings") as mock_settings,
         ):
@@ -862,27 +859,15 @@ class TestLEDHandler:
         handler.stop()
 
     def test_show_wires_get_protocol(self, handler):
-        """show() must use ControllerBuilder.build_led() (regression: #61).
+        """show() calls initialize() on the injected LEDDevice (regression: #61).
 
-        The builder injects get_protocol internally — the GUI no longer
-        creates LEDDevice directly.
+        _led is injected via __init__ (from ControllerBuilder.build_led()),
+        which wires get_protocol. show() must use the injected device, not
+        create a new one.
         """
         device, mock_led, style_info = self._make_device_and_style()
-        mock_builder = MagicMock()
-        mock_builder.build_led.return_value = mock_led
-
-        with (
-            patch("trcc.core.builder.ControllerBuilder",
-                  return_value=mock_builder),
-            patch("trcc.services.led.LEDService") as mock_svc,
-            patch("trcc.conf.settings") as mock_settings,
-        ):
-            mock_svc.resolve_style_id.return_value = 1
-            mock_svc.get_style_info.return_value = style_info
-            mock_settings.temp_unit = 0
-            handler.show(device)
-
-        mock_builder.build_led.assert_called_once()
+        self._show_with_mock_led(handler, device, mock_led, style_info)
+        mock_led.initialize.assert_called_once_with(device, 1)
         handler.stop()
 
     def test_show_starts_timer(self, handler):
@@ -913,16 +898,16 @@ class TestLEDHandler:
     def test_tick_calls_led_tick_and_updates_panel(self, handler):
         mock_led = self._wire_led(handler)
         display_colors = [(255, 0, 0), (0, 255, 0)]
-        mock_led.tick.return_value = {'display_colors': display_colors}
+        mock_led.tick_with_result.return_value = {'display_colors': display_colors}
         handler._active = True
         handler._on_tick()
-        mock_led.tick.assert_called_once()
+        mock_led.tick_with_result.assert_called_once()
         handler._panel.set_led_colors.assert_called_once_with(display_colors)
 
     def test_tick_saves_config_at_interval(self, handler):
         """Config is saved every _SAVE_INTERVAL ticks."""
         mock_led = self._wire_led(handler)
-        mock_led.tick.return_value = {'display_colors': [(255, 0, 0)]}
+        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
         handler._save_counter = handler._SAVE_INTERVAL - 1
         handler._on_tick()
@@ -931,7 +916,7 @@ class TestLEDHandler:
     def test_tick_no_save_before_interval(self, handler):
         """Config is NOT saved before _SAVE_INTERVAL ticks."""
         mock_led = self._wire_led(handler)
-        mock_led.tick.return_value = {'display_colors': [(255, 0, 0)]}
+        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
         handler._save_counter = 0
         handler._on_tick()
@@ -1394,47 +1379,35 @@ class TestCategoryData:
 
 
 class TestDevicePollLEDAutoSelect:
-    """_on_device_poll auto-selects LED devices and must start the mediator.
+    """_activate_device auto-selects LED devices and calls handler.show().
 
     Regression test for #61: on autostart (--last-one), LED device was
-    auto-selected but MetricsMediator.ensure_running() was never called,
-    so the display showed all zeros until the user manually clicked the
-    device button.
+    auto-selected but handler.show() was never called, so the display
+    showed all zeros until the user manually clicked the device button.
     """
 
-    def test_auto_select_led_calls_ensure_running(self, qapp):
-        """When _on_device_poll auto-selects an LED device, ensure_running
-        must be called so metrics flow to the LED display."""
+    def test_auto_select_led_calls_show(self, qapp):
+        """When _activate_device selects an LED path, handler.show() is called
+        if the handler is not yet active."""
         from trcc.qt_components.trcc_app import TRCCApp
 
-        mock_device = {
-            'vid': 0x0416, 'pid': 0x8001,
-            'protocol': 'hid', 'implementation': 'hid_led',
-            'device_type': 0, 'device_index': 0,
-            'product_name': 'LED Controller', 'vendor': 'Winbond',
-            'usb_path': '1-7', 'scsi_device': None,
-            'resolution': (0, 0), 'model': 'PA120_DIGITAL',
-            'led_style_id': 2,
-        }
+        mock_info = MagicMock()
+        mock_info.path = 'led_path'
+
+        mock_handler = MagicMock()
+        mock_handler.active = False
+        mock_handler.led_port.device_info = mock_info
 
         with patch.object(TRCCApp, '__init__', lambda self, *a, **kw: None):
             app = TRCCApp.__new__(TRCCApp)
-            # Wire up minimal state for _on_device_poll
-            app._lcd_handler = None
-            app._led = MagicMock()
-            app._led.active = False  # Not yet active → triggers auto-select
-            app._mediator = MagicMock()
-            app._device_timer = MagicMock()
-            app.uc_device = MagicMock()
-
+            app._lcd_handlers = {}
+            app._led_handlers = {'led_path': mock_handler}
+            app._active_path = ''
             app._show_view = MagicMock()
 
-            with patch('trcc.qt_components.trcc_app.find_lcd_devices',
-                       return_value=[mock_device]):
-                app._on_device_poll()
+            app._activate_device('led_path')
 
-            app._led.show.assert_called_once()
-            app._mediator.ensure_running.assert_called_once()
+        mock_handler.show.assert_called_once_with(mock_info)
 
 
 # =========================================================================

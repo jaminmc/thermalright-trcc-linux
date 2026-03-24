@@ -1,42 +1,35 @@
-"""LCD display CLI commands — thin print wrappers over LCDDevice.
+"""LCD display CLI commands — thin wrappers over Device.
 
-LCDDevice lives in core/lcd_device.py (DIP). These CLI functions are
-presentation-only adapters: connect, call device method, print result.
-
-Blocking loops (video, screencast, test) remain here — terminal-only.
+Presentation-only: builder injected by _cmd_* boundary functions, call method, print result.
 """
 from __future__ import annotations
 
 import os
 
 from trcc.cli import _cli_handler, _device
-from trcc.core.lcd_device import LCDDevice
 from trcc.core.models import parse_hex_color as _parse_hex
 
 # =========================================================================
 # CLI presentation helpers
 # =========================================================================
 
-def _connect_or_fail(device: str | None = None) -> tuple[LCDDevice, int]:
-    """Create device, connect. Returns (device, exit_code).
+def _connect_or_fail(builder, device: str | None = None):  # -> tuple[LCDDevice, int]
+    """Build + connect LCDDevice. Returns (device, exit_code).
 
-    Composition root: injects instance detection (find_active) and proxy
-    factory so core routes through GUI/API if one is already running.
+    Builder injected by the calling command (from ctx.obj at the CLI boundary).
     """
     from trcc.cli import _ensure_renderer
-    from trcc.core.builder import ControllerBuilder
     from trcc.core.instance import find_active
     from trcc.ipc import create_lcd_proxy
     from trcc.services.image import ImageService
-
     _ensure_renderer()
-    builder = ControllerBuilder().with_renderer(ImageService._r())
-    lcd = builder.build_lcd()
+    lcd = builder.with_renderer(ImageService._r()).build_lcd()
     lcd._find_active_fn = find_active
     lcd._proxy_factory_fn = create_lcd_proxy
     result = lcd.connect(device)
     if not result["success"]:
         print(result["error"])
+        print("Run 'trcc report' to diagnose.")
         return lcd, 1
     if result.get("proxy"):
         print(f"Routing through {result['proxy'].value} instance")
@@ -112,7 +105,7 @@ def test(device=None, loop=False, preview=False):
         return 1
 
 
-def play_video(video_path, *, device=None, loop=True, duration=0,
+def play_video(builder, video_path, *, device=None, loop=True, duration=0,
                preview=False, metrics=None, mask=None,
                font_size=14, color='ffffff', font='Microsoft YaHei',
                font_style='regular', temp_unit=0, time_format=0,
@@ -123,12 +116,9 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
             print(f"Error: File not found: {video_path}")
             return 1
 
-        from trcc.cli import _ensure_renderer, _ensure_settings
         from trcc.core.models import build_overlay_config
 
-        _ensure_settings()
-        _ensure_renderer()
-        lcd, rc = _connect_or_fail(device)
+        lcd, rc = _connect_or_fail(builder, device)
         if rc:
             return rc
 
@@ -158,7 +148,7 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
         if overlay_config:
             from trcc.cli import _ensure_system
             from trcc.services.system import get_all_metrics
-            _ensure_system()
+            _ensure_system(builder)
             metrics_fn = get_all_metrics
 
         print(f"Playing {video_path} on {dev_path} [{w}x{h}]")
@@ -210,14 +200,13 @@ def play_video(video_path, *, device=None, loop=True, duration=0,
         return 1
 
 
-def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
+def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
     """Stream screen region to LCD via ffmpeg. Ctrl+C to stop."""
     import subprocess
 
     from PySide6.QtGui import QImage
 
     from trcc.cli import _ensure_renderer
-    from trcc.core.builder import ControllerBuilder
     from trcc.services import ImageService
 
     _ensure_renderer()
@@ -229,7 +218,7 @@ def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
     dev = svc.selected
     lcd_w, lcd_h = dev.resolution
 
-    capture = ControllerBuilder.build_setup().get_screencast_capture(x, y, w, h)
+    capture = builder.build_setup().get_screencast_capture(x, y, w, h)
     if capture is None:
         print("Error: Screencast not supported on this platform.")
         return 1
@@ -297,10 +286,10 @@ def screencast(*, device=None, x=0, y=0, w=0, h=0, fps=10, preview=False):
 # CLI functions — thin wrappers over LCDDevice capabilities
 # =========================================================================
 
-def _display_command(method: str, *args, device: str | None = None,
+def _display_command(builder, method: str, *args, device: str | None = None,
                      preview: bool = False, **kwargs) -> int:
     """Generic: connect LCD, call method on frame ops, print result."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     return _print_result(getattr(lcd.frame, method)(*args, **kwargs),
@@ -308,26 +297,26 @@ def _display_command(method: str, *args, device: str | None = None,
 
 
 @_cli_handler
-def send_image(image_path, device=None, preview=False):
+def send_image(builder, image_path, device=None, preview=False):
     """Send image to LCD."""
-    return _display_command("send_image", image_path, device=device,
+    return _display_command(builder, "send_image", image_path, device=device,
                             preview=preview)
 
 
 @_cli_handler
-def send_color(hex_color, device=None, preview=False):
+def send_color(builder, hex_color, device=None, preview=False):
     """Send solid color to LCD."""
     rgb = _parse_hex(hex_color)
     if not rgb:
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
-    return _display_command("send_color", *rgb, device=device, preview=preview)
+    return _display_command(builder, "send_color", *rgb, device=device, preview=preview)
 
 
 @_cli_handler
-def set_brightness(level, *, device=None):
+def set_brightness(builder, level, *, device=None):
     """Set display brightness level (1=25%, 2=50%, 3=100%)."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     assert lcd.settings is not None
@@ -343,9 +332,9 @@ def set_brightness(level, *, device=None):
 
 
 @_cli_handler
-def set_rotation(degrees, *, device=None):
+def set_rotation(builder, degrees, *, device=None):
     """Set display rotation (0, 90, 180, 270)."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     assert lcd.settings is not None
@@ -353,9 +342,9 @@ def set_rotation(degrees, *, device=None):
 
 
 @_cli_handler
-def set_split_mode(mode, *, device=None, preview=False):
+def set_split_mode(builder, mode, *, device=None, preview=False):
     """Set split mode (Dynamic Island) for widescreen displays."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     assert lcd.settings is not None
@@ -363,25 +352,25 @@ def set_split_mode(mode, *, device=None, preview=False):
 
 
 @_cli_handler
-def load_mask(mask_path, *, device=None, preview=False):
+def load_mask(builder, mask_path, *, device=None, preview=False):
     """Load mask overlay from file/directory and send composited image."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     return _print_result(lcd.load_mask_standalone(mask_path), preview=preview)
 
 
 @_cli_handler
-def render_overlay(dc_path, *, device=None, send=False, output=None,
+def render_overlay(builder, dc_path, *, device=None, send=False, output=None,
                    preview=False):
     """Render overlay from DC config file."""
     from trcc.cli import _ensure_system
     from trcc.services.system import get_all_metrics
 
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
-    _ensure_system()
+    _ensure_system(builder)
     result = lcd.render_overlay_from_dc(
         dc_path, send=send, output=output, metrics=get_all_metrics())
     if not result["success"]:
@@ -400,9 +389,9 @@ def render_overlay(dc_path, *, device=None, send=False, output=None,
 
 
 @_cli_handler
-def reset(device=None, *, preview=False):
+def reset(builder, device=None, *, preview=False):
     """Reset/reinitialize the LCD device."""
-    lcd, rc = _connect_or_fail(device)
+    lcd, rc = _connect_or_fail(builder, device)
     if rc:
         return rc
     print(f"  Device: {lcd.device_path}")
@@ -424,21 +413,11 @@ def video_status(*, device=None):
 
 
 @_cli_handler
-def resume():
+def resume(builder):
     """Send last-used theme to each detected device (headless, no GUI)."""
     import time
 
-    from trcc.adapters.device.detector import DeviceDetector
-    from trcc.adapters.device.factory import DeviceProtocolFactory
-    from trcc.adapters.device.led import probe_led_model
-    from trcc.services import DeviceService
-
-    svc = DeviceService(
-        detect_fn=DeviceDetector.detect,
-        probe_led_fn=probe_led_model,
-        get_protocol=DeviceProtocolFactory.get_protocol,
-        get_protocol_info=DeviceProtocolFactory.get_protocol_info,
-    )
+    svc = builder.build_device_svc()
 
     devices: list = []
     for attempt in range(10):
@@ -464,8 +443,7 @@ def resume():
 
         try:
             svc.select(dev)
-            from trcc.core.builder import ControllerBuilder
-            lcd = ControllerBuilder().lcd_from_service(svc)
+            lcd = builder.lcd_from_service(svc)
             lcd.restore_device_settings()
             result = lcd.load_last_theme()
             if not result.get("success"):

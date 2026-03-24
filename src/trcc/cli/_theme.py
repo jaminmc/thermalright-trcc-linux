@@ -44,7 +44,7 @@ def list_themes(cloud=False, category=None):
 
 
 @_cli_handler
-def load_theme(name, *, device=None, preview=False):
+def load_theme(builder, name, *, device=None, preview=False):
     """Load a theme by name and send to LCD."""
     from trcc.adapters.infra.data_repository import DataManager
     from trcc.conf import Settings, settings
@@ -77,8 +77,7 @@ def load_theme(name, *, device=None, preview=False):
         return 1
 
     # Build LCD with full service stack (DisplayService, OverlayService, etc.)
-    from trcc.core.builder import ControllerBuilder
-    lcd = ControllerBuilder().lcd_from_service(svc)
+    lcd = builder.lcd_from_service(svc)
     lcd.restore_device_settings()
 
     # Use DisplayService.load_local_theme() — same path as GUI
@@ -97,7 +96,7 @@ def load_theme(name, *, device=None, preview=False):
         if lcd._display_svc.overlay.enabled:
             from trcc.cli import _ensure_system
             from trcc.services.system import get_all_metrics
-            _ensure_system()
+            _ensure_system(builder)
             metrics_fn = get_all_metrics
 
         lcd._display_svc.media._state.loop = True

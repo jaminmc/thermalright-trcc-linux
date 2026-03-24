@@ -140,7 +140,7 @@ class DataManager:
     @staticmethod
     def _7z_install_help() -> str:
         from trcc.core.builder import ControllerBuilder
-        return ControllerBuilder.build_setup().archive_tool_install_help()
+        return ControllerBuilder.for_current_os().build_setup().archive_tool_install_help()
 
     # ------------------------------------------------------------------
     # Archive safety

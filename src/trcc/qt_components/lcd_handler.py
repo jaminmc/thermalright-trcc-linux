@@ -455,7 +455,7 @@ class LCDHandler:
 
     def _on_video_tick(self) -> None:
         """Timer callback: advance one video frame."""
-        result = self._lcd.video.tick()
+        result = self._lcd.video_tick()
         if not result:
             return
 

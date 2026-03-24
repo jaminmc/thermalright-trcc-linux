@@ -116,3 +116,28 @@ class BSDScsiTransport:
 
     def __exit__(self, *exc):
         self.close()
+
+
+def bsd_scsi_resolver(vid: int, pid: int) -> str | None:
+    """Map a VID:PID to its /dev/passN path via camcontrol devlist.
+
+    Injected into DeviceDetector by builder on FreeBSD.
+    """
+    try:
+        result = subprocess.run(
+            ['camcontrol', 'devlist'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            if 'pass' in line:
+                paren = line.rsplit('(', 1)
+                if len(paren) == 2:
+                    for d in paren[1].rstrip(')').split(','):
+                        d = d.strip()
+                        if d.startswith('pass'):
+                            return f'/dev/{d}'
+    except Exception:
+        log.debug("camcontrol devlist failed")
+    return None

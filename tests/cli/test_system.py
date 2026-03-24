@@ -720,8 +720,8 @@ class TestSetupSelinux:
         with patch("os.geteuid", return_value=0), \
              patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value=None), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="sudo dnf install checkpolicy"):
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.diagnostics._install_hint", return_value="sudo dnf install checkpolicy"):
             rc = setup_selinux()
         assert rc == 1
 
@@ -737,8 +737,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=False), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"):
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.diagnostics._install_hint", return_value="hint"):
             rc = setup_selinux()
         assert rc == 1
 
@@ -756,8 +756,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.diagnostics._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -783,8 +783,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.diagnostics._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -804,8 +804,8 @@ class TestSetupSelinux:
              patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
              patch("shutil.which", return_value="/usr/bin/checkmodule"), \
              patch("os.path.isfile", return_value=True), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager", return_value="dnf"), \
-             patch("trcc.adapters.infra.doctor._install_hint", return_value="hint"), \
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager", return_value="dnf"), \
+             patch("trcc.adapters.infra.diagnostics._install_hint", return_value="hint"), \
              patch("tempfile.TemporaryDirectory") as mock_tmp, \
              patch("shutil.copy2"):
             mock_tmp.return_value.__enter__ = lambda s: "/tmp/fake"
@@ -1177,17 +1177,19 @@ class TestUninstall:
         pip_calls = [c for c in calls if "pip" in c and "uninstall" in c]
         assert all("--yes" not in c for c in pip_calls)
 
-    def test_non_root_uses_sudo_for_root_files(self, tmp_config):
+    def test_non_root_uses_sudo_for_root_files(self, _mock_builder, tmp_config):
         from trcc.conf import save_config
         save_config({"install_info": {"method": "pip", "distro": "ubuntu"}})
         home = tmp_config / "home"
         home.mkdir()
         calls = []
+        _mock_builder.build_setup.return_value.get_system_files.return_value = ["/etc/udev/rules.d/99-trcc-lcd.rules"]
+        _mock_builder.build_autostart.return_value.is_enabled.return_value = False
 
         with patch("trcc.cli._system._real_user_home", return_value=home), \
              patch("os.geteuid", return_value=1000), \
              patch("os.path.exists", side_effect=lambda p: "/etc/udev" in str(p)), \
-             patch("trcc.adapters.system.linux.setup.subprocess.run",
+             patch("trcc.cli._system.subprocess.run",
                    side_effect=lambda cmd, **kw: calls.append(cmd) or _completed(0)), \
              patch("trcc.cli._system._is_externally_managed", return_value=False):
             uninstall(yes=True)
@@ -1195,12 +1197,14 @@ class TestUninstall:
         sudo_rm_calls = [c for c in calls if "sudo" in c and "rm" in c]
         assert len(sudo_rm_calls) >= 1
 
-    def test_root_removes_files_directly(self, tmp_config):
+    def test_root_removes_files_directly(self, _mock_builder, tmp_config):
         from trcc.conf import save_config
         save_config({"install_info": {"method": "pip", "distro": "ubuntu"}})
         home = tmp_config / "home"
         home.mkdir()
         removed_paths = []
+        _mock_builder.build_setup.return_value.get_system_files.return_value = ["/etc/udev/rules.d/99-trcc-lcd.rules"]
+        _mock_builder.build_autostart.return_value.is_enabled.return_value = False
 
         with patch("trcc.cli._system._real_user_home", return_value=home), \
              patch("os.geteuid", return_value=0), \
@@ -1239,11 +1243,12 @@ class TestUninstall:
 
         assert any("trcc" in r for r in removed)
 
-    def test_prints_nothing_to_remove_when_clean(self, tmp_config, capsys):
+    def test_prints_nothing_to_remove_when_clean(self, _mock_builder, tmp_config, capsys):
         from trcc.conf import save_config
         save_config({"install_info": {"method": "pip", "distro": "ubuntu"}})
         home = tmp_config / "home"
         home.mkdir()
+        _mock_builder.build_autostart.return_value.is_enabled.return_value = False
 
         with patch("trcc.cli._system._real_user_home", return_value=home), \
              patch("os.geteuid", return_value=0), \
@@ -1255,20 +1260,22 @@ class TestUninstall:
         out = capsys.readouterr().out
         assert "Nothing to remove" in out or "already clean" in out.lower()
 
-    def test_root_triggers_udevadm_after_removing_udev_rules(self, tmp_config):
+    def test_root_triggers_udevadm_after_removing_udev_rules(self, _mock_builder, tmp_config):
         from trcc.conf import save_config
         save_config({"install_info": {"method": "pip", "distro": "ubuntu"}})
         home = tmp_config / "home"
         home.mkdir()
         calls = []
         udev_rule = "/etc/udev/rules.d/99-trcc-lcd.rules"
+        _mock_builder.build_setup.return_value.get_system_files.return_value = [udev_rule]
+        _mock_builder.build_autostart.return_value.is_enabled.return_value = False
 
         with patch("trcc.cli._system._real_user_home", return_value=home), \
              patch("os.geteuid", return_value=0), \
              patch("os.path.exists", side_effect=lambda p: str(p) == udev_rule), \
              patch("os.remove", return_value=None), \
              patch.object(Path, "exists", return_value=False), \
-             patch("trcc.adapters.system.linux.setup.subprocess.run",
+             patch("trcc.cli._system.subprocess.run",
                    side_effect=lambda cmd, **kw: calls.append(cmd) or _completed(0)), \
              patch("trcc.cli._system._is_externally_managed", return_value=False):
             uninstall(yes=True)
@@ -1678,89 +1685,95 @@ class TestRunSetup:
 
     def _make_dep(self, name="pkg", ok=True, required=True,
                   version="1.0", note="", install_cmd=""):
-        from trcc.adapters.infra.doctor import DepResult
+        from trcc.adapters.infra.diagnostics import DepResult
         return DepResult(
             name=name, ok=ok, required=required,
             version=version, note=note, install_cmd=install_cmd,
         )
 
     def _make_gpu(self, vendor="nvidia", label="NVIDIA", installed=True, install_cmd=""):
-        from trcc.adapters.infra.doctor import GpuResult
+        from trcc.adapters.infra.diagnostics import GpuResult
         return GpuResult(
             vendor=vendor, label=label,
             package_installed=installed, install_cmd=install_cmd,
         )
 
     def _make_udev(self, ok=True, message="Rules installed"):
-        from trcc.adapters.infra.doctor import UdevResult
+        from trcc.adapters.infra.diagnostics import UdevResult
         return UdevResult(ok=ok, message=message)
 
     def _make_selinux(self, enforcing=False, ok=True, message="Not enforcing"):
-        from trcc.adapters.infra.doctor import SelinuxResult
+        from trcc.adapters.infra.diagnostics import SelinuxResult
         return SelinuxResult(enforcing=enforcing, ok=ok, message=message)
 
     def _make_rapl(self, applicable=False, ok=True, message="No RAPL"):
-        from trcc.adapters.infra.doctor import RaplResult
+        from trcc.adapters.infra.diagnostics import RaplResult
         return RaplResult(applicable=applicable, ok=ok, message=message)
 
     def _make_polkit(self, ok=True, message="Polkit installed"):
-        from trcc.adapters.infra.doctor import PolkitResult
+        from trcc.adapters.infra.diagnostics import PolkitResult
         return PolkitResult(ok=ok, message=message)
 
     def _default_patches(self):
         """Return all needed patches for a clean run_setup call."""
-        from trcc.adapters.infra.doctor import SetupInfo
+        from trcc.adapters.infra.diagnostics import SetupInfo
         return {
-            "trcc.adapters.infra.doctor.get_setup_info": MagicMock(
+            "trcc.adapters.infra.diagnostics.get_setup_info": MagicMock(
                 return_value=SetupInfo(distro="Fedora 43", pkg_manager="dnf", python_version="3.12.0")
             ),
-            "trcc.adapters.infra.doctor.check_system_deps": MagicMock(
+            "trcc.adapters.infra.diagnostics.check_system_deps": MagicMock(
                 return_value=[self._make_dep("Python", ok=True)]
             ),
-            "trcc.adapters.infra.doctor.check_gpu": MagicMock(return_value=[]),
-            "trcc.adapters.infra.doctor.check_udev": MagicMock(
+            "trcc.adapters.infra.diagnostics.check_gpu": MagicMock(return_value=[]),
+            "trcc.adapters.infra.diagnostics.check_udev": MagicMock(
                 return_value=self._make_udev(ok=True)
             ),
-            "trcc.adapters.infra.doctor.check_rapl": MagicMock(
+            "trcc.adapters.infra.diagnostics.check_rapl": MagicMock(
                 return_value=self._make_rapl(applicable=False)
             ),
-            "trcc.adapters.infra.doctor.check_selinux": MagicMock(
+            "trcc.adapters.infra.diagnostics.check_selinux": MagicMock(
                 return_value=self._make_selinux(enforcing=False)
             ),
-            "trcc.adapters.infra.doctor.check_polkit": MagicMock(
+            "trcc.adapters.infra.diagnostics.check_polkit": MagicMock(
                 return_value=self._make_polkit(ok=True)
             ),
-            "trcc.adapters.infra.doctor.check_desktop_entry": MagicMock(return_value=True),
+            "trcc.adapters.infra.diagnostics.check_desktop_entry": MagicMock(return_value=True),
             "trcc.adapters.system.linux.setup.subprocess.run": MagicMock(return_value=_completed(0)),
         }
 
-    def test_returns_zero_all_ok(self, capsys):
+    def test_returns_zero_all_ok(self, _mock_builder, capsys):
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.diagnostics.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.diagnostics.")
         }), patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=_completed(0)):
             rc = run_setup(auto_yes=True)
         assert rc == 0
 
-    def test_prints_distro_name(self, capsys):
+    def test_prints_distro_name(self, _mock_builder, capsys):
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.diagnostics.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.diagnostics.")
         }), patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
         assert "Fedora" in out
 
-    def test_prints_six_steps(self, capsys):
+    def test_prints_six_steps(self, _mock_builder, capsys):
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.diagnostics.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.diagnostics.")
         }), patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1770,19 +1783,23 @@ class TestRunSetup:
         assert "5/6" in out
         assert "6/6" in out
 
-    def test_nothing_to_do_when_all_ok(self, capsys):
+    def test_nothing_to_do_when_all_ok(self, _mock_builder, capsys):
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.diagnostics.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.diagnostics.")
         }), patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
         assert "Nothing to do" in out
 
-    def test_missing_required_dep_offers_install(self, capsys, monkeypatch):
-        from trcc.adapters.infra.doctor import DepResult, SetupInfo
+    def test_missing_required_dep_offers_install(self, _mock_builder, capsys, monkeypatch):
+        from trcc.adapters.infra.diagnostics import DepResult, SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
@@ -1805,8 +1822,10 @@ class TestRunSetup:
         out = capsys.readouterr().out
         assert "MISSING" in out or "sg_raw" in out
 
-    def test_auto_yes_installs_missing_required_dep(self, capsys):
-        from trcc.adapters.infra.doctor import DepResult, SetupInfo
+    def test_auto_yes_installs_missing_required_dep(self, _mock_builder, capsys):
+        from trcc.adapters.infra.diagnostics import DepResult, SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         calls = []
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
@@ -1831,8 +1850,10 @@ class TestRunSetup:
         install_calls = [c for c in calls if "dnf" in c or "sg3" in c]
         assert len(install_calls) >= 1
 
-    def test_udev_not_ok_offers_install(self, capsys, monkeypatch):
-        from trcc.adapters.infra.doctor import SetupInfo
+    def test_udev_not_ok_offers_install(self, _mock_builder, capsys, monkeypatch):
+        from trcc.adapters.infra.diagnostics import SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
@@ -1854,8 +1875,10 @@ class TestRunSetup:
         out = capsys.readouterr().out
         assert "Rules missing" in out or "udev" in out.lower()
 
-    def test_selinux_enforcing_shows_step_4(self, capsys):
-        from trcc.adapters.infra.doctor import SetupInfo
+    def test_selinux_enforcing_shows_step_4(self, _mock_builder, capsys):
+        from trcc.adapters.infra.diagnostics import SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
                    return_value=SetupInfo("Bazzite", "rpm-ostree", "3.12")), \
@@ -1876,8 +1899,10 @@ class TestRunSetup:
         out = capsys.readouterr().out
         assert "4/6" in out or "SELinux" in out
 
-    def test_selinux_not_enforcing_skips_step_4(self, capsys):
-        from trcc.adapters.infra.doctor import SetupInfo
+    def test_selinux_not_enforcing_skips_step_4(self, _mock_builder, capsys):
+        from trcc.adapters.infra.diagnostics import SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
                    return_value=SetupInfo("Ubuntu", "apt", "3.12")), \
@@ -1899,8 +1924,10 @@ class TestRunSetup:
         # Step 4 header only shown when enforcing
         assert "SELinux policy" not in out
 
-    def test_summary_lists_installed_actions(self, capsys):
-        from trcc.adapters.infra.doctor import SetupInfo
+    def test_summary_lists_installed_actions(self, _mock_builder, capsys):
+        from trcc.adapters.infra.diagnostics import SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
                    return_value=SetupInfo("Fedora", "dnf", "3.12")), \
@@ -1922,8 +1949,10 @@ class TestRunSetup:
         out = capsys.readouterr().out
         assert "Summary" in out
 
-    def test_desktop_not_installed_offers_install(self, capsys, monkeypatch):
-        from trcc.adapters.infra.doctor import SetupInfo
+    def test_desktop_not_installed_offers_install(self, _mock_builder, capsys, monkeypatch):
+        from trcc.adapters.infra.diagnostics import SetupInfo
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         monkeypatch.setattr("builtins.input", lambda _: "n")
 
         with patch("trcc.adapters.infra.doctor.get_setup_info",
@@ -1945,12 +1974,14 @@ class TestRunSetup:
         out = capsys.readouterr().out
         assert "No application menu entry" in out or "desktop" in out.lower()
 
-    def test_prints_run_trcc_gui_message(self, capsys):
+    def test_prints_run_trcc_gui_message(self, _mock_builder, capsys):
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        _mock_builder.build_setup.return_value = LinuxSetup()
         patches = self._default_patches()
         with patch.multiple("trcc.adapters.infra.doctor", **{
-            k.replace("trcc.adapters.infra.doctor.", ""): v
+            k.replace("trcc.adapters.infra.diagnostics.", ""): v
             for k, v in patches.items()
-            if k.startswith("trcc.adapters.infra.doctor.")
+            if k.startswith("trcc.adapters.infra.diagnostics.")
         }), patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=_completed(0)):
             run_setup(auto_yes=True)
         out = capsys.readouterr().out
@@ -1976,7 +2007,7 @@ class TestReportDiagnosticOutput:
         return {
             # Block subprocess calls (lsusb, ps, getenforce)
             "sub": patch(
-                "trcc.adapters.infra.debug_report.subprocess.run",
+                "trcc.adapters.infra.diagnostics.subprocess.run",
                 return_value=_completed(0, stdout=""),
             ),
             # detect_fn injected directly into report() — no patch needed here
@@ -1988,7 +2019,7 @@ class TestReportDiagnosticOutput:
             ),
             # Block doctor's subprocess calls
             "doc_sub": patch(
-                "trcc.adapters.infra.doctor.subprocess.run",
+                "trcc.adapters.infra.diagnostics.subprocess.run",
                 return_value=_completed(0, stdout=""),
             ),
             # Block log file read
@@ -2000,12 +2031,12 @@ class TestReportDiagnosticOutput:
 
     def test_udev_rules_missing_shows_not_installed(self, capsys, tmp_path):
         """When udev rules file doesn't exist, output says NOT INSTALLED."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=1):
             report(detect_fn=lambda: [])
@@ -2023,12 +2054,12 @@ class TestReportDiagnosticOutput:
             'ATTRS{idProduct}=="5302", MODE="0666"\n'
         )
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(rules_file)), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])
@@ -2040,12 +2071,12 @@ class TestReportDiagnosticOutput:
 
     def test_no_sg_devices_shows_message(self, capsys, tmp_path):
         """When no /dev/sg* devices exist, output says so."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=["tty0", "null", "zero"]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])
@@ -2055,15 +2086,15 @@ class TestReportDiagnosticOutput:
 
     def test_sg_device_no_access_shows_no_access(self, capsys, tmp_path):
         """When /dev/sg* exists but isn't accessible, output says NO ACCESS."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=["sg0", "sg1"]), \
-             patch("trcc.adapters.infra.debug_report.os.stat") as mock_stat, \
-             patch("trcc.adapters.infra.debug_report.os.access",
+             patch("trcc.adapters.infra.diagnostics.os.stat") as mock_stat, \
+             patch("trcc.adapters.infra.diagnostics.os.access",
                    return_value=False), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             mock_stat.return_value.st_mode = 0o060660  # crw-rw---- (660)
@@ -2075,12 +2106,12 @@ class TestReportDiagnosticOutput:
 
     def test_no_devices_detected(self, capsys, tmp_path):
         """When no devices found, output says none."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])
@@ -2090,12 +2121,12 @@ class TestReportDiagnosticOutput:
 
     def test_no_devices_to_handshake(self, capsys, tmp_path):
         """When no devices detected, handshake section says so."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])
@@ -2123,12 +2154,12 @@ class TestReportDiagnosticOutput:
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = usb_err
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.device.factory.HidProtocol",
                    return_value=mock_protocol), \
@@ -2141,33 +2172,33 @@ class TestReportDiagnosticOutput:
 
     def test_doctor_missing_udev_in_report(self, capsys, tmp_path):
         """When doctor finds udev missing, the hint appears in report output."""
-        from trcc.adapters.infra.doctor import UdevResult
+        from trcc.adapters.infra.diagnostics import UdevResult
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
-             patch("trcc.adapters.infra.doctor.check_udev",
+             patch("trcc.adapters.infra.diagnostics.check_udev",
                    return_value=UdevResult(ok=False, message="udev rules not installed")), \
-             patch("trcc.adapters.infra.doctor._detect_pkg_manager",
+             patch("trcc.adapters.infra.diagnostics._detect_pkg_manager",
                    return_value="apt"), \
-             patch("trcc.adapters.infra.doctor._read_os_release",
+             patch("trcc.adapters.infra.diagnostics._read_os_release",
                    return_value={"PRETTY_NAME": "Linux Mint 22.3"}), \
-             patch("trcc.adapters.infra.doctor._check_python_module",
+             patch("trcc.adapters.infra.diagnostics._check_python_module",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor._check_gpu_packages"), \
-             patch("trcc.adapters.infra.doctor._check_library",
+             patch("trcc.adapters.infra.diagnostics._check_gpu_packages"), \
+             patch("trcc.adapters.infra.diagnostics._check_library",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor._check_binary",
+             patch("trcc.adapters.infra.diagnostics._check_binary",
                    return_value=True), \
-             patch("trcc.adapters.infra.doctor.check_selinux",
+             patch("trcc.adapters.infra.diagnostics.check_selinux",
                    return_value=MagicMock(enforcing=False)), \
-             patch("trcc.adapters.infra.doctor.check_rapl",
+             patch("trcc.adapters.infra.diagnostics.check_rapl",
                    return_value=MagicMock(applicable=False)), \
-             patch("trcc.adapters.infra.doctor.check_polkit",
+             patch("trcc.adapters.infra.diagnostics.check_polkit",
                    return_value=MagicMock(ok=True, message="ok")):
             report(detect_fn=lambda: [])
 
@@ -2190,12 +2221,12 @@ class TestReportDiagnosticOutput:
                 return _completed(0, stdout=lsusb_output)
             return _completed(0, stdout="")
 
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    side_effect=_fake_subprocess), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])
@@ -2208,12 +2239,12 @@ class TestReportDiagnosticOutput:
 
     def test_report_github_url_after_doctor(self, capsys, tmp_path):
         """GitHub URL appears at the very end, after doctor output."""
-        with patch("trcc.adapters.infra.debug_report._UDEV_PATH",
+        with patch("trcc.adapters.infra.diagnostics._UDEV_PATH",
                    str(tmp_path / "nonexistent")), \
-             patch("trcc.adapters.infra.debug_report.subprocess.run",
+             patch("trcc.adapters.infra.diagnostics.subprocess.run",
                    return_value=_completed(0, stdout="")), \
              patch("trcc.conf.load_config", return_value={}), \
-             patch("trcc.adapters.infra.debug_report.os.listdir",
+             patch("trcc.adapters.infra.diagnostics.os.listdir",
                    return_value=[]), \
              patch("trcc.adapters.infra.doctor.run_doctor", return_value=0):
             report(detect_fn=lambda: [])

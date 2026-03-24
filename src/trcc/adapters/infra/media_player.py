@@ -45,7 +45,7 @@ class VideoDecoder:
         if not FFMPEG_AVAILABLE:
             from trcc.core.builder import ControllerBuilder
             raise RuntimeError(
-                ControllerBuilder.build_setup().ffmpeg_install_help()
+                ControllerBuilder.for_current_os().build_setup().ffmpeg_install_help()
             )
         self.frames: list[RawFrame] = []
         self.fps: int = 16  # Windows: originalImageHz = 16

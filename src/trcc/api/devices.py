@@ -104,18 +104,16 @@ def select_device(device_id: int) -> dict:
         from trcc.core.models import PROTOCOL_TRAITS
         traits = PROTOCOL_TRAITS.get(dev.protocol or 'scsi')
         if (traits and traits.is_led) or getattr(dev, 'implementation', '') == 'hid_led':
-            from trcc.core.builder import ControllerBuilder as LedBuilder
-
-            api._led_dispatcher = LedBuilder().build_led()
+            from trcc.core.app import TrccApp
+            api._led_dispatcher = TrccApp.get().build_led()
             result = api._led_dispatcher.connect()
             if not result["success"]:
                 api._led_dispatcher = None
         else:
             _device_svc._discover_resolution(dev)
 
-            from trcc.core.builder import ControllerBuilder
-
-            lcd = ControllerBuilder().lcd_from_service(_device_svc)
+            from trcc.core.app import TrccApp
+            lcd = TrccApp.get().lcd_from_service(_device_svc)
             api._display_dispatcher = lcd
 
             w_res, h_res = dev.resolution or (320, 320)

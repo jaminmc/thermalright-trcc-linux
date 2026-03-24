@@ -83,8 +83,50 @@ def get_pixel(surface: Any, x: int, y: int) -> tuple[int, ...]:
     return (color.red(), color.green(), color.blue())
 
 # =========================================================================
-# Tier 0: Environment — disable live IPC daemon
+# Tier 0: Environment — disable live IPC daemon + builder
 # =========================================================================
+
+@pytest.fixture
+def mock_platform():
+    """MagicMock PlatformAdapter — inject into ControllerBuilder for tests."""
+    return MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _mock_builder(mock_platform):
+    """Patch TrccApp.init() and ControllerBuilder.for_current_os() for all tests.
+
+    TrccApp singleton is reset before each test so state never leaks.
+    Tests that need a real builder (test_builder.py) can override by re-patching.
+    """
+    from trcc.core.app import TrccApp
+    from trcc.core.builder import ControllerBuilder
+
+    TrccApp.reset()
+
+    mock_builder = MagicMock(spec=ControllerBuilder)
+    mock_builder._platform = mock_platform
+    mock_builder.build_setup.return_value = MagicMock()
+    mock_builder.build_system.return_value = MagicMock()
+    mock_builder.build_lcd.return_value = MagicMock()
+    mock_builder.build_led.return_value = MagicMock()
+    mock_builder.build_autostart.return_value = MagicMock()
+    mock_builder.build_detect_fn.return_value = MagicMock()
+    mock_builder.build_hardware_fns.return_value = (MagicMock(), MagicMock())
+    mock_builder.with_renderer.return_value = mock_builder
+    mock_builder.with_data_dir.return_value = mock_builder
+
+    mock_app = MagicMock(spec=TrccApp)
+    mock_app.builder = mock_builder
+
+    # Set the singleton so TrccApp.get() returns mock_app without needing init().
+    # Composition roots call TrccApp.get() in CLI commands — this prevents RuntimeError.
+    TrccApp._instance = mock_app  # type: ignore[assignment]
+
+    with patch("trcc.core.builder.ControllerBuilder.for_current_os", return_value=mock_builder), \
+         patch("trcc.core.app.TrccApp.init", return_value=mock_app):
+        yield mock_builder
+
 
 @pytest.fixture(autouse=True)
 def _no_ipc():

@@ -5,6 +5,8 @@ import struct
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from trcc.adapters.device.scsi import (
     _BOOT_MAX_RETRIES,
     _BOOT_SIGNATURE,
@@ -437,6 +439,87 @@ class TestSendImageToDevice(unittest.TestCase):
     def test_init_error_returns_false(self, mock_init, _):
         result = send_image_to_device('/dev/sg0', b'\x00', 320, 320)
         self.assertFalse(result)
+
+
+# ---------------------------------------------------------------------------
+# Diagnose profile tests — driven by tools/diagnose.py via TRCC_DIAGNOSE_* env vars
+# ---------------------------------------------------------------------------
+
+@patch('trcc.adapters.device.scsi.time.sleep')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read')
+def test_scsi_handshake_profile(mock_read, mock_write, mock_sleep, device_vid, device_pid, device_pm):
+    """Handshake succeeds for the device profile from trcc report."""
+    from trcc.core.models import SCSI_DEVICES, fbl_to_resolution
+    entry = SCSI_DEVICES.get((device_vid, device_pid))
+    if entry is None:
+        pytest.skip(
+            f"Device {device_vid:04X}:{device_pid:04X} not in SCSI_DEVICES — "
+            "wrong protocol in report or unknown device"
+        )
+    mock_read.return_value = bytes([device_pm]) + b'\x00' * 15
+    sd = ScsiDevice('/dev/sg0', device_vid, device_pid)
+    result = sd.handshake()
+    assert result is not None
+    assert (sd.width, sd.height) == fbl_to_resolution(device_pm)
+
+
+@patch('trcc.adapters.device.scsi.time.sleep')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read')
+def test_scsi_send_frame_profile(mock_read, mock_write, mock_sleep, device_vid, device_pid, device_pm):
+    """Frame send succeeds for the device profile from trcc report."""
+    from trcc.core.models import SCSI_DEVICES
+    entry = SCSI_DEVICES.get((device_vid, device_pid))
+    if entry is None:
+        pytest.skip(
+            f"Device {device_vid:04X}:{device_pid:04X} not in SCSI_DEVICES — "
+            "wrong protocol in report or unknown device"
+        )
+    mock_read.return_value = bytes([device_pm]) + b'\x00' * 15
+    sd = ScsiDevice('/dev/sg0', device_vid, device_pid)
+    sd.handshake()
+    result = sd.send_frame(b'\x00' * (sd.width * sd.height * 2))
+    assert result is True
+
+
+# ---------------------------------------------------------------------------
+# All-devices profile tests — parametrised over every entry in SCSI_DEVICES
+# ---------------------------------------------------------------------------
+
+from trcc.core.models import FBL_TO_RESOLUTION, SCSI_DEVICES  # noqa: E402
+
+_SCSI_PARAMS = [
+    pytest.param(vid, pid, entry.fbl, id=f"{vid:04X}:{pid:04X}")
+    for (vid, pid), entry in SCSI_DEVICES.items()
+]
+
+
+@pytest.mark.parametrize("vid,pid,fbl", _SCSI_PARAMS)
+@patch('trcc.adapters.device.scsi.time.sleep')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read')
+def test_scsi_handshake_all_devices(mock_read, mock_write, mock_sleep, vid, pid, fbl):
+    """Handshake resolves correct resolution for every SCSI device in the registry."""
+    mock_read.return_value = bytes([fbl]) + b'\x00' * 15
+    sd = ScsiDevice('/dev/sg0', vid, pid)
+    result = sd.handshake()
+    assert result is not None
+    assert (sd.width, sd.height) == FBL_TO_RESOLUTION[fbl]
+
+
+@pytest.mark.parametrize("vid,pid,fbl", _SCSI_PARAMS)
+@patch('trcc.adapters.device.scsi.time.sleep')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
+@patch('trcc.adapters.device.scsi.ScsiDevice._scsi_read')
+def test_scsi_send_frame_all_devices(mock_read, mock_write, mock_sleep, vid, pid, fbl):
+    """Frame send works for every SCSI device in the registry."""
+    mock_read.return_value = bytes([fbl]) + b'\x00' * 15
+    sd = ScsiDevice('/dev/sg0', vid, pid)
+    sd.handshake()
+    w, h = FBL_TO_RESOLUTION[fbl]
+    result = sd.send_frame(b'\x00' * (w * h * 2))
+    assert result is True
 
 
 if __name__ == '__main__':

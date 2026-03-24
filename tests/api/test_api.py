@@ -1511,14 +1511,15 @@ class TestDeviceEdgeCases(unittest.TestCase):
         self.assertIn("selected", resp.json())
 
     def test_select_led_device_failed_connect_clears_dispatcher(self) -> None:
+        from trcc.core.app import TrccApp
         dev = DeviceInfo(name="HR10", path="hid:0416:8001", vid=0x0416, pid=0x8001,
                          protocol="led", implementation="hid_led")
         _device_svc._devices = [dev]
-        with patch("trcc.core.led_device.LEDDevice") as mock_cls:
-            mock_inst = MagicMock()
-            mock_inst.connect.return_value = {"success": False, "error": "USB error"}
-            mock_cls.return_value = mock_inst
-            resp = self.client.post("/devices/0/select")
+        mock_inst = MagicMock()
+        mock_inst.connect.return_value = {"success": False, "error": "USB error"}
+        # API now uses TrccApp.get().build_led() — wire the mock through the singleton
+        TrccApp.get().build_led.return_value = mock_inst
+        resp = self.client.post("/devices/0/select")
         self.assertEqual(resp.status_code, 200)
         self.assertIsNone(api_module._led_dispatcher)
 

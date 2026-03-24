@@ -309,6 +309,77 @@ class DetectedDevice:
         return self.scsi_device or self.usb_path
 
 
+# =========================================================================
+# Device registries — single source of truth for all known USB devices
+# =========================================================================
+
+SCSI_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    (0x87CD, 0x70DB): DeviceEntry(
+        vendor="Thermalright", product="LCD Display",
+        implementation="thermalright_lcd_v1",
+    ),
+    (0x0416, 0x5406): DeviceEntry(
+        vendor="Winbond", product="LCD Display",
+        implementation="ali_corp_lcd_v1",
+    ),
+    # Shared by multiple products (Frozen Warframe SE/PRO/Ultra, Elite Vision 360,
+    # AS120, BA120, etc). Real product resolved after handshake via PM→DEVICE_BUTTON_IMAGE.
+    (0x0402, 0x3922): DeviceEntry(
+        vendor="Thermalright", product="LCD Display",
+        model="FROZEN_WARFRAME", button_image="A1CZTV",
+        implementation="ali_corp_lcd_v1",
+    ),
+}
+
+HID_LCD_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    (0x0416, 0x5302): DeviceEntry(
+        vendor="Winbond", product="USBDISPLAY",
+        implementation="hid_type2", protocol="hid", device_type=2,
+    ),
+    (0x0418, 0x5303): DeviceEntry(
+        vendor="ALi Corp", product="LCD Display",
+        implementation="hid_type3", protocol="hid", device_type=3,
+    ),
+    (0x0418, 0x5304): DeviceEntry(
+        vendor="ALi Corp", product="LCD Display",
+        implementation="hid_type3", protocol="hid", device_type=3,
+    ),
+}
+
+LED_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    (0x0416, 0x8001): DeviceEntry(
+        vendor="Winbond", product="LED Controller",
+        model="LED_DIGITAL", implementation="hid_led",
+        protocol="hid", device_type=1,
+    ),
+}
+
+BULK_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    # NOTE: 87AD:70DB is raw USB bulk (USBLCDNew protocol), not SCSI.
+    (0x87AD, 0x70DB): DeviceEntry(
+        vendor="ChiZhu Tech", product="GrandVision 360 AIO",
+        model="GRAND_VISION", button_image="A1GRAND VISION",
+        implementation="bulk_usblcdnew",
+        protocol="bulk", device_type=4,
+    ),
+}
+
+LY_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    (0x0416, 0x5408): DeviceEntry(
+        vendor="Winbond", product="Trofeo Vision 9.16 LCD",
+        implementation="ly_bulk", protocol="ly", device_type=5,
+    ),
+    (0x0416, 0x5409): DeviceEntry(
+        vendor="Winbond", product="Trofeo Vision 9.16 LCD",
+        implementation="ly_bulk", protocol="ly", device_type=5,
+    ),
+}
+
+ALL_DEVICES: dict[tuple[int, int], DeviceEntry] = {
+    **SCSI_DEVICES, **HID_LCD_DEVICES, **LED_DEVICES, **BULK_DEVICES, **LY_DEVICES,
+}
+
+
 @dataclass
 class DeviceInfo:
     """

@@ -53,10 +53,12 @@ class TestDependencyInjection(unittest.TestCase):
     @patch('trcc.adapters.infra.data_repository.DataManager.ensure_all')
     def test_builder_wires_services_into_lcd_device(self, _):
         """ControllerBuilder creates LCDDevice with properly wired services."""
+        from unittest.mock import MagicMock
+
         from trcc.core.builder import ControllerBuilder
         from trcc.core.lcd_device import LCDDevice
 
-        lcd = ControllerBuilder().with_renderer(ImageService._r()).build_lcd()
+        lcd = ControllerBuilder(MagicMock()).with_renderer(ImageService._r()).build_lcd()
         self.assertIsInstance(lcd, LCDDevice)
 
 

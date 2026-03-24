@@ -1,5 +1,11 @@
 # Changelog
 
+## v9.1.2
+
+### Internal
+- **`tools/diagnose.py`**: Rewrote report parser to use direct regex — OS field captures full string, VID:PID matched as exactly 4 hex chars. Tool routes to platform-specific SCSI test file (linux/windows/macos/bsd) based on OS from report
+- **SCSI profile tests**: Added `test_scsi_handshake_all_devices` and `test_scsi_send_frame_all_devices` parametrised over all `SCSI_DEVICES` entries
+
 ## v9.1.1
 
 ### Fixes

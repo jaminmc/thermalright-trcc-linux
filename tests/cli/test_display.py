@@ -573,48 +573,35 @@ class TestOverlayOps:
 # =========================================================================
 
 class TestCLIHelpers:
-    def test_connect_or_fail_success(self, capsys):
+    def test_connect_or_fail_success(self, _mock_builder, capsys):
         from trcc.cli._display import _connect_or_fail
 
-        svc = MagicMock()
-        dev = MagicMock()
-        dev.resolution = (320, 320)
-        dev.path = "/dev/sg0"
-        svc.selected = dev
+        _mock_builder.build_lcd.return_value.connect.return_value = {"success": True}
 
-        with patch(_DEV_SVC, return_value=svc), \
-             patch("trcc.core.instance.find_active", return_value=None):
-            lcd, rc = _connect_or_fail()
+        lcd, rc = _connect_or_fail(_mock_builder)
 
         assert rc == 0
-        assert isinstance(lcd, LCDDevice)
-        assert lcd.connected
 
-    def test_connect_or_fail_no_device(self, capsys):
+    def test_connect_or_fail_no_device(self, _mock_builder, capsys):
         from trcc.cli._display import _connect_or_fail
 
-        svc = MagicMock()
-        svc.selected = None
+        _mock_builder.build_lcd.return_value.connect.return_value = {
+            "success": False, "error": "No LCD device found."}
 
-        with patch(_DEV_SVC, return_value=svc), \
-             patch("trcc.core.instance.find_active", return_value=None):
-            lcd, rc = _connect_or_fail()
+        lcd, rc = _connect_or_fail(_mock_builder)
 
         assert rc == 1
+        assert "trcc report" in capsys.readouterr().out
 
-    def test_connect_or_fail_passes_device_arg(self):
+    def test_connect_or_fail_passes_device_arg(self, _mock_builder):
         from trcc.cli._display import _connect_or_fail
 
-        svc = MagicMock()
-        dev = MagicMock()
-        dev.resolution = (320, 320)
-        dev.path = "/dev/sg2"
-        svc.selected = dev
+        mock_lcd = _mock_builder.build_lcd.return_value
+        mock_lcd.connect.return_value = {"success": True}
 
-        with patch(_DEV_SVC, return_value=svc):
-            _connect_or_fail("/dev/sg2")
+        _connect_or_fail(_mock_builder, "/dev/sg2")
 
-        svc.scan_and_select.assert_called_once_with("/dev/sg2")
+        mock_lcd.connect.assert_called_once_with("/dev/sg2")
 
     def test_print_result_success(self, capsys):
         from trcc.cli._display import _print_result
@@ -655,7 +642,7 @@ class TestCLIHelpers:
             _print_result({"success": True, "message": "OK"}, preview=True)
         mock_ansi.assert_not_called()
 
-    def test_display_command_delegates(self):
+    def test_display_command_delegates(self, _mock_builder):
         from trcc.cli._display import _display_command
 
         mock_lcd = MagicMock()
@@ -664,17 +651,17 @@ class TestCLIHelpers:
 
         with patch(_CONNECT, return_value=(mock_lcd, 0)), \
              patch("trcc.cli._display._print_result", return_value=0):
-            rc = _display_command("some_method", "arg1", device=None)
+            rc = _display_command(_mock_builder, "some_method", "arg1", device=None)
 
         mock_lcd.frame.some_method.assert_called_once_with("arg1")
         assert rc == 0
 
-    def test_display_command_returns_1_on_connect_failure(self):
+    def test_display_command_returns_1_on_connect_failure(self, _mock_builder):
         from trcc.cli._display import _display_command
 
         mock_lcd = MagicMock()
         with patch(_CONNECT, return_value=(mock_lcd, 1)):
-            rc = _display_command("any_method", device=None)
+            rc = _display_command(_mock_builder, "any_method", device=None)
         assert rc == 1
 
 
@@ -683,56 +670,56 @@ class TestCLIHelpers:
 # =========================================================================
 
 class TestCLIImageCommands:
-    def test_send_image_cli_success(self, mock_connect, tmp_path):
+    def test_send_image_cli_success(self, _mock_builder, mock_connect, tmp_path):
         from trcc.cli._display import send_image
 
         img_path = str(_make_png(tmp_path / "pic.png", w=10, h=10))
         mock_img = make_test_surface(10, 10)
 
         with patch(f"{_IMG_SVC}.open_and_resize", return_value=mock_img):
-            rc = send_image(img_path)
+            rc = send_image(_mock_builder, img_path)
         assert rc == 0
 
-    def test_send_image_cli_missing_file(self, mock_connect, capsys):
+    def test_send_image_cli_missing_file(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import send_image
 
-        rc = send_image("/nonexistent/file.png")
+        rc = send_image(_mock_builder, "/nonexistent/file.png")
         assert rc == 1
         assert "Error" in capsys.readouterr().out
 
-    def test_send_color_cli_valid_hex(self, mock_connect):
+    def test_send_color_cli_valid_hex(self, _mock_builder, mock_connect):
         from trcc.cli._display import send_color
 
         mock_img = make_test_surface(320, 320)
         with patch(f"{_IMG_SVC}.solid_color", return_value=mock_img):
-            rc = send_color("ff0000")
+            rc = send_color(_mock_builder, "ff0000")
         assert rc == 0
 
-    def test_send_color_cli_with_hash_prefix(self, mock_connect):
+    def test_send_color_cli_with_hash_prefix(self, _mock_builder, mock_connect):
         from trcc.cli._display import send_color
 
         mock_img = make_test_surface(320, 320)
         with patch(f"{_IMG_SVC}.solid_color", return_value=mock_img):
-            rc = send_color("#00ff00")
+            rc = send_color(_mock_builder, "#00ff00")
         assert rc == 0
 
-    def test_send_color_cli_invalid_hex_too_short(self, capsys):
+    def test_send_color_cli_invalid_hex_too_short(self, _mock_builder, capsys):
         from trcc.cli._display import send_color
 
-        rc = send_color("fff")
+        rc = send_color(_mock_builder, "fff")
         assert rc == 1
         assert "Invalid hex color" in capsys.readouterr().out
 
-    def test_send_color_cli_invalid_hex_too_long(self, capsys):
+    def test_send_color_cli_invalid_hex_too_long(self, _mock_builder, capsys):
         from trcc.cli._display import send_color
 
-        rc = send_color("ff000000")
+        rc = send_color(_mock_builder, "ff000000")
         assert rc == 1
 
-    def test_send_color_cli_invalid_hex_non_hex_chars(self, capsys):
+    def test_send_color_cli_invalid_hex_non_hex_chars(self, _mock_builder, capsys):
         from trcc.cli._display import send_color
 
-        rc = send_color("zzzzzz")
+        rc = send_color(_mock_builder, "zzzzzz")
         assert rc == 1
 
 
@@ -741,97 +728,97 @@ class TestCLIImageCommands:
 # =========================================================================
 
 class TestCLISettingCommands:
-    def test_set_brightness_cli_valid_1(self, mock_connect):
+    def test_set_brightness_cli_valid_1(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_brightness
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_brightness(1)
+            rc = set_brightness(_mock_builder, 1)
         assert rc == 0
 
-    def test_set_brightness_cli_valid_2(self, mock_connect):
+    def test_set_brightness_cli_valid_2(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_brightness
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_brightness(2)
+            rc = set_brightness(_mock_builder, 2)
         assert rc == 0
 
-    def test_set_brightness_cli_valid_3(self, mock_connect):
+    def test_set_brightness_cli_valid_3(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_brightness
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_brightness(3)
+            rc = set_brightness(_mock_builder, 3)
         assert rc == 0
 
-    def test_set_brightness_cli_invalid_prints_help(self, mock_connect, capsys):
+    def test_set_brightness_cli_invalid_prints_help(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import set_brightness
 
-        rc = set_brightness(-1)
+        rc = set_brightness(_mock_builder, -1)
         assert rc == 1
         out = capsys.readouterr().out
         assert "25%" in out
         assert "50%" in out
         assert "100%" in out
 
-    def test_set_brightness_cli_no_device(self, mock_connect_fail, capsys):
+    def test_set_brightness_cli_no_device(self, _mock_builder, mock_connect_fail, capsys):
         from trcc.cli._display import set_brightness
 
-        rc = set_brightness(2)
+        rc = set_brightness(_mock_builder, 2)
         assert rc == 1
 
-    def test_set_rotation_cli_valid_0(self, mock_connect):
+    def test_set_rotation_cli_valid_0(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_rotation
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_rotation(0)
+            rc = set_rotation(_mock_builder, 0)
         assert rc == 0
 
-    def test_set_rotation_cli_valid_90(self, mock_connect):
+    def test_set_rotation_cli_valid_90(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_rotation
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_rotation(90)
+            rc = set_rotation(_mock_builder, 90)
         assert rc == 0
 
-    def test_set_rotation_cli_valid_180(self, mock_connect):
+    def test_set_rotation_cli_valid_180(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_rotation
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_rotation(180)
+            rc = set_rotation(_mock_builder, 180)
         assert rc == 0
 
-    def test_set_rotation_cli_valid_270(self, mock_connect):
+    def test_set_rotation_cli_valid_270(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_rotation
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_rotation(270)
+            rc = set_rotation(_mock_builder, 270)
         assert rc == 0
 
-    def test_set_rotation_cli_invalid_45(self, mock_connect, capsys):
+    def test_set_rotation_cli_invalid_45(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import set_rotation
 
-        rc = set_rotation(45)
+        rc = set_rotation(_mock_builder, 45)
         assert rc == 1
         assert "Error" in capsys.readouterr().out
 
-    def test_set_split_mode_cli_valid(self, mock_connect):
+    def test_set_split_mode_cli_valid(self, _mock_builder, mock_connect):
         from trcc.cli._display import set_split_mode
 
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            rc = set_split_mode(0)
+            rc = set_split_mode(_mock_builder, 0)
         assert rc == 0
 
-    def test_set_split_mode_cli_invalid(self, mock_connect, capsys):
+    def test_set_split_mode_cli_invalid(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import set_split_mode
 
-        rc = set_split_mode(5)
+        rc = set_split_mode(_mock_builder, 5)
         assert rc == 1
 
 
@@ -840,7 +827,7 @@ class TestCLISettingCommands:
 # =========================================================================
 
 class TestCLIOverlayCommands:
-    def test_load_mask_cli_success(self, mock_connect, tmp_path):
+    def test_load_mask_cli_success(self, _mock_builder, mock_connect, tmp_path):
         from trcc.cli._display import load_mask
 
         mask_file = tmp_path / "mask.png"
@@ -859,16 +846,16 @@ class TestCLIOverlayCommands:
             mock_renderer.open_image.return_value = MagicMock()
             mock_renderer.surface_size.return_value = (10, 10)
 
-            rc = load_mask(str(mask_file))
+            rc = load_mask(_mock_builder, str(mask_file))
         assert rc == 0
 
-    def test_load_mask_cli_missing_path(self, mock_connect, capsys):
+    def test_load_mask_cli_missing_path(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import load_mask
 
-        rc = load_mask("/nonexistent/mask.png")
+        rc = load_mask(_mock_builder, "/nonexistent/mask.png")
         assert rc == 1
 
-    def test_render_overlay_cli_success(self, mock_connect, tmp_path, capsys):
+    def test_render_overlay_cli_success(self, _mock_builder, mock_connect, tmp_path, capsys):
         from trcc.cli._display import render_overlay
 
         dc_file = tmp_path / "config1.dc"
@@ -884,20 +871,20 @@ class TestCLIOverlayCommands:
             mock_overlay.config = []
             mock_overlay.render.return_value = result_img
 
-            rc = render_overlay(str(dc_file))
+            rc = render_overlay(_mock_builder, str(dc_file))
 
         assert rc == 0
         out = capsys.readouterr().out
         assert "orientation" in out
 
-    def test_render_overlay_cli_missing_path(self, mock_connect, capsys):
+    def test_render_overlay_cli_missing_path(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import render_overlay
 
-        rc = render_overlay("/nonexistent/config1.dc")
+        rc = render_overlay(_mock_builder, "/nonexistent/config1.dc")
         assert rc == 1
         assert "Error" in capsys.readouterr().out
 
-    def test_render_overlay_cli_with_preview(self, mock_connect, tmp_path,
+    def test_render_overlay_cli_with_preview(self, _mock_builder, mock_connect, tmp_path,
                                              capsys):
         from trcc.cli._display import render_overlay
 
@@ -915,7 +902,7 @@ class TestCLIOverlayCommands:
             mock_overlay.config = []
             mock_overlay.render.return_value = result_img
 
-            rc = render_overlay(str(dc_file), preview=True)
+            rc = render_overlay(_mock_builder, str(dc_file), preview=True)
 
         assert rc == 0
         assert "ANSI_PREVIEW" in capsys.readouterr().out
@@ -926,29 +913,29 @@ class TestCLIOverlayCommands:
 # =========================================================================
 
 class TestCLIReset:
-    def test_reset_cli_success(self, mock_connect, capsys):
+    def test_reset_cli_success(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import reset
 
         mock_img = make_test_surface(320, 320, (255, 0, 0))
         with patch(f"{_IMG_SVC}.solid_color", return_value=mock_img):
-            rc = reset()
+            rc = reset(_mock_builder)
 
         assert rc == 0
         out = capsys.readouterr().out
         assert "/dev/sg0" in out
 
-    def test_reset_cli_no_device(self, mock_connect_fail, capsys):
+    def test_reset_cli_no_device(self, _mock_builder, mock_connect_fail, capsys):
         from trcc.cli._display import reset
 
-        rc = reset()
+        rc = reset(_mock_builder)
         assert rc == 1
 
-    def test_reset_cli_prints_device_path(self, mock_connect, capsys):
+    def test_reset_cli_prints_device_path(self, _mock_builder, mock_connect, capsys):
         from trcc.cli._display import reset
 
         mock_img = make_test_surface(320, 320, (255, 0, 0))
         with patch(f"{_IMG_SVC}.solid_color", return_value=mock_img):
-            reset()
+            reset(_mock_builder)
 
         out = capsys.readouterr().out
         assert "Device:" in out
@@ -1009,52 +996,42 @@ def scsi_device():
 
 
 class TestCLIResume:
-    def test_resume_no_devices(self, capsys):
+    def test_resume_no_devices(self, _mock_builder, capsys):
         from trcc.cli._display import resume
 
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = []
+        _mock_builder.build_device_svc.return_value.detect.return_value = []
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_TIME):
-            rc = resume()
+        with patch(_TIME):
+            rc = resume(_mock_builder)
 
         assert rc == 1
         assert "No compatible" in capsys.readouterr().out
 
-    def test_resume_non_scsi_skipped(self, capsys):
+    def test_resume_non_scsi_skipped(self, _mock_builder, capsys):
         from trcc.cli._display import resume
 
         dev = MagicMock()
         dev.protocol = "hid"
+        _mock_builder.build_device_svc.return_value.detect.return_value = [dev]
 
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = [dev]
-
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), patch(_TIME):
-            rc = resume()
+        with patch(_TIME):
+            rc = resume(_mock_builder)
 
         assert rc == 1
         assert "No themes were sent" in capsys.readouterr().out
 
-    def test_resume_no_resolution_skipped(self, scsi_device, capsys):
+    def test_resume_no_resolution_skipped(self, _mock_builder, scsi_device, capsys):
         from trcc.cli._display import resume
 
         scsi_device.resolution = (0, 0)
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = [scsi_device]
+        _mock_builder.build_device_svc.return_value.detect.return_value = [scsi_device]
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_DISC_RES), \
-             patch(_SETTINGS_CLS) as mock_settings, \
-             patch(_TIME):
-            mock_settings.device_config_key.return_value = "0"
-            mock_settings.get_device_config.return_value = {}
-            rc = resume()
+        with patch(_DISC_RES), patch(_TIME):
+            rc = resume(_mock_builder)
 
         assert rc == 1
 
-    def test_resume_no_theme(self, scsi_device, capsys):
+    def test_resume_no_theme(self, _mock_builder, scsi_device, capsys):
         from trcc.cli._display import resume
 
         mock_svc = MagicMock()
@@ -1062,18 +1039,18 @@ class TestCLIResume:
         mock_lcd = MagicMock()
         mock_lcd.load_last_theme.return_value = {
             "success": False, "error": "No saved theme"}
+        _mock_builder.build_device_svc.return_value = mock_svc
+        _mock_builder.lcd_from_service.return_value = mock_lcd
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_DISC_RES), \
-             patch(_LCD_FROM_SVC, return_value=mock_lcd), \
+        with patch(_DISC_RES), \
              patch(_TIME):
-            rc = resume()
+            rc = resume(_mock_builder)
 
         assert rc == 1
         mock_lcd.restore_device_settings.assert_called_once()
         assert "No saved theme" in capsys.readouterr().out
 
-    def test_resume_success(self, scsi_device, capsys):
+    def test_resume_success(self, _mock_builder, scsi_device, capsys):
         from trcc.cli._display import resume
 
         mock_svc = MagicMock()
@@ -1082,36 +1059,36 @@ class TestCLIResume:
         mock_lcd = MagicMock()
         mock_lcd.load_last_theme.return_value = {
             "success": True, "image": fake_img}
+        _mock_builder.build_device_svc.return_value = mock_svc
+        _mock_builder.lcd_from_service.return_value = mock_lcd
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_DISC_RES), \
-             patch(_LCD_FROM_SVC, return_value=mock_lcd), \
+        with patch(_DISC_RES), \
              patch(_TIME):
-            rc = resume()
+            rc = resume(_mock_builder)
 
         assert rc == 0
         assert "Resumed 1 device" in capsys.readouterr().out
         mock_lcd.restore_device_settings.assert_called_once()
         mock_lcd.send.assert_called_once_with(fake_img)
 
-    def test_resume_device_exception_continues(self, scsi_device, capsys):
+    def test_resume_device_exception_continues(self, _mock_builder, scsi_device, capsys):
         from trcc.cli._display import resume
 
         mock_svc = MagicMock()
         mock_svc.detect.return_value = [scsi_device]
         mock_lcd = MagicMock()
         mock_lcd.load_last_theme.side_effect = OSError("USB error")
+        _mock_builder.build_device_svc.return_value = mock_svc
+        _mock_builder.lcd_from_service.return_value = mock_lcd
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_DISC_RES), \
-             patch(_LCD_FROM_SVC, return_value=mock_lcd), \
+        with patch(_DISC_RES), \
              patch(_TIME):
-            rc = resume()
+            rc = resume(_mock_builder)
 
         assert rc == 1
         assert "Error" in capsys.readouterr().out
 
-    def test_resume_waits_for_device(self, scsi_device, capsys):
+    def test_resume_waits_for_device(self, _mock_builder, scsi_device, capsys):
         from trcc.cli._display import resume
 
         call_count = 0
@@ -1126,12 +1103,12 @@ class TestCLIResume:
         mock_lcd = MagicMock()
         mock_lcd.load_last_theme.return_value = {
             "success": False, "error": "No saved theme"}
+        _mock_builder.build_device_svc.return_value = mock_svc
+        _mock_builder.lcd_from_service.return_value = mock_lcd
 
-        with patch(_DEV_SVC_CLS, return_value=mock_svc), \
-             patch(_DISC_RES), \
-             patch(_LCD_FROM_SVC, return_value=mock_lcd), \
+        with patch(_DISC_RES), \
              patch(_TIME):
-            rc = resume()
+            rc = resume(_mock_builder)
 
         out = capsys.readouterr().out
         assert "Waiting for device" in out

@@ -31,6 +31,7 @@ log = logging.getLogger(__name__)
 # =========================================================================
 
 _qt_app: "QApplication | None" = None  # kept alive to prevent PySide6 teardown segfault
+_system_svc = None  # lazy SystemService singleton for CLI commands that need metrics
 
 
 def _ensure_renderer() -> None:
@@ -60,29 +61,19 @@ def _ensure_renderer() -> None:
         log.debug("CLI renderer initialised: QtRenderer")
 
 
-def _ensure_settings() -> None:
-    """Initialize Settings singleton with platform path resolver (once)."""
-    from trcc.conf import settings
-    if settings is None:
-        from trcc.conf import init_settings
-        from trcc.core.builder import ControllerBuilder
-        init_settings(ControllerBuilder.build_setup())
+def _ensure_system(builder) -> None:
+    """Initialize and start SystemService for CLI commands that need sensor metrics.
 
-
-def _ensure_system() -> None:
-    """Initialize SystemService singleton for CLI (once).
-
-    Settings must be initialized first — SystemService reads settings.hdd_enabled
-    and other preferences. Without this, any CLI command that touches metrics
-    (test-lcd, test-led, info) crashes on Windows with
-    ``'NoneType' object has no attribute 'hdd_enabled'``.
+    Lazy — only called by commands that use metrics (overlay, LED mode, etc.).
+    Builder is injected by the calling command (from ctx.obj at the boundary).
     """
-    _ensure_settings()
-    from trcc.services.system import _instance
-    if _instance is None:
-        from trcc.core.builder import ControllerBuilder
+    global _system_svc  # noqa: PLW0603
+    if _system_svc is None:
         from trcc.services.system import set_instance
-        set_instance(ControllerBuilder().build_system())
+        svc = builder.build_system()
+        svc.start_polling()
+        set_instance(svc)
+        _system_svc = svc
 
 
 def _cli_handler(func):
@@ -90,8 +81,6 @@ def _cli_handler(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         try:
-            _ensure_settings()
-            _ensure_renderer()
             log.info("CLI %s %s %s", func.__name__,
                      ' '.join(str(a) for a in args),
                      ' '.join(f'{k}={v}' for k, v in kwargs.items()))
@@ -146,7 +135,7 @@ def _version_callback(value: bool) -> None:
 
 def _ensure_file_logging() -> None:
     """Set up logging via TrccLoggingConfigurator (WARNING console, DEBUG file)."""
-    from trcc.adapters.infra.logging_setup import StandardLoggingConfigurator
+    from trcc.adapters.infra.diagnostics import StandardLoggingConfigurator
     StandardLoggingConfigurator().configure(verbosity=0)
 
 
@@ -168,7 +157,6 @@ def _main_callback(
 ) -> None:
     global _verbose
     _verbose = verbose
-    _ensure_file_logging()
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
@@ -185,7 +173,7 @@ def gui(verbose=0, decorated=False, start_hidden=False):
         decorated: Use decorated window with titlebar.
         start_hidden: Start minimized to system tray (used by --last-one autostart).
     """
-    from trcc.adapters.infra.logging_setup import StandardLoggingConfigurator
+    from trcc.adapters.infra.diagnostics import StandardLoggingConfigurator
     StandardLoggingConfigurator().configure(verbosity=verbose)
 
 
@@ -195,9 +183,9 @@ def gui(verbose=0, decorated=False, start_hidden=False):
         import os
         os.environ.pop('QT_QPA_PLATFORM', None)
 
-        from trcc.qt_components.trcc_app import run_app
+        from trcc.gui import launch
         print("[TRCC] Starting LCD Control Center...")
-        return run_app(decorated=decorated, start_hidden=start_hidden)
+        return launch(decorated=decorated, start_hidden=start_hidden)
     except KeyboardInterrupt:
         return 0
     except ImportError as e:
@@ -275,7 +263,8 @@ def _cmd_send(
     )] = False,
 ) -> int:
     """Send image to LCD."""
-    return _display.send_image(image, device=device, preview=preview)
+    from trcc.core.app import TrccApp
+    return _display.send_image(TrccApp.get(), image, device=device, preview=preview)
 
 
 @app.command("color")
@@ -291,7 +280,8 @@ def _cmd_color(
     )] = False,
 ) -> int:
     """Display solid color."""
-    return _display.send_color(hex_color, device=device, preview=preview)
+    from trcc.core.app import TrccApp
+    return _display.send_color(TrccApp.get(), hex_color, device=device, preview=preview)
 
 
 @app.command("video")
@@ -311,9 +301,10 @@ def _cmd_video(
     )] = False,
 ) -> int:
     """Play video/GIF on LCD. For overlays, use 'trcc theme' instead."""
+    from trcc.core.app import TrccApp
     return _display.play_video(
-        path, device=device, loop=not no_loop, duration=duration,
-        preview=preview)
+        TrccApp.get(), path, device=device, loop=not no_loop,
+        duration=duration, preview=preview)
 
 
 @app.command("theme")
@@ -366,6 +357,8 @@ def _cmd_theme(
     )] = None,
 ) -> int:
     """Play background with mask + metrics overlay. Use --save to persist."""
+    from trcc.core.app import TrccApp
+    builder = TrccApp.get()
     if save:
         return _theme.save_theme(
             save, device=device, background=background,
@@ -373,7 +366,7 @@ def _cmd_theme(
             font=font, font_style=font_style, temp_unit=temp_unit,
             time_format=time_format, date_format=date_format)
     return _display.play_video(
-        background, device=device, loop=not no_loop, duration=duration,
+        builder, background, device=device, loop=not no_loop, duration=duration,
         preview=preview, metrics=metric, mask=mask,
         font_size=font_size, color=color, font=font,
         font_style=font_style, temp_unit=temp_unit,
@@ -388,7 +381,8 @@ def _cmd_brightness(
     )] = None,
 ) -> int:
     """Set display brightness."""
-    return _display.set_brightness(level, device=device)
+    from trcc.core.app import TrccApp
+    return _display.set_brightness(TrccApp.get(), level, device=device)
 
 
 @app.command("rotation")
@@ -399,7 +393,8 @@ def _cmd_rotation(
     )] = None,
 ) -> int:
     """Set display rotation."""
-    return _display.set_rotation(degrees, device=device)
+    from trcc.core.app import TrccApp
+    return _display.set_rotation(TrccApp.get(), degrees, device=device)
 
 
 @app.command("screencast")
@@ -417,8 +412,9 @@ def _cmd_screencast(
     )] = False,
 ) -> int:
     """Stream screen region to LCD."""
-    return _display.screencast(device=device, x=x, y=y, w=w, h=h, fps=fps,
-                               preview=preview)
+    from trcc.core.app import TrccApp
+    return _display.screencast(TrccApp.get(), device=device,
+                               x=x, y=y, w=w, h=h, fps=fps, preview=preview)
 
 
 @app.command("mask")
@@ -437,12 +433,14 @@ def _cmd_mask(
     )] = False,
 ) -> int:
     """Load mask overlay and send to LCD."""
+    from trcc.core.app import TrccApp
+    builder = TrccApp.get()
     if clear:
-        return _display.send_color("#000000", device=device, preview=preview)
+        return _display.send_color(builder, "#000000", device=device, preview=preview)
     if not path:
         typer.echo("Error: Provide a mask path or use --clear")
         raise typer.Exit(1)
-    return _display.load_mask(path, device=device, preview=preview)
+    return _display.load_mask(builder, path, device=device, preview=preview)
 
 
 @app.command("overlay")
@@ -462,8 +460,10 @@ def _cmd_overlay(
     )] = False,
 ) -> int:
     """Render overlay from DC config."""
+    from trcc.core.app import TrccApp
     return _display.render_overlay(
-        dc_path, device=device, send=send, output=output, preview=preview)
+        TrccApp.get(), dc_path,
+        device=device, send=send, output=output, preview=preview)
 
 
 @app.command("theme-list")
@@ -490,7 +490,8 @@ def _cmd_theme_load(
     )] = False,
 ) -> int:
     """Load a theme and send to LCD."""
-    return _theme.load_theme(name, device=device, preview=preview)
+    from trcc.core.app import TrccApp
+    return _theme.load_theme(TrccApp.get(), name, device=device, preview=preview)
 
 
 @app.command("led-color")
@@ -503,7 +504,8 @@ def _cmd_led_color(
     )] = False,
 ) -> int:
     """Set LED static color."""
-    return _led.set_color(hex_color, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_color(TrccApp.get(), hex_color, preview=preview)
 
 
 @app.command("led-mode")
@@ -516,7 +518,8 @@ def _cmd_led_mode(
     )] = False,
 ) -> int:
     """Set LED effect mode."""
-    return _led.set_mode(mode, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_mode(TrccApp.get(), mode, preview=preview)
 
 
 @app.command("led-brightness")
@@ -527,13 +530,15 @@ def _cmd_led_brightness(
     )] = False,
 ) -> int:
     """Set LED brightness."""
-    return _led.set_led_brightness(level, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_led_brightness(TrccApp.get(), level, preview=preview)
 
 
 @app.command("led-off")
 def _cmd_led_off() -> int:
     """Turn LEDs off."""
-    return _led.led_off()
+    from trcc.core.app import TrccApp
+    return _led.led_off(TrccApp.get())
 
 
 @app.command("led-sensor")
@@ -543,7 +548,8 @@ def _cmd_led_sensor(
     )],
 ) -> int:
     """Set LED sensor source for temp/load linked modes."""
-    return _led.set_sensor_source(source)
+    from trcc.core.app import TrccApp
+    return _led.set_sensor_source(TrccApp.get(), source)
 
 
 @app.command("led-zone-color")
@@ -557,7 +563,8 @@ def _cmd_led_zone_color(
     )] = False,
 ) -> int:
     """Set color for a specific LED zone."""
-    return _led.set_zone_color(zone, hex_color, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_zone_color(TrccApp.get(), zone, hex_color, preview=preview)
 
 
 @app.command("led-zone-mode")
@@ -571,7 +578,8 @@ def _cmd_led_zone_mode(
     )] = False,
 ) -> int:
     """Set effect mode for a specific LED zone."""
-    return _led.set_zone_mode(zone, mode, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_zone_mode(TrccApp.get(), zone, mode, preview=preview)
 
 
 @app.command("led-zone-brightness")
@@ -583,7 +591,8 @@ def _cmd_led_zone_brightness(
     )] = False,
 ) -> int:
     """Set brightness for a specific LED zone."""
-    return _led.set_zone_brightness(zone, level, preview=preview)
+    from trcc.core.app import TrccApp
+    return _led.set_zone_brightness(TrccApp.get(), zone, level, preview=preview)
 
 
 @app.command("led-zone-toggle")
@@ -592,7 +601,8 @@ def _cmd_led_zone_toggle(
     on: Annotated[bool, typer.Argument(help="true/false")],
 ) -> int:
     """Toggle a specific LED zone on/off."""
-    return _led.toggle_zone(zone, on)
+    from trcc.core.app import TrccApp
+    return _led.toggle_zone(TrccApp.get(), zone, on)
 
 
 @app.command("led-zone-sync")
@@ -603,7 +613,8 @@ def _cmd_led_zone_sync(
     )] = None,
 ) -> int:
     """Enable/disable LED zone sync (circulate/select-all)."""
-    return _led.set_zone_sync(enabled, interval=interval)
+    from trcc.core.app import TrccApp
+    return _led.set_zone_sync(TrccApp.get(), enabled, interval=interval)
 
 
 @app.command("led-segment")
@@ -612,7 +623,8 @@ def _cmd_led_segment(
     on: Annotated[bool, typer.Argument(help="true/false")],
 ) -> int:
     """Toggle a specific LED segment on/off."""
-    return _led.toggle_segment(index, on)
+    from trcc.core.app import TrccApp
+    return _led.toggle_segment(TrccApp.get(), index, on)
 
 
 @app.command("led-clock")
@@ -620,7 +632,8 @@ def _cmd_led_clock(
     is_24h: Annotated[bool, typer.Argument(help="true=24h, false=12h")],
 ) -> int:
     """Set LED segment display clock format."""
-    return _led.set_clock_format(is_24h)
+    from trcc.core.app import TrccApp
+    return _led.set_clock_format(TrccApp.get(), is_24h)
 
 
 @app.command("led-temp-unit")
@@ -628,7 +641,8 @@ def _cmd_led_temp_unit(
     unit: Annotated[str, typer.Argument(help="C or F")],
 ) -> int:
     """Set LED segment display temperature unit."""
-    return _led.set_temp_unit(unit)
+    from trcc.core.app import TrccApp
+    return _led.set_temp_unit(TrccApp.get(), unit)
 
 
 @app.command("lang")
@@ -663,7 +677,8 @@ def _cmd_split(
     )] = None,
 ) -> int:
     """Set split mode (Dynamic Island) for widescreen displays."""
-    return _display.set_split_mode(mode, device=device)
+    from trcc.core.app import TrccApp
+    return _display.set_split_mode(TrccApp.get(), mode, device=device)
 
 
 @app.command("test-led")
@@ -679,7 +694,8 @@ def _cmd_test_led(
     )] = 0,
 ) -> int:
     """Test LED ANSI preview with real metrics. No device needed."""
-    return _led.test_led(mode=mode, segments=segments, duration=duration)
+    from trcc.core.app import TrccApp
+    return _led.test_led(TrccApp.get(), mode=mode, segments=segments, duration=duration)
 
 
 @app.command("test-lcd")
@@ -689,7 +705,8 @@ def _cmd_test_lcd(
     )] = 60,
 ) -> int:
     """Test LCD ANSI preview with real metrics. No device needed."""
-    return _led.test_lcd(cols=cols)
+    from trcc.core.app import TrccApp
+    return _led.test_lcd(TrccApp.get(), cols=cols)
 
 
 @app.command("theme-save", deprecated=True)
@@ -770,7 +787,8 @@ def _cmd_info(
     )] = None,
 ) -> int:
     """Show system metrics."""
-    return _system.show_info(preview=preview, metric=metric)
+    from trcc.core.app import TrccApp
+    return _system.show_info(TrccApp.get(), preview=preview, metric=metric)
 
 
 @app.command("reset")
@@ -783,7 +801,8 @@ def _cmd_reset(
     )] = False,
 ) -> int:
     """Reset/reinitialize LCD device."""
-    return _display.reset(device=device, preview=preview)
+    from trcc.core.app import TrccApp
+    return _display.reset(TrccApp.get(), device=device, preview=preview)
 
 
 @app.command("setup-udev")
@@ -823,7 +842,8 @@ def _cmd_install_desktop() -> int:
 @app.command("resume")
 def _cmd_resume() -> int:
     """Send last-used theme to each detected device (headless)."""
-    return _display.resume()
+    from trcc.core.app import TrccApp
+    return _display.resume(TrccApp.get())
 
 
 @app.command("uninstall")
@@ -853,7 +873,7 @@ def _cmd_led_debug(
     )] = False,
 ) -> int:
     """Diagnose LED device (handshake, PM byte)."""
-    return _diag.led_debug(test=test_colors)
+    return _diag.led_debug(test_colors=test_colors)
 
 
 @app.command("report")
@@ -865,7 +885,7 @@ def _cmd_report() -> int:
 @app.command("doctor")
 def _cmd_doctor() -> int:
     """Check dependencies, libraries, and permissions."""
-    from trcc.adapters.infra.doctor import run_doctor
+    from trcc.adapters.infra.diagnostics import run_doctor
     return run_doctor()
 
 
@@ -1111,11 +1131,17 @@ def _ensure_self_signed_cert() -> Optional[tuple[str, str]]:
 # =========================================================================
 
 def main():
-    """Main CLI entry point (pyproject.toml console_scripts)."""
-    from trcc.core.builder import ControllerBuilder
-    ControllerBuilder.build_setup().configure_stdout()
+    """Main CLI entry point — composition root.
+
+    Initialization order: logging → OS detection → settings.
+    Everything else (device scan, system service) is lazy — triggered by commands.
+    """
+    from trcc.core.app import TrccApp
+
+    trcc_app = TrccApp.init(verbosity=_verbose)
+
     try:
-        result = app(standalone_mode=False)
+        result = app(standalone_mode=False, obj=trcc_app)
         return result if isinstance(result, int) else 0
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 0

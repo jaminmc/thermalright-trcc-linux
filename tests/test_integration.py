@@ -44,6 +44,12 @@ def _make_device(vid=0x87CD, pid=0x70DB, scsi="/dev/sg0", usb_path="2-1",
 class TestCLISendPipeline(unittest.TestCase):
     """CLI send_image()/send_color() → DeviceService → DeviceProtocolFactory."""
 
+    @staticmethod
+    def _real_builder():
+        from trcc.adapters.system.linux.platform import LinuxPlatform
+        from trcc.core.builder import ControllerBuilder
+        return ControllerBuilder(LinuxPlatform())
+
     @patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol")
     @patch("trcc.core.builder.ControllerBuilder.build_detect_fn")
     def test_cli_send_image(self, mock_build_detect_fn, mock_get_protocol):
@@ -58,10 +64,11 @@ class TestCLISendPipeline(unittest.TestCase):
             resolution=(320, 320))
         mock_get_protocol.return_value = mock_protocol
 
+        builder = self._real_builder()
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
             _make_png(f.name)
             try:
-                result = send_image(f.name, device="/dev/sg0")
+                result = send_image(builder, f.name, device="/dev/sg0")
                 self.assertEqual(result, 0)
                 mock_protocol.send_image.assert_called_once()
                 # Verify RGB565 frame size: 320*320*2 = 204800
@@ -90,7 +97,8 @@ class TestCLISendPipeline(unittest.TestCase):
             resolution=(320, 320))
         mock_get_protocol.return_value = mock_protocol
 
-        result = send_color("ff0000", device="/dev/sg0")
+        builder = self._real_builder()
+        result = send_color(builder, "ff0000", device="/dev/sg0")
         self.assertEqual(result, 0)
         mock_protocol.send_image.assert_called_once()
         # Verify RGB565 frame size
@@ -136,7 +144,9 @@ class TestCLIResumePipeline(unittest.TestCase):
                 "rotation": 90,
             }
 
-            result = resume()
+            from trcc.adapters.system.linux.platform import LinuxPlatform
+            from trcc.core.builder import ControllerBuilder
+            result = resume(ControllerBuilder(LinuxPlatform()))
             self.assertEqual(result, 0)
             # send_pil_async is called synchronously by lcd.send() —
             # no race condition with background worker thread
@@ -214,25 +224,27 @@ class TestCLIDetectPipeline(unittest.TestCase):
 class TestDeviceDetectorRoundTrip(unittest.TestCase):
     """Verify find_usb_devices → detect_devices → get_default_device chain."""
 
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_scsi_device_by_usb_path")
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices")
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices_sysfs", return_value=[])
-    def test_usb_to_scsi_mapping(self, _mock_sysfs, mock_find_usb, mock_find_scsi):
-        """USB device found → SCSI path assigned → returned in DeviceDetector.detect()."""
+    @patch("trcc.adapters.device.linux.detector.linux_scsi_resolver")
+    @patch("usb.core.find")
+    def test_usb_to_scsi_mapping(self, mock_find, mock_scsi_resolver):
+        """USB device found → SCSI path assigned via scsi_resolver → returned in detect()."""
         from trcc.adapters.device.detector import DeviceDetector
 
-        dev = _make_device(scsi=None)
-        mock_find_usb.return_value = [dev]
-        mock_find_scsi.return_value = "/dev/sg0"
+        mock_usb_dev = MagicMock()
+        mock_find.side_effect = lambda **kw: (
+            mock_usb_dev
+            if (kw.get('idVendor') == 0x87CD and kw.get('idProduct') == 0x70DB)
+            else None
+        )
+        mock_scsi_resolver.return_value = "/dev/sg0"
 
         devices = DeviceDetector.detect()
-        self.assertEqual(len(devices), 1)
-        self.assertEqual(devices[0].scsi_device, "/dev/sg0")
+        thermalright = [d for d in devices if d.vid == 0x87CD and d.pid == 0x70DB]
+        self.assertEqual(len(thermalright), 1)
+        self.assertEqual(thermalright[0].scsi_device, "/dev/sg0")
 
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_scsi_device_by_usb_path")
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices")
-    @patch("trcc.adapters.device.detector.DeviceDetector.find_usb_devices_sysfs", return_value=[])
-    def test_get_default_prefers_thermalright(self, _mock_sysfs, mock_find_usb, mock_find_scsi):
+    @patch("trcc.adapters.device.detector.DeviceDetector.detect")
+    def test_get_default_prefers_thermalright(self, mock_detect):
         """get_default_device prefers Thermalright (VID 0x87CD)."""
         from trcc.adapters.device.detector import get_default_device
 
@@ -242,10 +254,7 @@ class TestDeviceDetectorRoundTrip(unittest.TestCase):
             _make_device(vid=0x87CD, pid=0x70DB, scsi="/dev/sg0",
                          usb_path="2-1"),
         ]
-        mock_find_usb.return_value = devs
-        mock_find_scsi.side_effect = lambda path: {
-            "2-2": "/dev/sg1", "2-1": "/dev/sg0"
-        }.get(path)
+        mock_detect.return_value = devs
 
         device = get_default_device()
         self.assertIsNotNone(device)

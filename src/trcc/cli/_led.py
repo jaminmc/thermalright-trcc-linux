@@ -1,29 +1,25 @@
-"""LED CLI commands — thin print wrappers over LEDDevice.
+"""LED CLI commands — thin wrappers over Device.
 
-LEDDevice lives in core/led_device.py (DIP). These CLI functions are
-presentation-only adapters: connect, call device method, print result.
+Presentation-only: builder injected by _cmd_* boundary functions, call method, print result.
 """
 from __future__ import annotations
 
 from trcc.cli import _cli_handler
-from trcc.core.led_device import LEDDevice
 from trcc.core.models import parse_hex_color as _parse_hex
 
 # =========================================================================
 # CLI presentation helpers
 # =========================================================================
 
-def _connect_or_fail() -> tuple[LEDDevice, int]:
-    """Create device, connect. Returns (device, exit_code).
+def _connect_or_fail(builder):  # -> tuple[LEDDevice, int]
+    """Build + connect LEDDevice. Returns (device, exit_code).
 
-    Composition root: injects instance detection (find_active) and proxy
-    factory so core routes through GUI/API if one is already running.
+    Builder injected by the calling command (from ctx.obj at the CLI boundary).
     """
-    from trcc.core.builder import ControllerBuilder
     from trcc.core.instance import find_active
     from trcc.ipc import create_led_proxy
 
-    led = ControllerBuilder().build_led()
+    led = builder.build_led()
     led._find_active_fn = find_active
     led._proxy_factory_fn = create_led_proxy
     result = led.connect()
@@ -49,9 +45,9 @@ def _print_result(result: dict, *, preview: bool = False) -> int:
     return 0
 
 
-def _led_command(method: str, *args, preview: bool = False, **kwargs) -> int:
+def _led_command(builder, method: str, *args, preview: bool = False, **kwargs) -> int:
     """Generic: connect LED, call device method, print result."""
-    led, rc = _connect_or_fail()
+    led, rc = _connect_or_fail(builder)
     if rc:
         return rc
     return _print_result(getattr(led, method)(*args, **kwargs), preview=preview)
@@ -65,7 +61,7 @@ def _led_command(method: str, *args, preview: bool = False, **kwargs) -> int:
 def _get_led_service():
     """Detect LED device and create initialized LEDService."""
     from trcc.core.builder import ControllerBuilder
-    led = ControllerBuilder().build_led()
+    led = ControllerBuilder.for_current_os().build_led()
     result = led.connect()
     if not result["success"]:
         return None, None
@@ -73,25 +69,25 @@ def _get_led_service():
 
 
 @_cli_handler
-def set_color(hex_color, *, preview=False):
+def set_color(builder, hex_color, *, preview=False):
     """Set LED static color."""
     rgb = _parse_hex(hex_color)
     if not rgb:
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
 
-    led, rc = _connect_or_fail()
+    led, rc = _connect_or_fail(builder)
     if rc:
         return rc
     return _print_result(led.set_color(*rgb), preview=preview)
 
 
 @_cli_handler
-def set_mode(mode_name, *, preview=False):
+def set_mode(builder, mode_name, *, preview=False):
     """Set LED effect mode."""
     import time
 
-    led, rc = _connect_or_fail()
+    led, rc = _connect_or_fail(builder)
     if rc:
         return rc
 
@@ -107,7 +103,7 @@ def set_mode(mode_name, *, preview=False):
         from trcc.services import LEDService
         from trcc.services.system import get_all_metrics
 
-        _ensure_system()
+        _ensure_system(builder)
         print(f"LED mode: {mode_name} (running, Ctrl+C to stop)")
         _metric_ticks = 0
         try:
@@ -116,7 +112,7 @@ def set_mode(mode_name, *, preview=False):
                 if _metric_ticks % 20 == 0:
                     led.update_metrics(get_all_metrics())
                 _metric_ticks += 1
-                tick = led.tick()
+                tick = led.tick_with_result()
                 if preview and tick.get("colors"):
                     print(LEDService.zones_to_ansi(tick["colors"]),
                           end='\r', flush=True)
@@ -134,84 +130,84 @@ def set_mode(mode_name, *, preview=False):
 
 
 @_cli_handler
-def set_led_brightness(level, *, preview=False):
+def set_led_brightness(builder, level, *, preview=False):
     """Set LED brightness (0-100)."""
-    return _led_command("set_brightness", level, preview=preview)
+    return _led_command(builder, "set_brightness", level, preview=preview)
 
 
 @_cli_handler
-def led_off():
+def led_off(builder):
     """Turn LEDs off."""
-    return _led_command("off")
+    return _led_command(builder, "off")
 
 
 @_cli_handler
-def set_sensor_source(source):
+def set_sensor_source(builder, source):
     """Set CPU/GPU sensor source for temp/load linked LED modes."""
-    return _led_command("set_sensor_source", source)
+    return _led_command(builder, "set_sensor_source", source)
 
 
 @_cli_handler
-def set_zone_color(zone: int, hex_color: str, *, preview: bool = False):
+def set_zone_color(builder, zone: int, hex_color: str, *, preview: bool = False):
     """Set color for a specific LED zone."""
     rgb = _parse_hex(hex_color)
     if not rgb:
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
 
-    led, rc = _connect_or_fail()
+    led, rc = _connect_or_fail(builder)
     if rc:
         return rc
     return _print_result(led.set_zone_color(zone, *rgb), preview=preview)
 
 
 @_cli_handler
-def set_zone_mode(zone: int, mode_name: str, *, preview: bool = False):
+def set_zone_mode(builder, zone: int, mode_name: str, *, preview: bool = False):
     """Set effect mode for a specific LED zone."""
-    return _led_command("set_zone_mode", zone, mode_name, preview=preview)
+    return _led_command(builder, "set_zone_mode", zone, mode_name, preview=preview)
 
 
 @_cli_handler
-def set_zone_brightness(zone: int, level: int, *, preview: bool = False):
+def set_zone_brightness(builder, zone: int, level: int, *, preview: bool = False):
     """Set brightness for a specific LED zone (0-100)."""
-    return _led_command("set_zone_brightness", zone, level, preview=preview)
+    return _led_command(builder, "set_zone_brightness", zone, level, preview=preview)
 
 
 @_cli_handler
-def toggle_zone(zone: int, on: bool):
+def toggle_zone(builder, zone: int, on: bool):
     """Toggle a specific LED zone on/off."""
-    return _led_command("toggle_zone", zone, on)
+    return _led_command(builder, "toggle_zone", zone, on)
 
 
 @_cli_handler
-def set_zone_sync(enabled: bool, *, interval: int | None = None):
+def set_zone_sync(builder, enabled: bool, *, interval: int | None = None):
     """Enable/disable zone sync (circulate or select-all depending on style)."""
-    return _led_command("set_zone_sync", enabled, interval=interval)
+    return _led_command(builder, "set_zone_sync", enabled, interval=interval)
 
 
 @_cli_handler
-def toggle_segment(index: int, on: bool):
+def toggle_segment(builder, index: int, on: bool):
     """Toggle a specific LED segment on/off."""
-    return _led_command("toggle_segment", index, on)
+    return _led_command(builder, "toggle_segment", index, on)
 
 
 @_cli_handler
-def set_clock_format(is_24h: bool):
+def set_clock_format(builder, is_24h: bool):
     """Set LED segment display clock format (12h/24h)."""
-    return _led_command("set_clock_format", is_24h)
+    return _led_command(builder, "set_clock_format", is_24h)
 
 
 @_cli_handler
-def set_temp_unit(unit: str):
+def set_temp_unit(builder, unit: str):
     """Set LED segment display temperature unit (C/F)."""
-    return _led_command("set_temp_unit", unit)
+    return _led_command(builder, "set_temp_unit", unit)
 
 
 # =========================================================================
 # Developer test commands (no device needed)
 # =========================================================================
 
-def test_led(*, mode: str | None = None, segments: int = 64,
+def test_led(builder, *, mode: str | None = None, segments: int = 64,
              duration: int = 0):
     """Test LED ANSI preview with real system metrics. No device needed."""
     import time
@@ -237,7 +233,7 @@ def test_led(*, mode: str | None = None, segments: int = 64,
     else:
         run_modes = modes
 
-    _ensure_system()
+    _ensure_system(builder)
     sys_svc = get_instance()
     metrics = sys_svc.all_metrics
 
@@ -289,13 +285,13 @@ def test_led(*, mode: str | None = None, segments: int = 64,
         return 1
 
 
-def test_lcd(*, cols: int = 60):
+def test_lcd(builder, *, cols: int = 60):
     """Test LCD ANSI preview with real system metrics. No device needed."""
     from trcc.cli import _ensure_system
     from trcc.services.image import ImageService
     from trcc.services.system import get_instance
 
-    _ensure_system()
+    _ensure_system(builder)
     sys_svc = get_instance()
     metrics = sys_svc.all_metrics
 

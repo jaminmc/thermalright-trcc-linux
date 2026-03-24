@@ -35,7 +35,7 @@ class LEDDevice(Device):
     LEDService owns the logic. This class is the entry point.
 
     Construction (via builder — the only correct way):
-        led = ControllerBuilder().build_led()
+        led = ControllerBuilder.for_current_os().build_led()
         led.connect()                        # CLI: auto-detect + probe
         led.set_color(255, 0, 0)             # set static red
     """
@@ -463,8 +463,18 @@ class LEDDevice(Device):
 
     # ── Animation tick ─────────────────────────────────────────────
 
-    def tick(self) -> dict:
-        """Advance one animation frame. Returns colors + display_colors."""
+    def tick(self) -> None:
+        """Advance one LED animation frame and send to hardware."""
+        if not self._svc:
+            return
+        colors = self._svc.tick()
+        if self._svc.has_protocol:
+            self._svc.send_colors(colors)
+
+    def tick_with_result(self) -> dict:
+        """Advance one animation frame. Returns colors + display_colors (GUI use)."""
+        if not self._svc:
+            return {"colors": [], "display_colors": []}
         colors = self._svc.tick()
         display_colors = self._svc.apply_mask(colors)
         if self._svc.has_protocol:

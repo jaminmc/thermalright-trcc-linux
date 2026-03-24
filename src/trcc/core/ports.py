@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Protocol, runtime_checkable
 
-from trcc.core.models import JPEG_MAX_BYTES
+from trcc.core.models import JPEG_MAX_BYTES, DetectedDevice
 
 if TYPE_CHECKING:
     from trcc.core.models import SensorInfo
@@ -183,6 +183,23 @@ class Device(ABC):
     @abstractmethod
     def device_info(self) -> Any:
         """DeviceInfo — models hold all device state."""
+
+    @abstractmethod
+    def update_metrics(self, metrics: Any) -> dict:
+        """Push polled hardware metrics into the device (overlay/LED effects).
+
+        Returns: {"success": bool}
+        """
+
+    @abstractmethod
+    def tick(self) -> None:
+        """Overlay tick — called by TrccApp metrics loop at fixed interval.
+
+        LCD: render overlay frame if metrics changed, send to hardware.
+             Skipped when video is playing (animation timer drives video).
+        LED: advance LED animation state, send to hardware.
+        No OS deps — pure device logic.
+        """
 
     @abstractmethod
     def cleanup(self) -> None:
@@ -610,3 +627,53 @@ class AutostartManager(ABC):
         self.refresh()
         return self.is_enabled()
 
+
+class PlatformAdapter(ABC):
+    """Abstract Factory — single OS boundary.
+
+    One implementation per OS (Linux, macOS, BSD, Windows). Builder
+    instantiates the correct one and injects it everywhere. Nothing
+    outside this class and builder.py ever checks the OS flag.
+
+    Every method returns a fully constructed object or callable ready
+    for injection. Adapters that receive these deps are pure OOP —
+    they hold a reference and call it, with no OS awareness.
+
+    Concrete implementations:
+        adapters/system/linux/platform.py   — LinuxPlatform
+        adapters/system/macos/platform.py   — MacOSPlatform
+        adapters/system/bsd/platform.py     — BSDPlatform
+        adapters/system/windows/platform.py — WindowsPlatform
+    """
+
+    @abstractmethod
+    def create_detect_fn(self) -> Callable[[], List[DetectedDevice]]:
+        """Return a device detection callable for this OS."""
+
+    @abstractmethod
+    def create_sensor_enumerator(self) -> 'SensorEnumerator':
+        """Return the OS-specific sensor enumerator."""
+
+    @abstractmethod
+    def create_autostart_manager(self) -> AutostartManager:
+        """Return the OS-specific autostart manager."""
+
+    @abstractmethod
+    def create_setup(self) -> PlatformSetup:
+        """Return the OS-specific setup wizard."""
+
+    @abstractmethod
+    def get_memory_info_fn(self) -> GetMemoryInfoFn:
+        """Return a callable that returns current memory info."""
+
+    @abstractmethod
+    def get_disk_info_fn(self) -> GetDiskInfoFn:
+        """Return a callable that returns current disk info."""
+
+    @abstractmethod
+    def configure_scsi_protocol(self, factory: Any) -> None:
+        """Wire the OS-specific SCSI protocol into the factory.
+
+        Linux/macOS/BSD: no-op (default SCSI protocol used).
+        Windows: wires WindowsScsiProtocol via DeviceIoControl.
+        """

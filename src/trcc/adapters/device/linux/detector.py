@@ -1,48 +1,73 @@
-"""Linux device detection facade — enriches raw detection with config + LED probe.
+"""Linux device detection helpers.
 
-Wraps the raw detector output (sysfs enumeration) with saved identity lookup,
-LED model probing, and device dict assembly for the rest of the app.
+linux_scsi_resolver: injected into DeviceDetector by builder on Linux.
+find_lcd_devices: enriches raw DetectedDevice list with saved identity +
+    LED probing — used by the GUI (trcc_app.py via scsi.py).
 """
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
+import os
+from typing import Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
 
-class LinuxDeviceDetector:
-    """Detect and enrich Thermalright USB devices on Linux.
+def linux_scsi_resolver(vid: int, pid: int) -> Optional[str]:
+    """Map a VID:PID to its /dev/sg* or /dev/sd* path via sysfs.
 
-    Matches the interface of MacOSDeviceDetector and BSDDeviceDetector.
-    Wraps find_lcd_devices() so callers get a consistent class-based API
-    across all platforms.
+    Walks /sys/class/scsi_generic/ to find the SCSI generic device whose
+    USB parent matches the given VID:PID. Falls back to /dev/sd* block
+    devices when the sg kernel module is not loaded.
     """
+    from trcc.adapters.infra.data_repository import SysUtils
 
-    @staticmethod
-    def detect(detect_fn=None) -> list[dict]:
-        """Return enriched device dicts for all connected Thermalright devices."""
-        return find_lcd_devices(detect_fn=detect_fn)
+    # Pass 1: /dev/sg* (sg module loaded)
+    for sg_name in SysUtils.find_scsi_devices():
+        sysfs_base = f"/sys/class/scsi_generic/{sg_name}/device"
+        if not os.path.exists(sysfs_base):
+            continue
+        resolved = _resolve_vid_pid(sysfs_base)
+        if resolved and resolved == (vid, pid):
+            return f"/dev/{sg_name}"
+
+    # Pass 2: /dev/sd* block devices (sg module not loaded)
+    for sd_name in SysUtils.find_scsi_block_devices():
+        sysfs_base = f"/sys/block/{sd_name}/device"
+        resolved = _resolve_vid_pid(sysfs_base)
+        if resolved and resolved == (vid, pid):
+            log.info("sg module not loaded — using block device /dev/%s", sd_name)
+            return f"/dev/{sd_name}"
+
+    return None
 
 
-def _load_saved_identity(
-    dev_index: int, vid: int, pid: int,
-) -> tuple[str | None, str | None]:
-    """Load previously resolved button_image + product name from config.
-
-    Returns (button_image, product) or (None, None) if not saved.
-    """
+def _resolve_vid_pid(sysfs_base: str) -> Optional[tuple[int, int]]:
+    """Walk sysfs parents to find the VID:PID for a SCSI device."""
     try:
-        from trcc.conf import Settings
-        key = Settings.device_config_key(dev_index, vid, pid)
-        cfg = Settings.get_device_config(key)
-        return cfg.get('resolved_button_image'), cfg.get('resolved_product')
-    except Exception:
-        return None, None
+        device_path = os.path.realpath(sysfs_base)
+        for _ in range(10):
+            device_path = os.path.dirname(device_path)
+            vid_path = os.path.join(device_path, "idVendor")
+            pid_path = os.path.join(device_path, "idProduct")
+            if os.path.exists(vid_path) and os.path.exists(pid_path):
+                with open(vid_path) as vf:
+                    v = int(vf.read().strip(), 16)
+                with open(pid_path) as pf:
+                    p = int(pf.read().strip(), 16)
+                return v, p
+    except (IOError, OSError, ValueError):
+        pass
+    log.warning("sysfs VID/PID walk failed for %s — skipping device", sysfs_base)
+    return None
 
+
+# ---------------------------------------------------------------------------
+# find_lcd_devices — enriched device list for the GUI
+# ---------------------------------------------------------------------------
 
 def find_lcd_devices(detect_fn=None) -> List[Dict]:
-    """Detect connected LCD devices (SCSI and HID).
+    """Detect connected LCD devices and enrich with saved identity + LED probe.
 
     Args:
         detect_fn: Callable returning raw DetectedDevice list. Defaults to
@@ -53,10 +78,7 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
         model, button_image, protocol, device_type, vid, pid
     """
     if detect_fn is None:
-        try:
-            from trcc.adapters.device.detector import DeviceDetector
-        except ImportError:
-            return []
+        from trcc.adapters.device.detector import DeviceDetector
         detect_fn = DeviceDetector.detect
 
     raw = detect_fn()
@@ -74,12 +96,9 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
         saved_btn, saved_product = _load_saved_identity(dev_idx, dev.vid, dev.pid)
 
         if protocol == 'scsi':
-            # SCSI devices need a /dev/sgX path
             if not dev.scsi_device:
                 continue
-
             product = saved_product or dev.product_name
-            # Resolution (0,0) until handshake polls FBL from device
             devices.append({
                 'name': f"Thermalright {product}" if saved_product
                         else f"{dev.vendor_name} {dev.product_name}",
@@ -96,21 +115,15 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
                 'implementation': dev.implementation,
             })
         elif protocol == 'hid':
-            # HID devices use USB VID:PID directly (no SCSI path)
-            # Path is a synthetic identifier for the factory
             hid_path = f"hid:{dev.vid:04x}:{dev.pid:04x}"
-
             model = dev.model
             button_image = saved_btn or dev.button_image
             led_style_id = None
 
-            # All LED devices share PID 0x8001 — probe via HID handshake
-            # to discover the real model (AX120, PA120, LC1, etc.).
             if dev.implementation == 'hid_led':
                 try:
                     from trcc.adapters.device.led import PmRegistry, probe_led_model
-                    info = probe_led_model(dev.vid, dev.pid,
-                                           usb_path=dev.usb_path)
+                    info = probe_led_model(dev.vid, dev.pid, usb_path=dev.usb_path)
                     if info and info.model_name:
                         model = info.model_name
                         led_style_id = info.style.style_id if info.style else None
@@ -118,14 +131,14 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
                         if btn:
                             button_image = btn
                 except Exception:
-                    pass  # Fall back to registry default
+                    pass
 
             product = saved_product or dev.product_name
             devices.append({
                 'name': f"Thermalright {product}" if saved_product
                         else f"{dev.vendor_name} {dev.product_name}",
                 'path': hid_path,
-                'resolution': (0, 0),  # Unknown until HID handshake (PM->FBL->resolution)
+                'resolution': (0, 0),
                 'vendor': dev.vendor_name,
                 'product': product,
                 'model': model,
@@ -138,9 +151,7 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
                 'implementation': dev.implementation,
             })
         elif protocol in ('bulk', 'ly'):
-            # Bulk / LY USB devices — no SCSI path, use VID:PID
             dev_path = f"{protocol}:{dev.vid:04x}:{dev.pid:04x}"
-
             product = saved_product or dev.product_name
             devices.append({
                 'name': f"Thermalright {product}" if saved_product
@@ -158,7 +169,6 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
                 'implementation': dev.implementation,
             })
 
-    # Sort by path for stable ordinal assignment
     devices.sort(key=lambda d: d['path'])
     for i, d in enumerate(devices):
         d['device_index'] = i
@@ -166,37 +176,33 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
     return devices
 
 
+def _load_saved_identity(
+    dev_index: int, vid: int, pid: int,
+) -> tuple[str | None, str | None]:
+    try:
+        from trcc.conf import Settings
+        key = Settings.device_config_key(dev_index, vid, pid)
+        cfg = Settings.get_device_config(key)
+        return cfg.get('resolved_button_image'), cfg.get('resolved_product')
+    except Exception:
+        return None, None
+
+
+# Backward compat — send_image_to_device referenced from scsi.py
 def send_image_to_device(
     device_path: str,
     rgb565_data: bytes,
     width: int,
     height: int,
 ) -> bool:
-    """Send RGB565 image data to an LCD device via SCSI.
-
-    Initializes (poll + init) on first send to each device, then skips
-    init for subsequent sends.
-
-    Args:
-        device_path: SCSI device path (e.g. /dev/sg0)
-        rgb565_data: Raw RGB565 pixel bytes (big-endian, width*height*2 bytes)
-        width: Image width in pixels
-        height: Image height in pixels
-
-    Returns:
-        True if the send succeeded.
-    """
     from trcc.adapters.device.scsi import ScsiDevice
-
     try:
         if device_path not in ScsiDevice._initialized_devices:
-            ScsiDevice._init_device(device_path)  # return value unused here
+            ScsiDevice._init_device(device_path)
             ScsiDevice._initialized_devices.add(device_path)
-
         ScsiDevice._send_frame(device_path, rgb565_data, width, height)
         return True
     except Exception as e:
         log.error("SCSI send failed (%s): %s", device_path, e)
-        # Allow re-init on next attempt
         ScsiDevice._initialized_devices.discard(device_path)
         return False

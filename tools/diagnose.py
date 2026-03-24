@@ -33,8 +33,6 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -74,80 +72,77 @@ _PROTO_MAP = {
     "LED":  "hid",
 }
 
-_TEST_MAP = {
-    "scsi": "tests/adapters/device/test_scsi.py",
+_SCSI_TEST = {
+    "linux":   "tests/adapters/device/test_scsi.py",
+    "windows": "tests/adapters/device/windows/test_scsi.py",
+    "macos":   "tests/adapters/device/macos/test_scsi.py",
+    "bsd":     "tests/adapters/device/bsd/test_scsi.py",
+}
+
+_TEST_MAP_BASE = {
     "bulk": "tests/adapters/device/test_bulk.py",
     "ly":   "tests/adapters/device/test_ly.py",
     "hid":  "tests/adapters/device/test_hid.py",
 }
 
 
+def _platform(os_name: str) -> str:
+    """Derive platform key from OS string in trcc report."""
+    s = os_name.lower()
+    if "windows" in s:
+        return "windows"
+    if "darwin" in s or "macos" in s or "mac os" in s:
+        return "macos"
+    if "freebsd" in s or "openbsd" in s or "netbsd" in s or "bsd" in s:
+        return "bsd"
+    return "linux"
+
+
+def _test_map(os_name: str) -> dict[str, str]:
+    return {**_TEST_MAP_BASE, "scsi": _SCSI_TEST[_platform(os_name)]}
+
+
 def parse_report(text: str) -> ParsedReport:
     """Extract device profile(s) from ``trcc report`` text output."""
     report = ParsedReport()
-    lines = text.splitlines()
 
-    section = ""
-    for line in lines:
-        stripped = line.strip()
+    m = re.search(r"trcc-linux:\s+(\S+)", text)
+    if m:
+        report.trcc_version = m.group(1)
 
-        # Track current section — titles have no leading whitespace; content has 2+ spaces
-        if re.match(r"^─{10,}", stripped) or re.match(r"^={10,}", stripped):
-            continue
-        if stripped and not line[0].isspace():
-            section = stripped
-            continue
+    m = re.search(r"Python:\s+(\S+)", text)
+    if m:
+        report.python_version = m.group(1)
 
-        # Version section
-        if section.startswith("Version"):
-            m = re.match(r"\s*trcc-linux:\s+(.+)", line)
-            if m:
-                report.trcc_version = m.group(1).strip()
-            m = re.match(r"\s*Python:\s+(.+)", line)
-            if m:
-                report.python_version = m.group(1).strip()
-            m = re.match(r"\s*OS:\s+(.+)", line)
-            if m:
-                report.os_name = m.group(1).strip()
+    m = re.search(r"OS:\s+(.+)", text)
+    if m:
+        report.os_name = m.group(1).strip()
 
-        # Detected devices section — lines like:
-        #   [1] 87ad:70db  GrandVision 360  (BULK)  path=bulk:87ad:70db
-        elif section.startswith("Detected devices"):
-            m = re.match(
-                r"\s*\[\d+\]\s+([0-9a-fA-F]{4}):([0-9a-fA-F]{4})\s+.*"
-                r"\((\w+)\).*path=(\S+)",
-                line,
-            )
-            if m:
-                vid = int(m.group(1), 16)
-                pid = int(m.group(2), 16)
-                proto_raw = m.group(3).upper()
-                path = m.group(4)
-                proto = _PROTO_MAP.get(proto_raw, proto_raw.lower())
-                report.devices.append(DeviceProfile(
-                    protocol=proto, vid=vid, pid=pid, path=path,
-                ))
+    # Each detected device: [N] vid:pid  Name  (PROTO)  path=...
+    for m in re.finditer(
+        r"\[\d+\]\s+([0-9a-fA-F]{4}):([0-9a-fA-F]{4})(?![0-9a-fA-F])\s+.*?\((\w+)\).*?path=(\S+)",
+        text,
+    ):
+        vid = int(m.group(1), 16)
+        pid = int(m.group(2), 16)
+        proto = _PROTO_MAP.get(m.group(3).upper(), m.group(3).lower())
+        report.devices.append(DeviceProfile(protocol=proto, vid=vid, pid=pid, path=m.group(4)))
 
-        # Handshakes section — extract PM, SUB, resolution per device
-        elif section.startswith("Handshake"):
-            # PM / SUB line: "PM=7  SUB=0  FBL=64  resolution=(640, 480)"
-            m = re.search(r"PM=(\d+)", line)
-            if m and report.devices:
-                report.devices[-1].pm = int(m.group(1))
-            m = re.search(r"SUB=(\d+)", line)
-            if m and report.devices:
-                report.devices[-1].sub = int(m.group(1))
-            m = re.search(r"resolution=\((\d+),\s*(\d+)\)", line)
-            if m and report.devices:
-                report.devices[-1].width = int(m.group(1))
-                report.devices[-1].height = int(m.group(2))
+    # Handshake values — one PM/SUB/resolution block per device (in order)
+    handshake_blocks = re.findall(
+        r"PM=(\d+).*?SUB=(\d+).*?resolution=\((\d+),\s*(\d+)\)", text
+    )
+    for i, (pm, sub, w, h) in enumerate(handshake_blocks):
+        if i < len(report.devices):
+            report.devices[i].pm = int(pm)
+            report.devices[i].sub = int(sub)
+            report.devices[i].width = int(w)
+            report.devices[i].height = int(h)
 
-        # Recent log section
-        elif "Recent log" in section:
-            if stripped:
-                report.log_tail.append(stripped)
-                if "EBUSY" in stripped or "claim_interface" in stripped:
-                    report.ebusy_in_log = True
+    # EBUSY / claim_interface anywhere in the log
+    if re.search(r"EBUSY|claim_interface", text):
+        report.ebusy_in_log = True
+        report.log_tail = re.findall(r".*(EBUSY|claim_interface).*", text)
 
     return report
 
@@ -159,9 +154,9 @@ def parse_report(text: str) -> ParsedReport:
 _REPO_ROOT = Path(__file__).parent.parent
 
 
-def _run_tests(device: DeviceProfile, extra_markers: list[str]) -> int:
+def _run_tests(device: DeviceProfile, extra_markers: list[str], os_name: str = "") -> int:
     """Run pytest for the given device profile. Returns exit code."""
-    test_file = _TEST_MAP.get(device.protocol)
+    test_file = _test_map(os_name).get(device.protocol)
     if not test_file:
         print(f"  [SKIP] No test file for protocol '{device.protocol}'")
         return 0
@@ -172,12 +167,15 @@ def _run_tests(device: DeviceProfile, extra_markers: list[str]) -> int:
     env["TRCC_DIAGNOSE_PM"] = str(device.pm)
     env["TRCC_DIAGNOSE_SUB"] = str(device.sub)
     env["TRCC_DIAGNOSE_PROTOCOL"] = device.protocol
+    env["TRCC_DIAGNOSE_PATH"] = device.path
+    env["TRCC_DIAGNOSE_WIDTH"] = str(device.width)
+    env["TRCC_DIAGNOSE_HEIGHT"] = str(device.height)
     env["PYTHONPATH"] = str(_REPO_ROOT / "src")
 
-    # Run only the diagnose-aware tests (functions, not unittest classes)
-    # plus the EBUSY test if the log shows it fired
-    k_filters = ["test_bulk_handshake_profile", "test_bulk_send_frame_profile"]
-    if "EBUSY" in extra_markers or device.protocol == "bulk":
+    # Run only the diagnose-aware profile tests for this protocol
+    p = device.protocol
+    k_filters = [f"test_{p}_handshake_profile", f"test_{p}_send_frame_profile"]
+    if "EBUSY" in extra_markers or p == "bulk":
         k_filters.append("test_bulk_open_ebusy_no_reset")
 
     k_expr = " or ".join(k_filters)
@@ -234,7 +232,7 @@ def main() -> None:
     for i, device in enumerate(report.devices, 1):
         print(f"\n{'─' * 60}")
         print(f"Device {i}: {device.vid:04X}:{device.pid:04X} ({device.protocol.upper()})")
-        rc = _run_tests(device, extra)
+        rc = _run_tests(device, extra, report.os_name)
         if rc != 0:
             failed += 1
 

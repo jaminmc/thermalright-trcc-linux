@@ -82,8 +82,8 @@ class WindowsScsiProtocol(DeviceProtocol):
                     fbl, self._vid, self._pid,
                 )
             else:
-                from trcc.adapters.device.detector import KNOWN_DEVICES
-                entry = KNOWN_DEVICES[(self._vid, self._pid)]
+                from trcc.core.models import SCSI_DEVICES
+                entry = SCSI_DEVICES[(self._vid, self._pid)]
                 fbl = entry.fbl
                 log.warning(
                     "Windows SCSI poll returned empty on %s (VID=%04X PID=%04X)"

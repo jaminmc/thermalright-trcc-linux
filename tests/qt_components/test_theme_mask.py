@@ -264,8 +264,7 @@ class TestSaveCustomMask:
         cropped = make_test_surface(320, 320, (0, 255, 0, 200))
 
         app = MagicMock(spec=TRCCApp)
-        app._lcd_handler = MagicMock()
-        app._lcd_handler.display.lcd_size = (320, 320)
+        app._active_lcd.return_value.display.lcd_size = (320, 320)
         app._mask_upload_filename = 'my_overlay'
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
@@ -288,8 +287,7 @@ class TestSaveCustomMask:
         cropped = make_test_surface(320, 320, (0, 0, 255, 128))
 
         app = MagicMock(spec=TRCCApp)
-        app._lcd_handler = MagicMock()
-        app._lcd_handler.display.lcd_size = (320, 320)
+        app._active_lcd.return_value.display.lcd_size = (320, 320)
         app._mask_upload_filename = 'test_mask'
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
@@ -311,8 +309,7 @@ class TestSaveCustomMask:
         cropped = make_test_surface(320, 320, (255, 0, 0, 255))
 
         app = MagicMock(spec=TRCCApp)
-        app._lcd_handler = MagicMock()
-        app._lcd_handler.display.lcd_size = (320, 320)
+        app._active_lcd.return_value.display.lcd_size = (320, 320)
         app._mask_upload_filename = 'my_mask'
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
@@ -332,8 +329,7 @@ class TestSaveCustomMask:
         cropped = make_test_surface(320, 320, (0, 0, 0, 255))
 
         app = MagicMock(spec=TRCCApp)
-        app._lcd_handler = MagicMock()
-        app._lcd_handler.display.lcd_size = (320, 320)
+        app._active_lcd.return_value.display.lcd_size = (320, 320)
         app._mask_upload_filename = 'applied'
         app.uc_theme_mask = MagicMock()
         app.uc_preview = MagicMock()
@@ -343,7 +339,7 @@ class TestSaveCustomMask:
         _conf.settings._path_resolver.user_masks_dir.return_value = str(user_dir)
         TRCCApp._save_and_apply_custom_mask(app, cropped)
 
-        app._lcd_handler.apply_mask.assert_called_once()
-        item = app._lcd_handler.apply_mask.call_args[0][0]
+        app._active_lcd.return_value.apply_mask.assert_called_once()
+        item = app._active_lcd.return_value.apply_mask.call_args[0][0]
         assert item.is_custom
         assert item.name == 'applied'

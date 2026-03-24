@@ -35,22 +35,17 @@ from trcc.adapters.device.led import probe_led_model
 from trcc.adapters.infra.dc_config import DcConfig
 from trcc.adapters.infra.dc_parser import load_config_json
 from trcc.adapters.render.qt import QtRenderer
-from trcc.core.builder import ControllerBuilder
 from trcc.services import DeviceService, MediaService, OverlayService
 from trcc.services.image import ImageService
 from trcc.services.system import set_instance
 
 log = logging.getLogger(__name__)
 
-# ── Platform setup + Settings (composition root) ──────────────────────
+# ── Initialization (composition root) ─────────────────────────────────
 
-from trcc.adapters.infra.logging_setup import StandardLoggingConfigurator  # noqa: E402
-from trcc.conf import init_settings  # noqa: E402
+from trcc.core.app import TrccApp  # noqa: E402
 
-StandardLoggingConfigurator().configure(verbosity=0)
-
-_setup = ControllerBuilder.build_setup()
-init_settings(_setup)
+_trcc_app = TrccApp.init()
 
 # ── Renderer (composition root) ───────────────────────────────────────
 
@@ -71,7 +66,7 @@ _device_svc = DeviceService(
 )
 
 # System service (composition root — adapter wired here)
-_system_svc = ControllerBuilder().build_system()
+_system_svc = _trcc_app.build_system()
 set_instance(_system_svc)
 
 # Lazy-initialized devices (set when device is selected)

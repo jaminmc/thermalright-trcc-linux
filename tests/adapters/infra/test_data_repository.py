@@ -780,8 +780,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_landscape_rotation_keeps_landscape_dirs(self):
         """Rotation 0 or 180 keeps original w×h for cloud dirs."""
-        from trcc.core.builder import ControllerBuilder
-        s = Settings(ControllerBuilder.build_setup())
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        s = Settings(LinuxSetup())
         s._width, s._height = 1280, 480
         s.resolve_cloud_dirs(0)
         self.assertIn('1280480', str(s.web_dir))
@@ -793,8 +793,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_portrait_rotation_swaps_dims(self):
         """Rotation 90 or 270 swaps to h×w for cloud dirs."""
-        from trcc.core.builder import ControllerBuilder
-        s = Settings(ControllerBuilder.build_setup())
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        s = Settings(LinuxSetup())
         s._width, s._height = 1280, 480
         s.resolve_cloud_dirs(90)
         self.assertIn('4801280', str(s.web_dir))
@@ -806,8 +806,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_square_display_no_swap(self):
         """Square displays never swap, regardless of rotation."""
-        from trcc.core.builder import ControllerBuilder
-        s = Settings(ControllerBuilder.build_setup())
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        s = Settings(LinuxSetup())
         s._width, s._height = 320, 320
         s.resolve_cloud_dirs(90)
         self.assertIn('320320', str(s.web_dir))
@@ -815,8 +815,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_1600x720_portrait(self):
         """1600x720 swaps to 7201600 on portrait rotation."""
-        from trcc.core.builder import ControllerBuilder
-        s = Settings(ControllerBuilder.build_setup())
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        s = Settings(LinuxSetup())
         s._width, s._height = 1600, 720
         s.resolve_cloud_dirs(90)
         self.assertIn('7201600', str(s.web_dir))
@@ -824,8 +824,8 @@ class TestResolveCloudDirs(unittest.TestCase):
 
     def test_640x480_portrait(self):
         """640x480 swaps to 480640 on portrait rotation."""
-        from trcc.core.builder import ControllerBuilder
-        s = Settings(ControllerBuilder.build_setup())
+        from trcc.adapters.system.linux.setup import LinuxSetup
+        s = Settings(LinuxSetup())
         s._width, s._height = 640, 480
         s.resolve_cloud_dirs(270)
         self.assertIn('480640', str(s.web_dir))
