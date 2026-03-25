@@ -15,6 +15,7 @@ Split into submodules by command group:
 import functools
 import logging
 import logging.handlers
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -169,11 +170,6 @@ def gui(verbose=0, decorated=False, start_hidden=False):
 
 
     try:
-        # Release the offscreen QApplication created by main() for CLI rendering
-        # so that gui/__init__.py can create a windowed QApplication.
-        global _qt_app
-        _qt_app = None
-
         # Clear offscreen platform set by _ensure_qt() for CLI commands —
         # the GUI needs the real windowed platform.
         import os
@@ -1136,9 +1132,17 @@ def main():
     from trcc.core.commands.initialize import InitPlatformCommand
 
     trcc_app = TrccApp.init()
+
+    # gui subcommand creates its own windowed QApplication in gui/__init__.py.
+    # Don't create the offscreen one here — PySide6 holds an internal reference
+    # to the QApplication singleton that survives Python-side deletion, so
+    # creating an offscreen one first makes the windowed creation fail.
+    _positional = [a for a in sys.argv[1:] if not a.startswith('-')]
+    _renderer_factory = None if _positional[:1] == ['gui'] else _make_cli_renderer
+
     trcc_app.os_bus.dispatch(InitPlatformCommand(
         verbosity=_verbose,
-        renderer_factory=_make_cli_renderer,
+        renderer_factory=_renderer_factory,
     ))
 
     try:
