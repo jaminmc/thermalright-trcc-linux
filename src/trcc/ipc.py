@@ -119,7 +119,7 @@ class IPCServer:
         self._sock.setblocking(False)
         self._sock.bind(str(path))
         self._sock.listen(5)
-        os.chmod(str(path), 0o660)  # nosec B103 — socket in $XDG_RUNTIME_DIR (0o700)
+        os.chmod(str(path), 0o600)
 
         from PySide6.QtCore import QSocketNotifier
         self._notifier = QSocketNotifier(

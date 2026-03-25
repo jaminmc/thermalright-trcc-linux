@@ -325,6 +325,30 @@ class TestGui(unittest.TestCase):
             result = gui()
         self.assertEqual(result, 0)
 
+    def test_gui_releases_cli_qt_app_before_launch(self):
+        """gui() must set _qt_app=None before calling launch() so that
+        gui/__init__.py can create a windowed QApplication (issue #88 — Python 3.14)."""
+        import trcc.cli as cli_mod
+        sentinel = object()
+        original = cli_mod._qt_app
+        cli_mod._qt_app = sentinel
+
+        qt_app_at_launch: list = []
+
+        def _capture_and_launch(*_args, **_kwargs):
+            qt_app_at_launch.append(cli_mod._qt_app)
+            return 0
+
+        try:
+            with patch('trcc.gui.launch', side_effect=_capture_and_launch):
+                gui()
+        finally:
+            cli_mod._qt_app = original
+
+        self.assertEqual(len(qt_app_at_launch), 1)
+        self.assertIsNone(qt_app_at_launch[0],
+                          "_qt_app must be None when gui/__init__.py:launch() runs")
+
 
 class TestGuiExtra(unittest.TestCase):
 

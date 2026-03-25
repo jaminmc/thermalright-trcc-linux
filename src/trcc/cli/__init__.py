@@ -169,6 +169,11 @@ def gui(verbose=0, decorated=False, start_hidden=False):
 
 
     try:
+        # Release the offscreen QApplication created by main() for CLI rendering
+        # so that gui/__init__.py can create a windowed QApplication.
+        global _qt_app
+        _qt_app = None
+
         # Clear offscreen platform set by _ensure_qt() for CLI commands —
         # the GUI needs the real windowed platform.
         import os
