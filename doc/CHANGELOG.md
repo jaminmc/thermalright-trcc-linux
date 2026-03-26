@@ -1,5 +1,13 @@
 # Changelog
 
+## v9.2.3
+
+### Internal
+- **Clean LED protocol routing**: `LED_DEVICES` protocol changed from `'hid'` to `'led'` — single source of truth in `models.py`. Factory key updated accordingly; detector iterates `ALL_DEVICES` directly without per-registry overrides
+- **Parallel device scan**: `TrccApp.scan()` connects devices concurrently (one thread per device) so USB handshakes run in parallel. `bootstrap()` added as single entry point for all UIs (GUI, API, CLI)
+- **107 new tests**: per-OS platform contract tests via real adapter fixtures (no patching); per-device routing parametrized over `ALL_DEVICES`; `scan()`/`bootstrap()`/`device_connected`/`device_lost` coverage; `build_os_bus()` handler closures; metrics loop start/stop/tick/event dispatch; observer lifecycle
+- **Parallel test flakiness fixed**: `_restore_renderer` autouse fixture in `conftest.py` saves and restores `ImageService._renderer` around every test — eliminates cross-worker contamination from class-level renderer state
+
 ## v9.2.2
 
 ### Fixes
