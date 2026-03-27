@@ -198,20 +198,15 @@ class TestListThemes:
         assert rc == 0
         assert "No local themes" in capsys.readouterr().out
 
-    def test_zero_resolution_defaults_to_320x320(self, capsys):
-        """When resolution is 0x0, list_themes defaults to 320x320.
-
-        Data download (ensure_all) is no longer triggered by list_themes —
-        it happens via EnsureDataCommand on device connect or /themes/init.
-        """
+    def test_zero_resolution_errors(self, capsys):
+        """When no device resolution is saved (0x0), list_themes errors — no fallback."""
         settings_mock, data_mgr, theme_svc = self._base_patches(w=0, h=0)
-        theme_svc.discover_local.return_value = []
         with patch(_PATCH_SETTINGS, settings_mock), \
              patch(_PATCH_DATA_MANAGER, data_mgr), \
              patch(_PATCH_THEME_SVC, theme_svc):
             rc = list_themes()
-        assert rc == 0
-        assert "320x320" in capsys.readouterr().out
+        assert rc == 1
+        assert "connect" in capsys.readouterr().out.lower()
 
     def test_cloud_themes_prints_count(self, capsys):
         settings_mock, data_mgr, theme_svc = self._base_patches()
@@ -360,6 +355,26 @@ class TestLoadTheme:
         mock_lcd._display_svc.overlay.enabled = False
 
         return svc, themes, img, img_svc, settings_mock, settings_cls, mock_lcd
+
+    def test_syncs_device_resolution_to_settings(self, _mock_builder):
+        """load_theme() must call settings.set_resolution() with the device's
+        handshake resolution so theme-dir resolution is based on the real device,
+        not the stale saved config value (regression: 480x480 device loaded
+        theme320320 because _resolve_paths() was called without set_resolution)."""
+        svc, themes, img, img_svc, sm, sc, ml = self._patches(
+            svc=_make_mock_service(resolution=(480, 480))
+        )
+        theme_svc = MagicMock()
+        theme_svc.discover_local.return_value = themes
+        _mock_builder.lcd_from_service.return_value = ml
+        with patch(_PATCH_GET_SERVICE, return_value=svc), \
+             patch(_PATCH_SETTINGS, sm), \
+             patch(_PATCH_SETTINGS_CLS, sc), \
+             patch(_PATCH_DATA_MANAGER), \
+             patch(_PATCH_THEME_SVC, theme_svc), \
+             patch(_PATCH_IMAGE_SVC, img_svc):
+            load_theme(_mock_builder, themes[0].name)
+        sm.set_resolution.assert_called_once_with(480, 480)
 
     def test_exact_match_returns_0(self, _mock_builder, capsys):
         svc, themes, img, img_svc, sm, sc, ml = self._patches()
@@ -805,25 +820,19 @@ class TestExportTheme:
         assert rc == 1
         assert "Export failed" in capsys.readouterr().out
 
-    def test_zero_resolution_defaults_to_320x320(self):
-        """export_theme defaults to 320x320 when settings has 0x0.
-
-        Data download (ensure_all) is no longer triggered by export_theme —
-        it happens via EnsureDataCommand on device connect or /themes/init.
-        """
+    def test_zero_resolution_errors(self, capsys):
+        """When no device resolution is saved (0x0), export_theme errors — no fallback."""
         sm = MagicMock()
         sm.width = 0
         sm.height = 0
-        sm.theme_dir = _make_theme_dir()
         dm = MagicMock()
         ts = MagicMock()
-        ts.discover_local.return_value = []
         with patch(_PATCH_SETTINGS, sm), \
              patch(_PATCH_DATA_MANAGER, dm), \
              patch(_PATCH_THEME_SVC, ts):
             rc = export_theme("AnyTheme", "/out.tr")
-        # Theme not found → rc == 1 (no themes in discover_local), but default resolution used
-        assert rc == 1  # theme not found, but no crash on 0x0 resolution
+        assert rc == 1
+        assert "connect" in capsys.readouterr().out.lower()
 
 
 # ===========================================================================

@@ -693,11 +693,12 @@ class TestQtWidgetMemory:
 
         assert len(gc.garbage) == garbage_before
 
-    def test_preview_widget_image_released(self):
+    def test_preview_widget_image_released(self, settings_with_resolution):
         """UCPreview releases its pixmap on destruction."""
+        from trcc.conf import settings
         from trcc.qt_components.uc_preview import UCPreview
 
-        preview = UCPreview()
+        preview = UCPreview(settings.width, settings.height)
         # Set an image
         img = make_test_surface(320, 320, (255, 0, 0))
         preview.set_image(img)
@@ -712,11 +713,12 @@ class TestQtWidgetMemory:
         # QImage should be reclaimable (Qt pixmap is a copy)
         assert ref() is None, "QImage not released after preview destruction"
 
-    def test_repeated_set_image_bounded(self, request):
+    def test_repeated_set_image_bounded(self, request, settings_with_resolution):
         """50 set_image() calls on UCPreview stay within memory bounds."""
+        from trcc.conf import settings
         from trcc.qt_components.uc_preview import UCPreview
 
-        preview = UCPreview()
+        preview = UCPreview(settings.width, settings.height)
 
         tracemalloc.start()
         img = make_test_surface(320, 320, (0, 0, 0))

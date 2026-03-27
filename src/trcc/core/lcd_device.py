@@ -267,7 +267,9 @@ class LCDDevice(Device):
         if not os.path.exists(dc_path):
             return {"success": False, "error": f"Path not found: {dc_path}"}
 
-        w, h = self.resolution if self.connected else (320, 320)
+        if not self.connected:
+            return {"success": False, "error": "Device not connected"}
+        w, h = self.resolution
         overlay = OverlayService(
             w, h, renderer=self._renderer,
             load_config_json_fn=self._load_config_json_fn,

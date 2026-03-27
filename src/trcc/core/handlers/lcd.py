@@ -22,6 +22,7 @@ from ..commands.lcd import (
     EnsureDataCommand,
     ExportThemeCommand,
     ImportThemeCommand,
+    InitializeDeviceCommand,
     LoadMaskCommand,
     LoadThemeByNameCommand,
     PlayVideoLoopCommand,
@@ -68,6 +69,7 @@ class LCDCommandHandler(DeviceCommandHandler):
         RenderOverlayFromDCCommand,
         SetOverlayConfigCommand,
         ResetDisplayCommand,
+        InitializeDeviceCommand,
         SetResolutionCommand,
         PlayVideoLoopCommand,
         SetSplitModeCommand,
@@ -125,6 +127,14 @@ class LCDCommandHandler(DeviceCommandHandler):
             case ResetDisplayCommand():
                 return CommandResult.from_dict(self._lcd.reset())
 
+            case InitializeDeviceCommand(width=width, height=height):
+                import trcc.conf as _conf
+                _conf.settings.set_resolution(width, height)
+                self._lcd.initialize(_conf.settings.user_data_dir)
+                self(EnsureDataCommand(width=width, height=height))
+                return CommandResult.ok(
+                    message=f"Device initialized at {width}x{height}")
+
             case SetResolutionCommand(width=width, height=height):
                 result = self._lcd.set_resolution(width, height)
                 if width and height:
@@ -155,7 +165,7 @@ class LCDCommandHandler(DeviceCommandHandler):
                     import trcc.conf as _conf
                     if ensure_fn is not None:
                         ensure_fn(width, height)
-                    _conf.settings._resolve_paths()
+                    _conf.settings.set_resolution(width, height)
                     lcd.notify_data_ready()
 
                 threading.Thread(

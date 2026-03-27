@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QMenu
 
 import trcc.conf as _conf
 
-from ..core.models import MaskItem
+from ..core.models import CLOUD_MASK_URLS, MaskItem
 from ..core.paths import is_safe_archive_member
 from .base import BaseThumbnail, DownloadableThemeBrowser
 
@@ -46,13 +46,8 @@ class UCThemeMask(DownloadableThemeBrowser):
     # Known cloud mask IDs (000a-023e pattern)
     KNOWN_MASKS = [f"{i:03d}{c}" for i in range(24) for c in "abcde"]
 
-    # Cloud mask server URLs by resolution
-    CLOUD_URLS = {
-        "320x320": "http://www.czhorde.cc/tr/zt320320/",
-        "480x480": "http://www.czhorde.cc/tr/zt480480/",
-        "240x240": "http://www.czhorde.cc/tr/zt240240/",
-        "360x360": "http://www.czhorde.cc/tr/zt360360/",
-    }
+    # Cloud mask server URLs by resolution — canonical source in core/models.py
+    CLOUD_URLS = CLOUD_MASK_URLS
 
     CMD_MASK_SELECTED = 16
     CMD_DOWNLOAD = 100
@@ -61,7 +56,8 @@ class UCThemeMask(DownloadableThemeBrowser):
 
     def __init__(self, parent=None):
         self.mask_directory = None
-        self._resolution = "320x320"
+        _w, _h = _conf.settings.width, _conf.settings.height
+        self._resolution = f"{_w}x{_h}" if (_w and _h) else ""
         self._local_masks = set()
         self._category = 'all'
         super().__init__(parent)

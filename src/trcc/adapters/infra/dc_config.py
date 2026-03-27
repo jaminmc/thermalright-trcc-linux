@@ -62,8 +62,8 @@ class DcConfig:
         self.overlay_enabled: bool = True
         self.overlay_x: int = 0
         self.overlay_y: int = 0
-        self.overlay_w: int = 320
-        self.overlay_h: int = 320
+        self.overlay_w: int = 0
+        self.overlay_h: int = 0
 
         # Mask
         self.mask_enabled: bool = False
@@ -151,7 +151,7 @@ class DcConfig:
 
     # ── Overlay conversion ──
 
-    def to_overlay_config(self, width: int = 320, height: int = 320) -> dict:
+    def to_overlay_config(self) -> dict:
         """Convert to overlay renderer config dict."""
         parsed = {
             'elements': self.legacy_elements,
@@ -159,7 +159,7 @@ class DcConfig:
             'custom_text': self.custom_text,
             'flags': self.flags,
         }
-        return DcParser.to_overlay_config(parsed, width, height)
+        return DcParser.to_overlay_config(parsed)
 
     @classmethod
     def from_overlay_config(cls, overlay_config: dict,

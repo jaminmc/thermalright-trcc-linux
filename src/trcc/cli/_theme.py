@@ -12,7 +12,8 @@ def list_themes(cloud=False, category=None):
 
     w, h = settings.width, settings.height
     if not w or not h:
-        w, h = 320, 320
+        print("No device resolution saved. Connect your device first.")
+        return 1
 
     settings._resolve_paths()
 
@@ -56,7 +57,7 @@ def load_theme(builder, name, *, device=None, preview=False):
     dev = svc.selected
     w, h = dev.resolution
 
-    settings._resolve_paths()
+    settings.set_resolution(w, h)
 
     td = settings.theme_dir
     if not td or not td.exists():
@@ -231,7 +232,8 @@ def export_theme(theme_name, output_path):
 
     w, h = settings.width, settings.height
     if not w or not h:
-        w, h = 320, 320
+        print("No device resolution saved. Connect your device first.")
+        return 1
 
     settings._resolve_paths()
 

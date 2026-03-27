@@ -77,8 +77,8 @@ class ScreencastHandler:
         self._x = self._y = self._w = self._h = 0
         self._border = True
         self._pipewire_cast = None
-        self._lcd_w = 320
-        self._lcd_h = 320
+        self._lcd_w = 0
+        self._lcd_h = 0
         self._capture_warn_logged = False
 
         self._timer = QTimer(parent)
@@ -135,7 +135,7 @@ class ScreencastHandler:
             self._pipewire_cast = None
 
     def _tick(self) -> None:
-        if not self._active or self._w <= 0 or self._h <= 0:
+        if not self._active or self._w <= 0 or self._h <= 0 or not self._lcd_w or not self._lcd_h:
             return
         from PySide6.QtCore import QRect
         from PySide6.QtGui import QImage

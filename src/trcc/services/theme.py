@@ -105,7 +105,7 @@ class ThemeService:
 
     # ── Discovery ────────────────────────────────────────────────────
 
-    def load_local_themes(self, resolution: tuple[int, int] = (320, 320)) -> list[ThemeInfo]:
+    def load_local_themes(self, resolution: tuple[int, int] = (0, 0)) -> list[ThemeInfo]:
         """Discover local themes and store them. Returns the list."""
         if self._local_dir:
             self._themes = ThemeService.discover_local(
@@ -126,7 +126,7 @@ class ThemeService:
     @staticmethod
     def discover_local(
         theme_dir: Path,
-        resolution: tuple[int, int] = (320, 320),
+        resolution: tuple[int, int] = (0, 0),
         filter_mode: str = 'all',
     ) -> list[ThemeInfo]:
         """Load themes from a local directory.

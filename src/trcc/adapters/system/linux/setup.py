@@ -20,6 +20,7 @@ from trcc.adapters.system._shared import (
     _posix_raise_existing_instance,
     _print_summary,
 )
+from trcc.core.paths import _TRCC_PKG
 from trcc.core.platform import is_root
 from trcc.core.ports import PlatformSetup
 
@@ -250,8 +251,7 @@ def setup_selinux() -> int:
             print(f"  {tool} not found — {_install_hint(tool, pm)}")
         return 1
 
-    trcc_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    te_src = os.path.join(trcc_root, 'data', 'trcc_usb.te')
+    te_src = os.path.join(_TRCC_PKG, 'data', 'trcc_usb.te')
     if not os.path.isfile(te_src):
         print(f"SELinux policy source not found: {te_src}")
         return 1
@@ -301,7 +301,7 @@ def install_desktop() -> int:
     home = _real_user_home()
     app_dir = home / ".local" / "share" / "applications"
 
-    pkg_root = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    pkg_root = Path(_TRCC_PKG)
     icon_pkg_dir = pkg_root / "assets" / "icons"
     desktop_src = pkg_root / "assets" / "trcc-linux.desktop"
 

@@ -293,7 +293,7 @@ class TestThemesEndpoint(unittest.TestCase):
         mock_theme.config_path = None
         mock_discover.return_value = [mock_theme]
 
-        resp = self.client.get("/themes")
+        resp = self.client.get("/themes?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(len(data), 1)
@@ -1825,6 +1825,10 @@ class TestThemeEdgeCases(unittest.TestCase):
 
     def test_import_theme_correct_extension_accepted(self) -> None:
         data = b"not-a-real-tr-archive"
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.connected = True
+        mock_dispatcher.resolution = (320, 320)
+        api_module._display_dispatcher = mock_dispatcher
         with patch("trcc.api.themes.ThemeService.import_tr", return_value=(True, "ok")), \
              patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
@@ -1843,6 +1847,10 @@ class TestThemeEdgeCases(unittest.TestCase):
         self.assertEqual(resp.status_code, 413)
 
     def test_import_theme_service_error_returns_400(self) -> None:
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.connected = True
+        mock_dispatcher.resolution = (320, 320)
+        api_module._display_dispatcher = mock_dispatcher
         with patch("trcc.api.themes.ThemeService.import_tr", return_value=(False, "bad archive")), \
              patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp", __str__=lambda s: "/tmp")
@@ -1856,6 +1864,10 @@ class TestThemeEdgeCases(unittest.TestCase):
 
     def test_import_theme_exception_no_stack_trace(self) -> None:
         """Internal exceptions must not leak tracebacks to API clients."""
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.connected = True
+        mock_dispatcher.resolution = (320, 320)
+        api_module._display_dispatcher = mock_dispatcher
         with patch("trcc.api.themes.ThemeService.import_tr",
                    side_effect=RuntimeError("/home/user/.trcc/data/secret")), \
              patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
@@ -2693,6 +2705,13 @@ class TestThemeExportEndpoint(unittest.TestCase):
     def setUp(self):
         configure_auth(None)
         self.client = TestClient(app)
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.connected = True
+        mock_dispatcher.resolution = (320, 320)
+        api_module._display_dispatcher = mock_dispatcher
+
+    def tearDown(self):
+        api_module._display_dispatcher = None
 
     def test_export_invalid_theme_name(self):
         resp = self.client.post("/themes/export?theme_name=../../etc/passwd")

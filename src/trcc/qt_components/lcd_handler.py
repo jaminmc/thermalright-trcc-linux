@@ -22,8 +22,8 @@ from trcc.conf import Settings
 
 from ..core.command_bus import CommandBus
 from ..core.commands.lcd import (
+    InitializeDeviceCommand,
     SetBrightnessCommand,
-    SetResolutionCommand,
     SetRotationCommand,
     SetSplitModeCommand,
 )
@@ -126,10 +126,20 @@ class LCDHandler(BaseHandler):
         self._device_key = Settings.device_config_key(
             device.device_index, device.vid, device.pid)
 
-        # Resolution change — dispatch via bus so EnsureDataCommand fires automatically
+        # Persist resolution per device — each device remembers its own w/h
+        Settings.save_device_setting(self._device_key, 'w', w)
+        Settings.save_device_setting(self._device_key, 'h', h)
+
+        # Capture old resolution before initialization updates it
         cur_w, cur_h = self._lcd.lcd_size
+
+        # Always initialize on connect — unconditional, carries real w×h from handshake.
+        # Sets media target size, overlay resolution, theme dirs, and triggers data
+        # download regardless of whether the resolution changed since last session.
+        self._bus.dispatch(InitializeDeviceCommand(width=w, height=h))
+
+        # Update widgets if resolution changed
         if (w, h) != (cur_w, cur_h):
-            self._bus.dispatch(SetResolutionCommand(width=w, height=h))
             self._w['preview'].set_resolution(w, h)
             self._w['image_cut'].set_resolution(w, h)
             self._w['video_cut'].set_resolution(w, h)

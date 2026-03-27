@@ -181,7 +181,7 @@ def _migrate_config() -> None:
         log.info("Config version %s → %s: clearing device state",
                  saved_version, __version__)
         for key in ('devices', 'resolution', 'selected_device',
-                    'installed_resolutions'):
+                    'installed_resolutions'):  # 'resolution' is legacy global — now per-device
             config.pop(key, None)
 
         # Delete LED probe cache (stale PM → style mappings)
@@ -240,20 +240,35 @@ class Settings:
     # --- Private persistence helpers (init-only / called by instance methods) ---
 
     @staticmethod
-    def _get_saved_resolution() -> tuple[int, int]:
-        """Get saved LCD resolution, defaulting to (320, 320)."""
+    def _get_saved_resolution() -> tuple[int, int] | None:
+        """Get saved LCD resolution from per-device config.
+
+        Scans all device entries for a saved w/h. Falls back to the legacy
+        global 'resolution' key for migration from older config files.
+        Returns None if no resolution has been configured.
+        """
         config = load_config()
-        res = config.get('resolution', [320, 320])
+        # Per-device resolution (preferred — each device stores its own w/h)
+        for dev_cfg in config.get('devices', {}).values():
+            w = dev_cfg.get('w')
+            h = dev_cfg.get('h')
+            if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
+                return (w, h)
+        # Legacy global 'resolution' key — migrate on first write
+        res = config.get('resolution')
         if isinstance(res, list) and len(res) == 2:
             return (int(res[0]), int(res[1]))
-        return (320, 320)
+        return None
 
     @staticmethod
-    def _save_resolution(width: int, height: int):
-        """Persist LCD resolution to config."""
-        config = load_config()
-        config['resolution'] = [width, height]
-        save_config(config)
+    def get_device_resolution(key: str) -> tuple[int, int] | None:
+        """Get the saved resolution for a specific device. Returns None if not set."""
+        dev_cfg = Settings.get_device_config(key)
+        w = dev_cfg.get('w')
+        h = dev_cfg.get('h')
+        if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
+            return (w, h)
+        return None
 
     @staticmethod
     def _get_saved_temp_unit() -> int:
@@ -430,9 +445,8 @@ class Settings:
                 "Use init_settings() from a composition root.")
         _migrate_config()
         self._path_resolver = path_resolver
-        w, h = Settings._get_saved_resolution()
-        self._width = w
-        self._height = h
+        res = Settings._get_saved_resolution()
+        self._width, self._height = res if res else (0, 0)
 
         # Derived paths (resolved for current resolution)
         self.theme_dir: Optional[ThemeDir] = None
@@ -449,8 +463,8 @@ class Settings:
         self.user_data_dir = Path(path_resolver.data_dir())
         self.user_content_dir = Path(path_resolver.user_content_dir())
 
-        # Resolve for initial resolution
-        if w and h:
+        # Resolve paths if a saved resolution exists
+        if self._width and self._height:
             self._resolve_paths()
 
     @property
@@ -466,7 +480,12 @@ class Settings:
         return (self._width, self._height)
 
     def set_resolution(self, width: int, height: int, persist: bool = True) -> None:
-        """Update resolution and re-resolve all derived paths."""
+        """Update active resolution in-memory and re-resolve derived paths.
+
+        Resolution is persisted per device via save_device_setting('w'/'h'),
+        called by lcd_handler after handshake. The 'persist' parameter is
+        kept for backward compatibility but no longer writes the global key.
+        """
         if (width, height) == (self._width, self._height):
             return
         log.info("Settings: resolution %dx%d → %dx%d",
@@ -474,8 +493,6 @@ class Settings:
         self._width = width
         self._height = height
         self._resolve_paths()
-        if persist:
-            Settings._save_resolution(width, height)
 
     def set_temp_unit(self, unit: int) -> None:
         """Set temperature unit (0=Celsius, 1=Fahrenheit) and persist."""

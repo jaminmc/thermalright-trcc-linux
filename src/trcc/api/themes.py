@@ -46,7 +46,7 @@ def _preview_url(theme_name: str, theme_dir: str) -> str:
 
 
 @router.post("/init")
-def init_theme_data(resolution: str = "320x320") -> dict:
+def init_theme_data(resolution: str) -> dict:
     """Download and extract theme/web/mask archives for a resolution.
 
     Safe to call repeatedly — no-op if data is already cached.
@@ -67,7 +67,7 @@ def init_theme_data(resolution: str = "320x320") -> dict:
 
 
 @router.get("")
-def list_themes(resolution: str = "320x320") -> list[ThemeResponse]:
+def list_themes(resolution: str) -> list[ThemeResponse]:
     """List available local themes for a given resolution."""
     w, h = _parse_resolution(resolution)
 
@@ -90,7 +90,7 @@ def list_themes(resolution: str = "320x320") -> list[ThemeResponse]:
 
 
 @router.get("/web")
-def list_web_themes(resolution: str = "320x320") -> list[WebThemeResponse]:
+def list_web_themes(resolution: str) -> list[WebThemeResponse]:
     """List available cloud theme previews for a given resolution."""
     w, h = _parse_resolution(resolution)
 
@@ -137,12 +137,16 @@ def download_web_theme(
     from trcc.adapters.infra.theme_cloud import CloudThemeDownloader
     from trcc.api import _display_dispatcher
 
-    # Resolve resolution from device or parameter
-    w, h = 320, 320
+    # Resolve resolution from parameter or connected device
     if resolution:
         w, h = _parse_resolution(resolution)
     elif _display_dispatcher and _display_dispatcher.connected:
         w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="resolution required — no device connected and no resolution specified",
+        )
 
     if send and (not _display_dispatcher or not _display_dispatcher.connected):
         raise HTTPException(
@@ -180,7 +184,7 @@ def download_web_theme(
 
 
 @router.get("/masks")
-def list_masks(resolution: str = "320x320") -> list[MaskResponse]:
+def list_masks(resolution: str) -> list[MaskResponse]:
     """List available mask overlays for a given resolution."""
     w, h = _parse_resolution(resolution)
 
@@ -252,7 +256,10 @@ def load_theme(body: ThemeLoadRequest) -> dict:
         if res:
             w, h = res
         else:
-            w, h = getattr(api._display_dispatcher, 'lcd_size', (320, 320))
+            raise HTTPException(
+                status_code=409,
+                detail="No device connected and no resolution available",
+            )
 
     if is_animated and theme_path:
         # Find video file (Theme.zt or .mp4)
@@ -290,7 +297,7 @@ def save_theme(body: ThemeSaveRequest) -> dict:
 
 
 @router.post("/export")
-def export_theme(theme_name: str, resolution: str = "320x320") -> Response:
+def export_theme(theme_name: str, resolution: str | None = None) -> Response:
     """Export a theme as a downloadable .tr archive."""
     import re
     import tempfile
@@ -298,11 +305,22 @@ def export_theme(theme_name: str, resolution: str = "320x320") -> Response:
 
     from fastapi.responses import FileResponse
 
+    from trcc.api import _display_dispatcher
+
     # Validate theme_name — no path traversal
     if not re.fullmatch(r'[a-zA-Z0-9_ \-().]+', theme_name):
         raise HTTPException(status_code=400, detail="Invalid theme name")
 
-    w, h = _parse_resolution(resolution)
+    # Resolve resolution from query param or connected device
+    if resolution:
+        w, h = _parse_resolution(resolution)
+    elif _display_dispatcher and _display_dispatcher.connected:
+        w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="resolution required — no device connected and no resolution specified",
+        )
 
     from trcc.adapters.infra.data_repository import ThemeDir
     td = ThemeDir.for_resolution(w, h)
@@ -362,9 +380,12 @@ async def import_theme(file: UploadFile) -> dict:
     try:
         from trcc.adapters.infra.data_repository import ThemeDir
         from trcc.api import _display_dispatcher
-        w, h = (320, 320)
-        if _display_dispatcher and _display_dispatcher.connected:
-            w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
+        if not _display_dispatcher or not _display_dispatcher.connected:
+            raise HTTPException(
+                status_code=409,
+                detail="No device connected. POST /devices/{id}/select first.",
+            )
+        w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
         data_dir = Path(str(ThemeDir.for_resolution(w, h)))
         from trcc.adapters.infra.dc_config import DcConfig
         from trcc.adapters.infra.dc_parser import load_config_json

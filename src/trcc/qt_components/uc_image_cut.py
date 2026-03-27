@@ -19,6 +19,8 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
+import trcc.conf as _conf
+
 from .assets import Assets
 from .base import make_icon_button
 
@@ -73,8 +75,8 @@ class UCImageCut(QWidget):
 
         # Image state
         self._source_image: QImage | None = None  # Original (never modified)
-        self._target_w = 320
-        self._target_h = 320
+        self._target_w = _conf.settings.width
+        self._target_h = _conf.settings.height
 
         # View state
         self._zoom = 1.0

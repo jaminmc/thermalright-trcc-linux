@@ -445,7 +445,7 @@ class DcParser:
         return elements
 
     @staticmethod
-    def to_overlay_config(dc_config: dict, display_width: int = 320, display_height: int = 320) -> dict:
+    def to_overlay_config(dc_config: dict) -> dict:
         """Convert parsed .dc config to overlay renderer config format."""
         elements = dc_config.get('elements', {})
         display_elements = dc_config.get('display_elements', [])
@@ -629,7 +629,7 @@ class DcParser:
         return sorted(str(dc_file) for dc_file in base.rglob('config1.dc'))
 
     @staticmethod
-    def validate_theme(theme_path: str, display_width: int = 320, display_height: int = 320) -> dict:
+    def validate_theme(theme_path: str, display_width: int | None = None, display_height: int | None = None) -> dict:
         """Validate a theme's config and return any issues found."""
         import os
 
@@ -668,17 +668,18 @@ class DcParser:
                     result['issues'].append('Time in config but not in display_elements (0xDD bug)')
                     result['valid'] = False
 
-            for key, cfg in overlay.items():
-                x, y = cfg.get('x', 0), cfg.get('y', 0)
-                if x < 0 or x > display_width or y < 0 or y > display_height:
-                    result['warnings'].append(
-                        f'{key}: position ({x}, {y}) outside {display_width}x{display_height}')
+            if display_width is not None and display_height is not None:
+                for key, cfg in overlay.items():
+                    x, y = cfg.get('x', 0), cfg.get('y', 0)
+                    if x < 0 or x > display_width or y < 0 or y > display_height:
+                        result['warnings'].append(
+                            f'{key}: position ({x}, {y}) outside {display_width}x{display_height}')
 
-            mask = parsed.get('mask_settings', {})
-            if mask.get('mask_enabled'):
-                pos = mask.get('mask_position', (0, 0))
-                if pos[0] < 0 or pos[0] > display_width or pos[1] < 0 or pos[1] > display_height:
-                    result['warnings'].append(f'Mask position {pos} may be outside bounds')
+                mask = parsed.get('mask_settings', {})
+                if mask.get('mask_enabled'):
+                    pos = mask.get('mask_position', (0, 0))
+                    if pos[0] < 0 or pos[0] > display_width or pos[1] < 0 or pos[1] > display_height:
+                        result['warnings'].append(f'Mask position {pos} may be outside bounds')
 
             mask_file = os.path.join(theme_path, '01.png')
             bg_file = os.path.join(theme_path, '00.png')

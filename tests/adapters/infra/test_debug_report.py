@@ -466,6 +466,28 @@ class TestHandshakesRouting:
             rpt._handshakes()
             mock_ly.assert_called_once()
 
+    @pytest.mark.parametrize("vid,pid,entry", [
+        (vid, pid, entry)
+        for (vid, pid), entry in __import__(
+            'trcc.core.models', fromlist=['LED_DEVICES']
+        ).LED_DEVICES.items()
+    ])
+    def test_led_registry_devices_route_to_led_handler(self, vid, pid, entry):
+        """Every device in LED_DEVICES must route to _handshake_led (regression: #90)."""
+        dev = MagicMock()
+        dev.protocol = entry.protocol
+        dev.implementation = entry.implementation
+        dev.vid = vid
+        dev.pid = pid
+        dev.device_type = entry.device_type
+
+        rpt = DebugReport()
+        rpt._detected_devices = [dev]
+
+        with patch.object(rpt, "_handshake_led") as mock_led:
+            rpt._handshakes()
+        mock_led.assert_called_once()
+
     def test_handler_exception_caught_per_device(self):
         """Exception in a handler appends FAILED line, does not abort others."""
         dev_scsi = MagicMock()

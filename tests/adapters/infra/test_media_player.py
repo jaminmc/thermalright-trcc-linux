@@ -14,7 +14,10 @@ from trcc.adapters.infra.media_player import (
     VideoDecoder,
     _check_ffmpeg,
 )
+from trcc.core.models import FBL_PROFILES
 from trcc.core.ports import RawFrame
+
+_p320 = FBL_PROFILES[100]   # 320×320 canonical profile
 
 
 def _make_theme_zt(frames=4, size=(8, 8), quality=50):
@@ -106,7 +109,7 @@ class TestVideoDecoderInit(unittest.TestCase):
     @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', False)
     def test_raises_without_ffmpeg(self):
         with self.assertRaises(RuntimeError):
-            VideoDecoder('/fake/video.mp4')
+            VideoDecoder('/fake/video.mp4', target_size=(320, 320))
 
 
 class TestVideoDecoderDecode(unittest.TestCase):
@@ -151,7 +154,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         """FFmpeg returns non-zero -> RuntimeError."""
         mock_run.return_value = MagicMock(returncode=1, stderr=b'error msg', stdout=b'')
         with self.assertRaises(RuntimeError):
-            VideoDecoder('/fake/vid.mp4')
+            VideoDecoder('/fake/vid.mp4', target_size=(320, 320))
 
     @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
@@ -160,7 +163,7 @@ class TestVideoDecoderDecode(unittest.TestCase):
         import subprocess as sp
         mock_run.side_effect = sp.TimeoutExpired('ffmpeg', 300)
         with self.assertRaises(sp.TimeoutExpired):
-            VideoDecoder('/fake/vid.mp4')
+            VideoDecoder('/fake/vid.mp4', target_size=(320, 320))
 
     @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', True)
     @patch('subprocess.run')
@@ -180,7 +183,8 @@ class TestExtractFrames(unittest.TestCase):
 
     @patch('trcc.adapters.infra.media_player.FFMPEG_AVAILABLE', False)
     def test_no_ffmpeg_returns_zero(self):
-        result = VideoDecoder.extract_frames('/fake.mp4', '/tmp/out')
+        result = VideoDecoder.extract_frames(
+            '/fake.mp4', '/tmp/out', (_p320.width, _p320.height))
         self.assertEqual(result, 0)
 
     @patch('subprocess.run')
@@ -269,7 +273,7 @@ class TestThemeZtDecoder(unittest.TestCase):
 
     def setUp(self):
         self.path = _make_theme_zt(frames=4, size=(8, 8))
-        self.decoder = ThemeZtDecoder(self.path)
+        self.decoder = ThemeZtDecoder(self.path, target_size=(8, 8))
 
     def tearDown(self):
         self.decoder.close()
@@ -299,7 +303,7 @@ class TestThemeZtDecoder(unittest.TestCase):
         with open(path, 'wb') as f:
             f.write(b'\x00\x00\x00\x00\x00')
         with self.assertRaises(ValueError):
-            ThemeZtDecoder(path)
+            ThemeZtDecoder(path, target_size=(8, 8))
         os.unlink(path)
 
     def test_resize_on_load(self):
@@ -332,7 +336,7 @@ class TestThemeZtDecoderEdge(unittest.TestCase):
             f.write(jpeg_data)
 
         try:
-            decoder = ThemeZtDecoder(path)
+            decoder = ThemeZtDecoder(path, target_size=(8, 8))
             self.assertEqual(decoder.delays, [42])  # single frame default
             decoder.close()
         finally:
@@ -342,7 +346,7 @@ class TestThemeZtDecoderEdge(unittest.TestCase):
         """close() releases all frames."""
         path = _make_theme_zt(frames=2)
         try:
-            decoder = ThemeZtDecoder(path)
+            decoder = ThemeZtDecoder(path, target_size=(8, 8))
             self.assertTrue(len(decoder.frames) > 0)
             decoder.close()
             self.assertEqual(len(decoder.frames), 0)

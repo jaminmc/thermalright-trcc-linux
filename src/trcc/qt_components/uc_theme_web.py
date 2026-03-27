@@ -21,6 +21,8 @@ from typing import Callable
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QMovie
 
+import trcc.conf as _conf
+
 from ..core.models import CloudThemeItem
 from ..core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 from .base import BaseThumbnail, DownloadableThemeBrowser
@@ -109,7 +111,8 @@ class UCThemeWeb(DownloadableThemeBrowser):
                  parent=None):
         self.current_category = 'all'
         self.web_directory = None
-        self._resolution = "320x320"
+        _w, _h = _conf.settings.width, _conf.settings.height
+        self._resolution = f"{_w}x{_h}" if (_w and _h) else ""
         self._download_fn = download_fn
         self._extract_fn = extract_fn
         super().__init__(parent)

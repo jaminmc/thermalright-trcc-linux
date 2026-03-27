@@ -72,7 +72,7 @@ class TestDownloaderInit(unittest.TestCase):
 
     def test_custom_cache_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
-            dl = CloudThemeDownloader(cache_dir=tmp)
+            dl = CloudThemeDownloader(resolution='320x320', cache_dir=tmp)
             self.assertEqual(dl.cache_dir, Path(tmp))
 
     def test_base_url_contains_resolution(self):

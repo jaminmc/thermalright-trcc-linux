@@ -153,15 +153,17 @@ class TestResolutionConfig(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_default_resolution(self):
-        self.assertEqual(Settings._get_saved_resolution(), (320, 320))
+        """No saved resolution returns None — no hardcoded fallback."""
+        self.assertIsNone(Settings._get_saved_resolution())
 
     def test_save_and_load_resolution(self):
-        Settings._save_resolution(480, 480)
+        save_config({'devices': {'0': {'w': 480, 'h': 480}}})
         self.assertEqual(Settings._get_saved_resolution(), (480, 480))
 
     def test_invalid_resolution_returns_default(self):
+        """Invalid saved resolution returns None — no hardcoded fallback."""
         save_config({'resolution': 'bad'})
-        self.assertEqual(Settings._get_saved_resolution(), (320, 320))
+        self.assertIsNone(Settings._get_saved_resolution())
 
 
 class TestTempUnitConfig(unittest.TestCase):
@@ -435,8 +437,9 @@ class TestPerDeviceConfig(unittest.TestCase):
         self.assertEqual(Settings._get_saved_temp_unit(), 1)
 
     def test_config_json_structure(self):
-        """Verify the on-disk JSON structure — index keys with vid_pid inside."""
-        Settings._save_resolution(480, 480)
+        """Verify the on-disk JSON structure — index keys with vid_pid inside, w/h per-device."""
+        Settings.save_device_setting('0', 'w', 480)
+        Settings.save_device_setting('0', 'h', 480)
         Settings._save_temp_unit(1)
         Settings.save_device_setting('0', 'theme_path', '/some/path')
         Settings.save_device_setting('0', 'brightness_level', 2)
@@ -444,7 +447,8 @@ class TestPerDeviceConfig(unittest.TestCase):
         with open(self.config_path) as f:
             raw = json.load(f)
 
-        self.assertEqual(raw['resolution'], [480, 480])
+        self.assertEqual(raw['devices']['0']['w'], 480)
+        self.assertEqual(raw['devices']['0']['h'], 480)
         self.assertEqual(raw['temp_unit'], 1)
         self.assertIn('devices', raw)
         self.assertIn('0', raw['devices'])

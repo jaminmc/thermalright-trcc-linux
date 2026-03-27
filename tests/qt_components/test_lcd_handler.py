@@ -224,9 +224,9 @@ class TestApplyDeviceConfig:
         lcd.lcd_size = (320, 320)
         h = _make_handler(lcd=lcd)
         h.apply_device_config(self._device(), 480, 480)
-        # Resolution change goes via bus (SetResolutionCommand → EnsureDataCommand auto-fires)
-        from trcc.core.commands.lcd import SetResolutionCommand
-        h._bus.dispatch.assert_any_call(SetResolutionCommand(width=480, height=480))
+        # Always dispatches InitializeDeviceCommand on connect
+        from trcc.core.commands.lcd import InitializeDeviceCommand
+        h._bus.dispatch.assert_any_call(InitializeDeviceCommand(width=480, height=480))
         h._w['preview'].set_resolution.assert_called_with(480, 480)
 
     @patch('trcc.qt_components.lcd_handler.Settings')

@@ -25,6 +25,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
 
+import trcc.conf as _conf
 from trcc.adapters.infra.media_player import FFMPEG_AVAILABLE
 from trcc.core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 from trcc.services import ImageService
@@ -217,8 +218,8 @@ class UCVideoCut(QWidget):
         self._total_frames = 0
         self._fps = 30.0
         self._duration_ms = 0
-        self._target_w = 320
-        self._target_h = 320
+        self._target_w = _conf.settings.width
+        self._target_h = _conf.settings.height
         self._rotation = 0
         self._width_fit = True
 

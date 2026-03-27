@@ -194,7 +194,7 @@ class TestImageCutWidget:
     """Test UCImageCut construction and state management."""
 
     @pytest.fixture
-    def widget(self):
+    def widget(self, settings_with_resolution):
         return UCImageCut()
 
     def test_initial_state(self, widget):
@@ -415,7 +415,7 @@ class TestVideoCutWidget:
     """Test UCVideoCut construction and state."""
 
     @pytest.fixture
-    def widget(self):
+    def widget(self, settings_with_resolution):
         return UCVideoCut()
 
     def test_initial_state(self, widget):
@@ -1013,7 +1013,7 @@ class TestUCThemeWeb:
     """Test UCThemeWeb construction and state."""
 
     @pytest.fixture
-    def widget(self):
+    def widget(self, settings_with_resolution):
         from trcc.qt_components.uc_theme_web import UCThemeWeb
 
         return UCThemeWeb()
@@ -1089,7 +1089,7 @@ class TestUCThemeMask:
     """Test UCThemeMask construction and state."""
 
     @pytest.fixture
-    def widget(self):
+    def widget(self, settings_with_resolution):
         from trcc.qt_components.uc_theme_mask import UCThemeMask
 
         return UCThemeMask()

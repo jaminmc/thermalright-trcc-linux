@@ -333,6 +333,21 @@ def png_factory(tmp_path):
 # =========================================================================
 
 @pytest.fixture
+def settings_with_resolution(tmp_config):
+    """Settings pre-configured with a device resolution (FBL_PROFILES[100] = 320×320).
+
+    Mirrors what production does after a device connects: settings.set_resolution()
+    is called with the handshake result. Widget tests that check initial state
+    dependent on the active resolution should request this fixture.
+    """
+    from trcc.conf import settings
+    from trcc.core.models import FBL_PROFILES
+
+    p = FBL_PROFILES[100]
+    settings.set_resolution(p.width, p.height)
+    return tmp_config
+
+@pytest.fixture
 def failed_lcd_bus():
     """Mock CommandBus that always returns CommandResult.fail.
 

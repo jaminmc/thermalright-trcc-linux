@@ -32,7 +32,7 @@ class OverlayService:
     # Base resolution for scaling (most common device)
     BASE_RESOLUTION = 320
 
-    def __init__(self, width: int = 320, height: int = 320,
+    def __init__(self, width: int = 0, height: int = 0,
                  renderer: Renderer | None = None,
                  load_config_json_fn: Any = None,
                  dc_config_cls: Any = None) -> None:

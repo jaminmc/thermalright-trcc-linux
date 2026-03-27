@@ -19,6 +19,9 @@ from trcc.adapters.device.scsi import (
     find_lcd_devices,
     send_image_to_device,
 )
+from trcc.core.models import FBL_PROFILES
+
+_p320 = FBL_PROFILES[100]   # 320×320 canonical profile
 
 
 class TestBootConstants(unittest.TestCase):
@@ -336,16 +339,18 @@ class TestSendFrame(unittest.TestCase):
     @patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
     def test_sends_all_chunks(self, mock_write):
         # 320x320 = 4 chunks
-        data = b'\x00' * (320 * 320 * 2)
-        ScsiDevice._send_frame('/dev/sg0', data)
+        w, h = _p320.width, _p320.height
+        data = b'\x00' * (w * h * 2)
+        ScsiDevice._send_frame('/dev/sg0', data, w, h)
         self.assertEqual(mock_write.call_count, 4)
 
     @patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
     def test_pads_short_data(self, mock_write):
-        ScsiDevice._send_frame('/dev/sg0', b'\x00' * 100)
-        # Should still send all 4 chunks totaling 320*320*2 bytes
+        w, h = _p320.width, _p320.height
+        ScsiDevice._send_frame('/dev/sg0', b'\x00' * 100, w, h)
+        # Should still send all 4 chunks totaling w*h*2 bytes
         total_sent = sum(len(c[0][2]) for c in mock_write.call_args_list)
-        self.assertEqual(total_sent, 320 * 320 * 2)
+        self.assertEqual(total_sent, w * h * 2)
 
     @patch('trcc.adapters.device.scsi.ScsiDevice._scsi_write')
     def test_custom_resolution(self, mock_write):

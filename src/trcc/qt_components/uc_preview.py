@@ -76,7 +76,7 @@ class UCPreview(BasePanel):
     element_drag_end = Signal()
     element_nudge = Signal(int, int)       # LCD-scaled (dx, dy)
 
-    def __init__(self, width=320, height=320, parent=None):
+    def __init__(self, width: int, height: int, parent=None):
         super().__init__(parent, width=Sizes.PREVIEW_FRAME, height=Sizes.PREVIEW_PANEL_H)
 
         self._lcd_width = width

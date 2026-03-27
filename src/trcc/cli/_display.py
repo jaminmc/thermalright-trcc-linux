@@ -479,6 +479,11 @@ def resume(builder):
         try:
             svc.select(dev)
             lcd = builder.lcd_from_service(svc)
+            # Apply hardware resolution so the display pipeline encodes correctly.
+            # dev.resolution is set by discover_resolution() (USB handshake result).
+            w, h = dev.resolution
+            if w and h:
+                lcd.set_resolution(w, h)
             lcd.restore_device_settings()
             result = lcd.load_last_theme()
             if not result.get("success"):

@@ -28,7 +28,7 @@ class MediaService:
         self._frames: list[Any] = []
         self._delays: list[int] = []  # Per-frame delays (ms), for .zt files
         self._source_path: Path | None = None
-        self._target_size: tuple[int, int] = (320, 320)
+        self._target_size: tuple[int, int] | None = None
         self._fit_mode: str = 'fill'  # 'fill', 'width', 'height'
         self._decoder: Any = None
         self._frame_counter = 0
@@ -80,6 +80,9 @@ class MediaService:
 
         Returns True if loaded successfully.
         """
+        if self._target_size is None:
+            raise RuntimeError(
+                "MediaService.set_target_size() must be called before loading media")
         self.stop()
         self._source_path = path
         self._frames.clear()

@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
+import trcc.conf as _conf
+
 from ..core.i18n import tr
 from ..core.models import OverlayMode
 from .assets import Assets
@@ -514,7 +516,7 @@ class ScreenCastPanel(DisplayModePanel):
         self._updating = False
         self._show_border = True
         self._aspect_lock = True
-        self._resolution = (320, 320)
+        self._resolution = (_conf.settings.width, _conf.settings.height)
         self._setup_screencast_ui()
 
     def _setup_screencast_ui(self):

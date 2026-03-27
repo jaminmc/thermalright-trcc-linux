@@ -208,7 +208,7 @@ class ImageLabel(QLabel):
     drag_ended = Signal()
     nudge = Signal(int, int)           # (dx, dy) in pixels (1 or 10)
 
-    def __init__(self, width=320, height=320, parent=None):
+    def __init__(self, width: int, height: int, parent=None):
         super().__init__(parent)
 
         self._width = width

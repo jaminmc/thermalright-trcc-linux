@@ -77,7 +77,7 @@ class ScsiDevice(FrameDevice):
     # Track which devices have been initialized (poll + init sent)
     _initialized_devices: Set[str] = set()
 
-    def __init__(self, device_path: str, width: int = 320, height: int = 320):
+    def __init__(self, device_path: str, width: int = 0, height: int = 0):
         self.device_path = device_path
         self.width = width
         self.height = height
@@ -218,7 +218,7 @@ class ScsiDevice(FrameDevice):
         return fbl, response[:64]
 
     @staticmethod
-    def _send_frame(dev: str, rgb565_data: bytes, width: int = 320, height: int = 320):
+    def _send_frame(dev: str, rgb565_data: bytes, width: int, height: int):
         """Send one RGB565 frame in SCSI chunks sized for the resolution."""
         chunks = ScsiDevice._get_frame_chunks(width, height)
         total_size = sum(size for _, size in chunks)

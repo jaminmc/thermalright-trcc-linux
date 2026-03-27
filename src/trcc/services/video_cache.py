@@ -52,7 +52,7 @@ class VideoFrameCache:
 
         # Encoding params (from DeviceInfo)
         self._protocol: str = 'scsi'
-        self._resolution: tuple[int, int] = (320, 320)
+        self._resolution: tuple[int, int] | None = None
         self._fbl: int | None = None
         self._use_jpeg: bool = False
 
@@ -229,6 +229,7 @@ class VideoFrameCache:
             frame = ImageService.apply_rotation(frame, self._rotation)
 
         self._l3_preview[index] = frame
+        assert self._resolution is not None, "VideoFrameCache.build() must be called before encoding"
         self._l3_encoded[index] = ImageService.encode_for_device(
             frame, self._protocol, self._resolution,
             self._fbl, self._use_jpeg)
@@ -263,6 +264,7 @@ class VideoFrameCache:
                 frame = ImageService.apply_rotation(frame, self._rotation)
 
             preview[i] = frame
+            assert self._resolution is not None, "VideoFrameCache.build() must be called before encoding"
             encoded[i] = ImageService.encode_for_device(
                 frame, self._protocol, self._resolution,
                 self._fbl, self._use_jpeg)

@@ -40,6 +40,8 @@ from typing import Callable, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from trcc.core.models import CLOUD_SERVERS, CLOUD_THEME_URL_KEYS
+
 log = logging.getLogger(__name__)
 
 # Category definitions matching Windows FormCZTV.CheakWebFile
@@ -58,46 +60,9 @@ CATEGORIES = [
 # Category name lookup
 CATEGORY_NAMES = {cat[0]: cat[1] for cat in CATEGORIES}
 
-# Server URLs (Windows pattern: http://www.czhorde.com/tr/bj{resolution}/)
-SERVERS = {
-    'international': 'http://www.czhorde.cc/tr/bj{resolution}/',
-    'china': 'http://www.czhorde.com/tr/bj{resolution}/',
-}
-
-# Resolution URL suffixes — full C# v2.1.2 GifWebDir* parity
-RESOLUTION_URLS = {
-    "240x240": "bj240240",
-    "240x320": "bj240320",
-    "320x240": "bj320240",
-    "320x320": "bj320320",
-    "360x360": "bj360360",
-    "480x480": "bj480480",
-    "640x172": "bj640172",
-    "640x480": "bj640480",
-    "800x480": "bj800480",
-    "854x480": "bj854480",
-    "960x320": "bj960320",
-    "960x540": "bj960540",
-    "1280x480": "bj1280480",
-    "1600x720": "bj1600720",
-    "1600x720u": "bj1600720u",
-    "1600x720l": "bj1600720l",
-    "1920x440": "bj1920440",
-    "1920x462": "bj1920462",
-    # Portrait variants
-    "172x640": "bj172640",
-    "320x960": "bj320960",
-    "440x1920": "bj4401920",
-    "462x1920": "bj4621920",
-    "480x640": "bj480640",
-    "480x800": "bj480800",
-    "480x854": "bj480854",
-    "480x1280": "bj4801280",
-    "540x960": "bj540960",
-    "720x1600": "bj7201600",
-    "720x1600u": "bj7201600u",
-    "720x1600l": "bj7201600l",
-}
+# Re-export for backward compatibility
+SERVERS = CLOUD_SERVERS
+RESOLUTION_URLS = CLOUD_THEME_URL_KEYS
 
 
 class CloudThemeDownloader:
@@ -138,7 +103,7 @@ class CloudThemeDownloader:
 
     def __init__(
         self,
-        resolution: str = "320x320",
+        resolution: str = '',
         cache_dir: Optional[str] = None,
         server: str = 'international'
     ):
@@ -466,7 +431,7 @@ get_themes_by_category = CloudThemeDownloader.get_themes_by_category
 
 def download_theme(
     theme_id: str,
-    resolution: str = "320x320",
+    resolution: str,
     cache_dir: Optional[str] = None,
 ) -> Optional[str]:
     """Quick download of a single theme (convenience wrapper)."""

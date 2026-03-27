@@ -594,8 +594,13 @@ class TestResolutionOffsets:
 class TestUCPreviewConstruction:
     """Test UCPreview construction with various resolutions."""
 
-    def test_default_construction(self, qapp: object) -> None:
-        panel = UCPreview()
+    @pytest.fixture
+    def panel(self, settings_with_resolution):
+        """UCPreview built from active settings — mirrors production trcc_app.py."""
+        from trcc.conf import settings
+        return UCPreview(settings.width, settings.height)
+
+    def test_default_construction(self, panel: UCPreview) -> None:
         assert panel._lcd_width == 320
         assert panel._lcd_height == 320
 
@@ -614,16 +619,13 @@ class TestUCPreviewConstruction:
         assert panel._lcd_width == 1280
         assert panel._lcd_height == 480
 
-    def test_preview_label_created(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_preview_label_created(self, panel: UCPreview) -> None:
         assert panel.preview_label is not None
 
-    def test_status_label_defaults_to_ready(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_status_label_defaults_to_ready(self, panel: UCPreview) -> None:
         assert panel.status_label.text() == 'Ready'
 
-    def test_progress_container_hidden_by_default(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_progress_container_hidden_by_default(self, panel: UCPreview) -> None:
         assert panel.progress_container.isHidden()
 
 
@@ -825,40 +827,38 @@ class TestSetResolution:
 class TestUCPreviewStatus:
     """Test status and progress methods."""
 
-    def test_set_status(self, qapp: object) -> None:
-        panel = UCPreview()
+    @pytest.fixture
+    def panel(self, settings_with_resolution):
+        from trcc.conf import settings
+        return UCPreview(settings.width, settings.height)
+
+    def test_set_status(self, panel: UCPreview) -> None:
         panel.set_status("Loading...")
         assert panel.status_label.text() == "Loading..."
 
-    def test_set_status_empty(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_status_empty(self, panel: UCPreview) -> None:
         panel.set_status("")
         assert panel.status_label.text() == ""
 
-    def test_show_video_controls_true(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_show_video_controls_true(self, panel: UCPreview) -> None:
         panel.show_video_controls(True)
         assert not panel.progress_container.isHidden()
 
-    def test_show_video_controls_false(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_show_video_controls_false(self, panel: UCPreview) -> None:
         panel.show_video_controls(True)
         panel.show_video_controls(False)
         assert panel.progress_container.isHidden()
 
-    def test_set_progress(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_progress(self, panel: UCPreview) -> None:
         panel.set_progress(50, "01:30", "03:00")
         assert panel.progress_slider.value() == 50
         assert panel.time_label.text() == "01:30 / 03:00"
 
-    def test_set_progress_zero(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_progress_zero(self, panel: UCPreview) -> None:
         panel.set_progress(0, "00:00", "00:00")
         assert panel.progress_slider.value() == 0
 
-    def test_set_progress_100(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_progress_100(self, panel: UCPreview) -> None:
         panel.set_progress(100, "05:00", "05:00")
         assert panel.progress_slider.value() == 100
 
@@ -870,25 +870,26 @@ class TestUCPreviewStatus:
 class TestSetPlaying:
     """Test set_playing() icon/text toggling."""
 
-    def test_set_playing_no_refs_uses_text(self, qapp: object) -> None:
+    @pytest.fixture
+    def panel(self, settings_with_resolution) -> UCPreview:
+        from trcc.conf import settings
+        return UCPreview(settings.width, settings.height)
+
+    def test_set_playing_no_refs_uses_text(self, panel: UCPreview) -> None:
         """When _img_refs not present, falls back to text."""
-        panel = UCPreview()
-        # Remove _img_refs if set
         if hasattr(panel.play_btn, '_img_refs'):
             delattr(panel.play_btn, '_img_refs')
         panel.set_playing(True)
         assert panel.play_btn.text() == "\u23f8"  # pause symbol
 
-    def test_set_playing_false_no_refs(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_playing_false_no_refs(self, panel: UCPreview) -> None:
         if hasattr(panel.play_btn, '_img_refs'):
             delattr(panel.play_btn, '_img_refs')
         panel.set_playing(False)
         assert panel.play_btn.text() == "\u25b6"  # play symbol
 
-    def test_set_playing_with_refs(self, qapp: object) -> None:
+    def test_set_playing_with_refs(self, panel: UCPreview) -> None:
         """When _img_refs exist with valid pixmaps, uses icon (no exception)."""
-        panel = UCPreview()
         play_pix = _valid_pixmap(34, 26)
         pause_pix = _valid_pixmap(34, 26)
         panel.play_btn._img_refs = [play_pix, pause_pix]  # type: ignore[attr-defined]
@@ -896,17 +897,15 @@ class TestSetPlaying:
         # Should have set icon without raising
         assert not panel.play_btn.icon().isNull()
 
-    def test_set_playing_false_with_refs(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_set_playing_false_with_refs(self, panel: UCPreview) -> None:
         play_pix = _valid_pixmap(34, 26)
         pause_pix = _valid_pixmap(34, 26)
         panel.play_btn._img_refs = [play_pix, pause_pix]  # type: ignore[attr-defined]
         panel.set_playing(False)
         assert not panel.play_btn.icon().isNull()
 
-    def test_set_playing_with_none_refs(self, qapp: object) -> None:
+    def test_set_playing_with_none_refs(self, panel: UCPreview) -> None:
         """When _img_refs has None entries, falls back to text."""
-        panel = UCPreview()
         panel.play_btn._img_refs = [None, None]  # type: ignore[attr-defined]
         panel.set_playing(True)
         assert panel.play_btn.text() == "\u23f8"
@@ -919,16 +918,20 @@ class TestSetPlaying:
 class TestGetLcdSize:
     """Test get_lcd_size() returns correct dimensions."""
 
-    def test_default(self, qapp: object) -> None:
-        panel = UCPreview()
+    @pytest.fixture
+    def panel(self, settings_with_resolution):
+        """UCPreview built from active settings — mirrors production trcc_app.py."""
+        from trcc.conf import settings
+        return UCPreview(settings.width, settings.height)
+
+    def test_default(self, panel: UCPreview) -> None:
         assert panel.get_lcd_size() == (320, 320)
 
     def test_after_construction(self, qapp: object) -> None:
         panel = UCPreview(width=1280, height=480)
         assert panel.get_lcd_size() == (1280, 480)
 
-    def test_after_set_resolution(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_after_set_resolution(self, panel: UCPreview) -> None:
         panel.set_resolution(240, 240)
         assert panel.get_lcd_size() == (240, 240)
 
@@ -971,36 +974,36 @@ class TestUCPreviewDragSignals:
 class TestUCPreviewDelegates:
     """Test that video control actions fire delegate signals."""
 
-    def test_play_pause_delegate(self, qapp: object) -> None:
-        panel = UCPreview()
+    @pytest.fixture
+    def panel(self, settings_with_resolution) -> UCPreview:
+        from trcc.conf import settings
+        return UCPreview(settings.width, settings.height)
+
+    def test_play_pause_delegate(self, panel: UCPreview) -> None:
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
         panel._on_play_pause()
         assert any(r[0] == UCPreview.CMD_VIDEO_PLAY_PAUSE for r in received)
 
-    def test_height_fit_delegate(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_height_fit_delegate(self, panel: UCPreview) -> None:
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
         panel._on_height_fit()
         assert any(r[0] == UCPreview.CMD_VIDEO_FIT_HEIGHT for r in received)
 
-    def test_width_fit_delegate(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_width_fit_delegate(self, panel: UCPreview) -> None:
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
         panel._on_width_fit()
         assert any(r[0] == UCPreview.CMD_VIDEO_FIT_WIDTH for r in received)
 
-    def test_seek_delegate(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_seek_delegate(self, panel: UCPreview) -> None:
         received: list[tuple] = []
         panel.delegate.connect(lambda c, i, d: received.append((c, i, d)))
         panel._on_seek(42)
         assert any(r[0] == UCPreview.CMD_VIDEO_SEEK for r in received)
 
-    def test_preview_click_emits_image_clicked(self, qapp: object) -> None:
-        panel = UCPreview()
+    def test_preview_click_emits_image_clicked(self, panel: UCPreview) -> None:
         received: list[tuple[int, int]] = []
         panel.image_clicked.connect(lambda x, y: received.append((x, y)))
         panel._on_preview_clicked()

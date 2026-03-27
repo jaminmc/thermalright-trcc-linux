@@ -91,8 +91,8 @@ class TestDcConfigDefaults:
         assert dc.overlay_enabled is True
         assert dc.overlay_x == 0
         assert dc.overlay_y == 0
-        assert dc.overlay_w == 320
-        assert dc.overlay_h == 320
+        assert dc.overlay_w == 0
+        assert dc.overlay_h == 0
 
     def test_mask_defaults(self):
         dc = DcConfig()
@@ -243,11 +243,11 @@ class TestDcConfigLoad:
             mask_settings={'overlay_rect': [10, 20]},
         )
         dc = DcConfig('/fake/path.dc')
-        # Defaults unchanged
+        # Defaults unchanged (uninitialized = 0)
         assert dc.overlay_x == 0
         assert dc.overlay_y == 0
-        assert dc.overlay_w == 320
-        assert dc.overlay_h == 320
+        assert dc.overlay_w == 0
+        assert dc.overlay_h == 0
 
     @patch('trcc.adapters.infra.dc_config.DcParser.parse')
     def test_overlay_rect_none_ignored(self, mock_parse):
@@ -256,8 +256,8 @@ class TestDcConfigLoad:
             mask_settings={'overlay_rect': None},
         )
         dc = DcConfig('/fake/path.dc')
-        assert dc.overlay_w == 320
-        assert dc.overlay_h == 320
+        assert dc.overlay_w == 0
+        assert dc.overlay_h == 0
 
     @patch('trcc.adapters.infra.dc_config.DcParser.parse')
     def test_mask_position_2_elements(self, mock_parse):
@@ -409,7 +409,7 @@ class TestToOverlayConfig:
         dc.custom_text = 'hello'
         dc.flags = {'system_info': True}
 
-        result = dc.to_overlay_config(640, 480)
+        result = dc.to_overlay_config()
 
         mock_to_overlay.assert_called_once()
         call_args = mock_to_overlay.call_args
@@ -418,18 +418,7 @@ class TestToOverlayConfig:
         assert parsed_dict['display_elements'] is dc.elements
         assert parsed_dict['custom_text'] == 'hello'
         assert parsed_dict['flags'] is dc.flags
-        assert call_args[0][1] == 640
-        assert call_args[0][2] == 480
         assert result == {'cpu_usage': {'x': 10, 'y': 20}}
-
-    @patch('trcc.adapters.infra.dc_config.DcParser.to_overlay_config')
-    def test_default_dimensions(self, mock_to_overlay):
-        mock_to_overlay.return_value = {}
-        dc = DcConfig()
-        dc.to_overlay_config()
-        call_args = mock_to_overlay.call_args
-        assert call_args[0][1] == 320
-        assert call_args[0][2] == 320
 
 
 # ── from_overlay_config() ──
@@ -582,7 +571,7 @@ class TestEdgeCases:
         )
         dc = DcConfig('/fake/path.dc')
         assert dc.overlay_x == 0
-        assert dc.overlay_w == 320
+        assert dc.overlay_w == 0
 
     @patch('trcc.adapters.infra.dc_config.DcParser.parse')
     def test_mask_position_empty_list(self, mock_parse):

@@ -133,18 +133,35 @@ class ResetDisplayCommand(LCDCommand):
 
 @dataclass(frozen=True, slots=True)
 class SetResolutionCommand(LCDCommand):
-    """Set the active display resolution."""
-    width: int = 320
-    height: int = 320
+    """Set the active display resolution (runtime resolution change).
+
+    Use InitializeDeviceCommand on initial device connect instead.
+    """
+    width: int
+    height: int
 
 
 @dataclass(frozen=True, slots=True)
 class EnsureDataCommand(LCDCommand):
     """Download and extract theme/web/mask archives for a resolution.
 
-    Fired automatically by SetResolutionCommand once the device resolution
-    is known. Safe to dispatch multiple times — no-op if already cached.
-    All three adapters (CLI, API, GUI) get data via this single path.
+    Fired automatically by InitializeDeviceCommand and SetResolutionCommand
+    once the device resolution is known. Safe to dispatch multiple times —
+    no-op if already cached. All three adapters (CLI, API, GUI) get data
+    via this single path.
     """
-    width: int = 320
-    height: int = 320
+    width: int
+    height: int
+
+
+@dataclass(frozen=True, slots=True)
+class InitializeDeviceCommand(LCDCommand):
+    """Initialize display pipeline for a newly connected device.
+
+    Dispatched unconditionally on every device connect, carrying the real
+    w×h from the USB handshake. Sets media target size, overlay resolution,
+    theme dirs, and triggers data download — regardless of whether the
+    resolution changed since the last session.
+    """
+    width: int
+    height: int

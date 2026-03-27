@@ -809,6 +809,10 @@ class TestDisplayModePanel:
 class TestScreenCastPanel:
     """Test screen cast panel with coordinate inputs."""
 
+    @pytest.fixture(autouse=True)
+    def _with_resolution(self, settings_with_resolution):
+        pass
+
     def test_construction(self, qapp):
         panel = ScreenCastPanel()
         assert panel.mode_id == "screencast"

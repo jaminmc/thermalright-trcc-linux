@@ -100,6 +100,17 @@ class TestThemeIdTraversal(_ApiSecurityBase):
 class TestThemeImportInfoLeakage(_ApiSecurityBase):
     """POST /themes/import — must not leak internal paths or stack traces."""
 
+    def setUp(self):
+        super().setUp()
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.connected = True
+        mock_dispatcher.resolution = (320, 320)
+        api_module._display_dispatcher = mock_dispatcher
+
+    def tearDown(self):
+        api_module._display_dispatcher = None
+        super().tearDown()
+
     def test_service_error_no_internal_details(self):
         with patch("trcc.api.themes.ThemeService.import_tr",
                    return_value=(False, "corrupt archive at /home/user/.trcc/data/foo")), \

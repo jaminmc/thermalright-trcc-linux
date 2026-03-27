@@ -11,7 +11,7 @@ import tracemalloc
 from typing import Any, Callable
 from unittest.mock import MagicMock
 
-from ..core.models import HardwareMetrics, LEDMode, LEDState, PlaybackState
+from ..core.models import FBL_PROFILES, HardwareMetrics, LEDMode, LEDState, PlaybackState
 from ..core.perf import PerfReport
 
 
@@ -54,17 +54,22 @@ def run_benchmarks() -> PerfReport:
     report = PerfReport()
     r = ImageService._r()
 
-    def _surface(w: int = 320, h: int = 320,
-                 color: tuple[int, ...] = (128, 0, 0)) -> Any:
+    # Benchmark profiles — representative device resolutions from FBL_PROFILES
+    _p320 = FBL_PROFILES[100]   # 320×320 RGB565 big-endian
+    _p480 = FBL_PROFILES[72]    # 480×480 RGB565
+    _w320, _h320 = _p320.width, _p320.height
+    _w480, _h480 = _p480.width, _p480.height
+
+    def _surface(w: int, h: int, color: tuple[int, ...] = (128, 0, 0)) -> Any:
         return r.create_surface(w, h, color)
 
     # ── CPU benchmarks ────────────────────────────────────────────
 
     # Image operations
-    avg = _cpu_per_iter(lambda: ImageService.resize(_surface(640, 640), 320, 320))
-    report.record_cpu("resize 640->320", avg, 0.003)
+    avg = _cpu_per_iter(lambda: ImageService.resize(_surface(640, 640), _w320, _h320))
+    report.record_cpu(f"resize 640->{_w320}", avg, 0.003)
 
-    img = _surface(320, 320, (100, 100, 100))
+    img = _surface(_w320, _h320, (100, 100, 100))
     avg = _cpu_per_iter(lambda: ImageService.apply_brightness(img, 50))
     report.record_cpu("apply_brightness 50%", avg, 0.002)
 
@@ -72,16 +77,16 @@ def run_benchmarks() -> PerfReport:
     report.record_cpu("apply_rotation 90deg", avg, 0.003)
 
     # RGB565 encoding
-    s320 = _surface(320, 320, (255, 128, 0))
+    s320 = _surface(_w320, _h320, (255, 128, 0))
     avg = _cpu_per_iter(lambda: r.encode_rgb565(s320, '>'))
-    report.record_cpu("encode_rgb565 320x320", avg, 0.005)
+    report.record_cpu(f"encode_rgb565 {_w320}x{_h320}", avg, 0.005)
 
-    s480 = _surface(480, 480, (0, 128, 255))
+    s480 = _surface(_w480, _h480, (0, 128, 255))
     avg = _cpu_per_iter(lambda: r.encode_rgb565(s480, '>'))
-    report.record_cpu("encode_rgb565 480x480", avg, 0.010)
+    report.record_cpu(f"encode_rgb565 {_w480}x{_h480}", avg, 0.010)
 
     # Overlay rendering
-    overlay = OverlayService(320, 320, renderer=r)
+    overlay = OverlayService(_w320, _h320, renderer=r)
     bg = _surface(320, 320, (50, 50, 50))
     overlay.set_background(bg)
     overlay.enabled = True

@@ -40,7 +40,7 @@ FFMPEG_AVAILABLE = _check_ffmpeg()
 class VideoDecoder:
     """Decode video frames via FFmpeg pipe. No playback state."""
 
-    def __init__(self, video_path: str, target_size: tuple[int, int] = (320, 320),
+    def __init__(self, video_path: str, target_size: tuple[int, int],
                  fit_mode: str = 'fill') -> None:
         if not FFMPEG_AVAILABLE:
             from trcc.core.builder import ControllerBuilder
@@ -155,7 +155,7 @@ class VideoDecoder:
     def extract_frames(
         video_path: str,
         output_dir: str,
-        target_size: tuple[int, int] = (320, 320),
+        target_size: tuple[int, int],
         max_frames: int | None = None,
     ) -> int:
         """Extract video frames to PNG files via FFmpeg."""
@@ -205,7 +205,7 @@ class ThemeZtDecoder:
     - for each frame: int32 size + JPEG bytes
     """
 
-    def __init__(self, zt_path: str, target_size: tuple[int, int] | None = None) -> None:
+    def __init__(self, zt_path: str, target_size: tuple[int, int]) -> None:
         self.frames: list[RawFrame] = []
         self.timestamps: list[int] = []
         self.delays: list[int] = []
@@ -236,12 +236,10 @@ class ThemeZtDecoder:
 
     @staticmethod
     def _decode_jpeg(jpeg_bytes: bytes,
-                     target_size: tuple[int, int] | None) -> RawFrame:
+                     target_size: tuple[int, int]) -> RawFrame:
         """Decode JPEG bytes → RawFrame via ffmpeg pipe."""
-        vf_args: list[str] = []
-        if target_size:
-            tw, th = target_size
-            vf_args = ['-vf', f'scale={tw}:{th}']
+        tw, th = target_size
+        vf_args = ['-vf', f'scale={tw}:{th}']
         cmd = [
             'ffmpeg', '-f', 'jpeg_pipe', '-i', 'pipe:0',
             *vf_args,
@@ -256,10 +254,10 @@ class ThemeZtDecoder:
                 raise ValueError(f"ffmpeg decode failed: {result.stderr[:100]!r}")
         except Exception as exc:
             log.warning("ThemeZtDecoder: JPEG decode failed (%s), returning blank", exc)
-            w, h = target_size if target_size else (320, 320)
+            w, h = target_size
             return RawFrame(bytes(w * h * 3), w, h)
 
-        w, h = target_size if target_size else (320, 320)
+        w, h = target_size
         return RawFrame(result.stdout[:w * h * 3], w, h)
 
     @property

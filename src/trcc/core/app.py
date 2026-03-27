@@ -219,7 +219,7 @@ class TrccApp:
                 seen.add((w, h))
                 ensure_fn(w, h, progress_fn=lambda msg: self._notify(AppEvent.BOOTSTRAP_PROGRESS, msg))
                 import trcc.conf as _conf
-                _conf.settings._resolve_paths()
+                _conf.settings.set_resolution(w, h)
                 device.notify_data_ready()
 
     def device_connected(self, detected: DetectedDevice) -> None:
@@ -273,9 +273,16 @@ class TrccApp:
             self._lcd_device = device
             self._lcd_bus = self.build_lcd_bus(device)
             log.debug("lcd_bus ready for %s", getattr(device, 'device_path', '?'))
-            # Data extraction is handled by bootstrap() → _ensure_data_blocking()
-            # so the UI starts fully populated.  Hotplug (device_connected) and
-            # SetResolutionCommand still dispatch EnsureDataCommand via lcd_bus.
+            # Initialize display pipeline with the resolution from the USB handshake.
+            # This sets settings.resolution, media target size, and overlay resolution
+            # so all subsequent commands (CLI send, API encode) work correctly.
+            # The GUI re-dispatches InitializeDeviceCommand in apply_device_config —
+            # safe because set_resolution has a no-op guard for same-value calls.
+            info = device.device_info
+            res = getattr(info, 'resolution', (0, 0))
+            if res and res != (0, 0):
+                from .commands.lcd import InitializeDeviceCommand as _Init
+                self._lcd_bus.dispatch(_Init(width=res[0], height=res[1]))
         elif device.is_led and isinstance(device, _LED):
             self._led_device = device
             self._led_bus = self.build_led_bus(device)

@@ -1378,7 +1378,7 @@ class TestValidateThemeFull(unittest.TestCase):
             with open(os.path.join(tmpdir, 'Theme.png'), 'wb') as f:
                 f.write(b'PNG')
 
-            result = validate_theme(tmpdir)
+            result = validate_theme(tmpdir, display_width=320, display_height=320)
             self.assertTrue(len(result['warnings']) > 0)
 
     def test_no_image_files_warning(self):
