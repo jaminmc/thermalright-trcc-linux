@@ -58,17 +58,6 @@ def _led_dispatch(cmd_cls, preview: bool = False, **fields) -> int:
 # CLI functions (thin wrappers — print + exit code)
 # =========================================================================
 
-# Keep _get_led_service for backward compat (tests import it)
-def _get_led_service():
-    """Detect LED device and create initialized LEDService."""
-    from trcc.core.builder import ControllerBuilder
-    led = ControllerBuilder.for_current_os().build_led()
-    result = led.connect()
-    if not result["success"]:
-        return None, None
-    return led.service, result["status"]
-
-
 @_cli_handler
 def set_color(builder, hex_color, *, preview=False):
     """Set LED static color."""

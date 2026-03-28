@@ -4,24 +4,6 @@ from __future__ import annotations
 from trcc.cli import _cli_handler
 
 
-def _make_device_service():
-    """Create a DeviceService with adapter dependencies wired."""
-    from trcc.adapters.device.factory import DeviceProtocolFactory
-    from trcc.adapters.device.led import probe_led_model
-    from trcc.core.builder import ControllerBuilder
-    from trcc.services import DeviceService
-
-    return DeviceService(
-        detect_fn=ControllerBuilder.for_current_os().build_detect_fn(),
-        probe_led_fn=probe_led_model,
-        get_protocol=DeviceProtocolFactory.get_protocol,
-        get_protocol_info=DeviceProtocolFactory.get_protocol_info,
-    )
-
-
-
-
-
 def _probe(dev):
     """Try to resolve device details via HID handshake/cache.
 

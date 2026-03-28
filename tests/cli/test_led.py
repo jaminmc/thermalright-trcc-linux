@@ -761,30 +761,6 @@ class TestCLIHelpers:
         rc = _led_dispatch(ToggleLEDCommand, on=False)
         assert rc == 0
 
-    def test_get_led_service_no_device(self, _mock_builder):
-        """Backward-compat _get_led_service returns (None, None)."""
-        from trcc.cli._led import _get_led_service
-
-        dev = LEDDevice()
-        _mock_builder.build_led.return_value = dev
-        with patch.object(dev, 'connect',
-                          return_value={"success": False, "error": "no device"}):
-            svc, status = _get_led_service()
-        assert svc is None
-        assert status is None
-
-    def test_get_led_service_success(self, mock_svc, _mock_builder):
-        """Backward-compat _get_led_service returns (svc, status)."""
-        from trcc.cli._led import _get_led_service
-
-        dev = LEDDevice(svc=mock_svc)
-        dev._init_status = "PA120"
-        _mock_builder.build_led.return_value = dev
-        with patch.object(dev, 'connect',
-                          return_value={"success": True, "status": "PA120"}):
-            svc, status = _get_led_service()
-        assert svc is mock_svc
-        assert status == "PA120"
 
 
 # =========================================================================
