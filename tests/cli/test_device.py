@@ -562,8 +562,8 @@ class TestDetect:
         captured = capsys.readouterr()
         assert "trcc select" in captured.out
 
-    def test_saved_selected_device_shown_as_active(self, capsys, make_detected_device):
-        """When a saved device matches, it is shown as Active."""
+    def test_multiple_devices_always_shows_numbered_list(self, capsys, make_detected_device):
+        """Multiple devices always shows numbered list even without show_all."""
         dev0 = self._scsi_dev(make_detected_device, "/dev/sg0", "Device A")
         dev1 = self._scsi_dev(make_detected_device, "/dev/sg1", "Device B")
         mock_setup = self._ok_setup()
@@ -573,6 +573,8 @@ class TestDetect:
             detect(show_all=False, detect_fn=lambda: [dev0, dev1], platform_setup=mock_setup)
 
         captured = capsys.readouterr()
+        assert "[1]" in captured.out
+        assert "[2]" in captured.out
         assert "Device B" in captured.out
 
     def test_udev_warning_printed_when_rules_missing(self, capsys, make_detected_device):
@@ -648,7 +650,11 @@ class TestSelect:
     def _scsi_dev(self, path: str = "/dev/sg0", name: str = "LCD") -> MagicMock:
         dev = MagicMock()
         dev.scsi_device = path
+        dev.path = path
         dev.product_name = name
+        dev.protocol = "scsi"
+        dev.vid = 0x87CD
+        dev.pid = 0x70DB
         return dev
 
     def test_no_devices_returns_1(self):
@@ -668,6 +674,19 @@ class TestSelect:
         result = select(5, detect_fn=lambda: [dev])
         assert result == 1
 
+    def test_invalid_number_prints_device_list(self, capsys, make_detected_device):
+        """Invalid number prints the available device list so the user knows what to pick."""
+        dev1 = make_detected_device(path="/dev/sg0", product_name="Device A")
+        dev2 = make_detected_device(path="/dev/sg1", product_name="Device B")
+        dev1.scsi_device = "/dev/sg0"
+        dev2.scsi_device = "/dev/sg1"
+        select(5, detect_fn=lambda: [dev1, dev2])
+        captured = capsys.readouterr()
+        assert "[1]" in captured.out
+        assert "[2]" in captured.out
+        assert "Device A" in captured.out
+        assert "Device B" in captured.out
+
     def test_valid_number_selects_device(self):
         """Valid device number saves and returns 0."""
         dev = self._scsi_dev("/dev/sg1", "Frost Commander")
@@ -679,7 +698,7 @@ class TestSelect:
         mock_save.assert_called_once_with("/dev/sg1")
 
     def test_valid_selection_prints_device_info(self, capsys):
-        """Valid selection prints device scsi_device and product_name."""
+        """Valid selection prints formatted device info."""
         dev = self._scsi_dev("/dev/sg0", "Frost Commander 360")
 
         with patch("trcc.conf.Settings.save_selected_device"):
@@ -688,6 +707,13 @@ class TestSelect:
         captured = capsys.readouterr()
         assert "/dev/sg0" in captured.out
         assert "Frost Commander 360" in captured.out
+
+    def test_hid_device_saved_by_path_not_scsi(self, make_detected_device):
+        """HID devices have no scsi_device — saved via path so selection persists."""
+        dev = make_detected_device(path="0416:5408", scsi_device=None, protocol="hid")
+        with patch("trcc.conf.Settings.save_selected_device") as mock_save:
+            select(1, detect_fn=lambda: [dev])
+        mock_save.assert_called_once_with("0416:5408")
 
     def test_selects_second_device_when_number_is_2(self):
         """Number 2 selects the second device in the list."""

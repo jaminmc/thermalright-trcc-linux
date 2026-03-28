@@ -125,21 +125,15 @@ def detect(show_all=False, detect_fn=None, platform_setup=None):
             print(hint)
         return 1
 
-    if show_all:
-        selected = Settings.get_selected_device()
+    selected = Settings.get_selected_device()
+    if show_all or len(devices) > 1:
         for i, dev in enumerate(devices, 1):
-            marker = "*" if dev.scsi_device == selected else " "
+            marker = "*" if dev.path == selected else " "
             print(f"{marker} [{i}] {_format(dev, probe=True)}")
         if len(devices) > 1:
             print("\nUse 'trcc select N' to switch devices")
     else:
-        selected = Settings.get_selected_device()
-        dev = None
-        if selected:
-            dev = next((d for d in devices if d.scsi_device == selected), None)
-        if not dev:
-            dev = devices[0]
-        print(f"Active: {_format(dev, probe=True)}")
+        print(f"Active: {_format(devices[0], probe=True)}")
 
     for warning in platform_setup.check_device_permissions(devices):
         print(f"\n{warning}")
@@ -162,10 +156,12 @@ def select(number, detect_fn=None):
         return 1
 
     if number < 1 or number > len(devices):
-        print(f"Invalid device number. Use 1-{len(devices)}")
+        print("Invalid device number. Available devices:")
+        for i, dev in enumerate(devices, 1):
+            print(f"  [{i}] {_format(dev)}")
         return 1
 
     device = devices[number - 1]
-    Settings.save_selected_device(device.scsi_device)
-    print(f"Selected: {device.scsi_device} ({device.product_name})")
+    Settings.save_selected_device(device.path)
+    print(f"Selected: {_format(device)}")
     return 0
