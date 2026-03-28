@@ -661,12 +661,55 @@ class TestEnsureAll(unittest.TestCase):
         self.assertIn((1280, 480), mask_calls)
         self.assertIn((480, 1280), mask_calls)
 
-    def test_skips_if_already_installed(self):
-        """ensure_all is a no-op when resolution is already installed."""
+    def test_always_runs_all_ensures(self):
+        """ensure_all always calls all ensure_* — each is idempotent internally."""
         with patch.object(DataManager, 'is_resolution_installed', return_value=True), \
-             patch.object(DataManager, 'ensure_themes') as mock_themes:
+             patch.object(DataManager, 'mark_resolution_installed'), \
+             patch.object(DataManager, 'ensure_themes') as mock_themes, \
+             patch.object(DataManager, 'ensure_web') as mock_web, \
+             patch.object(DataManager, 'ensure_web_masks') as mock_masks:
             DataManager.ensure_all(320, 320)
-        mock_themes.assert_not_called()
+        mock_themes.assert_called_once_with(320, 320)
+        mock_web.assert_called_once_with(320, 320)
+        mock_masks.assert_called_once_with(320, 320)
+
+    def test_non_square_extracts_correct_archive_paths(self):
+        """Fixture test: ensure_all extracts all 5 archives for a 1280x480 device.
+
+        Verifies the real archive path construction — landscape theme + web + masks
+        AND portrait web + masks — using a tempdir with fake .7z files.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            pkg = d
+            user = os.path.join(d, 'user')
+
+            # Create all expected archives in the package data dir
+            web_dir = os.path.join(pkg, 'web')
+            os.makedirs(web_dir)
+            archives = {
+                'theme': os.path.join(pkg, 'theme1280480.7z'),
+                'web_ls': os.path.join(web_dir, '1280480.7z'),
+                'mask_ls': os.path.join(web_dir, 'zt1280480.7z'),
+                'web_pt': os.path.join(web_dir, '4801280.7z'),
+                'mask_pt': os.path.join(web_dir, 'zt4801280.7z'),
+            }
+            for path in archives.values():
+                Path(path).touch()
+
+            extracted = []
+            with patch('trcc.adapters.infra.data_repository._PKG_DATA_DIR', pkg), \
+                 patch.object(DataManager, '_data_dir', staticmethod(lambda: user)), \
+                 patch.object(DataManager, 'mark_resolution_installed'), \
+                 patch.object(DataManager, 'extract_7z',
+                              side_effect=lambda arc, dst: extracted.append(arc) or True):
+                DataManager.ensure_all(1280, 480)
+
+            extracted_names = [os.path.basename(p) for p in extracted]
+            self.assertIn('theme1280480.7z', extracted_names)
+            self.assertIn('1280480.7z',      extracted_names)
+            self.assertIn('zt1280480.7z',    extracted_names)
+            self.assertIn('4801280.7z',      extracted_names)
+            self.assertIn('zt4801280.7z',    extracted_names)
 
 
 # -- download_archive SSL ---------------------------------------------------

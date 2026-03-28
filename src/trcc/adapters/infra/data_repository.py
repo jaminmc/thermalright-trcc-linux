@@ -403,20 +403,22 @@ class DataManager:
         height: int,
         progress_fn: Optional[callable] = None,  # type: ignore[type-arg]
     ) -> None:
-        """Download + extract all archives for a resolution (skips if already done).
+        """Ensure all archives are extracted for a resolution (idempotent).
+
+        Each ensure_* checks for existing content before extracting, so this is
+        safe to call every startup. Non-square devices also ensure both
+        orientations so rotating immediately shows local content.
 
         progress_fn: optional callable(str) — called with a status message at
         each step so CLI adapters can print progress.  GUI/API pass None.
         """
-        if DataManager.is_resolution_installed(width, height):
-            return
-
         def _report(msg: str) -> None:
             if progress_fn is not None:
                 progress_fn(msg)
             else:
                 log.info(msg)
 
+        # All ensure_* are idempotent — each checks for existing content before extracting
         _report(f"Downloading themes for {width}x{height}...")
         DataManager.ensure_themes(width, height)
         _report(f"Downloading web previews for {width}x{height}...")
@@ -424,7 +426,6 @@ class DataManager:
         _report(f"Downloading mask themes for {width}x{height}...")
         DataManager.ensure_web_masks(width, height)
         if width != height:
-            # Non-square devices support portrait/landscape rotation — ensure both
             _report(f"Downloading web previews for {height}x{width}...")
             DataManager.ensure_web(height, width)
             _report(f"Downloading mask themes for {height}x{width}...")
