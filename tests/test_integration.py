@@ -127,42 +127,23 @@ class TestCLISendPipeline(unittest.TestCase):
 class TestCLIResumePipeline(unittest.TestCase):
     """CLI resume() → DeviceService.detect → load config → ImageService → send."""
 
-    @patch("trcc.services.device.DeviceService.send_frame_async")
-    @patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol")
-    @patch("trcc.core.builder.ControllerBuilder.build_detect_fn")
-    @patch("trcc.conf.Settings.get_device_config")
-    @patch("trcc.conf.Settings.device_config_key")
-    def test_resume_with_saved_theme(self, mock_key, mock_cfg, mock_build_detect_fn,
-                                     mock_get_protocol, mock_send_async):
-        """resume() loads last theme, applies settings, and sends to device."""
+    def test_resume_with_saved_theme(self):
+        """resume() dispatches RestoreLastThemeCommand when device is available."""
         from trcc.cli import resume
-        from trcc.core.models import HandshakeResult
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        from trcc.core.commands.lcd import RestoreLastThemeCommand
 
-        mock_build_detect_fn.return_value = lambda: [_make_device()]
-        mock_key.return_value = "0"
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = True
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        mock_app.lcd_bus.dispatch.return_value = CommandResult.ok()
 
-        mock_protocol = MagicMock()
-        mock_protocol.handshake.return_value = HandshakeResult(
-            resolution=(320, 320))
-        mock_get_protocol.return_value = mock_protocol
-
-        with tempfile.TemporaryDirectory() as td:
-            _make_png(os.path.join(td, "00.png"))
-            mock_cfg.return_value = {
-                "theme_path": td,
-                "brightness_level": 2,  # 50%
-                "rotation": 90,
-            }
-
-            from trcc.adapters.system.linux.platform import LinuxPlatform
-            from trcc.core.builder import ControllerBuilder
-            result = resume(ControllerBuilder(LinuxPlatform()))
-            self.assertEqual(result, 0)
-            # send_frame_async is called synchronously by lcd.send() —
-            # no race condition with background worker thread
-            mock_send_async.assert_called_once()
-            image = mock_send_async.call_args[0][0]
-            self.assertIsNotNone(image)
+        result = resume(MagicMock())
+        self.assertEqual(result, 0)
+        # Verify RestoreLastThemeCommand was dispatched through the bus
+        dispatched = mock_app.lcd_bus.dispatch.call_args[0][0]
+        self.assertIsInstance(dispatched, RestoreLastThemeCommand)
 
     @patch("trcc.core.builder.ControllerBuilder.build_detect_fn")
     def test_resume_no_devices(self, mock_build_detect_fn):

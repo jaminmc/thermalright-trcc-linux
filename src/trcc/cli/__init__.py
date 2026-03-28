@@ -1188,8 +1188,6 @@ select_device = _device.select
 # Backward-compat for tests and external consumers
 _probe_device = _device._probe
 _format_device = _device._format
-_get_service = _device._get_service
-discover_resolution = _device.discover_resolution
 send_image = _display.send_image
 send_color = _display.send_color
 play_video = _display.play_video

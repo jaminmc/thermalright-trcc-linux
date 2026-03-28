@@ -1,8 +1,6 @@
 """Device detection, selection, and probing."""
 from __future__ import annotations
 
-from typing import Optional
-
 from trcc.cli import _cli_handler
 
 
@@ -19,25 +17,6 @@ def _make_device_service():
         get_protocol=DeviceProtocolFactory.get_protocol,
         get_protocol_info=DeviceProtocolFactory.get_protocol_info,
     )
-
-
-def _get_service(device_path: Optional[str] = None):
-    """Create a DeviceService, detect devices, select, and handshake.
-
-    Thin wrapper — delegates to DeviceService.scan_and_select().
-    """
-    svc = _make_device_service()
-    svc.scan_and_select(device_path)
-    return svc
-
-
-def discover_resolution(dev) -> None:
-    """Run protocol handshake to discover resolution + FBL.
-
-    Thin wrapper — delegates to DeviceService._discover_resolution().
-    """
-    svc = _make_device_service()
-    svc._discover_resolution(dev)
 
 
 

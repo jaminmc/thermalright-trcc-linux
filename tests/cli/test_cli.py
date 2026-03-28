@@ -24,7 +24,6 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
-from tests.conftest import make_mock_service as _mock_service
 from trcc.cli import (
     _display,
     gui,
@@ -392,31 +391,24 @@ class TestTestDisplay(unittest.TestCase):
     """Test test_display() command."""
 
     def test_display_success(self):
-        """Cycles through colors and returns 0."""
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('time.sleep'):
+        """Cycles through colors, dispatches 7 SendColorCommands, returns 0."""
+        from trcc.core.app import TrccApp
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        mock_app.lcd_device.lcd_size = (320, 320)
+        with patch('time.sleep'):
             result = cli_test_display(device='/dev/sg0', loop=False)
         self.assertEqual(result, 0)
-        # 7 colors displayed
-        self.assertEqual(svc.send_frame.call_count, 7)
+        # 7 colors × 1 dispatch each
+        self.assertEqual(mock_app.lcd_bus.dispatch.call_count, 7)
 
     def test_display_error(self):
-        """Exception returns 1."""
-        with patch('trcc.cli._device._get_service',
-                          side_effect=RuntimeError('no device')):
+        """_connect_or_fail() returning 1 propagates as exit code 1."""
+        with patch('trcc.cli._display._connect_or_fail', return_value=1):
             result = cli_test_display()
         self.assertEqual(result, 1)
 
 
-class TestTestDisplayExtra(unittest.TestCase):
-
-    def test_keyboard_interrupt(self):
-        svc = _mock_service()
-        svc.send_frame.side_effect = KeyboardInterrupt
-        with patch('trcc.cli._device._get_service', return_value=svc):
-            result = cli_test_display()
-        self.assertEqual(result, 0)
 
 
 # =========================================================================
@@ -436,28 +428,34 @@ class TestScreencast(unittest.TestCase):
 
     def test_no_device(self):
         """No device returns 1."""
-        svc = _mock_service()
-        svc.selected = None
-        with patch('trcc.cli._device._get_service', return_value=svc):
-            self.assertEqual(_display.screencast(self._mock_builder()), 1)
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = False
+        mock_app.os_bus.dispatch.return_value = CommandResult.fail("No LCD device found.")
+        self.assertEqual(_display.screencast(self._mock_builder()), 1)
 
     def test_keyboard_interrupt(self):
         """Ctrl+C stops cleanly — Popen.stdout.read raises KeyboardInterrupt."""
-        svc = _mock_service()
+        from trcc.core.app import TrccApp
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.lcd_size = (320, 320)
+        mock_app.lcd_device.device_path = "/dev/sg0"
         mock_proc = MagicMock()
         mock_proc.stdout.read.side_effect = KeyboardInterrupt
-        with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('subprocess.Popen', return_value=mock_proc):
+        with patch('subprocess.Popen', return_value=mock_proc):
             result = _display.screencast(self._mock_builder())
-            self.assertEqual(result, 0)
+        self.assertEqual(result, 0)
 
     def test_ffmpeg_not_found(self):
         """Missing ffmpeg returns 1 with error message."""
-        svc = _mock_service()
-        with patch('trcc.cli._device._get_service', return_value=svc), \
-             patch('subprocess.Popen', side_effect=FileNotFoundError):
+        from trcc.core.app import TrccApp
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.lcd_size = (320, 320)
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        with patch('subprocess.Popen', side_effect=FileNotFoundError):
             result = _display.screencast(self._mock_builder())
-            self.assertEqual(result, 1)
+        self.assertEqual(result, 1)
 
 
 # =========================================================================

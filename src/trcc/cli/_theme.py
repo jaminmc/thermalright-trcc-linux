@@ -1,7 +1,7 @@
 """Theme discovery and loading commands."""
 from __future__ import annotations
 
-from trcc.cli import _cli_handler, _device
+from trcc.cli import _cli_handler
 
 
 @_cli_handler
@@ -45,78 +45,44 @@ def list_themes(cloud=False, category=None):
 @_cli_handler
 def load_theme(builder, name, *, device=None, preview=False):
     """Load a theme by name and send to LCD."""
-    from trcc.conf import Settings, settings
-    from trcc.core.commands.lcd import SelectThemeCommand
-    from trcc.services import ImageService, ThemeService
+    from trcc.cli._display import _connect_or_fail
+    from trcc.core.app import TrccApp
+    from trcc.core.commands.lcd import LoadThemeByNameCommand, PlayVideoLoopCommand
+    from trcc.services import ImageService
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
+    rc = _connect_or_fail(device)
+    if rc:
+        return rc
+
+    result = TrccApp.get().lcd_bus.dispatch(
+        LoadThemeByNameCommand(name=name)).payload
+
+    if not result.get("success"):
+        print(f"Error: {result.get('error', 'Unknown error')}")
         return 1
 
-    dev = svc.selected
-    w, h = dev.resolution
-
-    settings.set_resolution(w, h)
-
-    td = settings.theme_dir
-    if not td or not td.exists():
-        print(f"No themes for {w}x{h}.")
-        return 1
-
-    themes = ThemeService.discover_local(td.path, (w, h))
-    match = next((t for t in themes if t.name == name), None)
-    if not match:
-        # Try partial match
-        match = next((t for t in themes if name.lower() in t.name.lower()), None)
-    if not match:
-        print(f"Theme not found: {name}")
-        print("Use 'trcc theme-list' to see available themes.")
-        return 1
-
-    # Build LCD with full service stack (DisplayService, OverlayService, etc.)
-    from trcc.core.handlers.lcd import build_lcd_bus
-    lcd = builder.lcd_from_service(svc)
-    lcd.restore_device_settings()
-
-    # Dispatch SelectThemeCommand through the bus — same path as GUI/API
-    cmd_result = build_lcd_bus(lcd).dispatch(SelectThemeCommand(theme=match))
-    result = cmd_result.payload
-
-    # Save as last-used theme
-    key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
-    Settings.save_device_setting(key, 'theme_path', str(match.path))
-
-    if result.get('is_animated'):
-        print(f"Playing '{match.name}' → {dev.path}")
+    if result.get("is_animated") and result.get("theme_path"):
+        lcd = TrccApp.get().lcd_device
+        assert lcd is not None
+        print(f"Playing '{name}' → {lcd.device_path}")
         print("Press Ctrl+C to stop.")
-
-        metrics_fn = None
-        if lcd.overlay.enabled:
-            from trcc.cli import _ensure_system
-            from trcc.services.system import get_all_metrics
-            _ensure_system(builder)
-            metrics_fn = get_all_metrics
-
-        loop_result = lcd.play_video_loop(
-            str(match.path),
-            loop=True,
-            metrics_fn=metrics_fn,
-            on_frame=lambda img: svc.send_frame(img, w, h),
-            on_progress=lambda p, c, t: print(
-                f"\r  {c} / {t} ({p:.0f}%)", end="", flush=True),
-        )
-        print(f"\n{loop_result['message']}.")
+        try:
+            loop_result = TrccApp.get().lcd_bus.dispatch(
+                PlayVideoLoopCommand(video_path=str(result["theme_path"]), loop=True)
+            ).payload
+            print(f"\n{loop_result.get('message', 'Done')}.")
+        except KeyboardInterrupt:
+            print("\nStopped.")
     else:
-        # Static theme
-        img = result.get('image')
+        img = result.get("image")
         if img:
-            lcd.send(img)
-            print(f"Loaded '{match.name}' → {dev.path}")
+            lcd = TrccApp.get().lcd_device
+            assert lcd is not None
+            print(f"Loaded '{name}' → {lcd.device_path}")
             if preview:
                 print(ImageService.to_ansi(img))
         else:
-            print(f"Theme '{match.name}' has no background image.")
+            print(f"Theme '{name}' has no background image.")
             return 1
 
     return 0
@@ -130,16 +96,18 @@ def save_theme(name, *, device=None, video=None, background=None,
     """Save current display state as a custom theme."""
     from pathlib import Path
 
+    from trcc.cli._display import _connect_or_fail
     from trcc.conf import settings as _settings
+    from trcc.core.app import TrccApp
     from trcc.services import ImageService, ThemeService
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
+    rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    dev = svc.selected
-    w, h = dev.resolution
+    lcd = TrccApp.get().lcd_device
+    assert lcd is not None
+    w, h = lcd.lcd_size
 
     # --background replaces --video (auto-detect animated vs static)
     bg_source = background or video
@@ -160,10 +128,9 @@ def save_theme(name, *, device=None, video=None, background=None,
             bg = ImageService.open_and_resize(p, w, h)
 
     if not bg:
-        # Fall back to current theme's background
+        # Fall back to current theme's background (device index 0 = selected)
         from trcc.conf import Settings
-        key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
-        cfg = Settings.get_device_config(key)
+        cfg = Settings.get_device_config("0")
         theme_path = cfg.get('theme_path')
         if theme_path:
             from trcc.core.models import ThemeDir as TDir
@@ -272,16 +239,18 @@ def import_theme(file_path, *, device=None):
     from trcc.adapters.infra.dc_config import DcConfig
     from trcc.adapters.infra.dc_parser import load_config_json
     from trcc.adapters.infra.dc_writer import import_theme as _import_fn
+    from trcc.cli._display import _connect_or_fail
     from trcc.conf import settings as _settings
+    from trcc.core.app import TrccApp
     from trcc.services import ThemeService
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
+    rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    dev = svc.selected
-    w, h = dev.resolution
+    lcd = TrccApp.get().lcd_device
+    assert lcd is not None
+    w, h = lcd.lcd_size
     data_dir = _settings.user_data_dir
 
     theme_svc = ThemeService(

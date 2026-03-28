@@ -118,6 +118,7 @@ class RenderOverlayFromDCCommand(LCDCommand):
     dc_path: str = ""
     send: bool = False
     output: str = ""
+    metrics: Any = field(default=None, hash=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)

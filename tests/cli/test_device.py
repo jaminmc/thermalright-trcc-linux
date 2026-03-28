@@ -5,10 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from trcc.cli._device import (
     _format,
-    _get_service,
     _probe,
     detect,
-    discover_resolution,
     select,
 )
 
@@ -54,23 +52,6 @@ def _make_mock_service(devices=None, selected=None) -> MagicMock:
 # =============================================================================
 # TestGetService
 # =============================================================================
-
-class TestGetService:
-    """_get_service() — thin wrapper around DeviceService.scan_and_select()."""
-
-    def test_delegates_to_scan_and_select(self):
-        svc = _make_mock_service()
-        with patch("trcc.services.DeviceService", return_value=svc):
-            result = _get_service(device_path="/dev/sg1")
-        svc.scan_and_select.assert_called_once_with("/dev/sg1")
-        assert result is svc
-
-    def test_no_path_passes_none(self):
-        svc = _make_mock_service()
-        with patch("trcc.services.DeviceService", return_value=svc):
-            _get_service()
-        svc.scan_and_select.assert_called_once_with(None)
-
 
 class TestScanAndSelect:
     """DeviceService.scan_and_select() — selection logic (moved from CLI)."""
@@ -157,145 +138,18 @@ class TestScanAndSelect:
         mock_disc.assert_not_called()
 
 
-# =============================================================================
-# TestDiscoverResolution
-# =============================================================================
-
-class TestDiscoverResolution:
-    """discover_resolution() — handshake resolution discovery."""
-
-    def test_already_known_resolution_is_noop(self):
-        """If resolution is already (non-zero), handshake is skipped."""
-        dev = MagicMock()
-        dev.resolution = (320, 240)
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol") as mock_factory:
-            discover_resolution(dev)
-
-        mock_factory.assert_not_called()
-
-    def test_handshake_sets_resolution(self):
-        """Handshake result with valid resolution updates dev.resolution."""
-        dev = MagicMock()
-        dev.resolution = (0, 0)
-
-        result = MagicMock()
-        result.resolution = (480, 480)
-        result.fbl = 72
-        result.model_id = None
-
-        protocol = MagicMock()
-        protocol.handshake.return_value = result
-        protocol._device = None
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   return_value=protocol):
-            discover_resolution(dev)
-
-        assert dev.resolution == (480, 480)
-        assert dev.fbl_code == 72
-
-    def test_handshake_uses_model_id_as_fbl_fallback(self):
-        """If result.fbl is None, falls back to model_id for fbl_code."""
-        dev = MagicMock()
-        dev.resolution = (0, 0)
-
-        result = MagicMock()
-        result.resolution = (320, 320)
-        result.fbl = None
-        result.model_id = 100
-
-        protocol = MagicMock()
-        protocol.handshake.return_value = result
-        protocol._device = None
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   return_value=protocol):
-            discover_resolution(dev)
-
-        assert dev.fbl_code == 100
-
-    def test_handshake_zero_resolution_not_set(self):
-        """Handshake returning (0, 0) resolution does not overwrite dev.resolution."""
-        dev = MagicMock()
-        dev.resolution = (0, 0)
-
-        result = MagicMock()
-        result.resolution = (0, 0)
-        result.fbl = None
-        result.model_id = None
-
-        protocol = MagicMock()
-        protocol.handshake.return_value = result
-        protocol._device = None
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   return_value=protocol):
-            discover_resolution(dev)
-
-        # dev.resolution should not have been written via assignment
-        # (the mock will show no new assignment to (0, 0) resolution)
-        assert dev.resolution == (0, 0)
-
-    def test_use_jpeg_computed_from_protocol_fbl(self):
-        """use_jpeg is computed from protocol+fbl, not propagated from BulkDevice."""
-        from trcc.core.models import DeviceInfo
-        # Bulk + FBL=100 → RGB565
-        dev = DeviceInfo(name='bulk', path='b', protocol='bulk', fbl_code=100)
-        assert dev.use_jpeg is False
-        # Bulk + FBL=72 → JPEG
-        dev2 = DeviceInfo(name='bulk', path='b', protocol='bulk', fbl_code=72)
-        assert dev2.use_jpeg is True
-        # SCSI → always RGB565
-        dev3 = DeviceInfo(name='scsi', path='s', protocol='scsi', fbl_code=100)
-        assert dev3.use_jpeg is False
-
-    def test_handshake_returns_none_no_update(self):
-        """If handshake returns None/falsy, dev.resolution is not reassigned."""
-        dev = MagicMock(spec=["resolution", "fbl_code"])
-        dev.resolution = (0, 0)
-
-        protocol = MagicMock()
-        protocol.handshake.return_value = None
-        protocol._device = None
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   return_value=protocol):
-            discover_resolution(dev)
-
-        # resolution stays (0, 0) — no successful handshake to update it
-        assert dev.resolution == (0, 0)
-
-    def test_handshake_exception_is_swallowed(self):
-        """Exceptions during handshake are silently suppressed."""
-        dev = MagicMock()
-        dev.resolution = (0, 0)
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   side_effect=RuntimeError("USB error")):
-            # Must not raise
-            discover_resolution(dev)
-
-    def test_non_tuple_resolution_not_set(self):
-        """Non-tuple resolution value from handshake is ignored."""
-        dev = MagicMock()
-        dev.resolution = (0, 0)
-
-        result = MagicMock()
-        result.resolution = "bad_value"
-        result.fbl = None
-        result.model_id = None
-
-        protocol = MagicMock()
-        protocol.handshake.return_value = result
-        protocol._device = None
-
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol",
-                   return_value=protocol):
-            discover_resolution(dev)  # should not raise
-
-
-# =============================================================================
+def test_use_jpeg_computed_from_protocol_fbl():
+    """use_jpeg is computed from protocol+fbl, not hardcoded."""
+    from trcc.core.models import DeviceInfo
+    # Bulk + FBL=100 → RGB565
+    dev = DeviceInfo(name='bulk', path='b', protocol='bulk', fbl_code=100)
+    assert dev.use_jpeg is False
+    # Bulk + FBL=72 → JPEG
+    dev2 = DeviceInfo(name='bulk', path='b', protocol='bulk', fbl_code=72)
+    assert dev2.use_jpeg is True
+    # SCSI → always RGB565
+    dev3 = DeviceInfo(name='scsi', path='s', protocol='scsi', fbl_code=100)
+    assert dev3.use_jpeg is False
 
 
 # =============================================================================

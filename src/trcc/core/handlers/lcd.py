@@ -121,10 +121,12 @@ class LCDCommandHandler(DeviceCommandHandler):
                 return CommandResult.from_dict(
                     self._lcd.load_mask_standalone(mask_path))
 
-            case RenderOverlayFromDCCommand(dc_path=dc_path, send=send, output=output):
+            case RenderOverlayFromDCCommand(dc_path=dc_path, send=send, output=output,
+                                             metrics=metrics):
                 return CommandResult.from_dict(
                     self._lcd.render_overlay_from_dc(
-                        dc_path, send=send, output=output or None))
+                        dc_path, send=send, output=output or None,
+                        metrics=metrics))
 
             case SetOverlayConfigCommand(config=config):
                 return CommandResult.from_dict(self._lcd.set_config(config))

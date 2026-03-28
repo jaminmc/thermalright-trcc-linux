@@ -1132,13 +1132,11 @@ class TestIPCFrameSharing(unittest.TestCase):
         api_module._led_dispatcher = None
 
     @patch('trcc.ipc.IPCClient')
-    @patch('trcc.cli._device.discover_resolution')
-    def test_select_device_standalone_when_no_daemon(self, mock_discover, mock_ipc):
+    def test_select_device_standalone_when_no_daemon(self, mock_ipc):
         """select_device() uses direct USB when no GUI daemon."""
         mock_ipc.available.return_value = False
 
-        dev = DeviceInfo(name="LCD1", path="/dev/sg0", vid=0x0402, pid=0x3922,
-                         protocol="scsi", resolution=(320, 320))
+        dev = _scsi_dev(name="LCD1")
         _device_svc._devices = [dev]
 
         resp = self.client.post("/devices/0/select")
@@ -1536,8 +1534,7 @@ class TestDeviceEdgeCases(unittest.TestCase):
     def test_select_lcd_device_sets_display_dispatcher(self) -> None:
         dev = _scsi_dev()
         _device_svc._devices = [dev]
-        with patch("trcc.cli._device.discover_resolution"), \
-             patch("trcc.core.lcd_device.LCDDevice") as mock_disp_cls, \
+        with patch("trcc.core.lcd_device.LCDDevice") as mock_disp_cls, \
              patch("trcc.api.mount_static_dirs"):
             mock_disp = MagicMock()
             mock_disp_cls.return_value = mock_disp
@@ -1551,8 +1548,7 @@ class TestDeviceEdgeCases(unittest.TestCase):
     def test_select_response_contains_resolution(self) -> None:
         dev = _scsi_dev()
         _device_svc._devices = [dev]
-        with patch("trcc.cli._device.discover_resolution"), \
-             patch("trcc.core.lcd_device.LCDDevice"), \
+        with patch("trcc.core.lcd_device.LCDDevice"), \
              patch("trcc.api.mount_static_dirs"):
             resp = self.client.post("/devices/0/select")
         self.assertEqual(resp.status_code, 200)

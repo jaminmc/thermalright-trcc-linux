@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 
-from trcc.cli import _cli_handler, _device
+from trcc.cli import _cli_handler
 from trcc.core.models import parse_hex_color as _parse_hex
 
 # =========================================================================
@@ -58,18 +58,20 @@ def test(device=None, loop=False, preview=False):
     try:
         import time
 
+        from trcc.core.app import TrccApp
+        from trcc.core.commands.lcd import SendColorCommand
         from trcc.services import ImageService
 
-        svc = _device._get_service(device)
-        if not svc.selected:
-            print("No device found.")
-            return 1
+        rc = _connect_or_fail(device)
+        if rc:
+            return rc
 
-        dev = svc.selected
-        if dev.protocol == "led":
-            print(f"{dev.path} is an LED controller with a segment display — use 'trcc led' commands.")
+        lcd = TrccApp.get().lcd_device
+        assert lcd is not None
+        if lcd.device_path and 'led' in lcd.device_path:
+            print("LED controller with segment display — use 'trcc led' commands.")
             return 0
-        w, h = dev.resolution
+        w, h = lcd.lcd_size
 
         colors = [
             ((255, 0, 0), "Red"),
@@ -81,14 +83,14 @@ def test(device=None, loop=False, preview=False):
             ((255, 255, 255), "White"),
         ]
 
-        print(f"Testing display on {dev.path}...")
+        print(f"Testing display on {lcd.device_path}...")
 
         while True:
             for (r, g, b), name in colors:
                 print(f"  Displaying: {name}")
-                img = ImageService.solid_color(r, g, b, w, h)
-                svc.send_frame(img, w, h)
+                TrccApp.get().lcd_bus.dispatch(SendColorCommand(r=r, g=g, b=b))
                 if preview:
+                    img = ImageService.solid_color(r, g, b, w, h)
                     print(ImageService.to_ansi(img))
                 time.sleep(1)
 
@@ -166,9 +168,7 @@ def play_video(builder, video_path, *, device=None, loop=True, duration=0,
             print('\033[2J', end='', flush=True)
 
         def _on_frame(img):
-            svc = lcd._device_svc
-            if svc:
-                svc.send_frame(img, w, h)
+            lcd.send(img)
             if preview:
                 from trcc.services import ImageService
                 print(ImageService.to_ansi_cursor_home(img), flush=True)
@@ -209,15 +209,16 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
 
     from PySide6.QtGui import QImage
 
+    from trcc.core.app import TrccApp
     from trcc.services import ImageService
 
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
+    rc = _connect_or_fail(device)
+    if rc:
+        return rc
 
-    dev = svc.selected
-    lcd_w, lcd_h = dev.resolution
+    lcd = TrccApp.get().lcd_device
+    assert lcd is not None
+    lcd_w, lcd_h = lcd.lcd_size
 
     capture = builder.build_setup().get_screencast_capture(x, y, w, h)
     if capture is None:
@@ -237,9 +238,9 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
     frame_size = lcd_w * lcd_h * 3
 
     if w and h:
-        print(f"Capturing region ({x},{y}) {w}x{h} → {dev.path} [{lcd_w}x{lcd_h}]")
+        print(f"Capturing region ({x},{y}) {w}x{h} → {lcd.device_path} [{lcd_w}x{lcd_h}]")
     else:
-        print(f"Capturing full screen → {dev.path} [{lcd_w}x{lcd_h}]")
+        print(f"Capturing full screen → {lcd.device_path} [{lcd_w}x{lcd_h}]")
     print(f"Target: {fps} fps. Press Ctrl+C to stop.")
 
     if preview:
@@ -255,10 +256,10 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
             raw = proc.stdout.read(frame_size)
             if len(raw) < frame_size:
                 break
-            # Detach from raw buffer immediately — send_frame may hold a ref
+            # Detach from raw buffer immediately — lcd.send may hold a ref
             qimg = QImage(raw, lcd_w, lcd_h, lcd_w * 3,
                           QImage.Format.Format_RGB888).copy()
-            svc.send_frame(qimg, lcd_w, lcd_h)
+            lcd.send(qimg)
             frames += 1
             if preview:
                 print(ImageService.to_ansi_cursor_home(qimg), flush=True)
@@ -286,19 +287,6 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
 # =========================================================================
 # CLI functions — thin wrappers over LCDDevice capabilities
 # =========================================================================
-
-def _display_command(builder, method: str, *args, device: str | None = None,
-                     preview: bool = False, **kwargs) -> int:
-    """Generic: connect LCD, call method on frame ops, print result."""
-    rc = _connect_or_fail(device)
-    if rc:
-        return rc
-    from trcc.core.app import TrccApp
-    lcd = TrccApp.get().lcd_device
-    assert lcd is not None
-    return _print_result(getattr(lcd.frame, method)(*args, **kwargs),
-                         preview=preview)
-
 
 @_cli_handler
 def send_image(builder, image_path, device=None, preview=False):
@@ -393,16 +381,19 @@ def render_overlay(builder, dc_path, *, device=None, send=False, output=None,
     """Render overlay from DC config file."""
     from trcc.cli import _ensure_system
     from trcc.core.app import TrccApp
+    from trcc.core.commands.lcd import RenderOverlayFromDCCommand
     from trcc.services.system import get_all_metrics
 
     rc = _connect_or_fail(device)
     if rc:
         return rc
     _ensure_system(builder)
-    lcd = TrccApp.get().lcd_device
-    assert lcd is not None
-    result = lcd.render_overlay_from_dc(
-        dc_path, send=send, output=output, metrics=get_all_metrics())
+    result = TrccApp.get().lcd_bus.dispatch(
+        RenderOverlayFromDCCommand(
+            dc_path=dc_path, send=send, output=output or "",
+            metrics=get_all_metrics(),
+        )
+    ).payload
     if not result["success"]:
         print(f"Error: {result['error']}")
         return 1
@@ -434,13 +425,8 @@ def reset(builder, device=None, *, preview=False):
 
 
 @_cli_handler
-def video_status(*, device=None):
+def video_status():
     """Show current video playback status."""
-    svc = _device._get_service(device)
-    if not svc.selected:
-        print("No device found.")
-        return 1
-
     print("Video playback is controlled by the running 'trcc video' process.")
     print("Use Ctrl+C in the video process to stop playback.")
     print("For interactive control, use the GUI: trcc gui")
@@ -452,54 +438,34 @@ def resume(builder):
     """Send last-used theme to each detected device (headless, no GUI)."""
     import time
 
-    svc = builder.build_device_svc()
+    from trcc.core.app import TrccApp
+    from trcc.core.commands.initialize import DiscoverDevicesCommand
+    from trcc.core.commands.lcd import RestoreLastThemeCommand
+    from trcc.core.instance import find_active
+    from trcc.ipc import create_lcd_proxy
 
-    devices: list = []
+    app = TrccApp.get()
+    app.set_ipc_handlers(find_active, create_lcd_proxy)
+
     for attempt in range(10):
-        devices = svc.detect()
-        if devices:
+        result = app.os_bus.dispatch(DiscoverDevicesCommand())
+        if result.success and app.has_lcd:
             break
         print(f"Waiting for device... ({attempt + 1}/10)")
         time.sleep(2)
 
-    if not devices:
+    if not app.has_lcd:
         print("No compatible TRCC device detected.")
         return 1
 
-    sent = 0
-    for dev in devices:
-        if dev.protocol != "scsi":
-            continue
-
-        from trcc.cli._device import discover_resolution
-        discover_resolution(dev)
-        if dev.resolution == (0, 0):
-            continue
-
-        try:
-            svc.select(dev)
-            lcd = builder.lcd_from_service(svc)
-            # Apply hardware resolution so the display pipeline encodes correctly.
-            # dev.resolution is set by discover_resolution() (USB handshake result).
-            w, h = dev.resolution
-            if w and h:
-                lcd.set_resolution(w, h)
-            lcd.restore_device_settings()
-            result = lcd.load_last_theme()
-            if not result.get("success"):
-                msg = result.get("error", "Unknown error")
-                print(f"  [{dev.product}] {msg}")
-                continue
-            img = result["image"]
-            lcd.send(img)
-            print(f"  [{dev.product}] Sent")
-            sent += 1
-        except Exception as e:
-            print(f"  [{dev.product}] Error: {e}")
-
-    if sent == 0:
+    lcd = app.lcd_device
+    assert lcd is not None
+    result = app.lcd_bus.dispatch(RestoreLastThemeCommand()).payload
+    if not result.get("success"):
+        print(f"Error: {result.get('error', 'Unknown error')}")
         print("No themes were sent. Use the GUI to set a theme first.")
         return 1
 
-    print(f"Resumed {sent} device(s).")
+    print(f"  [{lcd.device_path}] Sent")
+    print("Resumed 1 device.")
     return 0

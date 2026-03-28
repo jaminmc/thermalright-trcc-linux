@@ -4,8 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from trcc.cli._theme import (
     export_theme,
     import_theme,
@@ -86,8 +84,6 @@ _PATCH_SETTINGS_CLS = "trcc.conf.Settings"
 _PATCH_DATA_MANAGER = "trcc.adapters.infra.data_repository.DataManager"
 _PATCH_THEME_SVC = "trcc.services.ThemeService"
 _PATCH_IMAGE_SVC = "trcc.services.ImageService"
-_PATCH_LCD_FROM_SVC = "trcc.core.lcd_device.LCDDevice.from_service"
-_PATCH_GET_SERVICE = "trcc.cli._device._get_service"
 
 
 # ===========================================================================
@@ -290,304 +286,129 @@ class TestListThemes:
 # ===========================================================================
 
 class TestLoadTheme:
-    """load_theme() — exact match, partial match, animated, no bg, no device."""
+    """load_theme() — dispatches LoadThemeByNameCommand through TrccApp.lcd_bus.
 
-    @pytest.fixture(autouse=True)
-    def _real_lcd_bus(self, _mock_builder):
-        """No-op: load_theme() now uses build_lcd_bus(lcd) locally, not TrccApp.lcd_bus."""
+    The autouse _mock_builder fixture already wires TrccApp._instance with a
+    working mock bus (has_lcd=True, os_bus succeeds), so _connect_or_fail()
+    passes without any additional patching.
+    """
 
-    def _patches(
-        self,
-        svc=None,
-        themes=None,
-        td=None,
-        img=None,
-        img_svc=None,
-        settings_mock=None,
-        settings_cls=None,
-    ):
-        """Return all patch targets as a dict of context managers."""
-        if svc is None:
-            svc = _make_mock_service()
-        if themes is None:
-            themes = [_make_local_theme()]
-        if td is None:
-            td = _make_theme_dir()
-        if img is None:
-            img = MagicMock()
-        if img_svc is None:
-            img_svc = MagicMock()
-            img_svc.open_and_resize.return_value = img
-            img_svc.resize.return_value = img
-            img_svc.to_ansi.return_value = "[ANSI]"
-        if settings_mock is None:
-            settings_mock = MagicMock()
-            settings_mock.theme_dir = td
-        if settings_cls is None:
-            settings_cls = MagicMock()
-            settings_cls.device_config_key.return_value = "key"
-            settings_cls.get_device_config.return_value = {
-                "brightness_level": 3,
-                "rotation": 0,
-            }
-        mock_lcd = MagicMock()
-        mock_lcd.load_image.return_value = {"success": True, "image": img}
-        # select() is called by SelectThemeCommand handler (via build_lcd_bus)
-        mock_lcd.select.return_value = {
-            'success': True, 'image': img, 'is_animated': False,
-            'status': 'Theme loaded', 'theme_path': str(Path('/tmp/theme')),
-        }
-        # load_local_theme — legacy reference kept for backward compat with older tests
-        mock_lcd._display_svc.load_local_theme.return_value = {
-            'image': img, 'is_animated': False,
-            'status': 'Theme loaded', 'theme_path': Path('/tmp/theme'),
-        }
-        mock_lcd._display_svc.media.has_frames = False
-        mock_lcd._display_svc.overlay.enabled = False
-
-        return svc, themes, img, img_svc, settings_mock, settings_cls, mock_lcd
-
-    def test_syncs_device_resolution_to_settings(self, _mock_builder):
-        """load_theme() must call settings.set_resolution() with the device's
-        handshake resolution so theme-dir resolution is based on the real device,
-        not the stale saved config value (regression: 480x480 device loaded
-        theme320320 because _resolve_paths() was called without set_resolution)."""
-        svc, themes, img, img_svc, sm, sc, ml = self._patches(
-            svc=_make_mock_service(resolution=(480, 480))
-        )
-        theme_svc = MagicMock()
-        theme_svc.discover_local.return_value = themes
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            load_theme(_mock_builder, themes[0].name)
-        sm.set_resolution.assert_called_once_with(480, 480)
-
-    def test_exact_match_returns_0(self, _mock_builder, capsys):
-        svc, themes, img, img_svc, sm, sc, ml = self._patches()
-        themes[0].name = "ExactTheme"
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = themes
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            rc = load_theme(_mock_builder, "ExactTheme")
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "ExactTheme" in out
-
-    def test_partial_match_found(self, _mock_builder, capsys):
-        t = _make_local_theme("SuperTheme")
-        svc, _, img, img_svc, sm, sc, ml = self._patches(themes=[t])
-        sm.theme_dir = _make_theme_dir()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = [t]
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            rc = load_theme(_mock_builder, "super")  # partial, case-insensitive
-        assert rc == 0
-
-    def test_theme_not_found_returns_1(self, _mock_builder, capsys):
-        svc = _make_mock_service()
-        sm = MagicMock()
-        sm.theme_dir = _make_theme_dir()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = [_make_local_theme("Alpha")]
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc):
-            rc = load_theme(_mock_builder, "Nonexistent")
-        assert rc == 1
-        out = capsys.readouterr().out
-        assert "not found" in out.lower()
-
-    def test_animated_theme_plays_video(self, _mock_builder, capsys):
-        svc = _make_mock_service()
-        animated = _make_local_theme("AnimTheme", is_animated=True,
-                                     animation_path="/path/to/vid.gif")
-        sm = MagicMock()
-        sm.theme_dir = _make_theme_dir()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = [animated]
-        mock_lcd = MagicMock()
-        # select() returns is_animated=True — called by SelectThemeCommand handler
-        mock_lcd.select.return_value = {
-            'success': True, 'image': None, 'is_animated': True,
-            'status': 'Theme loaded', 'theme_path': str(Path('/tmp/theme')),
-        }
-        mock_lcd._display_svc.media.has_frames = True
-        mock_lcd._display_svc.media.is_playing = False  # stop immediately
-        mock_lcd._display_svc.media.frame_interval_ms = 33
-        mock_lcd._display_svc.overlay.enabled = False
-        _mock_builder.lcd_from_service.return_value = mock_lcd
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc):
-            rc = load_theme(_mock_builder, "AnimTheme")
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "playing" in out.lower() or "animtheme" in out.lower()
-
-    def test_no_background_path_returns_1(self, capsys):
-        svc = _make_mock_service()
-        t = _make_local_theme("NoBg", bg_exists=False)
-        t.background_path = None  # no bg at all
-        sm = MagicMock()
-        sm.theme_dir = _make_theme_dir()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = [t]
-        mock_lcd = MagicMock()
-        mock_lcd.select.return_value = {
-            'success': True, 'image': None, 'is_animated': False,
-            'status': 'No bg', 'theme_path': str(Path('/tmp')),
-        }
-        mock_lcd._display_svc.media.has_frames = False
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_LCD_FROM_SVC, return_value=mock_lcd):
-            rc = load_theme("NoBg")
+    def test_no_device_returns_1(self, _mock_builder, capsys):
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = False
+        mock_app.os_bus.dispatch.return_value = CommandResult.fail("No LCD device found.")
+        rc = load_theme(MagicMock(), "AnyTheme")
         assert rc == 1
 
-    def test_background_does_not_exist_returns_1(self, _mock_builder, capsys):
-        svc = _make_mock_service()
-        t = _make_local_theme("NoBg", bg_exists=False)
-        sm = MagicMock()
-        sm.theme_dir = _make_theme_dir()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = [t]
-        mock_lcd = MagicMock()
-        mock_lcd.select.return_value = {
-            'success': True, 'image': None, 'is_animated': False,
-            'status': 'No bg', 'theme_path': str(Path('/tmp')),
-        }
-        mock_lcd._display_svc.media.has_frames = False
-        _mock_builder.lcd_from_service.return_value = mock_lcd
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc):
-            rc = load_theme(_mock_builder, "NoBg")
+    def test_dispatch_failure_returns_1(self, _mock_builder, capsys):
+        """Bus dispatch returns success=False → returns 1, prints error."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        TrccApp._instance.lcd_bus.dispatch.return_value = CommandResult.fail("Theme not found")
+        rc = load_theme(MagicMock(), "Missing")
+        assert rc == 1
+        assert "Theme not found" in capsys.readouterr().out
+
+    def test_static_theme_returns_0(self, _mock_builder, capsys):
+        """Dispatch returns success+image (static) → returns 0, prints name + device path."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        img = MagicMock()
+        mock_app = TrccApp._instance
+        mock_app.lcd_bus.dispatch.return_value = CommandResult.ok(image=img, is_animated=False)
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        rc = load_theme(MagicMock(), "MyTheme")
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "MyTheme" in out
+        assert "/dev/sg0" in out
+
+    def test_no_image_returns_1(self, _mock_builder, capsys):
+        """success=True but image=None (not animated) → returns 1, prints error."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        TrccApp._instance.lcd_bus.dispatch.return_value = CommandResult.ok(
+            image=None, is_animated=False)
+        rc = load_theme(MagicMock(), "NoImage")
         assert rc == 1
         assert "no background" in capsys.readouterr().out.lower()
 
-    def test_no_device_returns_1(self, _mock_builder, capsys):
-        svc = MagicMock()
-        svc.selected = None
-        with patch(_PATCH_GET_SERVICE, return_value=svc):
-            rc = load_theme(_mock_builder, "AnyTheme")
-        assert rc == 1
-        assert "No device" in capsys.readouterr().out
-
-    def test_no_theme_dir_returns_1(self, _mock_builder, capsys):
-        svc = _make_mock_service()
-        sm = MagicMock()
-        sm.theme_dir = None
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS), \
-             patch(_PATCH_DATA_MANAGER):
-            rc = load_theme(_mock_builder, "AnyTheme")
-        assert rc == 1
-        assert "No themes" in capsys.readouterr().out
-
     def test_preview_calls_to_ansi(self, _mock_builder, capsys):
-        svc, themes, img, img_svc, sm, sc, ml = self._patches()
-        themes[0].name = "PreviewTheme"
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = themes
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            rc = load_theme(_mock_builder, "PreviewTheme", preview=True)
+        """preview=True → ImageService.to_ansi called and its output printed."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        img = MagicMock()
+        TrccApp._instance.lcd_bus.dispatch.return_value = CommandResult.ok(
+            image=img, is_animated=False)
+        img_svc = MagicMock()
+        img_svc.to_ansi.return_value = "[ANSI]"
+        with patch(_PATCH_IMAGE_SVC, img_svc):
+            rc = load_theme(MagicMock(), "PTheme", preview=True)
         assert rc == 0
-        img_svc.to_ansi.assert_called_once()
+        img_svc.to_ansi.assert_called_once_with(img)
         assert "[ANSI]" in capsys.readouterr().out
 
-    def test_no_preview_skips_to_ansi(self, capsys):
-        svc, themes, img, img_svc, sm, sc, ml = self._patches()
-        themes[0].name = "Theme"
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = themes
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc), \
-             patch(_PATCH_LCD_FROM_SVC, return_value=ml):
-            load_theme("Theme", preview=False)
+    def test_no_preview_skips_to_ansi(self, _mock_builder):
+        """preview=False → ImageService.to_ansi not called."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        img = MagicMock()
+        TrccApp._instance.lcd_bus.dispatch.return_value = CommandResult.ok(
+            image=img, is_animated=False)
+        img_svc = MagicMock()
+        with patch(_PATCH_IMAGE_SVC, img_svc):
+            load_theme(MagicMock(), "Theme", preview=False)
         img_svc.to_ansi.assert_not_called()
 
-    def test_restore_device_settings_called(self, _mock_builder):
-        svc, themes, img, img_svc, sm, sc, ml = self._patches()
-        themes[0].name = "T"
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = themes
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            load_theme(_mock_builder, "T")
-        ml.restore_device_settings.assert_called_once()
-        ml.select.assert_called_once()
-        ml.send.assert_called_once()
+    def test_animated_dispatches_play_video_loop(self, _mock_builder, capsys):
+        """Animated theme → dispatches PlayVideoLoopCommand on the same bus."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        from trcc.core.commands.lcd import PlayVideoLoopCommand
+        theme_path = "/themes/AnimTheme/anim.gif"
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        mock_app.lcd_bus.dispatch.side_effect = [
+            CommandResult.ok(image=None, is_animated=True, theme_path=theme_path),
+            CommandResult.ok(message="Done"),
+        ]
+        rc = load_theme(MagicMock(), "AnimTheme")
+        assert rc == 0
+        assert mock_app.lcd_bus.dispatch.call_count == 2
+        cmd = mock_app.lcd_bus.dispatch.call_args_list[1][0][0]
+        assert isinstance(cmd, PlayVideoLoopCommand)
+        assert cmd.video_path == theme_path
+        assert "Done" in capsys.readouterr().out
 
-    def test_saves_theme_path_to_settings(self, _mock_builder):
-        svc, themes, img, img_svc, sm, sc, ml = self._patches()
-        themes[0].name = "T"
-        themes[0].path = Path("/themes/T")
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.discover_local.return_value = themes
-        _mock_builder.lcd_from_service.return_value = ml
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch(_PATCH_DATA_MANAGER), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_IMAGE_SVC, img_svc):
-            load_theme(_mock_builder, "T")
-        sc.save_device_setting.assert_called_once()
-        call_args = sc.save_device_setting.call_args[0]
-        assert "theme_path" in call_args
-        assert "/themes/T" in call_args
+    def test_keyboard_interrupt_during_video(self, _mock_builder, capsys):
+        """KeyboardInterrupt during PlayVideoLoopCommand → returns 0, prints Stopped."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        theme_path = "/themes/AnimTheme/anim.gif"
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        mock_app.lcd_bus.dispatch.side_effect = [
+            CommandResult.ok(image=None, is_animated=True, theme_path=theme_path),
+            KeyboardInterrupt(),
+        ]
+        rc = load_theme(MagicMock(), "AnimTheme")
+        assert rc == 0
+        assert "Stopped" in capsys.readouterr().out
+
+    def test_dispatches_load_theme_by_name_command(self, _mock_builder):
+        """load_theme passes the theme name through LoadThemeByNameCommand."""
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        from trcc.core.commands.lcd import LoadThemeByNameCommand
+        img = MagicMock()
+        TrccApp._instance.lcd_bus.dispatch.return_value = CommandResult.ok(
+            image=img, is_animated=False)
+        load_theme(MagicMock(), "TargetTheme")
+        cmd = TrccApp._instance.lcd_bus.dispatch.call_args_list[0][0][0]
+        assert isinstance(cmd, LoadThemeByNameCommand)
+        assert cmd.name == "TargetTheme"
 
 
 # ===========================================================================
@@ -595,121 +416,131 @@ class TestLoadTheme:
 # ===========================================================================
 
 class TestSaveTheme:
-    """save_theme() — success, no device, no current theme, video path."""
+    """save_theme() — success, no device, no background, video path.
 
-    def _base_setup(self, theme_path="/themes/LastTheme"):
-        svc = _make_mock_service()
-        sc = MagicMock()
-        sc.device_config_key.return_value = "key"
-        sc.get_device_config.return_value = {"theme_path": theme_path}
+    The autouse _mock_builder fixture wires TrccApp._instance so
+    _connect_or_fail() passes by default (has_lcd=True).
+    """
 
+    _THEME_DIR = "trcc.core.models.ThemeDir"
+
+    def _wire_lcd_size(self, resolution=(320, 320)) -> None:
+        from trcc.core.app import TrccApp
+        TrccApp._instance.lcd_device.lcd_size = resolution
+
+    def test_no_device_returns_1(self, _mock_builder, capsys):
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = False
+        mock_app.os_bus.dispatch.return_value = CommandResult.fail("No LCD device found.")
+        rc = save_theme("MyTheme")
+        assert rc == 1
+
+    def test_success_returns_0(self, _mock_builder, capsys):
+        self._wire_lcd_size()
         td = MagicMock()
-        td.bg = MagicMock()
         td.bg.exists.return_value = True
-
         img = MagicMock()
-        img.convert.return_value = img
-        img.resize.return_value = img
-
-        return svc, sc, td, img
-
-    def test_success_returns_0(self, capsys):
-        svc, sc, td, img = self._base_setup()
-        img.resize.return_value = img
-
+        img_svc = MagicMock()
+        img_svc.open_and_resize.return_value = img
+        sc = MagicMock()
+        sc.get_device_config.return_value = {"theme_path": "/themes/LastTheme"}
+        sm = MagicMock()
+        sm.user_data_dir = "/data"
         theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved: MyTheme")
 
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
+        with patch(self._THEME_DIR, return_value=td), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td), \
+             patch(_PATCH_SETTINGS, sm), \
+             patch(_PATCH_IMAGE_SVC, img_svc), \
              patch(_PATCH_THEME_SVC, theme_svc):
             rc = save_theme("MyTheme")
         assert rc == 0
         assert "Saved" in capsys.readouterr().out
 
-    def test_no_device_returns_1(self, capsys):
-        svc = MagicMock()
-        svc.selected = None
-        with patch(_PATCH_GET_SERVICE, return_value=svc):
-            rc = save_theme("MyTheme")
-        assert rc == 1
-        assert "No device" in capsys.readouterr().out
-
-    def test_no_current_theme_returns_1(self, capsys):
-        svc = _make_mock_service()
+    def test_no_current_theme_returns_1(self, _mock_builder, capsys):
+        self._wire_lcd_size()
         sc = MagicMock()
-        sc.device_config_key.return_value = "key"
         sc.get_device_config.return_value = {}  # no theme_path
-
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS_CLS, sc):
+        with patch(_PATCH_SETTINGS_CLS, sc), \
+             patch(_PATCH_SETTINGS):
             rc = save_theme("MyTheme")
         assert rc == 1
         assert "No background to save" in capsys.readouterr().out
 
-    def test_bg_file_not_exists_returns_1(self, capsys):
-        svc, sc, td, img = self._base_setup()
+    def test_bg_file_not_exists_returns_1(self, _mock_builder, capsys):
+        self._wire_lcd_size()
+        sc = MagicMock()
+        sc.get_device_config.return_value = {"theme_path": "/themes/LastTheme"}
+        td = MagicMock()
         td.bg.exists.return_value = False
-
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
+        with patch(self._THEME_DIR, return_value=td), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td):
+             patch(_PATCH_SETTINGS):
             rc = save_theme("MyTheme")
         assert rc == 1
         assert "No background to save" in capsys.readouterr().out
 
-    def test_save_fails_returns_1(self, capsys):
-        svc, sc, td, img = self._base_setup()
-        img.resize.return_value = img
-
+    def test_save_fails_returns_1(self, _mock_builder, capsys):
+        self._wire_lcd_size()
+        td = MagicMock()
+        td.bg.exists.return_value = True
+        img = MagicMock()
+        img_svc = MagicMock()
+        img_svc.open_and_resize.return_value = img
+        sc = MagicMock()
+        sc.get_device_config.return_value = {"theme_path": "/themes/LastTheme"}
+        sm = MagicMock()
+        sm.user_data_dir = "/data"
         theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (False, "Save failed: disk full")
-
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
+        with patch(self._THEME_DIR, return_value=td), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td), \
+             patch(_PATCH_SETTINGS, sm), \
+             patch(_PATCH_IMAGE_SVC, img_svc), \
              patch(_PATCH_THEME_SVC, theme_svc):
             rc = save_theme("MyTheme")
         assert rc == 1
 
-    def test_video_path_passed_to_service(self, capsys, tmp_path):
-        svc, sc, td, img = self._base_setup()
-        img.resize.return_value = img
-
-        # Create a real file so existence check passes
+    def test_video_path_passed_to_service(self, _mock_builder, tmp_path):
+        self._wire_lcd_size()
         video_file = tmp_path / "video.gif"
         video_file.write_bytes(b"GIF89a")
-
+        img = MagicMock()
+        img_svc = MagicMock()
+        img_svc.open_and_resize.return_value = img
+        sm = MagicMock()
+        sm.user_data_dir = "/data"
         theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved")
-
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td), \
+        with patch(_PATCH_SETTINGS, sm), \
+             patch(_PATCH_IMAGE_SVC, img_svc), \
              patch(_PATCH_THEME_SVC, theme_svc):
             save_theme("MyTheme", video=str(video_file))
-
         call_kwargs = theme_svc.save.call_args[1]
         assert call_kwargs.get("video_path") == video_file
 
-    def test_no_video_path_is_none(self, capsys):
-        svc, sc, td, img = self._base_setup()
-        img.resize.return_value = img
-
+    def test_no_video_path_is_none(self, _mock_builder):
+        self._wire_lcd_size()
+        td = MagicMock()
+        td.bg.exists.return_value = True
+        img = MagicMock()
+        img_svc = MagicMock()
+        img_svc.open_and_resize.return_value = img
+        sc = MagicMock()
+        sc.get_device_config.return_value = {"theme_path": "/themes/LastTheme"}
+        sm = MagicMock()
+        sm.user_data_dir = "/data"
         theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
         theme_svc.save.return_value = (True, "Saved")
-
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
+        with patch(self._THEME_DIR, return_value=td), \
              patch(_PATCH_SETTINGS_CLS, sc), \
-             patch("trcc.core.models.ThemeDir", return_value=td), \
+             patch(_PATCH_SETTINGS, sm), \
+             patch(_PATCH_IMAGE_SVC, img_svc), \
              patch(_PATCH_THEME_SVC, theme_svc):
             save_theme("MyTheme")
-
         call_kwargs = theme_svc.save.call_args[1]
         assert call_kwargs.get("video_path") is None
 
@@ -831,70 +662,75 @@ class TestExportTheme:
 # ===========================================================================
 
 class TestImportTheme:
-    """import_theme() — success (ThemeInfo result), success (str result), failure, no device."""
+    """import_theme() — success, failure, no device, resolution and path forwarding.
 
-    def test_success_with_theme_info_result(self, capsys, tmp_path):
-        svc = _make_mock_service()
+    The autouse _mock_builder fixture wires TrccApp._instance so
+    _connect_or_fail() passes by default (has_lcd=True).
+    """
+
+    def _wire_lcd_size(self, resolution=(320, 320)) -> None:
+        from trcc.core.app import TrccApp
+        TrccApp._instance.lcd_device.lcd_size = resolution
+
+    def _mock_theme_svc(self, result) -> MagicMock:
+        ts = MagicMock()
+        ts.return_value = ts
+        ts.import_tr.return_value = result
+        return ts
+
+    def test_no_device_returns_1(self, _mock_builder, capsys, tmp_path):
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = False
+        mock_app.os_bus.dispatch.return_value = CommandResult.fail("No LCD device found.")
+        rc = import_theme(str(tmp_path / "theme.tr"))
+        assert rc == 1
+
+    def test_success_with_theme_info_result(self, _mock_builder, capsys, tmp_path):
+        self._wire_lcd_size()
         theme_info = MagicMock()
         theme_info.name = "ImportedTheme"
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.import_tr.return_value = (True, theme_info)
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+        ts = self._mock_theme_svc((True, theme_info))
+        with patch(_PATCH_SETTINGS), \
+             patch(_PATCH_THEME_SVC, ts):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 0
         assert "ImportedTheme" in capsys.readouterr().out
 
-    def test_success_with_string_result(self, capsys, tmp_path):
-        svc = _make_mock_service()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.import_tr.return_value = (True, "Import successful")
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+    def test_success_with_string_result(self, _mock_builder, capsys, tmp_path):
+        self._wire_lcd_size()
+        ts = self._mock_theme_svc((True, "Import successful"))
+        with patch(_PATCH_SETTINGS), \
+             patch(_PATCH_THEME_SVC, ts):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 0
         assert "Import successful" in capsys.readouterr().out
 
-    def test_failure_returns_1(self, capsys, tmp_path):
-        svc = _make_mock_service()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.import_tr.return_value = (False, "Invalid .tr file")
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+    def test_failure_returns_1(self, _mock_builder, capsys, tmp_path):
+        self._wire_lcd_size()
+        ts = self._mock_theme_svc((False, "Invalid .tr file"))
+        with patch(_PATCH_SETTINGS), \
+             patch(_PATCH_THEME_SVC, ts):
             rc = import_theme(str(tmp_path / "theme.tr"))
         assert rc == 1
         assert "Invalid" in capsys.readouterr().out
 
-    def test_no_device_returns_1(self, capsys, tmp_path):
-        svc = MagicMock()
-        svc.selected = None
-        with patch(_PATCH_GET_SERVICE, return_value=svc):
-            rc = import_theme(str(tmp_path / "theme.tr"))
-        assert rc == 1
-        assert "No device" in capsys.readouterr().out
-
-    def test_passes_resolution_to_import_tr(self, tmp_path):
-        svc = _make_mock_service(resolution=(640, 480))
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.import_tr.return_value = (True, "ok")
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+    def test_passes_resolution_to_import_tr(self, _mock_builder, tmp_path):
+        self._wire_lcd_size(resolution=(640, 480))
+        ts = self._mock_theme_svc((True, "ok"))
+        with patch(_PATCH_SETTINGS), \
+             patch(_PATCH_THEME_SVC, ts):
             import_theme(str(tmp_path / "theme.tr"))
-        call_args = theme_svc.import_tr.call_args[0]
+        call_args = ts.import_tr.call_args[0]
         assert (640, 480) in call_args
 
-    def test_passes_correct_file_path(self, tmp_path):
-        svc = _make_mock_service()
-        theme_svc = MagicMock()
-        theme_svc.return_value = theme_svc
-        theme_svc.import_tr.return_value = (True, "ok")
+    def test_passes_correct_file_path(self, _mock_builder, tmp_path):
+        self._wire_lcd_size()
+        ts = self._mock_theme_svc((True, "ok"))
         file_path = str(tmp_path / "my_theme.tr")
-        with patch(_PATCH_GET_SERVICE, return_value=svc), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+        with patch(_PATCH_SETTINGS), \
+             patch(_PATCH_THEME_SVC, ts):
             import_theme(file_path)
-        call_args = theme_svc.import_tr.call_args[0]
+        call_args = ts.import_tr.call_args[0]
         assert Path(file_path) in call_args

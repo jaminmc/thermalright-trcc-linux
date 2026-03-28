@@ -657,28 +657,6 @@ class TestCLIHelpers:
             _print_result({"success": True, "message": "OK"}, preview=True)
         mock_ansi.assert_not_called()
 
-    def test_display_command_delegates(self, _mock_builder):
-        from trcc.cli._display import _display_command
-        from trcc.core.app import TrccApp
-
-        mock_lcd = MagicMock()
-        mock_lcd.frame.some_method.return_value = {
-            "success": True, "message": "OK"}
-        TrccApp.get().lcd_device = mock_lcd  # type: ignore[union-attr]
-
-        with patch(_CONNECT, return_value=0), \
-             patch("trcc.cli._display._print_result", return_value=0):
-            rc = _display_command(_mock_builder, "some_method", "arg1", device=None)
-
-        mock_lcd.frame.some_method.assert_called_once_with("arg1")
-        assert rc == 0
-
-    def test_display_command_returns_1_on_connect_failure(self, _mock_builder):
-        from trcc.cli._display import _display_command
-
-        with patch(_CONNECT, return_value=1):
-            rc = _display_command(_mock_builder, "any_method", device=None)
-        assert rc == 1
 
 
 # =========================================================================
@@ -967,59 +945,34 @@ class TestCLIReset:
 # =========================================================================
 
 class TestCLIVideoStatus:
-    def test_video_status_with_device(self, capsys):
+    def test_video_status_prints_instructions(self, capsys):
         from trcc.cli._display import video_status
 
-        svc = MagicMock()
-        svc.selected = MagicMock()
-        with patch(_DEV_SVC, return_value=svc):
-            rc = video_status()
+        rc = video_status()
 
         assert rc == 0
         assert "video" in capsys.readouterr().out.lower()
-
-    def test_video_status_no_device(self, capsys):
-        from trcc.cli._display import video_status
-
-        svc = MagicMock()
-        svc.selected = None
-        with patch(_DEV_SVC, return_value=svc):
-            rc = video_status()
-
-        assert rc == 1
-        assert "No device found" in capsys.readouterr().out
 
 
 # =========================================================================
 # TestCLIResume — headless theme send (uses DeviceService directly)
 # =========================================================================
 
-_DEV_SVC_CLS = "trcc.services.DeviceService"
-_DISC_RES = "trcc.cli._device.discover_resolution"
-_SETTINGS_CLS = "trcc.conf.Settings"
-_IMG_SVC_CLS = "trcc.services.ImageService"
-_LCD_FROM_SVC = "trcc.core.lcd_device.LCDDevice.from_service"
 _TIME = "time.sleep"
 
 
-@pytest.fixture
-def scsi_device():
-    """A mock SCSI device for resume tests."""
-    dev = MagicMock()
-    dev.protocol = "scsi"
-    dev.product = "LCD"
-    dev.resolution = (320, 320)
-    dev.vid = 0x0402
-    dev.pid = 0x3922
-    dev.device_index = 0
-    return dev
-
-
 class TestCLIResume:
-    def test_resume_no_devices(self, _mock_builder, capsys):
-        from trcc.cli._display import resume
+    """resume() — dispatches DiscoverDevicesCommand + RestoreLastThemeCommand via TrccApp."""
 
-        _mock_builder.build_device_svc.return_value.detect.return_value = []
+    def test_resume_no_devices(self, _mock_builder, capsys):
+        """No LCD found after 10 attempts → rc=1, prints 'No compatible'."""
+        from trcc.cli._display import resume
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
+
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = False
+        mock_app.os_bus.dispatch.return_value = CommandResult.ok()
 
         with patch(_TIME):
             rc = resume(_mock_builder)
@@ -1027,109 +980,62 @@ class TestCLIResume:
         assert rc == 1
         assert "No compatible" in capsys.readouterr().out
 
-    def test_resume_non_scsi_skipped(self, _mock_builder, capsys):
+    def test_resume_no_theme(self, _mock_builder, capsys):
+        """Device found but RestoreLastThemeCommand fails → rc=1, prints error."""
         from trcc.cli._display import resume
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
 
-        dev = MagicMock()
-        dev.protocol = "hid"
-        _mock_builder.build_device_svc.return_value.detect.return_value = [dev]
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = True
+        mock_app.lcd_bus.dispatch.return_value = CommandResult.fail("No saved theme")
 
         with patch(_TIME):
             rc = resume(_mock_builder)
 
         assert rc == 1
-        assert "No themes were sent" in capsys.readouterr().out
-
-    def test_resume_no_resolution_skipped(self, _mock_builder, scsi_device, capsys):
-        from trcc.cli._display import resume
-
-        scsi_device.resolution = (0, 0)
-        _mock_builder.build_device_svc.return_value.detect.return_value = [scsi_device]
-
-        with patch(_DISC_RES), patch(_TIME):
-            rc = resume(_mock_builder)
-
-        assert rc == 1
-
-    def test_resume_no_theme(self, _mock_builder, scsi_device, capsys):
-        from trcc.cli._display import resume
-
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = [scsi_device]
-        mock_lcd = MagicMock()
-        mock_lcd.load_last_theme.return_value = {
-            "success": False, "error": "No saved theme"}
-        _mock_builder.build_device_svc.return_value = mock_svc
-        _mock_builder.lcd_from_service.return_value = mock_lcd
-
-        with patch(_DISC_RES), \
-             patch(_TIME):
-            rc = resume(_mock_builder)
-
-        assert rc == 1
-        mock_lcd.restore_device_settings.assert_called_once()
         assert "No saved theme" in capsys.readouterr().out
 
-    def test_resume_success(self, _mock_builder, scsi_device, capsys):
+    def test_resume_success(self, _mock_builder, capsys):
+        """Device found and RestoreLastThemeCommand succeeds → rc=0, prints 'Resumed'."""
         from trcc.cli._display import resume
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
 
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = [scsi_device]
-        fake_img = MagicMock()
-        mock_lcd = MagicMock()
-        mock_lcd.load_last_theme.return_value = {
-            "success": True, "image": fake_img}
-        _mock_builder.build_device_svc.return_value = mock_svc
-        _mock_builder.lcd_from_service.return_value = mock_lcd
+        mock_app = TrccApp._instance
+        mock_app.has_lcd = True
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        mock_app.lcd_bus.dispatch.return_value = CommandResult.ok()
 
-        with patch(_DISC_RES), \
-             patch(_TIME):
+        with patch(_TIME):
             rc = resume(_mock_builder)
 
         assert rc == 0
         assert "Resumed 1 device" in capsys.readouterr().out
-        mock_lcd.restore_device_settings.assert_called_once()
-        mock_lcd.send.assert_called_once_with(fake_img)
 
-    def test_resume_device_exception_continues(self, _mock_builder, scsi_device, capsys):
+    def test_resume_waits_for_device(self, _mock_builder, capsys):
+        """Device not found initially → prints 'Waiting', succeeds when found."""
         from trcc.cli._display import resume
+        from trcc.core.app import TrccApp
+        from trcc.core.command_bus import CommandResult
 
-        mock_svc = MagicMock()
-        mock_svc.detect.return_value = [scsi_device]
-        mock_lcd = MagicMock()
-        mock_lcd.load_last_theme.side_effect = OSError("USB error")
-        _mock_builder.build_device_svc.return_value = mock_svc
-        _mock_builder.lcd_from_service.return_value = mock_lcd
-
-        with patch(_DISC_RES), \
-             patch(_TIME):
-            rc = resume(_mock_builder)
-
-        assert rc == 1
-        assert "Error" in capsys.readouterr().out
-
-    def test_resume_waits_for_device(self, _mock_builder, scsi_device, capsys):
-        from trcc.cli._display import resume
-
+        mock_app = TrccApp._instance
+        mock_app.lcd_device.device_path = "/dev/sg0"
+        # First 2 dispatches: has_lcd=False; 3rd: has_lcd=True
         call_count = 0
 
-        def _detect():
+        def _dispatch(cmd):
             nonlocal call_count
             call_count += 1
-            return [scsi_device] if call_count >= 3 else []
+            mock_app.has_lcd = call_count >= 3
+            return CommandResult.ok()
 
-        mock_svc = MagicMock()
-        mock_svc.detect.side_effect = _detect
-        mock_lcd = MagicMock()
-        mock_lcd.load_last_theme.return_value = {
-            "success": False, "error": "No saved theme"}
-        _mock_builder.build_device_svc.return_value = mock_svc
-        _mock_builder.lcd_from_service.return_value = mock_lcd
+        mock_app.os_bus.dispatch.side_effect = _dispatch
+        mock_app.lcd_bus.dispatch.return_value = CommandResult.ok()
 
-        with patch(_DISC_RES), \
-             patch(_TIME):
+        with patch(_TIME):
             rc = resume(_mock_builder)
 
         out = capsys.readouterr().out
         assert "Waiting for device" in out
-        assert rc == 1  # no theme → skip → fails
+        assert rc == 0
