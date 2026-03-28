@@ -140,6 +140,7 @@ jobs:
           Requires:   python3-typer
           Requires:   python3-fastapi
           Requires:   python3-uvicorn
+          Requires:   python3-multipart
           Requires:   libusb1
           Requires:   sg3_utils
           Requires:   p7zip
@@ -218,7 +219,7 @@ jobs:
           Section: utils
           Priority: optional
           Architecture: all
-          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, libusb-1.0-0, sg3-utils, p7zip-full, ffmpeg
+          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, python3-multipart, libusb-1.0-0, sg3-utils, p7zip-full, ffmpeg
           Recommends: python3-pynvml, python3-dbus, python3-hidapi
           Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
           Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
@@ -378,6 +379,7 @@ jobs:
           depend = python-click
           depend = python-typer
           depend = python-fastapi
+          depend = python-multipart
           depend = libusb
           depend = sg3_utils
           depend = p7zip
