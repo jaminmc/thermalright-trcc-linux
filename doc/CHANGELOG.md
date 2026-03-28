@@ -45,7 +45,7 @@
 ### Internal
 - **Single render pipeline**: `LCDDevice.tick()` is now the sole render point — returns the rendered image which `TrccApp` routes to the preview via `AppEvent.FRAME_RENDERED`. Eliminates the race between background tick and GUI overlay tick that caused preview to show zero metrics after restart
 - **`BaseHandler` ABC**: `LCDHandler` and `LEDHandler` share a common `BaseHandler` interface (`view_name`, `device_info`, `cleanup`, `stop_timers`). `TRCCApp._lcd_handlers`/`_led_handlers` collapsed into a single `_handlers: dict[str, BaseHandler]`
-- **`LEDHandler` extracted**: moved from inline class in `trcc_app.py` to its own `qt_components/led_handler.py`
+- **`LEDHandler` extracted**: moved from inline class in `trcc_app.py` to its own `gui/led_handler.py`
 - **`PlatformAdapter` contract tests**: all four platform factories (`LinuxPlatform`, `WindowsPlatform`, `MacOSPlatform`, `BSDPlatform`) now have contract tests that run on Linux — covering the previously 0% `platform.py` files
 - **Windows SCSI test fix**: `_wintypes_mock` autouse fixture keeps `ctypes.wintypes` alive for runtime calls; fixes 3 test failures on Python 3.14
 
@@ -169,7 +169,7 @@
 
 ### Internal
 - **`stop_send_worker()`**: New `DeviceService` method for clean async-worker shutdown before sending a final frame — prevents race between the worker and the shutdown black-frame send
-- **Removed backward-compat aliases**: `TRCCMainWindowMVC`, `run_mvc_app` (qt_components), `_is_root` (_system.py) — all callers already use canonical names
+- **Removed backward-compat aliases**: `TRCCMainWindowMVC`, `run_mvc_app` (gui), `_is_root` (_system.py) — all callers already use canonical names
 - **`__version__` imported from `__version__.py`**: Package `__init__.py` no longer hardcodes version string
 
 ## v9.0.2
@@ -727,7 +727,7 @@
 - **Capability classes inlined**: ThemeOps, VideoOps, OverlayOps, FrameOps, DisplaySettings dissolved into LCDDevice directly
 - **DeviceProfile table**: Replaces scattered encoding logic with single data-driven lookup
 - **CPU optimization**: 34% → 9% idle CPU — eliminated double sensor polling, invisible widget updates, bulk video pre-encoding
-- **Test restructuring (v8.0.2)**: 53 test files reorganized into hexagonal directories (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Merged duplicates, dissolved `hid_testing/`, deleted 22 mock-wiring tests.
+- **Test restructuring (v8.0.2)**: 53 test files reorganized into hexagonal directories (`tests/{core,services,adapters/{device,infra,system},cli,api,gui}/`). Merged duplicates, dissolved `hid_testing/`, deleted 22 mock-wiring tests.
 - 4022 tests across 53 files in 9 directories
 
 ## v7.1.1
@@ -762,8 +762,8 @@
 - **Added**: `LCDDevice` in `core/lcd_device.py` — composed capabilities (ThemeOps, VideoOps, OverlayOps, FrameOps, DisplaySettings), each delegates to services
 - **Added**: `LEDDevice` in `core/led_device.py` — direct methods (set_color, set_mode, tick, zone/segment ops), delegates to LEDService
 - **Added**: `ControllerBuilder` in `core/builder.py` — fluent builder, returns concrete `LCDDevice`/`LEDDevice` types
-- **Added**: `TRCCApp` in `qt_components/trcc_app.py` — thin QMainWindow shell (C# Form1 equivalent)
-- **Added**: `LCDHandler` in `qt_components/lcd_handler.py` — one per LCD device (C# FormCZTV equivalent)
+- **Added**: `TRCCApp` in `gui/trcc_app.py` — thin QMainWindow shell (C# Form1 equivalent)
+- **Added**: `LCDHandler` in `gui/lcd_handler.py` — one per LCD device (C# FormCZTV equivalent)
 - **Deleted**: `core/controllers.py` (LCDDeviceController + LEDDeviceController), backward compat aliases (DisplayDispatcher, LEDDispatcher), 197 dead tests
 - **Slimmed**: CLI `_display.py` and `_led.py` — thin print wrappers using `_connect_or_fail()` → call device method → print result
 - 4157 tests across 56 files

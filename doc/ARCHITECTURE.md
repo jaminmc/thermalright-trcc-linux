@@ -5,7 +5,7 @@
 The project follows hexagonal architecture. The **services layer** is the core hexagon containing all business logic (pure Python, no framework deps). Four driving adapters consume the services via **Device ABCs** (`LCDDevice` / `LEDDevice`):
 
 - **CLI** (`cli/` package) — Typer, 56 commands across 8 submodules. Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
-- **GUI** (`qt_components/`) — PySide6, `TRCCApp` (thin shell) + `LCDHandler` (one per LCD device)
+- **GUI** (`gui/`) — PySide6, `TRCCApp` (thin shell) + `LCDHandler` (one per LCD device)
 - **API** (`api/` package) — FastAPI REST adapter, 53 endpoints across 7 submodules
 - **IPC** (`ipc.py`) — Unix socket daemon for GUI-as-server single-device-owner safety
 - **Setup GUI** (`install/gui.py`) — Standalone PySide6 setup wizard
@@ -86,7 +86,7 @@ src/trcc/
 │   ├── led_device.py            # LEDDevice(Device) — set_color, set_mode, tick, zone/segment ops
 │   ├── builder.py               # ControllerBuilder — fluent builder, full DI wiring
 │   └── encoding.py              # Encoding utilities
-└── qt_components/               # PySide6 GUI adapter
+└── gui/               # PySide6 GUI adapter
     ├── trcc_app.py              # TRCCApp — thin QMainWindow shell (C# Form1 equivalent)
     ├── lcd_handler.py           # LCDHandler — one per LCD device (C# FormCZTV equivalent)
     ├── base.py                  # BasePanel, BaseThemeBrowser, pil_to_pixmap

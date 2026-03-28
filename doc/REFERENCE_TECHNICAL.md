@@ -517,7 +517,7 @@ src/trcc/
 ├── install/                     # Standalone setup wizard
 │   ├── __init__.py
 │   └── gui.py                   # PySide6 setup wizard GUI
-└── qt_components/               # PySide6 GUI adapter
+└── gui/               # PySide6 GUI adapter
     ├── trcc_app.py              # TRCCApp — thin QMainWindow shell, entry point
     ├── lcd_handler.py           # LCDHandler — one per LCD device (owns LCDDevice, timers)
     ├── metrics_mediator.py      # MetricsMediator — single polling authority for sensors

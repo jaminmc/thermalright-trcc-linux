@@ -44,8 +44,8 @@ from trcc.core.models import (
     PmRegistry,
     remap_led_colors,
 )
-from trcc.qt_components.uc_led_control import PREVIEW_X, PREVIEW_Y, UCLedControl
-from trcc.qt_components.uc_screen_led import STYLE_POSITIONS
+from trcc.gui.uc_led_control import PREVIEW_X, PREVIEW_Y, UCLedControl
+from trcc.gui.uc_screen_led import STYLE_POSITIONS
 from trcc.services.led import LEDService
 from trcc.services.system import set_instance
 

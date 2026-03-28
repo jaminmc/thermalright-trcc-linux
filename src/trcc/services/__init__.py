@@ -1,7 +1,7 @@
 """TRCC Services — Core hexagon (pure Python, no Qt/HTTP/CLI).
 
 Business logic shared by all driving adapters:
-- qt_components/ (PySide6 GUI via LCDDevice/LEDDevice)
+- gui/ (PySide6 GUI via LCDDevice/LEDDevice)
 - cli/ (Typer CLI via LCDDevice/LEDDevice)
 - api/ (FastAPI REST via LCDDevice/LEDDevice)
 """

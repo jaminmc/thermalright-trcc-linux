@@ -1,4 +1,4 @@
-"""Tests for qt_components/screen_capture.py — screen capture utilities.
+"""Tests for gui/screen_capture.py — screen capture utilities.
 
 Covers:
 - is_wayland() — env var detection
@@ -15,7 +15,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 from PySide6.QtCore import QPoint
 
-from trcc.qt_components.screen_capture import (
+from trcc.gui.screen_capture import (
     ScreenCaptureOverlay,
     is_wayland,
 )
@@ -129,13 +129,13 @@ class TestEyedropperOverlay:
     """EyedropperOverlay — construction, cancel, constants."""
 
     def test_construction(self):
-        from trcc.qt_components.eyedropper import EyedropperOverlay
+        from trcc.gui.eyedropper import EyedropperOverlay
         overlay = EyedropperOverlay()
         assert overlay._current_color.red() == 0
         assert overlay._cursor_pos == QPoint()
 
     def test_emit_cancel_emits_signal(self):
-        from trcc.qt_components.eyedropper import EyedropperOverlay
+        from trcc.gui.eyedropper import EyedropperOverlay
         overlay = EyedropperOverlay()
         received = []
         overlay.cancelled.connect(lambda: received.append(True))
@@ -143,7 +143,7 @@ class TestEyedropperOverlay:
         assert len(received) == 1
 
     def test_magnify_constants(self):
-        from trcc.qt_components.eyedropper import EyedropperOverlay
+        from trcc.gui.eyedropper import EyedropperOverlay
         assert EyedropperOverlay.MAGNIFY_SIZE == 12
         assert EyedropperOverlay.MAGNIFY_SCALE == 10
         assert EyedropperOverlay.PREVIEW_OFFSET == 25

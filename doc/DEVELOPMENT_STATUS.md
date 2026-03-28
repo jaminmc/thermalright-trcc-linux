@@ -23,7 +23,7 @@ All features are tested and working on the `main` branch:
 - **IPC daemon** — GUI owns device exclusively; CLI auto-routes through Unix socket when GUI is running
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **5323 tests** across 89 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,qt_components}/`)
+- **5323 tests** across 89 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,gui}/`)
 
 ### Supported Devices
 

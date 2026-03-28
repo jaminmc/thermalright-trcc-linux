@@ -13,6 +13,27 @@ import os
 import signal
 import sys
 
+from .base import BasePanel, ImageLabel
+from .trcc_app import TRCCApp
+from .uc_device import UCDevice
+from .uc_preview import UCPreview
+from .uc_theme_local import UCThemeLocal
+from .uc_theme_mask import UCThemeMask
+from .uc_theme_setting import UCThemeSetting
+from .uc_theme_web import UCThemeWeb
+
+__all__ = [
+    'TRCCApp',
+    'BasePanel',
+    'ImageLabel',
+    'UCDevice',
+    'UCPreview',
+    'UCThemeLocal',
+    'UCThemeWeb',
+    'UCThemeMask',
+    'UCThemeSetting',
+]
+
 log = logging.getLogger(__name__)
 
 
@@ -37,7 +58,7 @@ def launch(verbosity: int = 0, decorated: bool = False,
         return 0
 
     # ── Qt bootstrap ──────────────────────────────────────────────────────
-    from trcc.qt_components.assets import _PKG_ASSETS_DIR, set_assets_dir
+    from trcc.gui.assets import _PKG_ASSETS_DIR, set_assets_dir
     set_assets_dir(setup.resolve_assets_dir(_PKG_ASSETS_DIR))
 
     os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.services=false")
@@ -62,7 +83,7 @@ def launch(verbosity: int = 0, decorated: bool = False,
 
     # ── Bootstrap — platform init + device scan, with splash progress ────
     from trcc.adapters.render.qt import QtRenderer
-    from trcc.qt_components.splash import run_bootstrap_with_splash
+    from trcc.gui.splash import run_bootstrap_with_splash
     if not run_bootstrap_with_splash(app, QtRenderer):
         return 1
 
@@ -74,8 +95,8 @@ def launch(verbosity: int = 0, decorated: bool = False,
     set_instance(system_svc)
 
     # ── GUI adapter — receives everything injected, knows nothing of TrccApp ─
-    from trcc.qt_components.trcc_app import TRCCApp
-    window = TRCCApp(
+    from trcc.gui.trcc_app import TRCCApp as _TRCCApp
+    window = _TRCCApp(
         system_svc=system_svc,
         setup=setup,
         autostart=autostart,

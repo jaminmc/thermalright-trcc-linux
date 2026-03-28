@@ -16,7 +16,7 @@ This documents the architectural refactoring journey from v6.0.0 through v8.1.4.
 - **CLI Dispatchers** (deleted in v7.0.6): `LEDDispatcher` + `DisplayDispatcher` were Command pattern wrappers — replaced by `LCDDevice`/`LEDDevice` direct methods.
 - **Metrics Observer**: `UCLedControl.update_metrics()` — panel dispatches to style-specific update methods internally. `qt_app_mvc._poll_sensors()` reduced from 15 lines to 2. Observer pattern.
 - **ANSI Preview**: `--preview` flag on all LCD/LED CLI commands renders true-color terminal art. `ImageService.to_ansi()` for stills, `to_ansi_cursor_home()` for video.
-- **LED Visual Test Harness**: `tests/qt_components/test_led_visual.py` — standalone Qt app for testing all 12 LED styles with live metrics, device buttons, index overlay, and signal wiring.
+- **LED Visual Test Harness**: `tests/gui/test_led_visual.py` — standalone Qt app for testing all 12 LED styles with live metrics, device buttons, index overlay, and signal wiring.
 
 ### v6.1.5: Portrait Cloud Directory Switching
 - **Non-square displays (e.g. 1280x480 Trofeo Vision) mounted vertically** were loading cloud backgrounds/masks from the landscape directory (`1280480/`) instead of the portrait directory (`4801280/`).
@@ -61,8 +61,8 @@ This documents the architectural refactoring journey from v6.0.0 through v8.1.4.
 - **LCDDevice** (`core/lcd_device.py`): Direct methods (capability classes inlined in v8.0.0). Delegates to services.
 - **LEDDevice** (`core/led_device.py`): Direct methods — set_color, set_mode, tick, zone/segment ops. Delegates to LEDService.
 - **ControllerBuilder** (`core/builder.py`): Fluent builder, returns concrete `LCDDevice`/`LEDDevice` types (not `Device` ABC).
-- **TRCCApp** (`qt_components/trcc_app.py`): Thin QMainWindow shell (C# Form1 equivalent). Handlers dict, one per device.
-- **LCDHandler** (`qt_components/lcd_handler.py`): One per LCD device (C# FormCZTV equivalent). Owns LCDDevice, timers, state.
+- **TRCCApp** (`gui/trcc_app.py`): Thin QMainWindow shell (C# Form1 equivalent). Handlers dict, one per device.
+- **LCDHandler** (`gui/lcd_handler.py`): One per LCD device (C# FormCZTV equivalent). Owns LCDDevice, timers, state.
 - **CLI slimmed**: `_display.py` and `_led.py` are thin print wrappers — `_connect_or_fail()` → call device method → print result.
 - **Deleted**: `core/controllers.py` (LCDDeviceController + LEDDeviceController), backward compat aliases (DisplayDispatcher, LEDDispatcher), 197 dead tests.
 
@@ -106,7 +106,7 @@ This documents the architectural refactoring journey from v6.0.0 through v8.1.4.
 - 48 files changed, -684 net lines
 
 ### v8.0.2: Test Restructuring — Hexagonal Directory Layout
-- **Test directory mirrors source**: 53 test files reorganized from flat `tests/` into subdirectories matching `src/trcc/` hexagonal layers: `tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`. Cross-cutting tests (architecture, integration, memory, conf) stay at `tests/` root.
+- **Test directory mirrors source**: 53 test files reorganized from flat `tests/` into subdirectories matching `src/trcc/` hexagonal layers: `tests/{core,services,adapters/{device,infra,system},cli,api,gui}/`. Cross-cutting tests (architecture, integration, memory, conf) stay at `tests/` root.
 - **Merged duplicates**: `test_api_ext.py` → `test_api.py`, `test_doctor_ext.py` → `test_doctor.py`, `test_debug_report_ext.py` → `test_debug_report.py`
 - **Dissolved `hid_testing/`**: Tests moved to `adapters/device/`, conftest fixtures merged into `adapters/device/conftest.py`
 - **Deleted 22 mock-wiring tests**: Tests that only verified `mock.assert_called_once_with()` — passed even with broken code

@@ -40,8 +40,9 @@ class TestPathConstants(unittest.TestCase):
         """Assets directory exists in package."""
         self.assertTrue(os.path.isdir(ASSETS_DIR), f"Missing: {ASSETS_DIR}")
 
-    def test_resources_dir_under_assets(self):
-        self.assertEqual(RESOURCES_DIR, os.path.join(ASSETS_DIR, 'gui'))
+    def test_resources_dir_in_gui_package(self):
+        """RESOURCES_DIR lives in the gui/ package now (gui/assets/)."""
+        self.assertTrue(RESOURCES_DIR.endswith(os.path.join('gui', 'assets')))
 
     def test_resources_dir_exists(self):
         self.assertTrue(os.path.isdir(RESOURCES_DIR), f"Missing: {RESOURCES_DIR}")

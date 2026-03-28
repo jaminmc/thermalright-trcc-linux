@@ -20,15 +20,15 @@ import pytest
 from PySide6.QtGui import QImage
 
 from tests.conftest import make_test_surface
-from trcc.qt_components.uc_about import UCAbout
-from trcc.qt_components.uc_activity_sidebar import (
+from trcc.gui.uc_about import UCAbout
+from trcc.gui.uc_activity_sidebar import (
     CATEGORY_COLORS,
     SENSOR_TO_OVERLAY,
     SENSORS,
     SensorItem,
     UCActivitySidebar,
 )
-from trcc.qt_components.uc_image_cut import (
+from trcc.gui.uc_image_cut import (
     _PAN_MULTIPLIERS,
     PANEL_H,
     PANEL_W,
@@ -39,12 +39,12 @@ from trcc.qt_components.uc_image_cut import (
     SLIDER_X_MIN,
     UCImageCut,
 )
-from trcc.qt_components.uc_info_module import (
+from trcc.gui.uc_info_module import (
     DEFAULT_SENSORS,
     SensorBox,
     UCInfoModule,
 )
-from trcc.qt_components.uc_video_cut import (
+from trcc.gui.uc_video_cut import (
     EXPORT_FPS,
     FRAME_INTERVAL_MS,
     MAX_DURATION_MS,
@@ -58,24 +58,24 @@ from trcc.qt_components.uc_video_cut import (
 )
 
 # ============================================================================
-# Module-level autouse fixture: patch Assets across all qt_components modules
+# Module-level autouse fixture: patch Assets across all gui modules
 # ============================================================================
 
 _ASSETS_PATCH_TARGETS = [
-    "trcc.qt_components.uc_image_cut.Assets",
-    "trcc.qt_components.uc_video_cut.Assets",
-    "trcc.qt_components.uc_about.Assets",
-    "trcc.qt_components.uc_sensor_picker.Assets",
-    "trcc.qt_components.uc_sensor_picker.set_background_pixmap",
-    "trcc.qt_components.uc_about.set_background_pixmap",
-    "trcc.qt_components.uc_about.create_image_button",
-    "trcc.qt_components.assets.Assets",
+    "trcc.gui.uc_image_cut.Assets",
+    "trcc.gui.uc_video_cut.Assets",
+    "trcc.gui.uc_about.Assets",
+    "trcc.gui.uc_sensor_picker.Assets",
+    "trcc.gui.uc_sensor_picker.set_background_pixmap",
+    "trcc.gui.uc_about.set_background_pixmap",
+    "trcc.gui.uc_about.create_image_button",
+    "trcc.gui.assets.Assets",
 ]
 
 
 @pytest.fixture(autouse=True)
 def _mock_all_assets(qapp):
-    """Patch Assets (and helpers that use it) across every qt_components module
+    """Patch Assets (and helpers that use it) across every gui module
     referenced in this test file.  Runs before every test so QPixmap
     construction never hits real files in offscreen mode.
     """
@@ -354,8 +354,8 @@ class TestVideoCutConstants:
     def test_panel_size(self):
         assert UCVideoCut is not None
         # From module constants
-        from trcc.qt_components.uc_video_cut import PANEL_H as VH
-        from trcc.qt_components.uc_video_cut import PANEL_W as VW
+        from trcc.gui.uc_video_cut import PANEL_H as VH
+        from trcc.gui.uc_video_cut import PANEL_W as VW
 
         assert VW == 500
         assert VH == 702
@@ -587,7 +587,7 @@ class TestAboutAutostart:
         assert not autostart_file.exists()
 
     def test_parse_version(self):
-        from trcc.qt_components.uc_about import _parse_version
+        from trcc.gui.uc_about import _parse_version
 
         assert _parse_version("3.0.9") == (3, 0, 9)
         assert _parse_version("6.2.1") == (6, 2, 1)
@@ -602,7 +602,7 @@ class TestAboutWidget:
         from unittest.mock import MagicMock
         mock_manager = MagicMock()
         mock_manager.is_enabled.return_value = False
-        with patch("trcc.qt_components.uc_about.Thread"):
+        with patch("trcc.gui.uc_about.Thread"):
             w = UCAbout(autostart_manager=mock_manager)
         return w
 
@@ -868,7 +868,7 @@ class TestSensorRow:
         )
 
     def test_construction(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info()
         row = SensorRow(info)
@@ -876,7 +876,7 @@ class TestSensorRow:
         assert row._name.text() == "CPU Temp"
 
     def test_update_value_celsius(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info()
         row = SensorRow(info)
@@ -884,7 +884,7 @@ class TestSensorRow:
         assert row._value.text() == "65\u00b0C"
 
     def test_update_value_none(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info()
         row = SensorRow(info)
@@ -892,7 +892,7 @@ class TestSensorRow:
         assert row._value.text() == "--"
 
     def test_update_value_rpm(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info(unit="RPM", category="fan")
         row = SensorRow(info)
@@ -900,7 +900,7 @@ class TestSensorRow:
         assert row._value.text() == "1200RPM"
 
     def test_update_value_voltage(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info(unit="V", category="voltage")
         row = SensorRow(info)
@@ -908,7 +908,7 @@ class TestSensorRow:
         assert row._value.text() == "1.35V"
 
     def test_update_value_mhz(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info(unit="MHz", category="clock")
         row = SensorRow(info)
@@ -916,7 +916,7 @@ class TestSensorRow:
         assert row._value.text() == "3600MHz"
 
     def test_update_value_mbps(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info(unit="MB/s", category="other")
         row = SensorRow(info)
@@ -924,7 +924,7 @@ class TestSensorRow:
         assert row._value.text() == "150.7MB/s"
 
     def test_set_selected(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info()
         row = SensorRow(info)
@@ -934,7 +934,7 @@ class TestSensorRow:
         assert row._selected is False
 
     def test_clicked_signal(self):
-        from trcc.qt_components.uc_sensor_picker import SensorRow
+        from trcc.gui.uc_sensor_picker import SensorRow
 
         info = self._make_sensor_info()
         row = SensorRow(info)
@@ -973,7 +973,7 @@ class TestSensorPickerDialog:
         return mock_enum
 
     def test_construction(self, tmp_config):
-        from trcc.qt_components.uc_sensor_picker import SensorPickerDialog
+        from trcc.gui.uc_sensor_picker import SensorPickerDialog
 
         dialog = SensorPickerDialog(self._make_enumerator())
         assert dialog is not None
@@ -981,7 +981,7 @@ class TestSensorPickerDialog:
         dialog._timer.stop()
 
     def test_set_current_sensor(self, tmp_config):
-        from trcc.qt_components.uc_sensor_picker import SensorPickerDialog
+        from trcc.gui.uc_sensor_picker import SensorPickerDialog
 
         dialog = SensorPickerDialog(self._make_enumerator())
         dialog.set_current_sensor("hwmon:temp1")
@@ -989,14 +989,14 @@ class TestSensorPickerDialog:
         dialog._timer.stop()
 
     def test_get_selected_sensor_none_initially(self, tmp_config):
-        from trcc.qt_components.uc_sensor_picker import SensorPickerDialog
+        from trcc.gui.uc_sensor_picker import SensorPickerDialog
 
         dialog = SensorPickerDialog(self._make_enumerator())
         assert dialog.get_selected_sensor() is None
         dialog._timer.stop()
 
     def test_on_row_clicked(self, tmp_config):
-        from trcc.qt_components.uc_sensor_picker import SensorPickerDialog
+        from trcc.gui.uc_sensor_picker import SensorPickerDialog
 
         dialog = SensorPickerDialog(self._make_enumerator())
         dialog._on_row_clicked("psutil:cpu_percent")
@@ -1014,7 +1014,7 @@ class TestUCThemeWeb:
 
     @pytest.fixture
     def widget(self, settings_with_resolution):
-        from trcc.qt_components.uc_theme_web import UCThemeWeb
+        from trcc.gui.uc_theme_web import UCThemeWeb
 
         return UCThemeWeb()
 
@@ -1090,7 +1090,7 @@ class TestUCThemeMask:
 
     @pytest.fixture
     def widget(self, settings_with_resolution):
-        from trcc.qt_components.uc_theme_mask import UCThemeMask
+        from trcc.gui.uc_theme_mask import UCThemeMask
 
         return UCThemeMask()
 
@@ -1119,20 +1119,20 @@ class TestUCThemeMask:
         assert "mask" in msg.lower()
 
     def test_known_masks_count(self, widget):
-        from trcc.qt_components.uc_theme_mask import UCThemeMask
+        from trcc.gui.uc_theme_mask import UCThemeMask
 
         # 24 * 5 = 120 known masks (000a through 023e)
         assert len(UCThemeMask.KNOWN_MASKS) == 120
 
     def test_known_masks_format(self, widget):
-        from trcc.qt_components.uc_theme_mask import UCThemeMask
+        from trcc.gui.uc_theme_mask import UCThemeMask
 
         for mask_id in UCThemeMask.KNOWN_MASKS:
             assert len(mask_id) == 4
             assert mask_id[-1] in "abcde"
 
     def test_cloud_urls(self, widget):
-        from trcc.qt_components.uc_theme_mask import UCThemeMask
+        from trcc.gui.uc_theme_mask import UCThemeMask
 
         assert "320x320" in UCThemeMask.CLOUD_URLS
         assert "480x480" in UCThemeMask.CLOUD_URLS

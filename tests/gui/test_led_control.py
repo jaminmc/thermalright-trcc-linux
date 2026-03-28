@@ -15,8 +15,8 @@ import pytest
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QPixmap
 
-from trcc.qt_components.uc_color_wheel import UCColorWheel
-from trcc.qt_components.uc_led_control import (
+from trcc.gui.uc_color_wheel import UCColorWheel
+from trcc.gui.uc_led_control import (
     BRIGHT_W,
     BRIGHT_X,
     MODE_H,
@@ -28,7 +28,7 @@ from trcc.qt_components.uc_led_control import (
     UCInfoImage,
     UCLedControl,
 )
-from trcc.qt_components.uc_screen_led import (
+from trcc.gui.uc_screen_led import (
     _DECO,
     _POS_1,
     _POS_2,
@@ -78,10 +78,10 @@ def _patch_led_assets(qapp):
     """Patch Assets in all LED-related modules to avoid filesystem I/O."""
     defaults = _asset_mocks()
     with (
-        patch.multiple("trcc.qt_components.uc_color_wheel.Assets", **defaults),
-        patch.multiple("trcc.qt_components.uc_screen_led.Assets", **defaults),
-        patch.multiple("trcc.qt_components.uc_led_control.Assets", **defaults),
-        patch("trcc.qt_components.uc_led_control.set_background_pixmap"),
+        patch.multiple("trcc.gui.uc_color_wheel.Assets", **defaults),
+        patch.multiple("trcc.gui.uc_screen_led.Assets", **defaults),
+        patch.multiple("trcc.gui.uc_led_control.Assets", **defaults),
+        patch("trcc.gui.uc_led_control.set_background_pixmap"),
     ):
         yield
 

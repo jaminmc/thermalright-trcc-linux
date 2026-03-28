@@ -11,7 +11,7 @@ PYTHONPATH=src pytest tests/services/       # application layer
 PYTHONPATH=src pytest tests/adapters/       # infrastructure adapters
 PYTHONPATH=src pytest tests/cli/            # CLI adapter
 PYTHONPATH=src pytest tests/api/            # REST API adapter
-PYTHONPATH=src pytest tests/qt_components/  # GUI adapter
+PYTHONPATH=src pytest tests/gui/  # GUI adapter
 ```
 
 ## Directory Layout
@@ -70,7 +70,7 @@ tests/
 ├── api/                         # REST API adapter
 │   ├── test_api.py
 │   └── test_api_security.py
-├── qt_components/               # GUI adapter
+├── gui/               # GUI adapter
 │   ├── test_base.py
 │   ├── test_base_panel.py
 │   ├── test_constants.py

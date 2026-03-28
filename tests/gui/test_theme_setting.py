@@ -1,5 +1,5 @@
 """
-Tests for qt_components.uc_theme_setting and qt_components.uc_theme_local.
+Tests for gui.uc_theme_setting and gui.uc_theme_local.
 
 Uses QT_QPA_PLATFORM=offscreen for headless testing.
 
@@ -33,11 +33,11 @@ from trcc.core.models import (  # noqa: E402
     OverlayElementConfig,
     OverlayMode,
 )
-from trcc.qt_components.uc_theme_local import (  # noqa: E402
+from trcc.gui.uc_theme_local import (  # noqa: E402
     ThemeThumbnail,
     UCThemeLocal,
 )
-from trcc.qt_components.uc_theme_setting import (  # noqa: E402
+from trcc.gui.uc_theme_setting import (  # noqa: E402
     CATEGORY_COLORS,
     CATEGORY_NAMES,
     SUB_METRICS,
@@ -62,19 +62,19 @@ def _patch_theme_assets(qapp):
         return QPixmap()
 
     with (
-        patch("trcc.qt_components.overlay_element.Assets.load_pixmap",
+        patch("trcc.gui.overlay_element.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.overlay_grid.Assets.load_pixmap",
+        patch("trcc.gui.overlay_grid.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.color_and_add_panels.Assets.load_pixmap",
+        patch("trcc.gui.color_and_add_panels.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.display_mode_panels.Assets.load_pixmap",
+        patch("trcc.gui.display_mode_panels.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.display_mode_panels.set_background_pixmap"),
-        patch("trcc.qt_components.color_and_add_panels.set_background_pixmap"),
-        patch("trcc.qt_components.uc_theme_local.Assets.load_pixmap",
+        patch("trcc.gui.display_mode_panels.set_background_pixmap"),
+        patch("trcc.gui.color_and_add_panels.set_background_pixmap"),
+        patch("trcc.gui.uc_theme_local.Assets.load_pixmap",
               side_effect=_null_pixmap),
-        patch("trcc.qt_components.base.set_background_pixmap"),
+        patch("trcc.gui.base.set_background_pixmap"),
     ):
         yield
 
@@ -240,7 +240,7 @@ class TestOverlayElementWidget:
         assert received == [3]
 
     def test_fixed_size(self, qapp):
-        from trcc.qt_components.constants import Sizes
+        from trcc.gui.constants import Sizes
         widget = OverlayElementWidget(0)
         assert widget.width() == Sizes.OVERLAY_CELL
         assert widget.height() == Sizes.OVERLAY_CELL
@@ -258,7 +258,7 @@ class TestOverlayGridPanel:
         assert len(panel._cells) == 42
 
     def test_grid_dimensions(self, qapp):
-        from trcc.qt_components.constants import Sizes
+        from trcc.gui.constants import Sizes
         panel = OverlayGridPanel()
         assert panel.width() == Sizes.OVERLAY_GRID_W
         assert panel.height() == Sizes.OVERLAY_GRID_H
@@ -796,7 +796,7 @@ class TestDisplayModePanel:
     def test_mask_uses_slider_toggle(self, qapp):
         panel = DisplayModePanel("mask", ["Load"])
         # Mask panel uses TOGGLE_MASK geometry
-        from trcc.qt_components.constants import Layout
+        from trcc.gui.constants import Layout
         geo = panel.toggle_btn.geometry()
         assert geo.x() == Layout.TOGGLE_MASK[0]
         assert geo.y() == Layout.TOGGLE_MASK[1]
@@ -859,7 +859,7 @@ class TestUCThemeSetting:
         assert settings.video_panel is not None
 
     def test_fixed_size(self, qapp):
-        from trcc.qt_components.constants import Sizes
+        from trcc.gui.constants import Sizes
         settings = UCThemeSetting()
         assert settings.width() == Sizes.SETTING_W
         assert settings.height() == Sizes.SETTING_H
@@ -1215,7 +1215,7 @@ class TestUCThemeLocal:
         panel._on_timer_changed()
         assert panel._slideshow_interval == 3
 
-    @patch("trcc.qt_components.uc_theme_local.shutil.rmtree")
+    @patch("trcc.gui.uc_theme_local.shutil.rmtree")
     def test_delete_theme(self, mock_rmtree, qapp, tmp_path, make_local_item):
         theme_dir = tmp_path / "themes"
         theme_dir.mkdir()

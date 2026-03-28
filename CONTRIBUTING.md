@@ -34,7 +34,7 @@ Tests are organized to mirror `src/trcc/` hexagonal layers:
 - `tests/core/` — domain logic (pure unit tests)
 - `tests/services/` — application/use case layer
 - `tests/adapters/{device,infra,system}/` — infrastructure adapters
-- `tests/cli/`, `tests/api/`, `tests/qt_components/` — presentation adapters
+- `tests/cli/`, `tests/api/`, `tests/gui/` — presentation adapters
 
 All PRs must pass tests, `ruff check`, and `pyright` with 0 errors.
 

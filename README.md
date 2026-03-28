@@ -294,7 +294,7 @@ src/trcc/
 ├── core/           # Models, enums, domain constants — zero I/O
 ├── services/       # Business logic — pure Python, no framework deps
 ├── adapters/       # USB device protocols (SCSI, HID, Bulk, LY, LED)
-├── qt_components/  # PySide6 GUI (themes, video, overlay, LED, sensors)
+├── gui/  # PySide6 GUI (themes, video, overlay, LED, sensors)
 ├── cli/            # Typer CLI — 50 commands across 8 modules
 ├── api/            # FastAPI REST API — 53 endpoints across 7 modules
 ├── conf.py         # Settings singleton

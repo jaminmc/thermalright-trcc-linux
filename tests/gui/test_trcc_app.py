@@ -31,7 +31,7 @@ from trcc.adapters.system.config import (
     SysInfoConfig,
 )
 from trcc.core.models import LEDMode, LEDZoneState
-from trcc.qt_components.uc_system_info import (
+from trcc.gui.uc_system_info import (
     COLUMNS,
     PAGE_NEXT_POS,
     PAGE_PREV_POS,
@@ -191,8 +191,8 @@ class TestSystemInfoPanel:
         """Create a SystemInfoPanel with mocked Assets."""
         config = _make_panel_config()
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -203,8 +203,8 @@ class TestSystemInfoPanel:
         """Create a custom (deletable) SystemInfoPanel."""
         config = _make_custom_panel_config()
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -290,8 +290,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("X", "", "")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -305,8 +305,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("CPUFAN", "hwmon:nct6798:fan1", "RPM")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -320,8 +320,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("VCORE", "hwmon:nct6798:in0", "V")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -335,8 +335,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("Available", "psutil:mem_avail", "MB")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -350,8 +350,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("UP", "computed:net_up", "KB/s")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -365,8 +365,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("Read", "computed:disk_read", "MB/s")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -381,8 +381,8 @@ class TestSystemInfoPanel:
             sensors=[SensorBinding("X", "some:sensor", "units")],
         )
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
             p = SystemInfoPanel(config)
@@ -463,8 +463,8 @@ class TestUCSystemInfo:
         mock_enum = _make_mock_enumerator()
         config_path = tmp_path / "system_config.json"
         with (
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_assets,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_assets,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
             patch.object(SysInfoConfig, "CONFIG_PATH", config_path),
         ):
             mock_assets.load_pixmap.return_value = QPixmap()
@@ -567,8 +567,8 @@ class TestUCSystemInfo:
         count_before = len(sysinfo._config.panels)
         with (
             patch.object(SysInfoConfig, "save"),
-            patch("trcc.qt_components.uc_system_info.Assets") as mock_a,
-            patch("trcc.qt_components.uc_system_info.set_background_pixmap"),
+            patch("trcc.gui.uc_system_info.Assets") as mock_a,
+            patch("trcc.gui.uc_system_info.set_background_pixmap"),
         ):
             mock_a.load_pixmap.return_value = QPixmap()
             # Create a panel widget for deletion
@@ -713,7 +713,7 @@ class TestLEDHandler:
     @pytest.fixture
     def handler(self, qapp, mock_panel):
         """Create a LEDHandler with a real QWidget for QTimer parent."""
-        from trcc.qt_components.trcc_app import LEDHandler
+        from trcc.gui.trcc_app import LEDHandler
 
         # QTimer needs a real QObject parent, so pass QWidget as panel.
         # led=None keeps _connect_signals() a no-op; swap _panel after.
@@ -1262,7 +1262,7 @@ class TestScreencastHandler:
 
     @pytest.fixture
     def handler(self, qapp):
-        from trcc.qt_components.trcc_app import ScreencastHandler
+        from trcc.gui.trcc_app import ScreencastHandler
 
         parent = QWidget()
         on_frame = MagicMock()
@@ -1323,14 +1323,14 @@ class TestScreencastHandler:
 
     def test_toggle_on_starts_timer(self, handler):
         with patch.object(handler, "_try_start_pipewire"):
-            with patch("trcc.qt_components.screen_capture.is_wayland", return_value=False):
+            with patch("trcc.gui.screen_capture.is_wayland", return_value=False):
                 handler.toggle(True)
         assert handler.active is True
         assert handler._timer.isActive()
         handler.stop()
 
     def test_toggle_off_stops_timer(self, handler):
-        with patch("trcc.qt_components.screen_capture.is_wayland", return_value=False):
+        with patch("trcc.gui.screen_capture.is_wayland", return_value=False):
             handler.toggle(True)
         handler.toggle(False)
         assert handler.active is False
@@ -1393,8 +1393,8 @@ class TestDevicePollLEDAutoSelect:
     def test_auto_select_led_calls_show(self, qapp):
         """When _activate_device selects an LED path, handler.show() is called
         if the handler is not yet active."""
-        from trcc.qt_components.led_handler import LEDHandler
-        from trcc.qt_components.trcc_app import TRCCApp
+        from trcc.gui.led_handler import LEDHandler
+        from trcc.gui.trcc_app import TRCCApp
 
         mock_info = MagicMock()
         mock_info.path = 'led_path'
@@ -1431,7 +1431,7 @@ class TestViewSwitchLEDKeepsRunning:
 
     @pytest.fixture()
     def app(self, qapp):
-        from trcc.qt_components.trcc_app import TRCCApp
+        from trcc.gui.trcc_app import TRCCApp
         TRCCApp._instance = None
         with patch.object(TRCCApp, '__init__', lambda self, *a, **kw: None):
             inst = TRCCApp.__new__(TRCCApp)

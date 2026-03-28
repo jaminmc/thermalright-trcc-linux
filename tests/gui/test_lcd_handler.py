@@ -1,4 +1,4 @@
-"""Tests for qt_components/lcd_handler.py — LCDHandler lifecycle and routing.
+"""Tests for gui/lcd_handler.py — LCDHandler lifecycle and routing.
 
 Covers:
 - Construction, properties, widget dict wiring
@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 
 from PySide6.QtCore import QTimer
 
-from trcc.qt_components.lcd_handler import LCDHandler
+from trcc.gui.lcd_handler import LCDHandler
 
 # =========================================================================
 # Helpers
@@ -223,7 +223,7 @@ class TestApplyDeviceConfig:
         dev.resolution = resolution
         return dev
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_sets_device_key(self, mock_settings):
         mock_settings.device_config_key.return_value = 'test_key'
         mock_settings.get_device_config.return_value = {}
@@ -231,7 +231,7 @@ class TestApplyDeviceConfig:
         h.apply_device_config(self._device(), 320, 320)
         assert h.device_key == 'test_key'
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_restores_brightness(self, mock_settings):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {'brightness_level': 1}
@@ -240,7 +240,7 @@ class TestApplyDeviceConfig:
         assert h.brightness_level == 1
         h._lcd.set_brightness.assert_called_with(1)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_restores_rotation(self, mock_settings):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {'rotation': 90}
@@ -249,7 +249,7 @@ class TestApplyDeviceConfig:
         h._lcd.set_rotation.assert_called_with(90)
         h._w['rotation_combo'].setCurrentIndex.assert_called_with(1)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_resolution_change_updates_widgets(self, mock_settings):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {}
@@ -260,7 +260,7 @@ class TestApplyDeviceConfig:
         # Widgets always updated — InitializeDeviceCommand is owned by _wire_bus, not here
         h._w['preview'].set_resolution.assert_called_with(480, 480)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_widgets_always_updated(self, mock_settings):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {}
@@ -272,7 +272,7 @@ class TestApplyDeviceConfig:
         h._w['video_cut'].set_resolution.assert_called_with(320, 320)
         h._w['theme_setting'].set_resolution.assert_called_with(320, 320)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_split_mode_restored_for_split_resolution(self, mock_settings):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {'split_mode': 1}
@@ -292,8 +292,8 @@ class TestApplyDeviceConfig:
 class TestThemeSelection:
     """select_theme_from_path, select_cloud_theme — routing + state."""
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
-    @patch('trcc.qt_components.lcd_handler.ThemeInfo')
+    @patch('trcc.gui.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.ThemeInfo')
     def test_select_theme_from_path_calls_select(self, mock_ti, mock_settings):
         from trcc.core.commands.lcd import SelectThemeCommand
         mock_ti.from_directory.return_value = MagicMock()
@@ -315,8 +315,8 @@ class TestThemeSelection:
         dispatched = [c.args[0] for c in h._bus.dispatch.call_args_list]
         assert not any(isinstance(cmd, SelectThemeCommand) for cmd in dispatched)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
-    @patch('trcc.qt_components.lcd_handler.ThemeInfo')
+    @patch('trcc.gui.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.ThemeInfo')
     def test_select_theme_stops_video(self, mock_ti, mock_settings):
         mock_ti.from_directory.return_value = MagicMock()
         h = _make_handler()
@@ -327,8 +327,8 @@ class TestThemeSelection:
         h.select_theme_from_path(path)
         h._lcd.video.stop.assert_called_once()
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
-    @patch('trcc.qt_components.lcd_handler.ThemeInfo')
+    @patch('trcc.gui.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.ThemeInfo')
     def test_select_theme_persists_path(self, mock_ti, mock_settings):
         mock_ti.from_directory.return_value = MagicMock()
         h = _make_handler()
@@ -342,8 +342,8 @@ class TestThemeSelection:
         mock_settings.save_device_setting.assert_any_call(
             'dev0', 'theme_path', '/themes/TestTheme')
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
-    @patch('trcc.qt_components.lcd_handler.ThemeInfo')
+    @patch('trcc.gui.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.ThemeInfo')
     def test_select_theme_no_persist(self, mock_ti, mock_settings):
         mock_ti.from_directory.return_value = MagicMock()
         h = _make_handler()
@@ -364,7 +364,7 @@ class TestThemeSelection:
 class TestMask:
     """apply_mask — loads mask, updates preview, persists."""
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_apply_mask_with_path(self, mock_settings):
         from trcc.core.commands.lcd import LoadMaskCommand
         h = _make_handler()
@@ -387,7 +387,7 @@ class TestMask:
         h.apply_mask(mask_info)
         h._w['preview'].set_status.assert_called_once()
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_restore_dispatches_restore_last_theme_command(self, mock_settings):
         """apply_device_config dispatches RestoreLastThemeCommand — shared path with CLI/API."""
         from trcc.core.commands.lcd import RestoreLastThemeCommand
@@ -401,7 +401,7 @@ class TestMask:
         dispatched = [c.args[0] for c in h._bus.dispatch.call_args_list]
         assert any(isinstance(cmd, RestoreLastThemeCommand) for cmd in dispatched)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_restore_updates_preview_on_success(self, mock_settings):
         """apply_device_config updates preview widget when RestoreLastThemeCommand succeeds."""
         mock_settings.device_config_key.return_value = 'k'
@@ -463,7 +463,7 @@ class TestVideo:
 class TestOverlay:
     """on_overlay_changed, on_overlay_tick, flash_element."""
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_overlay_changed_sets_config(self, mock_settings):
         h = _make_handler()
         h._device_key = 'dev0'
@@ -474,19 +474,19 @@ class TestOverlay:
         h._lcd.overlay.enable.assert_called_with(True)
         h._lcd.overlay.set_config.assert_called_with(data)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_overlay_changed_empty_data_noop(self, mock_settings):
         h = _make_handler()
         h.on_overlay_changed({})
         h._lcd.overlay.set_config.assert_not_called()
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_overlay_changed_none_data_noop(self, mock_settings):
         h = _make_handler()
         h.on_overlay_changed(None)
         h._lcd.overlay.set_config.assert_not_called()
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_overlay_changed_persists(self, mock_settings):
         h = _make_handler()
         h._device_key = 'dev0'
@@ -589,7 +589,7 @@ class TestDisplaySettings:
         h.set_brightness(2)
         h._lcd.frame.send.assert_not_called()
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_set_rotation_persists(self, mock_settings):
         h = _make_handler()
         h._device_key = 'dev0'
@@ -597,7 +597,7 @@ class TestDisplaySettings:
         h.set_rotation(90)
         mock_settings.save_device_setting.assert_called_with('dev0', 'rotation', 90)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     @patch('trcc.conf.settings')
     def test_set_rotation_resolves_cloud_dirs(self, mock_conf, mock_settings):
         h = _make_handler()
@@ -605,7 +605,7 @@ class TestDisplaySettings:
         h.set_rotation(270)
         mock_conf.resolve_cloud_dirs.assert_called_with(270)
 
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_set_split_mode_updates_state(self, mock_settings):
         h = _make_handler()
         h._device_key = 'dev0'
@@ -654,7 +654,7 @@ class TestThemeIO:
     """save_theme, export_config, import_config."""
 
     @patch('trcc.conf.settings')
-    @patch('trcc.qt_components.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.Settings')
     def test_save_theme_success(self, mock_settings_cls, mock_conf):
         from trcc.core.commands.lcd import SaveThemeCommand
         h = _make_handler()

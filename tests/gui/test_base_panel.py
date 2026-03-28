@@ -3,7 +3,7 @@
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from trcc.qt_components.base import BasePanel
+from trcc.gui.base import BasePanel
 
 
 @pytest.fixture(scope="module")
@@ -170,17 +170,17 @@ class TestRealSubclasses:
     """Existing panels are BasePanel subclasses."""
 
     def test_uc_device_is_base_panel(self, qapp):
-        from trcc.qt_components.uc_device import UCDevice
+        from trcc.gui.uc_device import UCDevice
         assert issubclass(UCDevice, BasePanel)
 
     def test_uc_about_is_base_panel(self, qapp):
-        from trcc.qt_components.uc_about import UCAbout
+        from trcc.gui.uc_about import UCAbout
         assert issubclass(UCAbout, BasePanel)
 
     def test_uc_preview_is_base_panel(self, qapp):
-        from trcc.qt_components.uc_preview import UCPreview
+        from trcc.gui.uc_preview import UCPreview
         assert issubclass(UCPreview, BasePanel)
 
     def test_base_theme_browser_is_base_panel(self, qapp):
-        from trcc.qt_components.base import BaseThemeBrowser
+        from trcc.gui.base import BaseThemeBrowser
         assert issubclass(BaseThemeBrowser, BasePanel)

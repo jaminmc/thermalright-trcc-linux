@@ -3,7 +3,7 @@
 Centralizes all asset resolution — auto-appends .png for base names,
 handles localized variants, and provides pixmap loading.
 
-All GUI assets live in assets/gui/ and are extracted from Windows TRCC
+All GUI assets live in gui/assets/ and are extracted from Windows TRCC
 resources using tools/extract_resx_images.py.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from PySide6.QtGui import QPixmap
 log = logging.getLogger(__name__)
 
 # Bundled asset directory (inside package)
-_PKG_ASSETS_DIR = Path(__file__).parent.parent / 'assets' / 'gui'
+_PKG_ASSETS_DIR = Path(__file__).parent / 'assets'
 
 # Resolved at runtime by the platform adapter via set_assets_dir().
 # Falls back to package dir until the builder initializes it.

@@ -8,7 +8,7 @@
 - **Paths** (`core/paths.py`): Fallback path constants (`DATA_DIR`, `USER_DATA_DIR`). Primary path resolution goes through `PlatformSetup` adapter injected into `Settings`. Zero project imports, safe from any module.
 - **Devices** (`core/lcd_device.py`, `core/led_device.py`): Application-layer facades in `core/`. Strict DI — `RuntimeError` if `device_svc` or `build_services_fn` not injected. Zero adapter imports. Delegate to services and return result dicts.
 - **Builder** (`core/builder.py`): `ControllerBuilder` — fluent builder, assembles devices with DI, returns `LCDDevice`/`LEDDevice`. Composition root: imports adapters to inject into services.
-- **Views** (`qt_components/`): PySide6 GUI adapter. `TRCCApp` (thin shell) + `LCDHandler`/`LEDHandler` (one per device).
+- **Views** (`gui/`): PySide6 GUI adapter. `TRCCApp` (thin shell) + `LCDHandler`/`LEDHandler` (one per device).
 - **CLI** (`cli/`): Typer CLI adapter (package: `__init__.py` + 8 submodules). Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result. Includes i18n commands (`lang`, `lang-set`, `lang-list`).
 - **API** (`api/`): FastAPI REST adapter (package: `__init__.py` + 7 submodules). 49 endpoints covering devices, display, LED, themes, system metrics, and i18n. Includes WebSocket live preview stream + cloud theme download + theme export + display/LED test. Uses `LCDDevice`/`LEDDevice` from core/. `_current_image` tracks last frame sent for preview endpoints.
 - **Config** (`conf.py`): Application settings with DI — `Settings(path_resolver)` receives a `PlatformSetup` adapter via constructor. `init_settings(resolver)` called by composition roots (CLI, GUI, API). Single source of truth for all mutable app state.
@@ -95,7 +95,7 @@ DeviceProtocolFactory — @register() decorator for self-registration (OCP)
 | `Renderer` | `core/ports.py` | QtRenderer (1) | Image rendering ABC — compositing, text, encoding, rotation. QtRenderer is the sole implementation (QImage/QPainter). PIL eliminated. |
 | `UsbTransport` | `adapters/device/hid.py` | PyUsbTransport, HidApiTransport (2) | USB I/O abstraction — mockable for tests |
 | `SegmentDisplay` | `adapters/device/led_segment.py` | AX120, PA120, AK120, LC1, LF8, LF12, LF10, CZ1, LC2, LF11 (10) | LED 7-segment mask computation per product |
-| `BasePanel` | `qt_components/base.py` | UCDevice, UCAbout, UCPreview, UCThemeSetting, BaseThemeBrowser (5+3 indirect) | GUI panel lifecycle: `_setup_ui()` enforced, `apply_language()`, `get_state()`/`set_state()`, timer helpers |
+| `BasePanel` | `gui/base.py` | UCDevice, UCAbout, UCPreview, UCThemeSetting, BaseThemeBrowser (5+3 indirect) | GUI panel lifecycle: `_setup_ui()` enforced, `apply_language()`, `get_state()`/`set_state()`, timer helpers |
 
 **Rules**:
 - **ABC = contract + shared behavior** — Python ABC serves both roles (no need for Java-style `IFoo` + `AbstractFoo` split)
@@ -112,7 +112,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 | Domain constants (static mappings) | `core/models.py` | `FBL_TO_RESOLUTION`, `LOCALE_TO_LANG`, `HARDWARE_METRICS`, `TIME_FORMATS` |
 | Device registries (VID/PID, protocol) | `core/models.py` | VID/PID tables, implementation names, device type enums |
 | Mutable app state (user prefs) | `conf.py` → `Settings` | resolution, language, temp_unit, device config, format prefs |
-| GUI asset resolution | `qt_components/assets.py` → `Assets` | file lookup, `.png` auto-append, pixmap loading, localization |
+| GUI asset resolution | `gui/assets.py` → `Assets` | file lookup, `.png` auto-append, pixmap loading, localization |
 | Business logic | `services/` | image processing, overlay rendering, sensor polling |
 | View state (widget-local) | Each widget | button states, selection indices, animation counters |
 
@@ -127,10 +127,10 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 - **Logging**: Use `log = logging.getLogger(__name__)` — never `print()` for diagnostics
 - **Paths**: Use `pathlib.Path` where possible; `os.path` only in `data_repository.py` (legacy, perf)
 - **Thread safety**: Use Qt signals to communicate from background threads to GUI — never `QTimer.singleShot` from non-main threads
-- **Tests**: `pytest` with `PYTHONPATH=src`; 5477 tests across 92 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,qt_components}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest. Run with `PYTHONPATH=src pytest tests/ -n 8 -x -q` (pytest-xdist parallel, 8 workers). **Model-parametrized tests**: `FBL_PROFILES`, `LED_STYLES`, `ALL_DEVICES` in `core/models.py` are single source of truth — tests `@pytest.mark.parametrize` over these so adding a device/FBL/LED style auto-adds coverage. Never hardcode domain values (FBL numbers, resolutions, LED style IDs) in tests.
+- **Tests**: `pytest` with `PYTHONPATH=src`; 5477 tests across 92 files in 9 directories mirroring `src/trcc/` hexagonal layers (`tests/{core,services,adapters/{device,infra,system},cli,api,gui}/`). Cross-cutting tests at `tests/` root. When refactoring changes mock targets, use `conftest.py` fixtures/helpers — never update 50+ individual test mock paths inline. Shared mock helpers go in conftest. Run with `PYTHONPATH=src pytest tests/ -n 8 -x -q` (pytest-xdist parallel, 8 workers). **Model-parametrized tests**: `FBL_PROFILES`, `LED_STYLES`, `ALL_DEVICES` in `core/models.py` are single source of truth — tests `@pytest.mark.parametrize` over these so adding a device/FBL/LED style auto-adds coverage. Never hardcode domain values (FBL numbers, resolutions, LED style IDs) in tests.
 - **Linting**: `ruff check .` + `pyright` must pass before any commit (0 errors, 0 warnings)
 - **Security**: Zero tolerance for CodeQL / OWASP findings — see **Security** section below
-- **Assets**: All GUI asset access goes through `Assets` class (`qt_components/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
+- **Assets**: All GUI asset access goes through `Assets` class (`gui/assets.py`). Auto-appends `.png` for base names. Never manually build asset paths with `f"{name}.png"`.
 - **Language**: Single source of truth is `settings.lang` (in `conf.py`). Widgets call `Assets.get_localized(name, settings.lang)` — never store `self._lang`.
 - **Domain data**: Static mappings (VID/PID tables, format strings, resolution maps, sensor categories) belong in `core/models.py`. If you're defining a `dict` literal or `list` constant that maps domain concepts, it goes in models.
 

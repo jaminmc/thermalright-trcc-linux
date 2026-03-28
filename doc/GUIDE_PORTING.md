@@ -210,7 +210,7 @@ src/
 ├── core/
 │   ├── models.py       # Data classes (ThemeInfo, DeviceInfo, etc.)
 │   └── controllers.py  # GUI-independent business logic
-├── qt_components/      # PySide6 views (one file per major panel)
+├── gui/      # PySide6 views (one file per major panel)
 ├── parsers/            # Binary file format parsers
 └── drivers/            # Hardware communication (SCSI, HID, etc.)
 ```

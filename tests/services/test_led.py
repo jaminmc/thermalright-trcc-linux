@@ -840,7 +840,7 @@ class TestUCInfoImageWidget:
     def test_import(self):
         """UCInfoImage class is importable."""
         try:
-            from trcc.qt_components.uc_led_control import UCInfoImage
+            from trcc.gui.uc_led_control import UCInfoImage
             assert UCInfoImage is not None
         except ImportError:
             pytest.skip("PyQt6 not available")
@@ -848,7 +848,7 @@ class TestUCInfoImageWidget:
     def test_set_value(self):
         """set_value stores values for painting."""
         try:
-            from trcc.qt_components.uc_led_control import UCInfoImage
+            from trcc.gui.uc_led_control import UCInfoImage
         except ImportError:
             pytest.skip("PyQt6 not available")
         # Can't instantiate without QApplication, just verify class exists

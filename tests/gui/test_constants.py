@@ -1,5 +1,5 @@
 """
-Tests for qt_components.constants – layout values, color palette, and styles.
+Tests for gui.constants – layout values, color palette, and styles.
 
 Pure data tests — no Qt or display server required.
 
@@ -12,7 +12,7 @@ Tests cover:
 
 import unittest
 
-from trcc.qt_components.constants import Colors, Layout, Sizes, Styles
+from trcc.gui.constants import Colors, Layout, Sizes, Styles
 
 
 class TestColors(unittest.TestCase):

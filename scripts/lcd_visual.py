@@ -45,7 +45,7 @@ from trcc.adapters.render.qt import QtRenderer
 from trcc.conf import init_settings
 from trcc.core.builder import ControllerBuilder
 from trcc.core.models import FBL_TO_RESOLUTION
-from trcc.qt_components.uc_preview import UCPreview
+from trcc.gui.uc_preview import UCPreview
 from trcc.services.image import ImageService
 from trcc.services.overlay import OverlayService
 from trcc.services.theme import ThemeInfo, ThemeService
