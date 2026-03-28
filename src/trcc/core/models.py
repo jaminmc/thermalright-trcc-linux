@@ -1591,9 +1591,9 @@ class SensorInfo:
 # Domain Constants (FBL/resolution mapping, display formats)
 # =============================================================================
 
-# LCD brightness levels (1-3) to percent (Windows TRCC button levels)
-BRIGHTNESS_LEVELS: Dict[int, int] = {1: 25, 2: 50, 3: 100}
-DEFAULT_BRIGHTNESS_LEVEL = 3  # 100%
+# LCD brightness button steps (percent values cycled by the GUI button)
+BRIGHTNESS_STEPS: tuple[int, ...] = (25, 50, 100)
+DEFAULT_BRIGHTNESS_LEVEL = 100
 
 # JPEG encoding — max payload bytes (HID Type 2 transfer buffer is 691,200 bytes,
 # leaving ~672 KB for payload; 650 KB gives safe margin at full quality 95)

@@ -168,8 +168,9 @@ class TestBuildLcdBus:
 
 
 class TestBuildLcdGuiBus:
-    def test_has_rate_limit(self):
-        assert RateLimitMiddleware in build_lcd_gui_bus(_mock_lcd())
+    def test_no_rate_limit(self):
+        """LCD has discrete brightness buttons, not continuous sliders — no rate limiter needed."""
+        assert RateLimitMiddleware not in build_lcd_gui_bus(_mock_lcd())
 
     def test_dispatches_set_brightness(self):
         lcd = _mock_lcd()

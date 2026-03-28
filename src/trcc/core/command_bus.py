@@ -138,15 +138,26 @@ class RateLimitMiddleware(Middleware):
     Intended for high-frequency GUI slider events (brightness, rotation)
     that must not saturate the USB bus. Skipped commands return a success
     result with skipped=True so callers need not special-case them.
+
+    Only command types listed in ``only`` are throttled. All other command
+    types pass through immediately — state-change commands (EnableOverlay,
+    RenderAndSend, etc.) must never be silently dropped.
     """
 
-    def __init__(self, min_interval_ms: float = 50.0) -> None:
+    def __init__(
+        self,
+        min_interval_ms: float = 50.0,
+        only: frozenset[type[Command]] | None = None,
+    ) -> None:
         self._min_interval_ms = min_interval_ms
+        self._only = only  # None = throttle all (legacy), frozenset = allowlist
         self._last: dict[type[Command], float] = {}
 
     def handle(self, command: Command, next_fn: HandlerFn) -> CommandResult:
-        now = time.perf_counter()
         cmd_type = type(command)
+        if self._only is not None and cmd_type not in self._only:
+            return next_fn(command)
+        now = time.perf_counter()
         if (now - self._last.get(cmd_type, 0.0)) * 1000 < self._min_interval_ms:
             return CommandResult.ok(skipped=True, message="rate limited")
         self._last[cmd_type] = now

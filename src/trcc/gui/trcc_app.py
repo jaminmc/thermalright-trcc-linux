@@ -704,11 +704,13 @@ class TRCCApp(QMainWindow):
         self.rotation_combo.setToolTip("LCD rotation")
         self.rotation_combo.currentIndexChanged.connect(self._on_rotation_change)
 
+        from ..core.models import BRIGHTNESS_STEPS
         self._ldd_pixmaps: dict = {}
-        for level in range(4):
-            pix = Assets.load_pixmap(f'PL{level}.png')
+        for i, percent in enumerate(BRIGHTNESS_STEPS, start=1):
+            pix = Assets.load_pixmap(f'PL{i}.png')
             if not pix.isNull():
-                self._ldd_pixmaps[level] = pix
+                self._ldd_pixmaps[i] = pix        # split mode key (1-3)
+                self._ldd_pixmaps[percent] = pix  # brightness key (25/50/100)
 
         self.ldd_btn = QPushButton(self.form_container)
         self.ldd_btn.setGeometry(*Layout.BRIGHTNESS_BTN)
@@ -1596,11 +1598,13 @@ class TRCCApp(QMainWindow):
             self._update_ldd_icon()
             self.uc_preview.set_status(f"Split mode: {mode}")
         else:
-            level = (h.brightness_level % 3) + 1
-            h.set_brightness(level)
+            from ..core.models import BRIGHTNESS_STEPS
+            steps = BRIGHTNESS_STEPS
+            cur = h.brightness_level
+            nxt = steps[(steps.index(cur) + 1) % len(steps)] if cur in steps else steps[0]
+            h.set_brightness(nxt)
             self._update_ldd_icon()
-            from ..core.models import BRIGHTNESS_LEVELS
-            self.uc_preview.set_status(f"Brightness: L{level} ({BRIGHTNESS_LEVELS[level]}%)")
+            self.uc_preview.set_status(f"Brightness: {nxt}%")
 
     def _update_ldd_icon(self) -> None:
         h = self._active_lcd()

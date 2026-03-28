@@ -191,7 +191,7 @@ class LCDHandler(BaseHandler):
 
     def _restore_brightness(self, cfg: dict) -> None:
         self._brightness_level = cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL)
-        log.info("Restoring brightness: level=%d", self._brightness_level)
+        log.info("Restoring brightness: %d%%", self._brightness_level)
         self._bus.dispatch(SetBrightnessCommand(level=self._brightness_level))
 
     def _restore_rotation(self, cfg: dict) -> None:
@@ -518,38 +518,17 @@ class LCDHandler(BaseHandler):
         self._w['preview'].set_image(image)
 
     def on_overlay_tick(self, metrics: Any) -> None:
-        """Metrics tick: keep device alive and update overlay text.
+        """Metrics tick: video cache text update only.
 
-        Video: update cache text overlay once (O(1) — no frame loop).
-               The animation timer sends frames; text composited per tick.
-        Static + overlay enabled: background tick() (LCDDevice.tick) renders
-               and sends whenever metrics change. Nothing to do here — sending
-               again would cause a double-send blink on every refresh cycle.
-        Static + overlay disabled: tick() does not send (overlay off), so this
-               handler is responsible for the periodic keepalive send.
+        Rendering + LCD send is owned by LCDDevice.tick() in the background
+        loop — it renders and sends whenever overlay metrics change.
+        This method only handles video: compositing updated text into the
+        video cache so the animation timer picks it up next frame.
         """
-        if not self._lcd.connected:
+        if not self._lcd.connected or not self._lcd.playing:
             return
-
-        if self._lcd.playing:
-            log.debug("overlay_tick: video playing — updating cache text overlay")
-            self._bus.dispatch(UpdateVideoCacheTextCommand(metrics=metrics))
-        elif not self._lcd.enabled:
-            log.debug("overlay_tick: no overlay — keepalive send")
-            self._render_and_send()
-        else:
-            log.debug("overlay_tick: overlay enabled — tick() owns the send")
-
-    def keepalive(self) -> None:
-        """Periodic keepalive: resend current frame to prevent USB standby.
-
-        Fires every ~20 s via the metrics mediator. Skipped when video is
-        playing (the animation timer already sends frames continuously).
-        """
-        if self._lcd.playing:
-            return
-        log.debug("keepalive: resending frame")
-        self._render_and_send()
+        log.debug("overlay_tick: video playing — updating cache text overlay")
+        self._bus.dispatch(UpdateVideoCacheTextCommand(metrics=metrics))
 
     def flash_element(self, index: int) -> None:
         """Flash/blink selected overlay element on preview."""
@@ -563,10 +542,10 @@ class LCDHandler(BaseHandler):
 
     # ── Display Settings ───────────────────────────────────────────
 
-    def set_brightness(self, level: int) -> None:
-        log.debug("set_brightness: level=%d", level)
-        self._brightness_level = level
-        result = self._bus.dispatch(SetBrightnessCommand(level=level)).payload
+    def set_brightness(self, percent: int) -> None:
+        log.debug("set_brightness: %d%%", percent)
+        self._brightness_level = percent
+        result = self._bus.dispatch(SetBrightnessCommand(level=percent)).payload
         image = result.get('image')
         if image:
             self._w['preview'].set_image(image)

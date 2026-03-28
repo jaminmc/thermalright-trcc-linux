@@ -15,7 +15,6 @@ from ..command_bus import (
     CommandBus,
     CommandResult,
     LoggingMiddleware,
-    RateLimitMiddleware,
     TimingMiddleware,
 )
 from ..commands.lcd import (
@@ -272,4 +271,4 @@ def build_lcd_gui_bus(
     not saturate the USB bus.
     """
     log.debug("build_lcd_gui_bus: lcd=%r", lcd)
-    return build_lcd_bus(lcd, ensure_fn) | RateLimitMiddleware(min_interval_ms=50.0)
+    return build_lcd_bus(lcd, ensure_fn)

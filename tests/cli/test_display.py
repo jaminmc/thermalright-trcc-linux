@@ -293,28 +293,29 @@ class TestFrameOps:
 # =========================================================================
 
 class TestDisplaySettings:
-    def test_set_brightness_level_1(self, lcd, mock_display_svc):
+    def test_set_brightness_1_percent(self, lcd, mock_display_svc):
+        """Value 1 → 1% — LCDDevice accepts percent directly, no level mapping."""
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
             result = lcd.settings.set_brightness(1)
 
         assert result["success"] is True
+        assert "1%" in result["message"]
+        mock_display_svc.set_brightness.assert_called_once_with(1)
+
+    def test_set_brightness_25_percent(self, lcd, mock_display_svc):
+        with patch(_SETTINGS_KEY, return_value="0"), \
+             patch(_SETTINGS_SAVE):
+            result = lcd.settings.set_brightness(25)
+
+        assert result["success"] is True
         assert "25%" in result["message"]
         mock_display_svc.set_brightness.assert_called_once_with(25)
 
-    def test_set_brightness_level_2(self, lcd, mock_display_svc):
+    def test_set_brightness_100_percent(self, lcd, mock_display_svc):
         with patch(_SETTINGS_KEY, return_value="0"), \
              patch(_SETTINGS_SAVE):
-            result = lcd.settings.set_brightness(2)
-
-        assert result["success"] is True
-        assert "50%" in result["message"]
-        mock_display_svc.set_brightness.assert_called_once_with(50)
-
-    def test_set_brightness_level_3(self, lcd, mock_display_svc):
-        with patch(_SETTINGS_KEY, return_value="0"), \
-             patch(_SETTINGS_SAVE):
-            result = lcd.settings.set_brightness(3)
+            result = lcd.settings.set_brightness(100)
 
         assert result["success"] is True
         assert "100%" in result["message"]

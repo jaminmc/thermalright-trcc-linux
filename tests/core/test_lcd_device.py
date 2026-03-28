@@ -254,20 +254,20 @@ class TestLCDDeviceSettings(unittest.TestCase):
         disp.set_brightness.assert_called_once_with(75)
 
     @patch.object(LCDDevice, '_persist')
-    def test_set_brightness_level_1(self, _):
-        """Level 1 → 25%."""
+    def test_set_brightness_1_percent(self, _):
+        """Value 1 is 1% — LCDDevice no longer maps level numbers to percents."""
         disp = MagicMock()
         lcd = _make_lcd(display_svc=disp)
         result = lcd.set_brightness(1)
         self.assertTrue(result['success'])
-        disp.set_brightness.assert_called_once_with(25)
+        disp.set_brightness.assert_called_once_with(1)
 
     @patch.object(LCDDevice, '_persist')
-    def test_set_brightness_level_3(self, _):
-        """Level 3 → 100%."""
+    def test_set_brightness_100_percent(self, _):
+        """Value 100 → 100%."""
         disp = MagicMock()
         lcd = _make_lcd(display_svc=disp)
-        result = lcd.set_brightness(3)
+        result = lcd.set_brightness(100)
         self.assertTrue(result['success'])
         disp.set_brightness.assert_called_once_with(100)
 
@@ -358,7 +358,7 @@ class TestRestoreDeviceSettings(unittest.TestCase):
         with patch('trcc.conf.Settings.device_config_key',
                    return_value="0"), \
              patch('trcc.conf.Settings.get_device_config',
-                   return_value={'brightness_level': 1, 'rotation': 90}):
+                   return_value={'brightness_level': 50, 'rotation': 90}):
             lcd.restore_device_settings()
         # set_brightness calls DisplayService
         self.assertEqual(disp.set_brightness.call_count, 1)

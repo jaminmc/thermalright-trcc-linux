@@ -28,6 +28,7 @@ from trcc.core.commands.lcd import (
     PauseVideoCommand,
     RenderAndSendCommand,
     SendFrameCommand,
+    SetBrightnessCommand,
     SetFlashIndexCommand,
     SetMaskPositionCommand,
     StopVideoCommand,
@@ -239,7 +240,7 @@ class TestConstruction:
 
     def test_brightness_level_default(self):
         h = _make_handler()
-        assert h.brightness_level == 3  # DEFAULT_BRIGHTNESS_LEVEL (100%)
+        assert h.brightness_level == 100  # DEFAULT_BRIGHTNESS_LEVEL = 100%
 
     def test_split_mode_default(self):
         h = _make_handler()
@@ -295,12 +296,14 @@ class TestApplyDeviceConfig:
 
     @patch('trcc.gui.lcd_handler.Settings')
     def test_restores_brightness(self, mock_settings):
+        """Stored percent value restored directly — no level mapping."""
         mock_settings.device_config_key.return_value = 'k'
-        mock_settings.get_device_config.return_value = {'brightness_level': 1}
+        mock_settings.get_device_config.return_value = {'brightness_level': 50}
         h = _make_handler()
         h.apply_device_config(self._device(), 320, 320)
-        assert h.brightness_level == 1
-        h._lcd.set_brightness.assert_called_with(1)
+        assert h.brightness_level == 50
+        cmds = _dispatched(h, SetBrightnessCommand)
+        assert cmds and cmds[0].level == 50
 
     @patch('trcc.gui.lcd_handler.Settings')
     def test_restores_rotation(self, mock_settings):
@@ -740,14 +743,18 @@ class TestOverlay:
         assert saved[0] == 'dev0'
         assert saved[1] == 'overlay'
 
-    def test_overlay_tick_no_overlay_sends_keepalive(self):
-        """on_overlay_tick sends when overlay is disabled — background tick() won't."""
+    def test_overlay_tick_no_overlay_no_send(self):
+        """on_overlay_tick must NOT send for static no-overlay themes.
+
+        Sending every refresh cycle (1–5 s) causes visible blinking.
+        Static themes don't change — no periodic resend needed.
+        """
         h = _make_handler()
         h._lcd.playing = False
         h._lcd.enabled = False
         h._lcd.connected = True
         h.on_overlay_tick(MagicMock())
-        assert _dispatched(h, RenderAndSendCommand)
+        assert not _dispatched(h, RenderAndSendCommand)
         assert not _dispatched(h, UpdateVideoCacheTextCommand)
 
     def test_overlay_tick_overlay_enabled_no_send(self):
@@ -836,8 +843,8 @@ class TestDisplaySettings:
     def test_set_brightness_updates_level(self):
         h = _make_handler()
         h._lcd.set_brightness.return_value = {'success': True, 'image': MagicMock()}
-        h.set_brightness(1)
-        assert h.brightness_level == 1
+        h.set_brightness(50)
+        assert h.brightness_level == 50
 
     def test_set_brightness_updates_preview(self):
         h = _make_handler()

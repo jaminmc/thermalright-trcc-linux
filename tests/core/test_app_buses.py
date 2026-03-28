@@ -129,8 +129,10 @@ class TestBuildLcdBus:
 # ── build_lcd_gui_bus ────────────────────────────────────────────────────────
 
 class TestBuildLcdGuiBus:
-    def test_has_rate_limit_middleware(self, app):
-        assert app.build_lcd_gui_bus(_mock_lcd()).has_middleware(RateLimitMiddleware)
+    def test_no_rate_limit_middleware(self, app):
+        """LCD uses discrete buttons, not sliders — rate limiter removed to prevent
+        EnableOverlayCommand being silently dropped when it fires twice within 50ms."""
+        assert not app.build_lcd_gui_bus(_mock_lcd()).has_middleware(RateLimitMiddleware)
 
     def test_also_has_logging_and_timing(self, app):
         bus = app.build_lcd_gui_bus(_mock_lcd())

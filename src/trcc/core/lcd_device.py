@@ -507,22 +507,20 @@ class LCDDevice(Device):
             return
         key = Settings.device_config_key(dev.device_index, dev.vid, dev.pid)
         cfg = Settings.get_device_config(key)
-        self.set_brightness(cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL))
+        raw = cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL)
+        percent = raw if 0 <= raw <= 100 else 100
+        self.set_brightness(percent)
         rotation = cfg.get('rotation', 0)
         if rotation in (0, 90, 180, 270):
             self.set_rotation(rotation)
 
-    def set_brightness(self, level: int) -> dict:
-        from .models import BRIGHTNESS_LEVELS
-        if level in BRIGHTNESS_LEVELS:
-            percent = BRIGHTNESS_LEVELS[level]
-        elif 0 <= level <= 100:
-            percent = level
-        else:
+    def set_brightness(self, percent: int) -> dict:
+        """Set brightness. percent is 0–100."""
+        if not 0 <= percent <= 100:
             return {"success": False,
-                    "error": "Brightness: 1-3 (level) or 0-100 (percent)"}
+                    "error": f"Brightness must be 0–100, got {percent}"}
         image = self._display_svc.set_brightness(percent)
-        self._persist('brightness_level', level)
+        self._persist('brightness_level', percent)
         return {"success": True, "image": image,
                 "message": f"Brightness set to {percent}%"}
 
