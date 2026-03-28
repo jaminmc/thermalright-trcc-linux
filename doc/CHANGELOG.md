@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.2.6
+
+### Fixes
+- **Portrait web previews and masks not extracted for existing users**: `ensure_all()` previously skipped all extraction once a resolution was marked installed. Each `ensure_*` is already idempotent (checks before extracting), so the guard was redundant — now all archives are always ensured on every startup, including both orientations for non-square devices
+
 ## v9.2.5
 
 ### Fixes

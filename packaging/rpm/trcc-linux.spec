@@ -3,7 +3,7 @@
 %global srcname trcc-linux
 
 Name:           trcc-linux
-Version:        9.2.5
+Version:        9.2.6
 Release:        1%{?dist}
 Summary:        Thermalright LCD/LED Control Center for Linux
 
@@ -121,6 +121,11 @@ udevadm control --reload-rules 2>/dev/null || :
 %endif
 
 %changelog
+* Sat Mar 28 2026 TRCC Linux Contributors <noreply@github.com> - 9.2.6-1
+- ensure_all() now truly idempotent — always ensures all archives on startup
+- Non-square devices get both orientations extracted so rotation works immediately
+- See https://github.com/Lexonight1/thermalright-trcc-linux/releases
+
 * Sat Mar 28 2026 TRCC Linux Contributors <noreply@github.com> - 9.2.5-1
 - Fix cloud mask download for portrait/rotated devices (issue #95)
 - Expand CLOUD_MASK_URLS to all supported resolutions including billboard devices
