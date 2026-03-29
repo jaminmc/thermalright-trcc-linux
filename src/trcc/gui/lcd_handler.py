@@ -172,6 +172,10 @@ class LCDHandler(BaseHandler):
         self._w['rotation_combo'].blockSignals(True)
         self._w['rotation_combo'].setCurrentIndex(rotation_index)
         self._w['rotation_combo'].blockSignals(False)
+        # Non-square devices: swap preview dimensions on 90/270
+        w, h = _conf.settings.width, _conf.settings.height
+        if w != h and rotation in (90, 270):
+            self._w['preview'].set_resolution(h, w)
         self._resolve_cloud_dirs(rotation)
 
     def _restore_split_mode(self, cfg: dict, w: int, h: int) -> None:
@@ -488,6 +492,12 @@ class LCDHandler(BaseHandler):
                 self._lcd.send(image)
         if self._device_key:
             Settings.save_device_setting(self._device_key, 'rotation', degrees)
+        # Non-square devices: swap preview dimensions on 90/270
+        w, h = _conf.settings.width, _conf.settings.height
+        if w != h and degrees in (90, 270):
+            self._w['preview'].set_resolution(h, w)
+        else:
+            self._w['preview'].set_resolution(w, h)
         self._resolve_cloud_dirs(degrees)
 
     def set_split_mode(self, mode: int) -> None:
