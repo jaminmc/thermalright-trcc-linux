@@ -245,10 +245,30 @@ class TestLyDeviceSendFrame(unittest.TestCase):
         d = self._setup()
         self.assertTrue(d.send_frame(b'\x00' * 100))
 
-    def test_send_returns_false_on_error(self):
+    def test_send_returns_false_on_persistent_error(self):
         d = self._setup()
-        d._ep_out.write.side_effect = Exception("USB error")
+        d.close = MagicMock()
+        d.handshake = MagicMock()
+        d._ep_out.write.side_effect = OSError("USB error")
         self.assertFalse(d.send_frame(b'\x00' * 100))
+
+    def test_send_retries_on_first_error(self):
+        """First send fails, reconnect + retry succeeds."""
+        d = self._setup()
+        d.close = MagicMock()
+        d.handshake = MagicMock()
+        call_count = 0
+
+        def fail_once(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise OSError("USB disconnect")
+
+        d._ep_out.write.side_effect = fail_once
+        self.assertTrue(d.send_frame(b'\x00' * 100))
+        d.close.assert_called_once()
+        d.handshake.assert_called_once()
 
     def test_data_payload_in_chunk(self):
         """Image data appears at offset 16 in chunk."""

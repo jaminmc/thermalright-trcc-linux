@@ -345,6 +345,18 @@ class TestSettingsDeviceConfig:
         Settings.save_selected_device("/dev/sg0")
         assert Settings.get_selected_device() == "/dev/sg0"
 
+    def test_get_last_device_default(self, tmp_config):
+        assert Settings.get_last_device() == 0
+
+    def test_save_and_get_last_device(self, tmp_config):
+        Settings.save_last_device(2)
+        assert Settings.get_last_device() == 2
+
+    def test_save_last_device_persists_to_config(self, tmp_config):
+        Settings.save_last_device(1)
+        config = load_config()
+        assert config['last_device'] == 1
+
     def test_get_format_prefs_empty(self, tmp_config):
         assert Settings.get_format_prefs() == {}
 

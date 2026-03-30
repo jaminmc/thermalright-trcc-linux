@@ -137,6 +137,84 @@ class TestApplyDeviceConfig:
 
 
 # =========================================================================
+# reactivate — refresh shared widgets on device switch
+# =========================================================================
+
+
+class TestReactivate:
+    """reactivate() — refresh preview, theme dirs, overlay on device switch."""
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_updates_all_widget_resolutions(self, mock_settings, mock_conf,
+                                            make_lcd_handler):
+        mock_settings.get_device_config.return_value = {}
+        h = make_lcd_handler()
+        h._device_key = 'k'
+        h.reactivate(480, 480)
+        mock_conf.settings.set_resolution.assert_called_with(480, 480)
+        h._w['preview'].set_resolution.assert_called_with(480, 480)
+        h._w['image_cut'].set_resolution.assert_called_with(480, 480)
+        h._w['video_cut'].set_resolution.assert_called_with(480, 480)
+        h._w['theme_setting'].set_resolution.assert_called_with(480, 480)
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_sets_preview_image(self, mock_settings, mock_conf,
+                                make_lcd_handler, mock_lcd_device):
+        mock_settings.get_device_config.return_value = {}
+        mock_lcd_device.current_image = 'fake_image'
+        h = make_lcd_handler(lcd=mock_lcd_device)
+        h._device_key = 'k'
+        h.reactivate(320, 320)
+        h._w['preview'].set_image.assert_called_with('fake_image')
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_no_preview_when_no_image(self, mock_settings, mock_conf,
+                                      make_lcd_handler, mock_lcd_device):
+        mock_settings.get_device_config.return_value = {}
+        mock_lcd_device.current_image = None
+        h = make_lcd_handler(lcd=mock_lcd_device)
+        h._device_key = 'k'
+        h.reactivate(320, 320)
+        h._w['preview'].set_image.assert_not_called()
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_reloads_overlay_from_config(self, mock_settings, mock_conf,
+                                         make_lcd_handler, mock_lcd_device):
+        overlay_cfg = {'config': {'time': {'x': 10}}, 'enabled': True}
+        mock_settings.get_device_config.return_value = {'overlay': overlay_cfg}
+        mock_lcd_device.current_image = 'img'
+        h = make_lcd_handler(lcd=mock_lcd_device)
+        h._device_key = 'k'
+        h.reactivate(320, 320)
+        h._w['theme_setting'].load_from_overlay_config.assert_called_with(
+            {'time': {'x': 10}})
+        h._w['theme_setting'].set_overlay_enabled.assert_called_with(True)
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_overlay_disabled_when_no_device_key(self, mock_settings, mock_conf,
+                                                  make_lcd_handler):
+        h = make_lcd_handler()
+        h._device_key = ''
+        h.reactivate(320, 320)
+        h._w['theme_setting'].set_overlay_enabled.assert_called_with(False)
+
+    @patch('trcc.gui.lcd_handler._conf')
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_overlay_disabled_on_missing_config(self, mock_settings, mock_conf,
+                                                 make_lcd_handler):
+        mock_settings.get_device_config.return_value = {}
+        h = make_lcd_handler()
+        h._device_key = 'k'
+        h.reactivate(320, 320)
+        h._w['theme_setting'].set_overlay_enabled.assert_called_with(False)
+
+
+# =========================================================================
 # _update_theme_directories — first-install auto-load guard
 # =========================================================================
 

@@ -338,13 +338,20 @@ class TRCCApp(QMainWindow):
 
         self._refresh_sidebar()
 
-        # Auto-select first LCD, then first LED
-        first = next(
-            (p for p, h in self._handlers.items() if isinstance(h, LCDHandler)),
-            next(iter(self._handlers), None),
+        # Restore last active device, fall back to first LCD
+        last_idx = Settings.get_last_device()
+        target = next(
+            (p for p, h in self._handlers.items()
+             if h.device_info and h.device_info.device_index == last_idx),
+            None,
         )
-        if first:
-            self._activate_device(first)
+        if not target:
+            target = next(
+                (p for p, h in self._handlers.items() if isinstance(h, LCDHandler)),
+                next(iter(self._handlers), None),
+            )
+        if target:
+            self._activate_device(target)
 
     def _add_handler(self, device: Any) -> None:
         """Create handler for one new device."""
@@ -411,10 +418,16 @@ class TRCCApp(QMainWindow):
 
     def _activate_device(self, path: str) -> None:
         """Switch panel stack to show the given device."""
+        if path == self._active_path:
+            return
         self._active_path = path
         handler = self._handlers.get(path)
         if handler is None:
             return
+
+        # Persist last active device so we restore it on next launch
+        if handler.device_info:
+            Settings.save_last_device(handler.device_info.device_index)
 
         if isinstance(handler, LCDHandler):
             if handler.display.connected:
@@ -427,9 +440,7 @@ class TRCCApp(QMainWindow):
                         handler.apply_device_config(info, w, h)
                         self._update_ldd_icon()
                     else:
-                        # Re-activate: switch global resolution so theme dirs match
-                        _conf.settings.set_resolution(w, h)
-                        handler._update_theme_directories()
+                        handler.reactivate(w, h)
         elif isinstance(handler, LEDHandler):
             info = handler.device_info
             if info and not handler.active:

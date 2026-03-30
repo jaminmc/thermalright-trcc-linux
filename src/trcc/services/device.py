@@ -76,6 +76,7 @@ class DeviceService:
                     protocol=d.protocol,
                     device_type=d.device_type,
                     implementation=d.implementation,
+                    button_image=d.button_image,
                 )
                 for i, d in enumerate(raw)
             ]

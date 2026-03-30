@@ -120,6 +120,19 @@ class TestDetect:
         devices = svc.detect()
         assert len(devices) == 1  # Still detected, just not enriched
 
+    def test_detect_copies_button_image(self):
+        raw = [_make_detected('LCD')]
+        raw[0].button_image = 'A1GRAND VISION'
+        svc = _make_service(raw)
+        devices = svc.detect()
+        assert devices[0].button_image == 'A1GRAND VISION'
+
+    def test_detect_default_button_image(self):
+        raw = [_make_detected('LCD')]
+        svc = _make_service(raw)
+        devices = svc.detect()
+        assert devices[0].button_image == 'A1CZTV'
+
     def test_import_error_returns_empty(self):
         svc = _make_service()
         svc._detect_fn.side_effect = ImportError("no pyusb")

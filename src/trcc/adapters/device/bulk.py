@@ -162,25 +162,33 @@ class BulkDevice(BulkFrameDevice, FrameDevice):
         struct.pack_into("<I", header, 56, 2)            # mode
         struct.pack_into("<I", header, 60, data_size)    # payload length
 
-        try:
-            frame = bytes(header) + image_data
-            # Send in chunks — a single large transfer can reset the device
-            # on KVM USB passthrough and slower USB hubs.
-            for offset in range(0, len(frame), _WRITE_CHUNK_SIZE):
-                self._ep_out.write(  # type: ignore[union-attr]
-                    frame[offset:offset + _WRITE_CHUNK_SIZE],
-                    timeout=_WRITE_TIMEOUT_MS,
-                )
+        frame = bytes(header) + image_data
 
-            # C#: ZLP when total is 512-aligned (num2 % 512 == 0)
-            if len(frame) % 512 == 0:
-                self._ep_out.write(b"", timeout=_WRITE_TIMEOUT_MS)  # type: ignore[union-attr]
+        for attempt in range(2):
+            try:
+                # Send in chunks — a single large transfer can reset the device
+                # on KVM USB passthrough and slower USB hubs.
+                for offset in range(0, len(frame), _WRITE_CHUNK_SIZE):
+                    self._ep_out.write(  # type: ignore[union-attr]
+                        frame[offset:offset + _WRITE_CHUNK_SIZE],
+                        timeout=_WRITE_TIMEOUT_MS,
+                    )
 
-            log.debug("Bulk frame sent: %dx%d, cmd=%d, %d bytes",
-                      self.width, self.height, cmd, data_size)
-            return True
-        except Exception:
-            log.exception("Bulk frame send failed (cmd=%d, %d bytes)", cmd, data_size)
-            return False
+                # C#: ZLP when total is 512-aligned (num2 % 512 == 0)
+                if len(frame) % 512 == 0:
+                    self._ep_out.write(b"", timeout=_WRITE_TIMEOUT_MS)  # type: ignore[union-attr]
+
+                log.debug("Bulk frame sent: %dx%d, cmd=%d, %d bytes",
+                          self.width, self.height, cmd, data_size)
+                return True
+            except OSError:
+                if attempt == 0:
+                    log.warning("Bulk send failed, reconnecting and retrying")
+                    self.close()
+                    self.handshake()
+                else:
+                    log.exception("Bulk frame send failed after retry (cmd=%d, %d bytes)",
+                                  cmd, data_size)
+        return False
 
     # close() inherited from BulkFrameDevice

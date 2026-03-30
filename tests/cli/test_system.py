@@ -95,7 +95,8 @@ class TestSudoReexec:
         # Should include the user site-packages
         assert "/home/user/.local" in pp
 
-    def test_command_ends_with_subcommand(self, completed_process, capsys):
+    def test_dispatched_subcommand_uses_python_c(self, completed_process, capsys):
+        """Known subcommands bypass trcc.cli via python -c (#87)."""
         captured_cmd = []
 
         def fake_run(cmd, **kwargs):
@@ -107,9 +108,26 @@ class TestSudoReexec:
              patch("site.getusersitepackages", return_value="/home/user"):
             _sudo_reexec("setup-polkit")
 
-        assert captured_cmd[-1] == "setup-polkit"
+        assert "-c" in captured_cmd
+        assert any("setup_polkit" in c for c in captured_cmd)
+        assert "-m" not in captured_cmd
+
+    def test_unknown_subcommand_uses_trcc_cli(self, completed_process, capsys):
+        """Unknown subcommands fall back to trcc.cli module."""
+        captured_cmd = []
+
+        def fake_run(cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            return completed_process(0)
+
+        with patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
+             patch("site.getsitepackages", return_value=["/usr/lib"]), \
+             patch("site.getusersitepackages", return_value="/home/user"):
+            _sudo_reexec("some-unknown-cmd")
+
         assert "-m" in captured_cmd
         assert "trcc.cli" in captured_cmd
+        assert captured_cmd[-1] == "some-unknown-cmd"
 
     def test_prints_root_required_message(self, completed_process, capsys):
         with patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=completed_process(0)), \

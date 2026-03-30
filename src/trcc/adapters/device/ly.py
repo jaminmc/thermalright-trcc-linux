@@ -198,30 +198,36 @@ class LyDevice(BulkFrameDevice, FrameDevice):
         # Extend buffer with zero-padded chunks if needed
         send_buf = bytes(chunks) + bytes(total_bytes - len(chunks))
 
-        try:
-            # Send in 4096-byte batches
-            pos = 0
-            while pos < total_bytes:
-                remaining = total_bytes - pos
-                if remaining >= _USB_WRITE_SIZE:
-                    write_size = _USB_WRITE_SIZE
+        for attempt in range(2):
+            try:
+                # Send in 4096-byte batches
+                pos = 0
+                while pos < total_bytes:
+                    remaining = total_bytes - pos
+                    if remaining >= _USB_WRITE_SIZE:
+                        write_size = _USB_WRITE_SIZE
+                    else:
+                        # C#: sends 2048 for the tail (LY), variable for LY1
+                        write_size = min(2048, remaining) if self.pid == _PID_LY else remaining
+                    self._ep_out.write(  # type: ignore[union-attr]
+                        send_buf[pos:pos + write_size], timeout=_WRITE_TIMEOUT_MS
+                    )
+                    pos += _USB_WRITE_SIZE  # C# always advances by 4096
+
+                # Read ACK
+                self._ep_in.read(_HANDSHAKE_READ_SIZE, timeout=_READ_TIMEOUT_MS)  # type: ignore[union-attr]
+
+                log.debug("LY frame sent: %dx%d, %d bytes, %d chunks",
+                          self.width, self.height, total_size, num_chunks)
+                return True
+            except OSError:
+                if attempt == 0:
+                    log.warning("LY send failed, reconnecting and retrying")
+                    self.close()
+                    self.handshake()
                 else:
-                    # C#: sends 2048 for the tail (LY), variable for LY1
-                    write_size = min(2048, remaining) if self.pid == _PID_LY else remaining
-                self._ep_out.write(  # type: ignore[union-attr]
-                    send_buf[pos:pos + write_size], timeout=_WRITE_TIMEOUT_MS
-                )
-                pos += _USB_WRITE_SIZE  # C# always advances by 4096
-
-            # Read ACK
-            self._ep_in.read(_HANDSHAKE_READ_SIZE, timeout=_READ_TIMEOUT_MS)  # type: ignore[union-attr]
-
-            log.debug("LY frame sent: %dx%d, %d bytes, %d chunks",
-                      self.width, self.height, total_size, num_chunks)
-            return True
-        except Exception:
-            log.exception("LY frame send failed (%d bytes, %d chunks)",
-                          total_size, num_chunks)
-            return False
+                    log.exception("LY frame send failed after retry (%d bytes, %d chunks)",
+                                  total_size, num_chunks)
+        return False
 
     # close() inherited from BulkFrameDevice

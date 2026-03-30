@@ -119,14 +119,7 @@ class LCDHandler(BaseHandler):
         Settings.save_device_setting(self._device_key, 'w', w)
         Settings.save_device_setting(self._device_key, 'h', h)
 
-        # Switch global resolution so theme/web/mask dirs resolve correctly
-        _conf.settings.set_resolution(w, h)
-
-        # Update GUI widgets to reflect the device resolution.
-        self._w['preview'].set_resolution(w, h)
-        self._w['image_cut'].set_resolution(w, h)
-        self._w['video_cut'].set_resolution(w, h)
-        self._w['theme_setting'].set_resolution(w, h)
+        self._switch_resolution(w, h)
 
         # Always refresh — first run downloads themes after widget init
         auto_loaded = self._update_theme_directories()
@@ -163,6 +156,38 @@ class LCDHandler(BaseHandler):
                 self._w['preview'].show_video_controls(True)
             elif overlay_enabled:
                 self._render_and_send()
+
+    def _switch_resolution(self, w: int, h: int) -> None:
+        """Switch active resolution and update all resolution-aware widgets."""
+        _conf.settings.set_resolution(w, h)
+        self._w['preview'].set_resolution(w, h)
+        self._w['image_cut'].set_resolution(w, h)
+        self._w['video_cut'].set_resolution(w, h)
+        self._w['theme_setting'].set_resolution(w, h)
+
+    def reactivate(self, w: int, h: int) -> None:
+        """Refresh shared widgets when switching back to this device."""
+        self._switch_resolution(w, h)
+        self._update_theme_directories()
+
+        # Preview image — device's current image is ground truth
+        image = self._lcd.current_image
+        if image:
+            self._w['preview'].set_image(image)
+
+        # Overlay — reload from per-device config (defensive: missing = disabled)
+        if self._device_key:
+            cfg = Settings.get_device_config(self._device_key)
+            overlay_cfg = cfg.get('overlay', {})
+            overlay_config = overlay_cfg.get('config')
+            overlay_enabled = overlay_cfg.get('enabled', False)
+            if overlay_config:
+                self._w['theme_setting'].load_from_overlay_config(overlay_config)
+            self._w['theme_setting'].set_overlay_enabled(overlay_enabled)
+            if overlay_enabled and image:
+                self._render_and_send()
+        else:
+            self._w['theme_setting'].set_overlay_enabled(False)
 
     def _restore_brightness(self, cfg: dict) -> None:
         self._brightness_level = cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL)

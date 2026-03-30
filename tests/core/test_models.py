@@ -107,6 +107,15 @@ class TestDeviceInfo(unittest.TestCase):
         self.assertEqual(d.rotation, 0)
         self.assertTrue(d.connected)
 
+    def test_button_image_default(self):
+        d = DeviceInfo(name='LCD', path='/dev/sg0')
+        self.assertEqual(d.button_image, 'A1CZTV')
+
+    def test_button_image_custom(self):
+        d = DeviceInfo(name='LCD', path='/dev/sg0',
+                       button_image='A1FROZEN WARFRAME PRO')
+        self.assertEqual(d.button_image, 'A1FROZEN WARFRAME PRO')
+
 
 # =============================================================================
 # Resolution Pipeline (pm_to_fbl, fbl_to_resolution)

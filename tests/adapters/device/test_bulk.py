@@ -568,11 +568,42 @@ class TestBulkDeviceSendFrame(unittest.TestCase):
         result = bd.send_frame(b'\x00' * 100)
         self.assertTrue(result)
 
-    def test_send_frame_returns_false_on_error(self):
+    def test_send_frame_returns_false_on_persistent_error(self):
         bd = self._setup_device()
-        bd._ep_out.write.side_effect = Exception("USB error")
+        bd.close = MagicMock()
+        bd.handshake = MagicMock()
+        bd._ep_out.write.side_effect = OSError("USB error")
         result = bd.send_frame(b'\x00' * 100)
         self.assertFalse(result)
+
+    def test_send_frame_retries_on_first_error(self):
+        """First send fails, reconnect + retry succeeds."""
+        bd = self._setup_device()
+        bd.close = MagicMock()
+        bd.handshake = MagicMock()
+        call_count = 0
+
+        def fail_once(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise OSError("USB disconnect")
+
+        bd._ep_out.write.side_effect = fail_once
+        result = bd.send_frame(b'\x00' * 100)
+        self.assertTrue(result)
+        bd.close.assert_called_once()
+        bd.handshake.assert_called_once()
+
+    def test_send_frame_retry_calls_close_then_handshake(self):
+        """On USB error, close() is called before handshake()."""
+        bd = self._setup_device()
+        call_order = []
+        bd.close = MagicMock(side_effect=lambda: call_order.append('close'))
+        bd.handshake = MagicMock(side_effect=lambda: call_order.append('handshake'))
+        bd._ep_out.write.side_effect = [OSError("USB error"), None]
+        bd.send_frame(b'\x00' * 100)
+        self.assertEqual(call_order, ['close', 'handshake'])
 
     def test_send_frame_triggers_handshake_if_not_open(self):
         """If _dev is None, send_frame calls handshake() first."""

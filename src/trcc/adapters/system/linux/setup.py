@@ -45,11 +45,22 @@ def _real_user_home() -> Path:
     return Path.home()
 
 
-def sudo_reexec(subcommand: str) -> int:
-    """Re-exec `trcc <subcommand>` as root via sudo with correct PYTHONPATH.
+# Map CLI subcommands to direct function calls — bypasses trcc.cli (typer)
+# entirely, avoiding Python 3.14 crash (TypeError: type 'Choice' is not
+# subscriptable).  See #87.
+_SUDO_DISPATCH: dict[str, str] = {
+    "setup-udev": "from trcc.adapters.system.linux.setup import setup_udev; exit(setup_udev())",
+    "setup-selinux": "from trcc.adapters.system.linux.setup import setup_selinux; exit(setup_selinux())",
+    "setup-polkit": "from trcc.adapters.system.linux.setup import setup_polkit; exit(setup_polkit())",
+}
 
-    sudo strips user site-packages (~/.local/lib), so we include both
-    the trcc package root and all site-packages where dependencies live.
+
+def sudo_reexec(subcommand: str) -> int:
+    """Re-exec a setup function as root via sudo with correct PYTHONPATH.
+
+    Calls the setup function directly via ``python -c`` instead of going
+    through ``trcc.cli`` — avoids importing typer under sudo, which crashes
+    on Python 3.14 (#87).
     """
     paths: list[str] = []
     paths.extend(site.getsitepackages())
@@ -57,10 +68,19 @@ def sudo_reexec(subcommand: str) -> int:
     trcc_pkg = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     paths.append(trcc_pkg)
     pythonpath = os.pathsep.join(paths)
-    cmd = [
-        "sudo", "env", f"PYTHONPATH={pythonpath}",
-        sys.executable, "-m", "trcc.cli", subcommand,
-    ]
+
+    snippet = _SUDO_DISPATCH.get(subcommand)
+    if snippet:
+        cmd = [
+            "sudo", "env", f"PYTHONPATH={pythonpath}",
+            sys.executable, "-c", snippet,
+        ]
+    else:
+        cmd = [
+            "sudo", "env", f"PYTHONPATH={pythonpath}",
+            sys.executable, "-m", "trcc.cli", subcommand,
+        ]
+
     print("Root required — requesting sudo...")
     result = subprocess.run(cmd)
     if result.returncode != 0:

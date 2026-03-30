@@ -332,6 +332,18 @@ class Settings:
         config['selected_device'] = device_path
         save_config(config)
 
+    @staticmethod
+    def get_last_device() -> int:
+        """Get index of last GUI-active device. Defaults to 0."""
+        return load_config().get('last_device', 0)
+
+    @staticmethod
+    def save_last_device(index: int) -> None:
+        """Persist index of last GUI-active device."""
+        config = load_config()
+        config['last_device'] = index
+        save_config(config)
+
     # Cache vid_pid per index so save_device_setting can store it automatically
     _vid_pid_cache: dict[str, str] = {}
 

@@ -169,13 +169,18 @@ Zero tolerance for security issues. Fix within hexagonal architecture — never 
 - Never `setStyleSheet()` on ancestor widgets — blocks `QPalette` image backgrounds
 - Optional imports (`hid`, `dbus`, `gi`, `pynvml`) need `# pyright: ignore[reportMissingImports]`
 - C# asset suffixes are legacy — `Assets.get_localized()` maps ISO 639-1 → legacy suffixes via `ISO_TO_LEGACY`
-- **Issue #87**: Python 3.14 typer crash in `sudo_reexec` — needs to bypass `trcc.cli` entirely. PENDING.
+- **Issue #87**: Python 3.14 typer crash in `sudo_reexec` — FIXED: dispatches via `python -c` (direct function call), bypasses typer.
 
 ## GitHub Issues
 - Never use "Fixes #N" in commit messages — GitHub auto-closes on push to default branch
 - Don't close issues until reporter confirms the fix works
 - Every reply ends with funding footer: `\n\n---\nIf this project helps you, consider [buying me a beer](https://buymeacoffee.com/Lexonight1) 🍺 or [Ko-fi](https://ko-fi.com/lexonight1) ☕`
 - Check if reporter is a donor (README thanks section) — thank by name if so
+- **Package upgrade instructions must be copy-paste ready** — always provide the full `wget -c <URL>` + install command so users can paste directly into their terminal. Use the actual download URL from `gh release view --json assets`, not just "go to Releases page". Distro-specific:
+  - Arch: `wget -c <url>.pkg.tar.zst && sudo pacman -U trcc-linux-*.pkg.tar.zst`
+  - Fedora: `wget -c <url>.rpm && sudo dnf install ./trcc-linux-*.rpm`
+  - Ubuntu/Debian (legacy): `wget -c <url>.legacy_all.deb && sudo dpkg -i trcc-linux_*.legacy_all.deb`
+  - Ubuntu/Debian (standard): `wget -c <url>.deb && sudo dpkg -i trcc-linux_*.deb`
 
 ## Deployment
 - Default branch: `main`

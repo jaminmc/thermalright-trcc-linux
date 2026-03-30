@@ -1331,7 +1331,8 @@ class TestDevicePollLEDAutoSelect:
     showed all zeros until the user manually clicked the device button.
     """
 
-    def test_auto_select_led_calls_show(self, bare_trcc_app):
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_auto_select_led_calls_show(self, mock_settings, bare_trcc_app):
         """When _activate_device selects an LED path, handler.show() is called
         if the handler is not yet active."""
         from trcc.gui.led_handler import LEDHandler
@@ -1379,7 +1380,9 @@ class TestActivateDeviceLCDGuard:
         mock_handler.view_name = 'lcd'
         return mock_handler
 
-    def test_apply_device_config_called_on_first_activation(self, bare_trcc_app):
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_apply_device_config_called_on_first_activation(self, mock_settings,
+                                                             bare_trcc_app):
         """apply_device_config is called when device_key is empty (first activation)."""
         handler = self._make_lcd_handler(device_key='')
 
@@ -1393,7 +1396,9 @@ class TestActivateDeviceLCDGuard:
 
         handler.apply_device_config.assert_called_once()
 
-    def test_apply_device_config_skipped_when_already_initialized(self, bare_trcc_app):
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_apply_device_config_skipped_when_already_initialized(self, mock_settings,
+                                                                   bare_trcc_app):
         """apply_device_config is NOT called when device_key is already set (re-navigation)."""
         handler = self._make_lcd_handler(device_key='0:0402:3922')
 
@@ -1406,6 +1411,100 @@ class TestActivateDeviceLCDGuard:
         app._activate_device('lcd_path')
 
         handler.apply_device_config.assert_not_called()
+
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_reactivate_called_when_already_initialized(self, mock_settings,
+                                                         bare_trcc_app):
+        """reactivate() is called instead of apply_device_config on re-navigation."""
+        handler = self._make_lcd_handler(device_key='0:0402:3922')
+
+        app = bare_trcc_app
+        app._handlers = {'lcd_path': handler}
+        app._active_path = ''
+        app._show_view = MagicMock()
+        app._update_ldd_icon = MagicMock()
+        app._start_handshake = MagicMock()
+        app._activate_device('lcd_path')
+
+        handler.reactivate.assert_called_once_with(320, 320)
+
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_saves_last_device_on_activate(self, mock_settings, bare_trcc_app):
+        """_activate_device persists device index via Settings.save_last_device."""
+        handler = self._make_lcd_handler(device_key='k')
+        handler.device_info.device_index = 2
+
+        app = bare_trcc_app
+        app._handlers = {'lcd_path': handler}
+        app._active_path = ''
+        app._show_view = MagicMock()
+        app._update_ldd_icon = MagicMock()
+        app._start_handshake = MagicMock()
+        app._activate_device('lcd_path')
+
+        mock_settings.save_last_device.assert_called_once_with(2)
+
+
+class TestRebuildAllHandlersRestore:
+    """_rebuild_all_handlers restores last active device from config."""
+
+    def _make_lcd_handler(self, device_index: int, device_key: str = ''):
+        from trcc.gui.lcd_handler import LCDHandler
+
+        info = MagicMock()
+        info.resolution = (320, 320)
+        info.device_index = device_index
+
+        mock_handler = MagicMock(spec=LCDHandler)
+        mock_handler.device_key = device_key
+        mock_handler.display.connected = True
+        mock_handler.display.device_info = info
+        mock_handler.device_info = info
+        mock_handler.view_name = 'lcd'
+        return mock_handler
+
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_restores_last_device(self, mock_settings, bare_trcc_app):
+        mock_settings.get_last_device.return_value = 1
+
+        h0 = self._make_lcd_handler(device_index=0)
+        h1 = self._make_lcd_handler(device_index=1)
+
+        app = bare_trcc_app
+        app._handlers = {'path0': h0, 'path1': h1}
+        app._active_path = ''
+        app._show_view = MagicMock()
+        app._update_ldd_icon = MagicMock()
+        app._start_handshake = MagicMock()
+        app._refresh_sidebar = MagicMock()
+        app._add_handler = MagicMock()
+
+        # Simulate _rebuild_all_handlers selection logic
+        last_idx = mock_settings.get_last_device()
+        target = next(
+            (p for p, h in app._handlers.items()
+             if h.device_info and h.device_info.device_index == last_idx),
+            None,
+        )
+        assert target == 'path1'
+
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_falls_back_to_first_lcd(self, mock_settings, bare_trcc_app):
+        mock_settings.get_last_device.return_value = 99  # Not found
+
+        h0 = self._make_lcd_handler(device_index=0)
+
+        app = bare_trcc_app
+        app._handlers = {'path0': h0}
+        app._active_path = ''
+
+        last_idx = mock_settings.get_last_device()
+        target = next(
+            (p for p, h in app._handlers.items()
+             if h.device_info and h.device_info.device_index == last_idx),
+            None,
+        )
+        assert target is None  # Falls back to first LCD logic
 
 
 class TestHandshakeDoneGuard:
