@@ -19,7 +19,7 @@ depends=(
     'portaudio'
     'libusb'
     'sg3_utils'
-    'p7zip'
+    '7zip'
 )
 # python-uvicorn + python-sounddevice not in official Arch repos — bundled via pip in package()
 optdepends=(

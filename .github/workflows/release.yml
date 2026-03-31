@@ -147,8 +147,8 @@ jobs:
           Requires:   portaudio
           Requires:   libusb1
           Requires:   sg3_utils
-          Requires:   p7zip
-          Requires:   ffmpeg
+          Requires:   /usr/bin/7z
+          Requires:   /usr/bin/ffmpeg
           Recommends: python3-pynvml
           Recommends: python3-dbus
           Recommends: python3-hidapi
@@ -396,7 +396,7 @@ jobs:
           depend = portaudio
           depend = libusb
           depend = sg3_utils
-          depend = p7zip
+          depend = 7zip
           depend = ffmpeg
           optdepend = python-pynvml: NVIDIA GPU sensor support
           optdepend = python-dbus: Wayland session support
