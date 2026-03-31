@@ -165,6 +165,11 @@ jobs:
           /usr/lib/systemd/system/trcc-quirk-fix.service
           ${SITELIB}/trcc/
           ${SITELIB}/trcc_linux-*.dist-info/
+          ${SITELIB}/sounddevice.py
+          ${SITELIB}/_sounddevice.py
+          ${SITELIB}/__pycache__/sounddevice.*
+          ${SITELIB}/__pycache__/_sounddevice.*
+          ${SITELIB}/sounddevice-*.dist-info/
           /usr/bin/trcc
           /usr/bin/trcc-gui
           /usr/bin/trcc-detect
