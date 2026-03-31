@@ -221,7 +221,7 @@ Bare `patch`, `minor`, or `major` → full release workflow:
 2. Commit + push existing changes to `main`
 3. Bump version in `__version__.py`, `pyproject.toml`, `flake.nix`
 4. Version history + changelog
-5. Update `release.yml` inline package specs + README package URLs
+5. Update `release.yml` inline package specs (download URLs use fixed-name aliases — no version in guide/README URLs)
 6. Lint + test again
 7. Commit + push version bump + tag + GitHub release
 

@@ -418,15 +418,30 @@ jobs:
           done
           cat SHA256SUMS.txt
 
-      - name: Upload distro packages + checksums to release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create fixed-name aliases for stable download URLs
         run: |
           RPM=$(find packages -name "*.rpm" | head -1)
           DEB=$(find packages -name "*_all.deb" ! -name "*legacy*" | head -1)
           DEB_LEGACY=$(find packages -name "*legacy*_all.deb" | head -1)
           ARCH=$(find packages -name "*.pkg.tar.zst" | head -1)
+          cp "$RPM" packages/trcc-linux-latest.noarch.rpm
+          cp "$DEB" packages/trcc-linux-latest_all.deb
+          cp "$DEB_LEGACY" packages/trcc-linux-latest.legacy_all.deb
+          cp "$ARCH" packages/trcc-linux-latest-any.pkg.tar.zst
+
+      - name: Upload distro packages + checksums to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RPM=$(find packages -name "*.rpm" ! -name "*latest*" | head -1)
+          DEB=$(find packages -name "*_all.deb" ! -name "*legacy*" ! -name "*latest*" | head -1)
+          DEB_LEGACY=$(find packages -name "*legacy*_all.deb" ! -name "*latest*" | head -1)
+          ARCH=$(find packages -name "*.pkg.tar.zst" ! -name "*latest*" | head -1)
           gh release upload "${{ inputs.tag || github.ref_name }}" \
             "$RPM" "$DEB" "$DEB_LEGACY" "$ARCH" \
+            packages/trcc-linux-latest.noarch.rpm \
+            packages/trcc-linux-latest_all.deb \
+            packages/trcc-linux-latest.legacy_all.deb \
+            packages/trcc-linux-latest-any.pkg.tar.zst \
             packages/SHA256SUMS.txt \
             --clobber

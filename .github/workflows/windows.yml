@@ -149,6 +149,12 @@ jobs:
           name: trcc-windows-installer
           path: installer/Output/trcc-${{ steps.version.outputs.VERSION }}-setup.exe
 
+      - name: Create fixed-name alias for stable download URL
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          Copy-Item "installer/Output/trcc-${{ steps.version.outputs.VERSION }}-setup.exe" `
+            "installer/Output/trcc-latest-setup.exe"
+
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -156,4 +162,5 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} `
             "installer/Output/trcc-${{ steps.version.outputs.VERSION }}-setup.exe" `
+            "installer/Output/trcc-latest-setup.exe" `
             --clobber

@@ -80,7 +80,7 @@ Covers: Fedora 39+, Nobara 39+
 
 **One-liner** (download + install in one command):
 ```bash
-sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.1.1-1.fc43.noarch.rpm
+sudo dnf install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-latest.noarch.rpm
 ```
 
 **Or manually:** Download the `.rpm` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -112,7 +112,7 @@ Covers: Ubuntu 24.04+, Debian 13+, Linux Mint 22+, Pop!_OS 24.04+, Zorin OS 17+,
 
 **One-liner** (download + install in one command):
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux_9.1.1-1_all.deb && sudo dpkg -i trcc-linux_9.1.1-1_all.deb && sudo apt-get install -f
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-latest_all.deb && sudo dpkg -i trcc-linux-latest_all.deb && sudo apt-get install -f
 ```
 
 **Or manually:** Download the `.deb` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -183,7 +183,7 @@ Covers: Arch Linux, CachyOS, Manjaro, EndeavourOS, Garuda Linux, Artix Linux, Ar
 
 **One-liner** (download + install in one command):
 ```bash
-curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.1.1-1-any.pkg.tar.zst && sudo pacman -U trcc-linux-9.1.1-1-any.pkg.tar.zst
+curl -LO https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-latest-any.pkg.tar.zst && sudo pacman -U trcc-linux-latest-any.pkg.tar.zst
 ```
 
 **Or manually:** Download the `.pkg.tar.zst` file from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -563,7 +563,7 @@ These use an immutable root filesystem — you can't `sudo dnf install` like nor
 
 **One-liner** (download + install, requires reboot):
 ```bash
-rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-9.1.1-1.fc43.noarch.rpm && systemctl reboot
+rpm-ostree install https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-linux-latest.noarch.rpm && systemctl reboot
 ```
 
 **Or manually:** Download the `.rpm` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), then:
@@ -752,7 +752,7 @@ trcc gui
 
 ## Windows (experimental)
 
-Download `trcc-8.7.0-setup.exe` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer.
+Download [`trcc-latest-setup.exe`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-latest-setup.exe) from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest) and run the installer.
 
 **What you get:**
 - **TRCC** shortcut in Start Menu — launches the GUI
@@ -775,7 +775,7 @@ trcc doctor
 
 ## macOS (experimental)
 
-Download `trcc-8.7.0-macos.dmg` from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
+Download [`trcc-latest-macos.dmg`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-latest-macos.dmg) from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
 
 **Requirements:**
 - macOS 11+ (Big Sur or later)

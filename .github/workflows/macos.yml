@@ -162,6 +162,10 @@ jobs:
           name: trcc-macos-dmg
           path: trcc-${{ steps.version.outputs.VERSION }}-macos.dmg
 
+      - name: Create fixed-name alias for stable download URL
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: cp "trcc-${{ steps.version.outputs.VERSION }}-macos.dmg" trcc-latest-macos.dmg
+
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -169,4 +173,5 @@ jobs:
         run: |
           gh release upload "$GITHUB_REF_NAME" \
             "trcc-${{ steps.version.outputs.VERSION }}-macos.dmg" \
+            trcc-latest-macos.dmg \
             --clobber
