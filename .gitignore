@@ -78,6 +78,7 @@ src/trcc/data/ui_*.json
 # ──────────────────────────────────────────────
 # Dev / reference files (not for distribution)
 # ──────────────────────────────────────────────
+/dev/
 /dev_*
 # Dev scripts at root
 /test_*.py
