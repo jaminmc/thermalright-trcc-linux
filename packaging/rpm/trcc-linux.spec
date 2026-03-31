@@ -27,7 +27,6 @@ Requires:       python3-uvicorn >= 0.20
 Requires:       python3-prompt-toolkit >= 3.0.0
 Requires:       portaudio
 Requires:       sg3_utils
-Requires:       /usr/bin/7z
 
 # libusb is pulled in by python3-pyusb, but be explicit
 %if 0%{?fedora}
@@ -38,6 +37,8 @@ Requires:       libusb-1_0-0
 %endif
 
 # Optional deps
+Recommends:     p7zip
+Recommends:     ffmpeg
 Recommends:     python3-pynvml
 Recommends:     python3-dbus
 Recommends:     python3-gobject

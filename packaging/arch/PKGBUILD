@@ -19,10 +19,11 @@ depends=(
     'portaudio'
     'libusb'
     'sg3_utils'
-    '7zip'
 )
 # python-uvicorn + python-sounddevice not in official Arch repos — bundled via pip in package()
 optdepends=(
+    '7zip: theme archive extraction'
+    'ffmpeg: video and GIF playback'
     'python-pynvml: NVIDIA GPU sensor support'
     'python-dbus: Wayland session support'
     'python-gobject: Wayland session support'

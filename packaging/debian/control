@@ -33,9 +33,10 @@ Depends:
  libportaudio2,
  libusb-1.0-0,
  sg3-utils,
- p7zip-full,
  libxcb-cursor0
 Recommends:
+ p7zip-full,
+ ffmpeg,
  python3-pynvml,
  python3-dbus,
  python3-gi

@@ -147,8 +147,8 @@ jobs:
           Requires:   portaudio
           Requires:   libusb1
           Requires:   sg3_utils
-          Requires:   /usr/bin/7z
-          Requires:   /usr/bin/ffmpeg
+          Recommends: p7zip
+          Recommends: ffmpeg
           Recommends: python3-pynvml
           Recommends: python3-dbus
           Recommends: python3-hidapi
@@ -231,8 +231,8 @@ jobs:
           Section: utils
           Priority: optional
           Architecture: all
-          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, python3-prompt-toolkit, libportaudio2, libusb-1.0-0, sg3-utils, p7zip-full, ffmpeg
-          Recommends: python3-pynvml, python3-dbus, python3-hidapi
+          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, python3-prompt-toolkit, libportaudio2, libusb-1.0-0, sg3-utils
+          Recommends: p7zip-full, ffmpeg, python3-pynvml, python3-dbus, python3-hidapi
           Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
           Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
           Description: Thermalright LCD/LED Control Center for Linux
@@ -293,8 +293,8 @@ jobs:
           Section: utils
           Priority: optional
           Architecture: all
-          Depends: python3 (>= 3.9), python3-pip, python3-venv, libportaudio2, libusb-1.0-0, sg3-utils, p7zip-full, libxcb-cursor0, ffmpeg
-          Recommends: python3-dbus, python3-gi
+          Depends: python3 (>= 3.9), python3-pip, python3-venv, libportaudio2, libusb-1.0-0, sg3-utils, libxcb-cursor0
+          Recommends: p7zip-full, ffmpeg, python3-dbus, python3-gi
           Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
           Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
           Description: Thermalright LCD/LED Control Center for Linux
@@ -396,8 +396,8 @@ jobs:
           depend = portaudio
           depend = libusb
           depend = sg3_utils
-          depend = 7zip
-          depend = ffmpeg
+          optdepend = 7zip: theme archive extraction
+          optdepend = ffmpeg: video and GIF playback
           optdepend = python-pynvml: NVIDIA GPU sensor support
           optdepend = python-dbus: Wayland session support
           optdepend = python-gobject: Wayland session support
