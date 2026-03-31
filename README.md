@@ -45,7 +45,7 @@
 [![Buy Me a Beer](https://img.shields.io/badge/Buy_Me_a_Beer-🍺-FF5F5F?style=flat)](https://buymeacoffee.com/Lexonight1)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-☕-FF5E5B?style=flat&logo=kofi&logoColor=white)](https://ko-fi.com/lexonight1)
 
-> Huge thanks to **[@Reborn627](https://github.com/Reborn627)**, **[@nihilistqueen](https://github.com/nihilistqueen)**, **[@javisaman](https://github.com/javisaman)**, **[@woebygon](https://github.com/woebygon)**, **[@knappstar](https://github.com/knappstar)**, **[@chava-byte](https://github.com/chava-byte)**, **[@loosethoughts19-hash](https://github.com/loosethoughts19-hash)**, **[@Mr-Renegade](https://github.com/Mr-Renegade)**, **[@Xentrino](https://github.com/Xentrino)**, and **[@Smokemic](https://github.com/Smokemic)** for the beers — you guys are legends.
+> Huge thanks to **[@Reborn627](https://github.com/Reborn627)**, **[@nihilistqueen](https://github.com/nihilistqueen)**, **[@javisaman](https://github.com/javisaman)**, **[@woebygon](https://github.com/woebygon)**, **[@knappstar](https://github.com/knappstar)**, **[@chava-byte](https://github.com/chava-byte)**, **[@loosethoughts19-hash](https://github.com/loosethoughts19-hash)**, **[@rhuggins573-crypto](https://github.com/rhuggins573-crypto)**, **[@Mr-Renegade](https://github.com/Mr-Renegade)**, **[@Xentrino](https://github.com/Xentrino)**, and **[@Smokemic](https://github.com/Smokemic)** for the beers — you guys are legends.
 
 Native Linux port of the Thermalright LCD Control Center (Windows TRCC 2.1.2). Control and customize the LCD displays and LED segment displays on Thermalright CPU coolers, AIO pump heads, and fan hubs — entirely from Linux.
 
