@@ -1,5 +1,19 @@
 # Changelog
 
+## v9.3.1
+
+### Fixes
+- **`sudo trcc setup-udev` fails on Ubuntu pip installs** (issue #96): `sudo_reexec` now injects `sys.path` directly into the Python snippet instead of relying on `PYTHONPATH` env var — immune to Ubuntu's `sudoers env_reset` which strips environment variables
+- **macOS SCSI devices not working**: `MacOSScsiProtocol` created and wired into the device protocol factory — was silently falling back to Linux `sg_raw` which doesn't exist on macOS
+- **BSD SCSI data never reaching device**: `BSDScsiTransport` rewritten from broken `camcontrol` subprocess (stdin pipe doesn't work for data-out) to pyusb USB BOT — same proven approach as macOS
+- **Platform-specific error messages**: USB interface claim errors now show macOS/BSD-appropriate hints instead of Linux SELinux messages
+
+### Improvements
+- **Video progress bar**: Seek slider and time display now update during media player playback
+- **Audio visualization on screencast**: Mic button on screencast panel — spectrum analyzer bars drawn at bottom of frame (requires `sounddevice`)
+- **Documentation overhaul**: Rewrote New to Linux guide for Windows refugees with auto-detect one-liners, new comprehensive User Guide, added `trcc shell` to CLI reference, updated README counts
+- **Dead code removal**: `BSDDeviceDetector` class removed (was duplicating the injected detect path)
+
 ## v9.3.0
 
 ### Fixes
