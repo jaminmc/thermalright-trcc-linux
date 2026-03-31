@@ -320,56 +320,49 @@ src/trcc/
 
 A big thanks to everyone who has contributed invaluable reports to this project:
 
-- **[Xentrino](https://github.com/Xentrino)** — Peerless Assassin 120 Digital ARGB White LED testing across 15+ versions
-- **[hexskrew](https://github.com/hexskrew)** — Assassin X 120R Digital ARGB HID testing & GUI layout feedback
-- **[javisaman](https://github.com/javisaman)** — Phantom Spirit 120 Digital EVO LED testing & GPU phase validation
-- **[Pikarz](https://github.com/Pikarz)** — Mjolnir Vision 360 bulk protocol testing
-- **[michael-spinelli](https://github.com/michael-spinelli)** — Assassin Spirit 120 Vision ARGB HID testing & font style bug report
-- **[Rizzzolo](https://github.com/Rizzzolo)** — Phantom Spirit 120 Digital EVO hardware testing
-- **[N8ghtz](https://github.com/N8ghtz)** — Trofeo Vision HID testing
-- **[Lcstyle](https://github.com/Lcstyle)** — HR10 2280 PRO Digital testing
-- **[PantherX12max](https://github.com/PantherX12max)** — Trofeo Vision LCD hardware testing
-- **[shadowepaxeor-glitch](https://github.com/shadowepaxeor-glitch)** — AX120 Digital hardware testing & USB descriptor dumps
-- **[bipobuilt](https://github.com/bipobuilt)** — GrandVision 360 AIO bulk protocol testing
-- **[cadeon](https://github.com/cadeon)** — GrandVision 360 AIO bulk protocol testing
-- **[gizbo](https://github.com/gizbo)** — FROZEN WARFRAME SCSI color bug report
-- **[apj202-ops](https://github.com/apj202-ops)** — Frozen Warframe SE HID testing
-- **[Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS)** — Frozen Warframe 360 HID testing
-- **[edoargo1996](https://github.com/edoargo1996)** — Frozen Warframe 360 HID testing
-- **[stephendesmond1-cmd](https://github.com/stephendesmond1-cmd)** — Frozen Warframe 360 HID Type 2 testing
-- **[acioannina-wq](https://github.com/acioannina-wq)** — Assassin Spirit 120 Vision HID testing
-- **[Civilgrain](https://github.com/Civilgrain)** — Wonder Vision Pro 360 bulk protocol testing
-- **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** — Frozen Warframe Pro bulk protocol testing
-- **[Mr-Renegade](https://github.com/Mr-Renegade)** — Peerless Vision LY protocol testing & portrait rotation feedback
-- **[Reborn627](https://github.com/Reborn627)** — GrandVision 360 AIO HiDPI scaling & CachyOS testing
-- **[tensaiteki](https://github.com/tensaiteki)** — Elite Vision 360 SCSI detection on CachyOS (sg module bug) & Bazzite RPM shebang fix
-- **[wrightbyname](https://github.com/wrightbyname)** — CLI compatibility testing & bug report
-- **[Scifiguygaming](https://github.com/Scifiguygaming)** — Frozen Warframe HID testing on CachyOS
-- **[mog199](https://github.com/mog199)** — HID Type 2 permission error bug report
-- **[ravensvoice](https://github.com/ravensvoice)** — Trofeo Vision portrait cloud theme feature request
-- **[rhuggins573-crypto](https://github.com/rhuggins573-crypto)** — Assassin X 120R Digital ARGB LED bug report on Bazzite
-- **[knappstar](https://github.com/knappstar)** — Scrambled display bug report & SCSI permission troubleshooting
-- **[jezzaw007](https://github.com/jezzaw007)** — Preview rotation & overlay resume bug reports
-- **[Pewful2021](https://github.com/Pewful2021)** — PA120 LED troubleshooting
-- **[lallemandgianni-boop](https://github.com/lallemandgianni-boop)** — PA120 DIGITAL LCD PID investigation
-- **[sleeper14200](https://github.com/sleeper14200)** — Linux Mint .deb compatibility bug report
-- **[riodevelop](https://github.com/riodevelop)** — Frozen Warframe 240 HID tester
-- **[wobbegongus](https://github.com/wobbegongus)** — Frozen Warframe 240 HID tester & unresponsive GUI bug report
-- **[Alb3e3](https://github.com/Alb3e3)** — Wonder Vision 360 UB ARGB Windows bulk USB testing
-- **[Me-shok](https://github.com/Me-shok)** — Stream Vision bulk protocol testing on CachyOS
-- **[kabi02](https://github.com/kabi02)** — Uninstall/reinstall bug report
+**Frozen Warframe** — **[gizbo](https://github.com/gizbo)** · **[knappstar](https://github.com/knappstar)** · **[Scifiguygaming](https://github.com/Scifiguygaming)** · **[apj202-ops](https://github.com/apj202-ops)** · **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** · **[Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS)** · **[edoargo1996](https://github.com/edoargo1996)** · **[stephendesmond1-cmd](https://github.com/stephendesmond1-cmd)** · **[riodevelop](https://github.com/riodevelop)** · **[wobbegongus](https://github.com/wobbegongus)** · **[Pallemz](https://github.com/Pallemz)** · **[pawbtism](https://github.com/pawbtism)**
+
+**Trofeo Vision** — **[N8ghtz](https://github.com/N8ghtz)** · **[PantherX12max](https://github.com/PantherX12max)** · **[ravensvoice](https://github.com/ravensvoice)** · **[beret21](https://github.com/beret21)** · **[jimmister1234-bit](https://github.com/jimmister1234-bit)** · **[Tavus1990](https://github.com/Tavus1990)**
+
+**GrandVision 360 AIO** — **[bipobuilt](https://github.com/bipobuilt)** · **[cadeon](https://github.com/cadeon)** · **[Reborn627](https://github.com/Reborn627)** · **[TheManchineel](https://github.com/TheManchineel)**
+
+**Assassin Spirit 120 Vision** — **[michael-spinelli](https://github.com/michael-spinelli)** · **[acioannina-wq](https://github.com/acioannina-wq)**
+
+**Assassin X 120R Digital ARGB** — **[hexskrew](https://github.com/hexskrew)** · **[rhuggins573-crypto](https://github.com/rhuggins573-crypto)**
+
+**Peerless Assassin 120 Digital ARGB** — **[Xentrino](https://github.com/Xentrino)** · **[Vydon](https://github.com/Vydon)**
+
+**PA120 Digital** — **[Pewful2021](https://github.com/Pewful2021)** · **[lallemandgianni-boop](https://github.com/lallemandgianni-boop)** · **[mody446](https://github.com/mody446)**
+
+**Phantom Spirit 120 Digital EVO** — **[javisaman](https://github.com/javisaman)** · **[Rizzzolo](https://github.com/Rizzzolo)** · **[chava-byte](https://github.com/chava-byte)**
+
+**Wonder Vision** — **[Civilgrain](https://github.com/Civilgrain)** · **[Alb3e3](https://github.com/Alb3e3)**
+
+**AX120 Digital** — **[shadowepaxeor-glitch](https://github.com/shadowepaxeor-glitch)**
+
+**Elite Vision 360** — **[tensaiteki](https://github.com/tensaiteki)**
+
+**Mjolnir Vision 360** — **[Pikarz](https://github.com/Pikarz)**
+
+**Peerless Vision** — **[Mr-Renegade](https://github.com/Mr-Renegade)**
+
+**Stream Vision** — **[Me-shok](https://github.com/Me-shok)**
+
+**HR10 2280 PRO Digital** — **[Lcstyle](https://github.com/Lcstyle)**
+
+**General** — **[wrightbyname](https://github.com/wrightbyname)** · **[mog199](https://github.com/mog199)** · **[jezzaw007](https://github.com/jezzaw007)** · **[sleeper14200](https://github.com/sleeper14200)** · **[kabi02](https://github.com/kabi02)** · **[david43](https://github.com/david43)** · **[Deltawolf](https://github.com/Deltawolf)** · **[JoshWrites](https://github.com/JoshWrites)** · **[jun3010me](https://github.com/jun3010me)** · **[Litsas](https://github.com/Litsas)** · **[MoltenMonster](https://github.com/MoltenMonster)** · **[ProfessorJoed](https://github.com/ProfessorJoed)** · **[qwerty22121998](https://github.com/qwerty22121998)** · **[unfirthman](https://github.com/unfirthman)** · **[ux370](https://github.com/ux370)** · **[vlad1](https://github.com/vlad1)**
 
 ## Stars
 
 Thanks to everyone who took a moment to star this project.
 
-**[alessa-lara](https://github.com/alessa-lara)** · **[ArcaneCoder404](https://github.com/ArcaneCoder404)** · **[betolink](https://github.com/betolink)** · **[bive242](https://github.com/bive242)** · **[BrunoLeguizamon05](https://github.com/BrunoLeguizamon05)** · **[cancos1](https://github.com/cancos1)** · **[cesarnr21](https://github.com/cesarnr21)** · **[codeflitting](https://github.com/codeflitting)** · **[dabombUSA](https://github.com/dabombUSA)** · **[damachine](https://github.com/damachine)** · **[DasFlogetier](https://github.com/DasFlogetier)** · **[david43](https://github.com/david43)** · **[eap5](https://github.com/eap5)** · **[emaspa](https://github.com/emaspa)** · **[Gdetrane](https://github.com/Gdetrane)** · **[gupsterg](https://github.com/gupsterg)** · **[jezzaw007](https://github.com/jezzaw007)** · **[jhlasnik](https://github.com/jhlasnik)** · **[jmo808](https://github.com/jmo808)** · **[knappstar](https://github.com/knappstar)** · **[lotte25](https://github.com/lotte25)** · **[mgaruccio](https://github.com/mgaruccio)** · **[michelle0812](https://github.com/michelle0812)** · **[mkogut](https://github.com/mkogut)** · **[nathanielhernandez](https://github.com/nathanielhernandez)** · **[oddajpierscien](https://github.com/oddajpierscien)** · **[Pewful2021](https://github.com/Pewful2021)** · **[Pikarz](https://github.com/Pikarz)** · **[qussaif10](https://github.com/qussaif10)** · **[Rehaell](https://github.com/Rehaell)** · **[riodevelop](https://github.com/riodevelop)** · **[rslater](https://github.com/rslater)** · **[shadowepaxeor-glitch](https://github.com/shadowepaxeor-glitch)** · **[ShaunnyBwoy](https://github.com/ShaunnyBwoy)** · **[Smokemic](https://github.com/Smokemic)** · **[Spebelgenenst](https://github.com/Spebelgenenst)** · **[spiritofjon](https://github.com/spiritofjon)** · **[stephenvalente](https://github.com/stephenvalente)** · **[Thymur](https://github.com/Thymur)** · **[urbnywrt](https://github.com/urbnywrt)** · **[Vydon](https://github.com/Vydon)** · **[Xentrino](https://github.com/Xentrino)** · **[Ziusz](https://github.com/Ziusz)**
+**[akasvi](https://github.com/akasvi)** · **[alessa-lara](https://github.com/alessa-lara)** · **[ArcaneCoder404](https://github.com/ArcaneCoder404)** · **[azrael1911](https://github.com/azrael1911)** · **[betolink](https://github.com/betolink)** · **[bive242](https://github.com/bive242)** · **[BrunoLeguizamon05](https://github.com/BrunoLeguizamon05)** · **[cancos1](https://github.com/cancos1)** · **[cesarnr21](https://github.com/cesarnr21)** · **[codeflitting](https://github.com/codeflitting)** · **[dabombUSA](https://github.com/dabombUSA)** · **[damachine](https://github.com/damachine)** · **[DasFlogetier](https://github.com/DasFlogetier)** · **[david43](https://github.com/david43)** · **[eap5](https://github.com/eap5)** · **[emaspa](https://github.com/emaspa)** · **[Gdetrane](https://github.com/Gdetrane)** · **[greaseyjockey](https://github.com/greaseyjockey)** · **[gupsterg](https://github.com/gupsterg)** · **[israelsz](https://github.com/israelsz)** · **[jezzaw007](https://github.com/jezzaw007)** · **[jhlasnik](https://github.com/jhlasnik)** · **[jmo808](https://github.com/jmo808)** · **[Jorann](https://github.com/Jorann)** · **[knappstar](https://github.com/knappstar)** · **[Legendarycentaur](https://github.com/Legendarycentaur)** · **[Leonnaki](https://github.com/Leonnaki)** · **[lotte25](https://github.com/lotte25)** · **[mgaruccio](https://github.com/mgaruccio)** · **[michelle0812](https://github.com/michelle0812)** · **[mkogut](https://github.com/mkogut)** · **[nathanielhernandez](https://github.com/nathanielhernandez)** · **[oddajpierscien](https://github.com/oddajpierscien)** · **[okrzanowska](https://github.com/okrzanowska)** · **[PantherX12max](https://github.com/PantherX12max)** · **[Pewful2021](https://github.com/Pewful2021)** · **[Pikarz](https://github.com/Pikarz)** · **[qussaif10](https://github.com/qussaif10)** · **[qwerty22121998](https://github.com/qwerty22121998)** · **[Rehaell](https://github.com/Rehaell)** · **[rhuggins573-crypto](https://github.com/rhuggins573-crypto)** · **[riodevelop](https://github.com/riodevelop)** · **[rslater](https://github.com/rslater)** · **[saucymcbeef](https://github.com/saucymcbeef)** · **[shadowepaxeor-glitch](https://github.com/shadowepaxeor-glitch)** · **[ShaunnyBwoy](https://github.com/ShaunnyBwoy)** · **[Smokemic](https://github.com/Smokemic)** · **[Spebelgenenst](https://github.com/Spebelgenenst)** · **[spiritofjon](https://github.com/spiritofjon)** · **[stephenvalente](https://github.com/stephenvalente)** · **[Thymur](https://github.com/Thymur)** · **[Torotin](https://github.com/Torotin)** · **[urbnywrt](https://github.com/urbnywrt)** · **[Vydon](https://github.com/Vydon)** · **[Xentrino](https://github.com/Xentrino)** · **[YahusRevus](https://github.com/YahusRevus)** · **[Ziusz](https://github.com/Ziusz)**
 
 ## Faulkers
 
 Thanks for carrying the torch — these folks forked the repo to build on it.
 
-**[dabombUSA](https://github.com/dabombUSA)** · **[DasFlogetier](https://github.com/DasFlogetier)** · **[jezzaw007](https://github.com/jezzaw007)** · **[taillis](https://github.com/taillis)**
+**[dabombUSA](https://github.com/dabombUSA)** · **[DasFlogetier](https://github.com/DasFlogetier)** · **[jemte](https://github.com/jemte)** · **[jezzaw007](https://github.com/jezzaw007)** · **[taillis](https://github.com/taillis)**
 
 ## Donations
 
