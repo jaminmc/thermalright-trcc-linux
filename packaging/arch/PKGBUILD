@@ -17,6 +17,7 @@ depends=(
     'python-fastapi'
     'python-multipart'
     'python-prompt_toolkit'
+    'python-sounddevice'
     'libusb'
     'sg3_utils'
     'p7zip'

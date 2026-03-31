@@ -17,6 +17,7 @@ pkgbase = trcc-linux
 	depends = python-click
 	depends = python-typer
 	depends = python-fastapi
+	depends = python-sounddevice
 	depends = libusb
 	depends = sg3_utils
 	depends = p7zip

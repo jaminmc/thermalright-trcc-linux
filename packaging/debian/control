@@ -31,6 +31,7 @@ Depends:
  python3-uvicorn (>= 0.20),
  python3-multipart (>= 0.0.6),
  python3-prompt-toolkit (>= 3.0.0),
+ libportaudio2,
  libusb-1.0-0,
  sg3-utils,
  p7zip-full,

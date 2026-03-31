@@ -142,6 +142,7 @@ jobs:
           Requires:   python3-uvicorn
           Requires:   python3-multipart
           Requires:   python3-prompt_toolkit
+          Requires:   python3-sounddevice
           Requires:   libusb1
           Requires:   sg3_utils
           Requires:   p7zip
@@ -220,7 +221,7 @@ jobs:
           Section: utils
           Priority: optional
           Architecture: all
-          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, python3-multipart, python3-prompt-toolkit, libusb-1.0-0, sg3-utils, p7zip-full, ffmpeg
+          Depends: python3 (>= 3.9), python3-pyside6, python3-numpy, python3-psutil, python3-usb, python3-click, python3-typer, python3-fastapi, python3-uvicorn, python3-multipart, python3-prompt-toolkit, libportaudio2, libusb-1.0-0, sg3-utils, p7zip-full, ffmpeg
           Recommends: python3-pynvml, python3-dbus, python3-hidapi
           Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
           Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
@@ -282,7 +283,7 @@ jobs:
           Section: utils
           Priority: optional
           Architecture: all
-          Depends: python3 (>= 3.9), python3-pip, python3-venv, libusb-1.0-0, sg3-utils, p7zip-full, libxcb-cursor0, ffmpeg
+          Depends: python3 (>= 3.9), python3-pip, python3-venv, libportaudio2, libusb-1.0-0, sg3-utils, p7zip-full, libxcb-cursor0, ffmpeg
           Recommends: python3-dbus, python3-gi
           Maintainer: TRCC Linux Contributors <siembabdavid@gmail.com>
           Homepage: https://github.com/Lexonight1/thermalright-trcc-linux
@@ -383,6 +384,7 @@ jobs:
           depend = python-fastapi
           depend = python-multipart
           depend = python-prompt_toolkit
+          depend = python-sounddevice
           depend = libusb
           depend = sg3_utils
           depend = p7zip

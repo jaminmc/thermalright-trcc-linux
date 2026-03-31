@@ -1,5 +1,18 @@
 # Changelog
 
+## v9.3.0
+
+### Fixes
+- **Media player video not playing on LCD**: Theme animation cache was not cleared when loading a user video, and raw frames were not converted to native surfaces — video tick sent empty frames while the old theme cache kept displaying. Both fixed.
+- **Overlay competing with video playback**: `_render_and_send` now skips when video is active — the video tick owns the device during playback
+
+### Improvements
+- **Remove 14 backward-compat aliases**: Dead alias functions removed from dc_writer, media_player, models, CLI diag, and CLI system. All callers updated to use canonical names.
+- **`render_and_send` cleanup**: Removed unused `skip_if_video` parameter — guard moved to handler layer where it belongs
+
+### Dependencies
+- **`sounddevice`** added as core dependency (preparation for mic audio visualization on screencast)
+
 ## v9.2.10
 
 ### Fixes
