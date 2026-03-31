@@ -1,20 +1,20 @@
-# Target Architecture — Hexagonal SOLID (Without the Ceremony)
+# Architecture Decision — CommandBus Removal (Completed v9.3.0)
 
-## Problem
+## Context
 
-The current CommandBus layer (62 command dataclasses, 4 handlers, ~1,800 lines) sits between good adapters and good core logic, adding indirection without value. 80% of handler case arms are pure passthrough: `case SetBrightnessCommand(level=level): return self._lcd.set_brightness(level)`.
+The CommandBus layer (62 command dataclasses, 4 handlers, ~1,800 lines) sat between good adapters and good core logic, adding indirection without value. 80% of handler case arms were pure passthrough: `case SetBrightnessCommand(level=level): return self._lcd.set_brightness(level)`.
 
-The hexagonal architecture is correct. The SOLID principles are correct. The CommandBus is not part of either — it's ceremony that grew between the layers. Removing it makes the architecture *more* hexagonal, not less.
+The hexagonal architecture was correct. The SOLID principles were correct. The CommandBus was not part of either — it was ceremony that grew between the layers. Removing it made the architecture *more* hexagonal, not less.
 
-## Hexagonal Layers (What We Keep)
+## Result — Hexagonal Layers
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  Adapters (thin — parse input, format output)   │
 │                                                 │
-│  CLI:  trcc 0 brightness 75 image pic.png       │
-│  API:  GET /trcc/0?brightness=75&image=pic.png  │
-│  GUI:  slider + image picker on device panel    │
+│  CLI:  trcc theme-load Theme1                   │
+│  API:  POST /display/theme {name: "Theme1"}     │
+│  GUI:  click theme in browser panel             │
 └───────────────────┬─────────────────────────────┘
                     │ direct method calls (no bus)
 ┌───────────────────▼─────────────────────────────┐
@@ -43,7 +43,6 @@ The hexagonal architecture is correct. The SOLID principles are correct. The Com
 ```
 
 Dependencies point inward only. Adapters → Core → Services → Transport.
-This is textbook hexagonal. The CommandBus was a layer that didn't belong.
 
 ## SOLID (How It Applies)
 
@@ -53,7 +52,7 @@ This is textbook hexagonal. The CommandBus was a layer that didn't belong.
 - **ISP**: `LCDDevice` and `LEDDevice` expose only their own operations.
 - **DIP**: Services and transports injected via constructors. Core never imports adapters.
 
-None of this requires a CommandBus. It requires clean interfaces and dependency injection, which we already have.
+None of this requires a CommandBus. It requires clean interfaces and dependency injection.
 
 ## The Device — Universal Entry Point
 
@@ -68,23 +67,10 @@ One device list, indexed. Handshake determines type. Index is the universal sele
 
 | Operation | CLI | API | GUI |
 |-----------|-----|-----|-----|
-| Discover all | `trcc` | `GET /trcc` | Auto on startup |
-| Select device | `trcc 0` | `GET /trcc/0` | Click device button |
-| Single op | `trcc 0 brightness 75` | `GET /trcc/0?brightness=75` | Slider widget |
-| Chained ops | `trcc 0 brightness 75 image pic.png` | `GET /trcc/0?brightness=75&image=pic.png` | Panel applies both |
-| GUI mode | `trcc gui` | n/a | n/a |
-
-### Command Chaining
-
-Operations chain left-to-right, executed sequentially on one device connection:
-
-```
-trcc 0 brightness 75 image pic.png rotation 90
-```
-
-Pipeline: connect → set brightness → send image → set rotation → done.
-
-Each adapter parses chained operations into a list of `(method_name, args)` and calls them in order on the device. No command objects — just method calls.
+| Discover all | `trcc detect` | `GET /devices` | Auto on startup |
+| Load theme | `trcc theme-load Theme1` | `POST /display/theme` | Click theme |
+| Brightness | `trcc brightness 75` | `POST /display/brightness` | Slider widget |
+| LED mode | `trcc led-mode rainbow` | `POST /led/mode` | Mode picker |
 
 ## Operations (Validated Against C# Source)
 
@@ -124,6 +110,29 @@ The Windows app has ~22 distinct operations. That's what the hardware supports.
 | `temp-unit` | `c/f` | via `settings.set_temp_unit()` |
 | `language` | `code` | via `settings.set_lang()` |
 
+## What Was Changed (v9.3.0)
+
+### Removed (~1,800 lines)
+- `core/command_bus.py` — bus + middleware infrastructure
+- `core/commands/` — 62 command dataclasses (replaced by ~22 device methods that already existed)
+- `core/handlers/` — 4 handlers with match statements (pure passthrough, no logic)
+
+### Simplified (~122 dispatch sites rewired)
+- CLI: `bus.dispatch(SetBrightnessCommand(level=75))` → `lcd.set_brightness(75)`
+- API: `bus.dispatch(SetBrightnessCommand(level=75))` → `lcd.set_brightness(75)`
+- GUI: `self._bus.dispatch(SetBrightnessCommand(level=75))` → `self._lcd.set_brightness(75)`
+- LED rate limiting: moved from `RateLimitMiddleware` to timer in `led_handler.py`
+- Logging: `log.debug()` at adapter boundary or in device methods (where it belongs)
+
+### Kept (unchanged)
+- `core/models.py` — domain data, single source of truth
+- `core/lcd_device.py`, `core/led_device.py` — device facades (these ARE the operations)
+- `services/` — business logic (display, overlay, LED, system)
+- `adapters/device/` — transport layer (SCSI, HID, Bulk, LED protocols)
+- `adapters/system/` — platform adapters (Linux, Windows, macOS, BSD)
+- `conf.py` — settings singleton
+- `gui/` widgets — rewired from `bus.dispatch()` to `device.method()`
+
 ## GUI Specifics
 
 - `trcc gui` discovers + handshakes all devices at startup
@@ -132,40 +141,3 @@ The Windows app has ~22 distinct operations. That's what the hardware supports.
 - Panel widgets call device methods directly — no bus dispatch
 - LED rate limiting is a local concern in `led_handler.py` (throttle slider signals with a timer)
 - Multiple devices: each has its own connection, panels switch between them
-
-## What Changes
-
-### Remove (~1,800 lines)
-- `core/command_bus.py` — bus + middleware infrastructure
-- `core/commands/` — 62 command dataclasses (replaced by ~22 device methods that already exist)
-- `core/handlers/` — 4 handlers with match statements (pure passthrough, no logic)
-
-### Simplify (rewire ~122 dispatch sites)
-- CLI: `bus.dispatch(SetBrightnessCommand(level=75))` → `lcd.set_brightness(75)`
-- API: `bus.dispatch(SetBrightnessCommand(level=75))` → `lcd.set_brightness(75)`
-- GUI: `self._bus.dispatch(SetBrightnessCommand(level=75))` → `self._lcd.set_brightness(75)`
-- LED rate limiting: move from `RateLimitMiddleware` to timer in `led_handler.py`
-- Logging: `log.debug()` at adapter boundary or in device methods (where it belongs)
-
-### Keep (unchanged)
-- `core/models.py` — domain data, single source of truth
-- `core/lcd_device.py`, `core/led_device.py` — device facades (these ARE the operations)
-- `services/` — business logic (display, overlay, LED, system)
-- `adapters/device/` — transport layer (SCSI, HID, Bulk, LED protocols)
-- `adapters/system/` — platform adapters (Linux, Windows, macOS, BSD)
-- `conf.py` — settings singleton
-- `gui/` widgets — just rewire from `bus.dispatch()` to `device.method()`
-
-### Add
-- Command chaining in CLI arg parser (parse `brightness 75 image pic.png` as operation list)
-- Query param chaining in API (parse `?brightness=75&image=pic.png` as operation list)
-- Device index as first-class concept in all three adapters
-
-## Test Strategy
-
-Tests follow the same simplification:
-- **Core tests**: Call device methods with realistic inputs, assert outputs. No command objects.
-- **Service tests**: Inject mock transports, verify business logic with real inputs/outputs.
-- **Adapter tests**: Verify adapters parse input correctly and call the right device method.
-- **Integration tests**: Full pipeline — adapter parses input → device method → service logic → mock transport.
-- **Fixture-based**: Fixtures provide realistic device state (handshake results, device info). Tests assert on real return values, not mock calls.

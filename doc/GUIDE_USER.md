@@ -231,7 +231,7 @@ trcc shell               # interactive shell with tab completion
 trcc serve               # start REST API server
 ```
 
-See the full [CLI Reference](REFERENCE_CLI.md) for all 60 commands.
+See the full [CLI Reference](REFERENCE_CLI.md) for all commands.
 
 ---
 
@@ -253,7 +253,7 @@ curl http://localhost:9876/system/metrics
 
 Interactive Swagger docs at `http://localhost:9876/docs` when the server is running.
 
-See the full [API Reference](REFERENCE_API.md) for all 55 endpoints.
+See the full [API Reference](REFERENCE_API.md) for all 49 endpoints.
 
 ---
 

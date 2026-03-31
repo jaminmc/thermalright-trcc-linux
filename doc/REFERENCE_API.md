@@ -57,7 +57,7 @@ Health check. Always accessible, no auth required.
 
 **Response:**
 ```json
-{"status": "ok", "version": "9.1.1"}
+{"status": "ok", "version": "9.3.2"}
 ```
 
 ---
@@ -68,7 +68,7 @@ Pair a remote client (e.g. TRCC Remote app). Returns connection info and device 
 
 **Response:**
 ```json
-{"paired": true, "version": "9.1.1"}
+{"paired": true, "version": "9.3.2"}
 ```
 
 ---
@@ -690,7 +690,7 @@ Generate diagnostic report (same as `trcc report` CLI command).
 
 **Response:**
 ```json
-{"report": "TRCC Linux v9.1.1\n..."}
+{"report": "TRCC Linux v9.3.2\n..."}
 ```
 
 ### `GET /system/perf`

@@ -6,7 +6,7 @@ The project follows hexagonal architecture. The **services layer** is the core h
 
 - **CLI** (`cli/` package) — Typer, 56 commands across 8 submodules. Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
 - **GUI** (`gui/`) — PySide6, `TRCCApp` (thin shell) + `LCDHandler` (one per LCD device)
-- **API** (`api/` package) — FastAPI REST adapter, 53 endpoints across 7 submodules
+- **API** (`api/` package) — FastAPI REST adapter, 49 endpoints across 7 submodules
 - **IPC** (`ipc.py`) — Unix socket daemon for GUI-as-server single-device-owner safety
 - **Setup GUI** (`install/gui.py`) — Standalone PySide6 setup wizard
 
