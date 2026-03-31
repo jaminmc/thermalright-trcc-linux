@@ -69,11 +69,14 @@ def sudo_reexec(subcommand: str) -> int:
     paths.append(trcc_pkg)
     pythonpath = os.pathsep.join(paths)
 
+    # Inject PYTHONPATH inside the Python process itself — immune to
+    # sudoers env_reset which strips environment variables on Ubuntu.
+    path_inject = f"import sys; sys.path[:0] = {paths!r}; "
+
     snippet = _SUDO_DISPATCH.get(subcommand)
     if snippet:
         cmd = [
-            "sudo", "env", f"PYTHONPATH={pythonpath}",
-            sys.executable, "-c", snippet,
+            "sudo", sys.executable, "-c", path_inject + snippet,
         ]
     else:
         cmd = [

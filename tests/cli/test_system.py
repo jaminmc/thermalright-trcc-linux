@@ -59,7 +59,7 @@ class TestSudoReexec:
             rc = _sudo_reexec("setup-selinux")
         assert rc == 1
 
-    def test_command_starts_with_sudo_env(self, completed_process, capsys):
+    def test_command_starts_with_sudo_and_injects_path(self, completed_process, capsys):
         captured_cmd = []
 
         def fake_run(cmd, **kwargs):
@@ -72,16 +72,15 @@ class TestSudoReexec:
             _sudo_reexec("setup-udev")
 
         assert captured_cmd[0] == "sudo"
-        assert captured_cmd[1] == "env"
-        assert any(c.startswith("PYTHONPATH=") for c in captured_cmd)
+        # Path injection is baked into the python -c snippet (immune to env_reset)
+        snippet = captured_cmd[-1]
+        assert "sys.path" in snippet
 
-    def test_pythonpath_contains_trcc_pkg_root(self, completed_process, capsys):
-        captured_env = {}
+    def test_snippet_contains_user_site_packages(self, completed_process, capsys):
+        captured_cmd = []
 
         def fake_run(cmd, **kwargs):
-            for c in cmd:
-                if c.startswith("PYTHONPATH="):
-                    captured_env["pythonpath"] = c[len("PYTHONPATH="):]
+            captured_cmd.extend(cmd)
             return completed_process(0)
 
         with patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
@@ -89,11 +88,10 @@ class TestSudoReexec:
              patch("site.getusersitepackages", return_value="/home/user/.local"):
             _sudo_reexec("setup-udev")
 
-        pp = captured_env["pythonpath"]
-        # Should include the trcc package root (src/ equivalent)
-        assert pp  # not empty
-        # Should include the user site-packages
-        assert "/home/user/.local" in pp
+        snippet = captured_cmd[-1]
+        # Paths are injected via sys.path inside the snippet
+        assert "/home/user/.local" in snippet
+        assert "/usr/lib/python3" in snippet
 
     def test_dispatched_subcommand_uses_python_c(self, completed_process, capsys):
         """Known subcommands bypass trcc.cli via python -c (#87)."""
@@ -139,14 +137,11 @@ class TestSudoReexec:
         assert "Root required" in out or "sudo" in out.lower()
 
     def test_site_packages_before_trcc_pkg_in_pythonpath(self, completed_process, capsys):
-        """Site-packages must come before trcc_pkg to prevent dev clones
-        from shadowing pip-installed packages under sudo."""
-        captured_env = {}
+        """Site-packages must come before trcc_pkg in the injected sys.path."""
+        captured_cmd = []
 
         def fake_run(cmd, **kwargs):
-            for c in cmd:
-                if c.startswith("PYTHONPATH="):
-                    captured_env["pythonpath"] = c[len("PYTHONPATH="):]
+            captured_cmd.extend(cmd)
             return completed_process(0)
 
         with patch("trcc.adapters.system.linux.setup.subprocess.run", side_effect=fake_run), \
@@ -154,14 +149,11 @@ class TestSudoReexec:
              patch("site.getusersitepackages", return_value="/home/user/.local"):
             _sudo_reexec("setup-udev")
 
-        pp = captured_env["pythonpath"]
-        import os as _os
-        parts = pp.split(_os.pathsep)
-        # System and user site-packages must appear before the trcc package root
-        assert parts[0] == "/usr/lib/python3"
-        assert parts[1] == "/home/user/.local"
-        # trcc_pkg is last
-        assert len(parts) == 3
+        snippet = captured_cmd[-1]
+        # System site-packages must appear before trcc package root
+        idx_sys = snippet.index("/usr/lib/python3")
+        idx_user = snippet.index("/home/user/.local")
+        assert idx_sys < idx_user
 
     def test_nonzero_exit_prints_fallback_instructions(self, completed_process, capsys):
         with patch("trcc.adapters.system.linux.setup.subprocess.run", return_value=completed_process(1)), \
