@@ -907,7 +907,7 @@ def _cmd_hid_debug(
     )] = False,
 ) -> int:
     """HID handshake diagnostic (hex dump for bug reports)."""
-    return _diag.hid_debug(test_frame=test_frame)
+    return _diag.device_debug(test_frame=test_frame)
 
 
 @app.command("led-debug")
@@ -917,7 +917,7 @@ def _cmd_led_debug(
     )] = False,
 ) -> int:
     """Diagnose LED device (handshake, PM byte)."""
-    return _diag.led_debug(test_colors=test_colors)
+    return _diag.led_debug_interactive(test_colors=test_colors)
 
 
 @app.command("report")
@@ -1245,8 +1245,8 @@ play_video = _display.play_video
 reset_device = _display.reset
 resume = _display.resume
 show_info = _system.show_info
-hid_debug = _diag.hid_debug
-led_debug = _diag.led_debug
+hid_debug = _diag.device_debug
+led_debug = _diag.led_debug_interactive
 setup_udev = _system.setup_udev
 install_desktop = _system.install_desktop
 uninstall = _system.uninstall

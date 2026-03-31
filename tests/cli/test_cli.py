@@ -27,11 +27,10 @@ from unittest.mock import MagicMock, patch
 from trcc.cli import (
     _display,
     gui,
-    hid_debug,
-    led_debug,
     main,
 )
 from trcc.cli import test_display as cli_test_display
+from trcc.cli._diag import device_debug, led_debug_interactive
 
 # =========================================================================
 # main() dispatch — verifies argument parsing routes to correct functions
@@ -480,13 +479,13 @@ class TestHidDebug(unittest.TestCase):
     """Tests for hid_debug() command."""
 
     def test_no_hid_devices(self):
-        result = hid_debug(detect_fn=lambda: [])
+        result = device_debug(detect_fn=lambda: [])
         self.assertEqual(result, 0)
 
     def test_exception_returns_1(self):
         def _raise():
             raise Exception("fail")
-        result = hid_debug(detect_fn=_raise)
+        result = device_debug(detect_fn=_raise)
         self.assertEqual(result, 1)
 
     def test_hid_device_handshake_none(self):
@@ -501,7 +500,7 @@ class TestHidDebug(unittest.TestCase):
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = None
         with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
-            result = hid_debug(detect_fn=lambda: [dev])
+            result = device_debug(detect_fn=lambda: [dev])
         self.assertEqual(result, 0)
         mock_protocol.close.assert_called_once()
 
@@ -522,7 +521,7 @@ class TestHidDebug(unittest.TestCase):
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
         with patch('trcc.adapters.device.factory.HidProtocol', return_value=mock_protocol):
-            result = hid_debug(detect_fn=lambda: [dev])
+            result = device_debug(detect_fn=lambda: [dev])
         self.assertEqual(result, 0)
 
     def test_led_device_handshake_success(self):
@@ -542,7 +541,7 @@ class TestHidDebug(unittest.TestCase):
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
         with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
-            result = hid_debug(detect_fn=lambda: [dev])
+            result = device_debug(detect_fn=lambda: [dev])
         self.assertEqual(result, 0)
 
     def test_hid_device_import_error(self):
@@ -555,12 +554,12 @@ class TestHidDebug(unittest.TestCase):
         )
         with patch('trcc.adapters.device.factory.LedProtocol',
                    side_effect=ImportError("No module named 'usb'")):
-            result = hid_debug(detect_fn=lambda: [dev])
+            result = device_debug(detect_fn=lambda: [dev])
         self.assertEqual(result, 0)
 
     def test_dispatch_hid_debug(self):
         """main() dispatches 'hid-debug' to _diag.hid_debug()."""
-        with patch('trcc.cli._diag.hid_debug', return_value=0) as mock_fn, \
+        with patch('trcc.cli._diag.device_debug', return_value=0) as mock_fn, \
              patch('sys.argv', ['trcc', 'hid-debug']):
             result = main()
         self.assertEqual(result, 0)
@@ -573,7 +572,7 @@ class TestLedDebug(unittest.TestCase):
     def test_exception_returns_1(self):
         with patch('trcc.adapters.device.factory.LedProtocol',
                    side_effect=Exception("fail")):
-            result = led_debug()
+            result = led_debug_interactive()
         self.assertEqual(result, 1)
 
     def test_handshake_success(self):
@@ -587,7 +586,7 @@ class TestLedDebug(unittest.TestCase):
         mock_protocol = MagicMock()
         mock_protocol.handshake.return_value = info
         with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
-            result = led_debug(test_colors=False)
+            result = led_debug_interactive(test_colors=False)
         self.assertEqual(result, 0)
         mock_protocol.close.assert_called_once()
 
@@ -597,7 +596,7 @@ class TestLedDebug(unittest.TestCase):
         mock_protocol.handshake.return_value = None
         mock_protocol.last_error = RuntimeError("timeout")
         with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol):
-            result = led_debug(test_colors=False)
+            result = led_debug_interactive(test_colors=False)
         self.assertEqual(result, 1)
         mock_protocol.close.assert_called_once()
 
@@ -613,14 +612,14 @@ class TestLedDebug(unittest.TestCase):
         mock_protocol.handshake.return_value = info
         with patch('trcc.adapters.device.factory.LedProtocol', return_value=mock_protocol), \
              patch('time.sleep'):
-            result = led_debug(test_colors=True)
+            result = led_debug_interactive(test_colors=True)
         self.assertEqual(result, 0)
         # 4 colors + OFF = 5 send_led_data calls
         self.assertEqual(mock_protocol.send_led_data.call_count, 5)
 
     def test_dispatch_led_debug(self):
         """main() dispatches 'led-debug' to _diag.led_debug()."""
-        with patch('trcc.cli._diag.led_debug', return_value=0) as mock_fn, \
+        with patch('trcc.cli._diag.led_debug_interactive', return_value=0) as mock_fn, \
              patch('sys.argv', ['trcc', 'led-debug']):
             result = main()
         self.assertEqual(result, 0)

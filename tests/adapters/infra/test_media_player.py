@@ -61,26 +61,6 @@ def _make_video_decoder(frame_count=5, fps=16, size=(320, 320)):
 
 # -- Backward-compat aliases ------------------------------------------------
 
-class TestBackwardCompatAliases(unittest.TestCase):
-    """Old names still resolve to new classes."""
-
-    def test_video_player_alias(self):
-        from trcc.adapters.infra.media_player import VideoPlayer
-        self.assertIs(VideoPlayer, VideoDecoder)
-
-    def test_theme_zt_player_alias(self):
-        from trcc.adapters.infra.media_player import ThemeZtPlayer
-        self.assertIs(ThemeZtPlayer, ThemeZtDecoder)
-
-    def test_gif_animator_alias(self):
-        from trcc.adapters.infra.media_player import GIFAnimator
-        self.assertIs(GIFAnimator, VideoDecoder)
-
-    def test_gif_theme_loader_alias(self):
-        from trcc.adapters.infra.media_player import GIFThemeLoader
-        self.assertIs(GIFThemeLoader, VideoDecoder)
-
-
 # -- VideoDecoder -----------------------------------------------------------
 
 class TestVideoDecoderProperties(unittest.TestCase):

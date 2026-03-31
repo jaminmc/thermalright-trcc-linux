@@ -597,12 +597,4 @@ def read_carousel(filepath: str) -> Optional[CarouselConfig]:
         return None
 
 
-# ── Backward-compat aliases ──────────────────────────────────────────────
-
-write_dc_file = write
-write_tr_export = write_tr
-overlay_config_to_theme = overlay_to_theme
 _metric_to_hardware_ids = lambda metric: METRIC_TO_IDS.get(metric, (0, 0))  # noqa: E731
-write_config_json = write_json
-write_carousel_config = write_carousel
-read_carousel_config = read_carousel

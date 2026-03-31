@@ -1448,35 +1448,35 @@ class TestUninstall:
 # ===========================================================================
 
 class TestDetectInstallMethod:
-    """_detect_install_method — exercises each detection branch."""
+    """detect_install_method — exercises each detection branch."""
 
     def test_pipx_prefix(self):
         """Detects pipx from sys.prefix path."""
-        from trcc.cli._system import _detect_install_method
-        with patch("trcc.cli._system.sys.prefix",
+        from trcc.core.platform import detect_install_method
+        with patch("trcc.core.platform.sys.prefix",
                    "/home/user/.local/pipx/venvs/trcc-linux"):
-            assert _detect_install_method() == "pipx"
+            assert detect_install_method() == "pipx"
 
     def test_pip_from_metadata(self):
         """Reads INSTALLER file from package metadata."""
-        from trcc.cli._system import _detect_install_method
+        from trcc.core.platform import detect_install_method
         mock_dist = MagicMock()
         mock_dist.read_text.return_value = "pip\n"
-        with patch("trcc.cli._system.sys.prefix", "/usr"), \
+        with patch("trcc.core.platform.sys.prefix", "/usr"), \
              patch("importlib.metadata.distribution", return_value=mock_dist):
-            assert _detect_install_method() == "pip"
+            assert detect_install_method() == "pip"
 
     def test_falls_back_to_package_manager(self):
         """Falls back to whichever system package manager exists."""
         from importlib.metadata import PackageNotFoundError
 
-        from trcc.cli._system import _detect_install_method
-        with patch("trcc.cli._system.sys.prefix", "/usr"), \
+        from trcc.core.platform import detect_install_method
+        with patch("trcc.core.platform.sys.prefix", "/usr"), \
              patch("importlib.metadata.distribution",
                    side_effect=PackageNotFoundError("trcc-linux")), \
-             patch("trcc.cli._system.shutil.which",
+             patch("trcc.core.platform.shutil.which",
                    side_effect=lambda cmd: "/usr/bin/dnf" if cmd == "dnf" else None):
-            assert _detect_install_method() == "dnf"
+            assert detect_install_method() == "dnf"
 
 
 # ===========================================================================

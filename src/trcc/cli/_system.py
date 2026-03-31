@@ -138,8 +138,6 @@ def setup_winusb() -> int:
     return TrccApp.get().setup_winusb()
 
 
-# _detect_install_method moved to core/platform.py as detect_install_method()
-_detect_install_method = detect_install_method
 
 
 def _is_externally_managed() -> bool:
@@ -221,7 +219,7 @@ def uninstall(*, yes: bool = False):
 
     # Detect install method and uninstall the package accordingly
     install_info = Settings.get_install_info()
-    method = install_info.get('method', _detect_install_method())
+    method = install_info.get('method', detect_install_method())
 
     if method in ('pacman', 'dnf', 'apt'):
         pkg_cmds = {

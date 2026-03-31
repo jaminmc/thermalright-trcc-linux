@@ -17,13 +17,13 @@ from trcc.adapters.infra.dc_writer import (
     _write_string,
     export_theme,
     import_theme,
-    overlay_config_to_theme,
-    read_carousel_config,
+    overlay_to_theme,
+    read_carousel,
     save_theme,
-    write_carousel_config,
-    write_config_json,
-    write_dc_file,
-    write_tr_export,
+    write,
+    write_carousel,
+    write_json,
+    write_tr,
 )
 from trcc.core.models import CarouselConfig, DisplayElement, ThemeConfig
 
@@ -92,7 +92,7 @@ class TestWriteDcFile(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_dc_file(ThemeConfig(), path)
+            write(ThemeConfig(), path)
             with open(path, 'rb') as f:
                 data = f.read()
             # Magic byte
@@ -115,7 +115,7 @@ class TestWriteDcFile(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_dc_file(config, path)
+            write(config, path)
             with open(path, 'rb') as f:
                 data = f.read()
             self.assertEqual(data[0], 0xDD)
@@ -129,7 +129,7 @@ class TestWriteDcFile(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_dc_file(config, path)
+            write(config, path)
             # Read back with parser
             parsed = parse_dc_file(path)
             opts = parsed.get('display_options', {})
@@ -146,7 +146,7 @@ class TestRoundTrip(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_dc_file(config, path)
+            write(config, path)
             parsed = parse_dc_file(path)
             self.assertEqual(len(parsed.get('display_elements', [])), 0)
             flags = parsed.get('flags', {})
@@ -176,7 +176,7 @@ class TestRoundTrip(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_dc_file(config, path)
+            write(config, path)
             parsed = parse_dc_file(path)
 
             parsed_elems = parsed.get('display_elements', [])
@@ -218,7 +218,7 @@ class TestOverlayConfigToTheme(unittest.TestCase):
             'color': '#FF6B35', 'font': {'size': 24, 'style': 'bold'},
             'enabled': True,
         }}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         self.assertEqual(len(theme.elements), 1)
         self.assertEqual(theme.elements[0].mode, 1)
         self.assertEqual(theme.elements[0].x, 10)
@@ -229,7 +229,7 @@ class TestOverlayConfigToTheme(unittest.TestCase):
             'color': '#FFFFFF', 'font': {'size': 16},
             'enabled': True,
         }}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         self.assertEqual(theme.elements[0].mode, 0)
         self.assertEqual(theme.elements[0].main_count, 0)
         self.assertEqual(theme.elements[0].sub_count, 1)
@@ -239,7 +239,7 @@ class TestOverlayConfigToTheme(unittest.TestCase):
             'x': 0, 'y': 0, 'text': 'Hello',
             'color': '#00FF00', 'enabled': True,
         }}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         self.assertEqual(theme.elements[0].mode, 4)
         self.assertEqual(theme.elements[0].text, 'Hello')
 
@@ -248,11 +248,11 @@ class TestOverlayConfigToTheme(unittest.TestCase):
             'x': 0, 'y': 0, 'metric': 'time',
             'color': '#FFF', 'enabled': False,
         }}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         self.assertEqual(len(theme.elements), 0)
 
     def test_display_size_applied(self):
-        theme = overlay_config_to_theme({}, 480, 480)
+        theme = overlay_to_theme({}, 480, 480)
         self.assertEqual(theme.overlay_w, 480)
         self.assertEqual(theme.overlay_h, 480)
 
@@ -269,8 +269,8 @@ class TestCarouselConfig(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_carousel_config(config, path)
-            loaded = read_carousel_config(path)
+            write_carousel(config, path)
+            loaded = read_carousel(path)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.current_theme, 2)
             self.assertTrue(loaded.enabled)
@@ -287,21 +287,21 @@ class TestCarouselConfig(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             path = f.name
         try:
-            write_carousel_config(config, path)
-            loaded = read_carousel_config(path)
+            write_carousel(config, path)
+            loaded = read_carousel(path)
             self.assertEqual(loaded.interval_seconds, 3)
         finally:
             os.unlink(path)
 
     def test_read_nonexistent(self):
-        self.assertIsNone(read_carousel_config('/nonexistent/file'))
+        self.assertIsNone(read_carousel('/nonexistent/file'))
 
     def test_read_wrong_magic(self):
         with tempfile.NamedTemporaryFile(suffix='.dc', delete=False) as f:
             f.write(b'\xAA' + b'\x00' * 50)
             path = f.name
         try:
-            self.assertIsNone(read_carousel_config(path))
+            self.assertIsNone(read_carousel(path))
         finally:
             os.unlink(path)
 
@@ -328,11 +328,11 @@ class TestTrExportImport(unittest.TestCase):
                 ],
                 rotation=90, mask_enabled=False,
             )
-            write_dc_file(config, os.path.join(src, 'config1.dc'))
+            write(config, os.path.join(src, 'config1.dc'))
 
             # Export
             tr_path = os.path.join(dst, 'test.tr')
-            write_tr_export(config, src, tr_path)
+            write_tr(config, src, tr_path)
             self.assertTrue(os.path.exists(tr_path))
 
             # Verify magic header
@@ -443,7 +443,7 @@ class TestExportTheme(unittest.TestCase):
                 ],
                 rotation=180,
             )
-            write_dc_file(config, os.path.join(src, 'config1.dc'))
+            write(config, os.path.join(src, 'config1.dc'))
 
             tr_path = os.path.join(dst, 'exported.tr')
             export_theme(src, tr_path)
@@ -483,7 +483,7 @@ class TestExportTheme(unittest.TestCase):
             mask.save(os.path.join(src, '01.png'), "PNG")
 
             config = ThemeConfig(mask_enabled=True, mask_x=50, mask_y=60)
-            write_dc_file(config, os.path.join(src, 'config1.dc'))
+            write(config, os.path.join(src, 'config1.dc'))
 
             tr_path = os.path.join(dst, 'mask.tr')
             export_theme(src, tr_path)
@@ -519,10 +519,10 @@ class TestTrVideoRoundtrip(unittest.TestCase):
             # Create source with Theme.zt
             self._make_theme_zt(os.path.join(src, 'Theme.zt'))
             config = ThemeConfig()
-            write_dc_file(config, os.path.join(src, 'config1.dc'))
+            write(config, os.path.join(src, 'config1.dc'))
 
             tr_path = os.path.join(dst, 'video.tr')
-            write_tr_export(config, src, tr_path)
+            write_tr(config, src, tr_path)
 
             import_dir = os.path.join(dst, 'imported')
             import_theme(tr_path, import_dir)
@@ -547,10 +547,10 @@ class TestTrVideoRoundtrip(unittest.TestCase):
         with tempfile.TemporaryDirectory() as src, \
              tempfile.TemporaryDirectory() as dst:
             config = ThemeConfig()
-            write_dc_file(config, os.path.join(src, 'config1.dc'))
+            write(config, os.path.join(src, 'config1.dc'))
 
             tr_path = os.path.join(dst, 'empty.tr')
-            write_tr_export(config, src, tr_path)
+            write_tr(config, src, tr_path)
 
             import_dir = os.path.join(dst, 'imported')
             import_theme(tr_path, import_dir)
@@ -582,32 +582,32 @@ class TestOverlayConfigToThemeMetrics(unittest.TestCase):
 
     def test_weekday_metric(self):
         config = {'weekday_0': {'enabled': True, 'x': 10, 'y': 20, 'metric': 'weekday'}}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         elem = theme.elements[0]
         self.assertEqual(elem.mode, 2)
 
     def test_date_metric(self):
         config = {'date_0': {'enabled': True, 'x': 10, 'y': 20, 'metric': 'date', 'date_format': 3}}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         elem = theme.elements[0]
         self.assertEqual(elem.mode, 3)
         self.assertEqual(elem.mode_sub, 3)
 
     def test_cpu_metric(self):
         config = {'cpu_0': {'enabled': True, 'x': 10, 'y': 20, 'metric': 'cpu_temp'}}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         elem = theme.elements[0]
         self.assertEqual(elem.mode, 0)
 
     def test_other_metric(self):
         config = {'mem_0': {'enabled': True, 'x': 10, 'y': 20, 'metric': 'mem_percent'}}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         elem = theme.elements[0]
         self.assertEqual(elem.mode, 0)
 
     def test_text_element(self):
         config = {'text_0': {'enabled': True, 'x': 10, 'y': 20, 'text': 'Hello'}}
-        theme = overlay_config_to_theme(config, 320, 320)
+        theme = overlay_to_theme(config, 320, 320)
         elem = theme.elements[0]
         self.assertEqual(elem.mode, 4)
         self.assertEqual(elem.text, 'Hello')
@@ -637,9 +637,9 @@ class TestCarouselConfigRoundTrip(unittest.TestCase):
             config.count = 3
             config.theme_indices = [0, 1, 2]  # less than 6 — tests padding
             config.lcd_rotation = 2
-            write_carousel_config(config, path)
+            write_carousel(config, path)
 
-            loaded = read_carousel_config(path)
+            loaded = read_carousel(path)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.current_theme, 2)
             self.assertTrue(loaded.enabled)
@@ -662,7 +662,7 @@ class TestCarouselConfigRoundTrip(unittest.TestCase):
                     f.write(struct.pack('<i', i))      # indices
                 # NO rotation field — should trigger struct.error fallback
 
-            loaded = read_carousel_config(path)
+            loaded = read_carousel(path)
             self.assertIsNotNone(loaded)
             self.assertEqual(loaded.lcd_rotation, 1)  # default
 
@@ -674,7 +674,7 @@ class TestWriteConfigJson(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory() as d:
             overlay = {'time': {'x': 10, 'y': 20, 'color': '#ff0000', 'metric': 'time', 'enabled': True}}
-            write_config_json(d, overlay)
+            write_json(d, overlay)
             json_path = os.path.join(d, 'config.json')
             self.assertTrue(os.path.exists(json_path))
             with open(json_path) as f:
@@ -687,7 +687,7 @@ class TestWriteConfigJson(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory() as d:
             display = {'rotation': 90, 'bg_display': True, 'tp_display': False, 'overlay_enabled': True}
-            write_config_json(d, {}, display)
+            write_json(d, {}, display)
             with open(os.path.join(d, 'config.json')) as f:
                 data = json.load(f)
             self.assertEqual(data['display']['rotation'], 90)
@@ -697,7 +697,7 @@ class TestWriteConfigJson(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory() as d:
             mask = {'enabled': True, 'center_x': 160, 'center_y': 160}
-            write_config_json(d, {}, {}, mask)
+            write_json(d, {}, {}, mask)
             with open(os.path.join(d, 'config.json')) as f:
                 data = json.load(f)
             self.assertTrue(data['mask']['enabled'])
@@ -706,7 +706,7 @@ class TestWriteConfigJson(unittest.TestCase):
     def test_empty_config(self):
         import json
         with tempfile.TemporaryDirectory() as d:
-            write_config_json(d)
+            write_json(d)
             with open(os.path.join(d, 'config.json')) as f:
                 data = json.load(f)
             self.assertEqual(data['elements'], {})
@@ -716,7 +716,7 @@ class TestWriteConfigJson(unittest.TestCase):
         """write_config_json with video_file includes animation section."""
         import json
         with tempfile.TemporaryDirectory() as d:
-            write_config_json(d, {}, {}, {}, video_file='a001.mp4')
+            write_json(d, {}, {}, {}, video_file='a001.mp4')
             with open(os.path.join(d, 'config.json')) as f:
                 data = json.load(f)
             self.assertEqual(data['animation']['file'], 'a001.mp4')
@@ -725,7 +725,7 @@ class TestWriteConfigJson(unittest.TestCase):
         """write_config_json without video_file has empty animation."""
         import json
         with tempfile.TemporaryDirectory() as d:
-            write_config_json(d, {})
+            write_json(d, {})
             with open(os.path.join(d, 'config.json')) as f:
                 data = json.load(f)
             self.assertEqual(data['animation'], {})

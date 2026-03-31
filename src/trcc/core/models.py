@@ -1896,8 +1896,6 @@ DEVICE_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
     129: {None: 'A1GRAND VISION'},
 }
 
-# Backward-compat alias
-PM_TO_BUTTON_IMAGE = DEVICE_BUTTON_IMAGE
 
 
 def get_button_image(key: int, sub: int = 0) -> Optional[str]:

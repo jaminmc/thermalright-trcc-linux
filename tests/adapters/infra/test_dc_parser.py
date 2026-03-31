@@ -1627,7 +1627,7 @@ class TestLoadConfigJson(unittest.TestCase):
     def test_round_trip_with_write(self):
         """Write JSON with dc_writer, read back with dc_parser."""
         from trcc.adapters.infra.dc_parser import load_config_json
-        from trcc.adapters.infra.dc_writer import write_config_json
+        from trcc.adapters.infra.dc_writer import write_json
         with TemporaryDirectory() as d:
             overlay = {
                 'time': {'x': 10, 'y': 20, 'color': '#ff6b35', 'metric': 'time',
@@ -1639,7 +1639,7 @@ class TestLoadConfigJson(unittest.TestCase):
             }
             display = {'rotation': 180, 'bg_display': True, 'overlay_enabled': True}
             mask = {'enabled': True, 'center_x': 160, 'center_y': 160}
-            write_config_json(d, overlay, display, mask)
+            write_json(d, overlay, display, mask)
 
             result = load_config_json(os.path.join(d, 'config.json'))
             self.assertIsNotNone(result)

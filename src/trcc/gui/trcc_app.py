@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 import trcc.conf as _conf
 from trcc.conf import Settings
 
-from ..adapters.infra.dc_writer import read_carousel_config
+from ..adapters.infra.dc_writer import read_carousel
 from ..core.app import AppEvent
 from ..core.lcd_device import LCDDevice
 from ..core.led_device import LEDDevice
@@ -1730,7 +1730,7 @@ class TRCCApp(QMainWindow):
     # ── Carousel Config ─────────────────────────────────────────────
 
     def _load_carousel_config(self, theme_dir: Path) -> None:
-        config = read_carousel_config(str(theme_dir / 'Theme.dc'))
+        config = read_carousel(str(theme_dir / 'Theme.dc'))
         if config is None:
             return
         all_themes = self.uc_theme_local._all_themes

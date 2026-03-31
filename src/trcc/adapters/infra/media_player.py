@@ -268,9 +268,3 @@ def is_animated_gif(path: str | os.PathLike) -> bool:
         pass
     return False
 
-
-# Backward-compat aliases
-VideoPlayer = VideoDecoder
-ThemeZtPlayer = ThemeZtDecoder
-GIFAnimator = VideoDecoder
-GIFThemeLoader = VideoDecoder

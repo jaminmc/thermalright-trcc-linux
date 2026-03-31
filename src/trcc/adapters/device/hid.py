@@ -29,7 +29,6 @@ import usb.util
 
 from trcc.core.models import (
     DEVICE_BUTTON_IMAGE,  # noqa: F401 — re-export
-    PM_TO_BUTTON_IMAGE,  # noqa: F401 — re-export
     HandshakeResult,  # noqa: F401 — re-export
     HidHandshakeInfo,
     fbl_to_resolution,

@@ -11,11 +11,7 @@ from trcc.adapters.infra.diagnostics import (
     led_debug_interactive,
 )
 
-# Legacy aliases for existing CLI callers
-hid_debug = device_debug
-led_debug = led_debug_interactive
-
 __all__ = [
     "_hex_dump", "_hid_debug_lcd", "_hid_debug_led",
-    "device_debug", "hid_debug", "led_debug", "led_debug_interactive",
+    "device_debug", "led_debug_interactive",
 ]
