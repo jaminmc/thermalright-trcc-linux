@@ -49,4 +49,8 @@ class MacOSPlatform(PlatformAdapter):
         return get_disk_info
 
     def configure_scsi_protocol(self, factory: Any) -> None:
-        pass  # macOS uses pyusb direct — no SCSI protocol needed
+        log.debug("configure_scsi_protocol: wiring MacOSScsiProtocol")
+        from trcc.adapters.device.macos.scsi_protocol import MacOSScsiProtocol
+        factory.configure_scsi(
+            lambda di: MacOSScsiProtocol(di.path, vid=di.vid, pid=di.pid)
+        )

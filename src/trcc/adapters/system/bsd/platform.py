@@ -21,10 +21,9 @@ class BSDPlatform(PlatformAdapter):
     """All BSD-specific adapter wiring in one place."""
 
     def create_detect_fn(self) -> Callable[[], List[DetectedDevice]]:
-        log.debug("create_detect_fn: building BSD SCSI detect fn")
-        from trcc.adapters.device.bsd.scsi import bsd_scsi_resolver
+        log.debug("create_detect_fn: building BSD pyusb detect fn")
         from trcc.adapters.device.detector import DeviceDetector
-        return DeviceDetector.make_detect_fn(scsi_resolver=bsd_scsi_resolver)
+        return DeviceDetector.make_detect_fn(scsi_resolver=None)  # BSD: pyusb direct
 
     def create_sensor_enumerator(self) -> SensorEnumerator:
         log.debug("create_sensor_enumerator: creating BSDSensorEnumerator")
@@ -51,4 +50,8 @@ class BSDPlatform(PlatformAdapter):
         return get_disk_info
 
     def configure_scsi_protocol(self, factory: Any) -> None:
-        pass  # BSD uses camcontrol — handled by bsd_scsi_resolver in detect_fn
+        log.debug("configure_scsi_protocol: wiring BSDScsiProtocol")
+        from trcc.adapters.device.bsd.scsi_protocol import BSDScsiProtocol
+        factory.configure_scsi(
+            lambda di: BSDScsiProtocol(vid=di.vid, pid=di.pid)
+        )

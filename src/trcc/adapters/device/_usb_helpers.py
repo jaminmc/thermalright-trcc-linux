@@ -20,11 +20,21 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _ERR_NOT_FOUND = "USB device {vid:04x}:{pid:04x} not found"
-_ERR_SELINUX = (
-    "USB interface busy — SELinux is blocking USB device access. "
-    "Run 'sudo trcc setup-selinux' to install the policy module, "
-    "then unplug and replug the device."
-)
+
+
+def _err_interface_busy() -> str:
+    """Platform-aware error for USB interface claim failure after driver detach."""
+    from trcc.core.platform import LINUX
+    if LINUX:
+        return (
+            "USB interface busy — SELinux may be blocking USB device access. "
+            "Run 'sudo trcc setup-selinux' to install the policy module, "
+            "then unplug and replug the device."
+        )
+    return (
+        "USB interface busy — the kernel driver could not be detached. "
+        "Ensure no other application is using the device and try again."
+    )
 _ERR_EBUSY = (
     "USB device {vid:04x}:{pid:04x} interface is in use by another process. "
     "Close any other TRCC instances and try again."
@@ -74,36 +84,36 @@ def _find_vendor_interface(cfg: Any) -> Any:
 def _detach_kernel_drivers(dev: Any, count: int = 4) -> bool:
     """Detach kernel drivers from interfaces 0..count-1.
 
-    Returns True if SELinux blocking was detected (driver still active
-    after detach attempt).
+    Returns True if the driver could not be detached (driver still active
+    after detach attempt -- on Linux this typically means SELinux blocking).
     """
     import usb.core  # type: ignore[import-untyped]
 
-    selinux_blocked = False
+    detach_blocked = False
     for i in range(count):
         try:
             if not dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
                 continue
             dev.detach_kernel_driver(i)  # type: ignore[union-attr]
-            # Verify detach actually worked (SELinux silently blocks it)
+            # Verify detach actually worked
             if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
-                selinux_blocked = True
+                detach_blocked = True
                 log.warning("Kernel driver still active on interface %d after "
-                            "detach — SELinux may be blocking USB ioctls", i)
+                            "detach — the OS may be blocking USB ioctls", i)
             else:
                 log.debug("Detached kernel driver from interface %d", i)
         except usb.core.USBError as e:
             log.debug("Could not detach kernel driver from interface %d: %s", i, e)
             try:
                 if dev.is_kernel_driver_active(i):  # type: ignore[union-attr]
-                    selinux_blocked = True
+                    detach_blocked = True
                     log.warning("Kernel driver still active on interface %d "
-                                "after detach error — SELinux may be blocking", i)
+                                "after detach error — the OS may be blocking", i)
             except (usb.core.USBError, NotImplementedError):
                 pass
         except NotImplementedError:
             pass
-    return selinux_blocked
+    return detach_blocked
 
 
 def _reset_and_refind(dev: Any, vid: int, pid: int) -> Any:
@@ -127,14 +137,14 @@ def open_usb_device(vid: int, pid: int) -> tuple[Any, Any]:
     """Find, configure, and claim a vendor-class USB device.
 
     Handles the full USB lifecycle:
-      find → detach kernel drivers (SELinux-aware) → configure
-      → find vendor interface → claim (with EBUSY retry) → return
+      find -> detach kernel drivers -> configure
+      -> find vendor interface -> claim (with EBUSY retry) -> return
 
     Returns:
         (device, interface) tuple ready for endpoint detection.
 
     Raises:
-        RuntimeError: Device not found, or SELinux blocking.
+        RuntimeError: Device not found, or kernel driver could not be detached.
         usb.core.USBError: Permission denied (errno 13).
     """
     import usb.core  # type: ignore[import-untyped]
@@ -144,10 +154,10 @@ def open_usb_device(vid: int, pid: int) -> tuple[Any, Any]:
     if dev is None:
         raise RuntimeError(_ERR_NOT_FOUND.format(vid=vid, pid=pid))
 
-    # 1. Detach kernel drivers (SELinux post-verification included)
-    selinux_blocked = _detach_kernel_drivers(dev)
+    # 1. Detach kernel drivers (post-verification included)
+    detach_blocked = _detach_kernel_drivers(dev)
 
-    # 2. Configure device (skip if already configured — SELinux safety)
+    # 2. Configure device (skip if already configured)
     try:
         cfg = dev.get_active_configuration()  # type: ignore[union-attr]
         log.debug("Device already configured, skipping set_configuration()")
@@ -172,8 +182,8 @@ def open_usb_device(vid: int, pid: int) -> tuple[Any, Any]:
     except usb.core.USBError as e:
         if e.errno != 16:  # Not EBUSY
             raise
-        if selinux_blocked:
-            raise RuntimeError(_ERR_SELINUX) from e
+        if detach_blocked:
+            raise RuntimeError(_err_interface_busy()) from e
         raise RuntimeError(_ERR_EBUSY.format(vid=vid, pid=pid)) from e
 
     return dev, intf

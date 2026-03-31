@@ -30,27 +30,21 @@ class TestBSDPlatformContract:
 
     def test_create_detect_fn_returns_callable(self):
         mock_detect_fn = MagicMock(return_value=[])
-        mock_resolver = MagicMock()
         with patch(
-            'trcc.adapters.device.bsd.scsi.bsd_scsi_resolver', mock_resolver
-        ), patch(
             'trcc.adapters.device.detector.DeviceDetector.make_detect_fn',
             return_value=mock_detect_fn,
         ):
             fn = self._p.create_detect_fn()
         assert callable(fn)
 
-    def test_create_detect_fn_passes_bsd_scsi_resolver(self):
-        """BSD uses camcontrol — must pass bsd_scsi_resolver to make_detect_fn."""
-        mock_resolver = MagicMock()
+    def test_create_detect_fn_passes_no_scsi_resolver(self):
+        """BSD uses pyusb direct — must pass scsi_resolver=None."""
         with patch(
-            'trcc.adapters.device.bsd.scsi.bsd_scsi_resolver', mock_resolver
-        ), patch(
             'trcc.adapters.device.detector.DeviceDetector.make_detect_fn',
         ) as mock_make:
             mock_make.return_value = MagicMock()
             self._p.create_detect_fn()
-        mock_make.assert_called_once_with(scsi_resolver=mock_resolver)
+        mock_make.assert_called_once_with(scsi_resolver=None)
 
     def test_create_sensor_enumerator_returns_sensor_enumerator(self):
         mock_instance = MagicMock(spec=SensorEnumerator)
@@ -89,8 +83,16 @@ class TestBSDPlatformContract:
             fn = self._p.get_disk_info_fn()
         assert callable(fn)
 
-    def test_configure_scsi_protocol_is_noop(self):
-        """BSD uses camcontrol via resolver — factory.configure_scsi must NOT be called."""
+    def test_configure_scsi_protocol_wires_bsd_protocol(self):
+        """BSD must wire BSDScsiProtocol into the factory."""
         factory = MagicMock()
         self._p.configure_scsi_protocol(factory)
-        factory.configure_scsi.assert_not_called()
+        factory.configure_scsi.assert_called_once()
+        # Verify the lambda produces a BSDScsiProtocol with correct vid/pid
+        factory_fn = factory.configure_scsi.call_args[0][0]
+        mock_di = MagicMock(path='usb:1:2', vid=0x0402, pid=0x3922)
+        from trcc.adapters.device.bsd.scsi_protocol import BSDScsiProtocol
+        result = factory_fn(mock_di)
+        assert isinstance(result, BSDScsiProtocol)
+        assert result._vid == 0x0402
+        assert result._pid == 0x3922

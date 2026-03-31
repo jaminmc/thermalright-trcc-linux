@@ -47,6 +47,16 @@ def _has_usb_errno(exc: Exception, errno_val: int) -> bool:
     return False
 
 
+def _permission_denied_hint() -> str:
+    """Platform-aware hint for USB permission denied errors."""
+    from trcc.core.platform import LINUX, MACOS
+    if LINUX:
+        return "run 'trcc setup-udev' to configure USB device permissions"
+    if MACOS:
+        return "try running with sudo, or check System Settings > Privacy & Security"
+    return "ensure you have permission to access USB devices"
+
+
 # =========================================================================
 # DeviceProtocol ABC — the contract both SCSI and HID implement
 # =========================================================================
@@ -117,9 +127,9 @@ class DeviceProtocol(ABC):
         except Exception as e:
             if _has_usb_errno(e, _ERRNO_EACCES):
                 log.warning(
-                    "%s permission denied — run 'trcc setup-udev' to "
-                    "configure USB device permissions",
-                    self._handshake_label)
+                    "%s permission denied — %s",
+                    self._handshake_label,
+                    _permission_denied_hint())
             elif _has_usb_errno(e, _ERRNO_EBUSY):
                 log.warning("%s in use by another process",
                             self._handshake_label)

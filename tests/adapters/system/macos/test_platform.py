@@ -85,8 +85,41 @@ class TestMacOSPlatformContract:
             fn = self._p.get_disk_info_fn()
         assert callable(fn)
 
-    def test_configure_scsi_protocol_is_noop(self):
-        """macOS uses pyusb direct — factory.configure_scsi must NOT be called."""
+    def test_configure_scsi_protocol_wires_macos_scsi(self):
+        """macOS must call factory.configure_scsi with a MacOSScsiProtocol factory."""
+        import sys
         factory = MagicMock()
-        self._p.configure_scsi_protocol(factory)
-        factory.configure_scsi.assert_not_called()
+        mock_scsi_module = MagicMock()
+        sys.modules['trcc.adapters.device.macos.scsi_protocol'] = mock_scsi_module
+        try:
+            self._p.configure_scsi_protocol(factory)
+        finally:
+            sys.modules.pop('trcc.adapters.device.macos.scsi_protocol', None)
+
+        factory.configure_scsi.assert_called_once()
+        scsi_factory_fn = factory.configure_scsi.call_args[0][0]
+        assert callable(scsi_factory_fn)
+
+    def test_configure_scsi_protocol_passes_path_vid_pid(self):
+        """The SCSI factory lambda extracts path/vid/pid from DeviceInfo."""
+        import sys
+        factory = MagicMock()
+        mock_protocol_cls = MagicMock()
+        mock_scsi_module = MagicMock()
+        mock_scsi_module.MacOSScsiProtocol = mock_protocol_cls
+        sys.modules['trcc.adapters.device.macos.scsi_protocol'] = mock_scsi_module
+        try:
+            self._p.configure_scsi_protocol(factory)
+        finally:
+            sys.modules.pop('trcc.adapters.device.macos.scsi_protocol', None)
+
+        scsi_factory_fn = factory.configure_scsi.call_args[0][0]
+        device_info = MagicMock()
+        device_info.path = '/dev/disk2'
+        device_info.vid = 0x0402
+        device_info.pid = 0x3922
+        scsi_factory_fn(device_info)
+
+        mock_protocol_cls.assert_called_once_with(
+            device_info.path, vid=device_info.vid, pid=device_info.pid
+        )
