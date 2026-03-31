@@ -30,6 +30,9 @@
             typer
             fastapi
             uvicorn
+            python-multipart
+            prompt-toolkit
+            sounddevice
           ];
 
           optional-dependencies = {
@@ -37,6 +40,14 @@
           };
 
           nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          propagatedBuildInputs = [
+            pkgs.portaudio
+            pkgs.libusb1
+            pkgs.p7zip
+            pkgs.sg3_utils
+            pkgs.ffmpeg
+          ];
 
           # Skip tests during build (they need USB devices)
           doCheck = false;
@@ -77,10 +88,14 @@
           packages = [
             (python.withPackages (ps: with ps; [
               pyside6 numpy psutil pyusb click typer fastapi uvicorn
+              python-multipart prompt-toolkit sounddevice
               pytest pytest-cov ruff
             ]))
+            pkgs.portaudio
+            pkgs.libusb1
             pkgs.p7zip
             pkgs.sg3_utils
+            pkgs.ffmpeg
           ];
         };
       }

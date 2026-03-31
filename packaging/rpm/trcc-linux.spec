@@ -25,8 +25,8 @@ Requires:       python3-typer >= 0.9.0
 Requires:       python3-fastapi >= 0.100
 Requires:       python3-uvicorn >= 0.20
 Requires:       python3-multipart >= 0.0.6
-Requires:       python3-prompt_toolkit >= 3.0.0
-Requires:       python3-sounddevice >= 0.4.6
+Requires:       python3-prompt-toolkit >= 3.0.0
+Requires:       portaudio
 Requires:       sg3_utils
 Requires:       p7zip
 Requires:       p7zip-plugins

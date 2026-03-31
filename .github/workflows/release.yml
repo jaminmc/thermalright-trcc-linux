@@ -110,6 +110,9 @@ jobs:
           # Fix shebangs to /usr/bin/python (build container may differ)
           find "$PKG" -name "trcc*" -path "*/bin/*" -exec sed -i "1s|^#\!.*/python[0-9.]*|#!/usr/bin/python|" {} +
 
+          # Bundle sounddevice (not in Fedora repos)
+          pip install --root="$PKG" --prefix=/usr --no-deps sounddevice
+
           install -Dm644 /src/packaging/udev/99-trcc-lcd.rules "$PKG/etc/udev/rules.d/99-trcc-lcd.rules"
           install -Dm644 /src/packaging/modprobe/trcc-lcd.conf "$PKG/etc/modprobe.d/trcc-lcd.conf"
           install -Dm644 /src/packaging/modprobe/trcc-sg.conf "$PKG/etc/modules-load.d/trcc-sg.conf"
@@ -141,8 +144,8 @@ jobs:
           Requires:   python3-fastapi
           Requires:   python3-uvicorn
           Requires:   python3-multipart
-          Requires:   python3-prompt_toolkit
-          Requires:   python3-sounddevice
+          Requires:   python3-prompt-toolkit
+          Requires:   portaudio
           Requires:   libusb1
           Requires:   sg3_utils
           Requires:   p7zip
@@ -204,6 +207,9 @@ jobs:
 
           # Fix shebangs to /usr/bin/python (build container may differ)
           find "$PKG" -name "trcc*" -path "*/bin/*" -exec sed -i "1s|^#\!.*/python[0-9.]*|#!/usr/bin/python|" {} +
+
+          # Bundle sounddevice (not in Ubuntu/Debian repos)
+          pip install --root="$PKG" --prefix=/usr --no-deps sounddevice
 
           install -Dm644 /src/packaging/udev/99-trcc-lcd.rules "$PKG/lib/udev/rules.d/99-trcc-lcd.rules"
           install -Dm644 /src/packaging/modprobe/trcc-lcd.conf "$PKG/etc/modprobe.d/trcc-lcd.conf"
@@ -349,8 +355,8 @@ jobs:
           # Fix shebangs to /usr/bin/python (build container may differ)
           find "$PKG" -name "trcc*" -path "*/bin/*" -exec sed -i "1s|^#\!.*/python[0-9.]*|#!/usr/bin/python|" {} +
 
-          # Bundle uvicorn (not in official Arch repos)
-          pip install --root="$PKG" --prefix=/usr --no-deps uvicorn
+          # Bundle uvicorn + sounddevice (not in official Arch repos)
+          pip install --root="$PKG" --prefix=/usr --no-deps uvicorn sounddevice
 
           install -Dm644 /src/packaging/udev/99-trcc-lcd.rules "$PKG/usr/lib/udev/rules.d/99-trcc-lcd.rules"
           install -Dm644 /src/packaging/modprobe/trcc-lcd.conf "$PKG/usr/lib/modprobe.d/trcc-lcd.conf"
@@ -384,7 +390,7 @@ jobs:
           depend = python-fastapi
           depend = python-multipart
           depend = python-prompt_toolkit
-          depend = python-sounddevice
+          depend = portaudio
           depend = libusb
           depend = sg3_utils
           depend = p7zip

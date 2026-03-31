@@ -306,7 +306,7 @@ If native packages aren't available for your distro, or you prefer pip. This req
 
 ```bash
 # Step 1: Install system dependencies
-sudo dnf install pipx sg3_utils python3-pyside6 ffmpeg
+sudo dnf install pipx sg3_utils python3-pyside6 portaudio ffmpeg
 
 # Step 2: Install optional extras (hardware sensors, Wayland screen capture)
 sudo dnf install lm_sensors grim python3-gobject python3-dbus pipewire-devel
@@ -339,7 +339,7 @@ trcc gui
 ```bash
 # Step 1: Install system dependencies
 sudo apt update
-sudo apt install pipx libusb-1.0-0 sg3-utils p7zip-full libxcb-cursor0 ffmpeg
+sudo apt install pipx libusb-1.0-0 libportaudio2 sg3-utils p7zip-full libxcb-cursor0 ffmpeg
 
 # Step 2: Install optional extras (hardware sensors, Wayland screen capture)
 sudo apt install lm-sensors grim python3-gi python3-dbus python3-gst-1.0
@@ -371,7 +371,7 @@ Arch-based distros enforce PEP 668 — use `pipx` instead of `pip`:
 
 ```bash
 # Step 1: Install system dependencies
-sudo pacman -S python-pipx sg3_utils python-pyside6 ffmpeg
+sudo pacman -S python-pipx sg3_utils python-pyside6 portaudio ffmpeg
 
 # Step 2: Install optional extras (hardware sensors, Wayland screen capture)
 sudo pacman -S lm_sensors grim python-gobject python-dbus python-gst
@@ -394,7 +394,7 @@ trcc gui
 
 ```bash
 # Step 1: Install system dependencies
-sudo zypper install python3-pipx sg3_utils python3-pyside6 ffmpeg
+sudo zypper install python3-pipx sg3_utils python3-pyside6 portaudio ffmpeg
 
 # Step 2: Install optional extras (hardware sensors, Wayland screen capture)
 sudo zypper install sensors grim python3-gobject python3-dbus-python python3-gstreamer
@@ -424,7 +424,7 @@ trcc gui
 
 ```bash
 # Step 1: Install system dependencies
-sudo xbps-install sg3_utils python3-pipx python3-pyside6 ffmpeg
+sudo xbps-install sg3_utils python3-pipx python3-pyside6 portaudio ffmpeg
 
 # Step 2: Install optional extras
 sudo xbps-install lm_sensors grim python3-gobject python3-dbus python3-gst
@@ -458,7 +458,7 @@ trcc gui
 
 ```bash
 # Step 1: Install system dependencies
-sudo apk add python3 pipx sg3_utils py3-pyside6 ffmpeg
+sudo apk add python3 pipx sg3_utils py3-pyside6 portaudio ffmpeg
 
 # Step 2: Install optional extras
 sudo apk add lm-sensors grim py3-gobject3 py3-dbus
@@ -487,7 +487,7 @@ trcc gui
 
 ```bash
 # Step 1: Install system dependencies
-sudo eopkg install sg3_utils python3-pip ffmpeg
+sudo eopkg install sg3_utils python3-pip portaudio ffmpeg
 
 # Step 2: Install optional extras
 sudo eopkg install lm-sensors grim python3-gobject python3-dbus
@@ -511,7 +511,7 @@ trcc gui
 
 ```bash
 # Step 1: Install system dependencies
-sudo swupd bundle-add python3-basic devpkg-sg3_utils ffmpeg
+sudo swupd bundle-add python3-basic devpkg-sg3_utils devpkg-portaudio ffmpeg
 
 # Step 2: Install optional extras
 sudo swupd bundle-add sysadmin-basic devpkg-pipewire
@@ -634,7 +634,7 @@ distrobox create --name trcc --image fedora:latest
 distrobox enter trcc
 
 # Inside the container — normal Fedora commands work
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
+sudo dnf install python3-pip sg3_utils python3-pyside6 portaudio ffmpeg
 pip install trcc-linux
 exit
 
@@ -662,7 +662,7 @@ sudo steamos-readonly disable
 passwd
 
 # Install dependencies
-sudo pacman -S --needed sg3_utils python-pip python-pyside6 ffmpeg
+sudo pacman -S --needed sg3_utils python-pip python-pyside6 portaudio ffmpeg
 
 # Install TRCC
 pip install --break-system-packages trcc-linux
@@ -686,7 +686,7 @@ distrobox create --name trcc --image archlinux:latest
 distrobox enter trcc
 
 # Inside the container
-sudo pacman -S python-pip sg3_utils python-pyside6 ffmpeg
+sudo pacman -S python-pip sg3_utils python-pyside6 portaudio ffmpeg
 pip install trcc-linux
 exit
 
@@ -734,7 +734,7 @@ apx trcc-system run -- trcc gui
 ```bash
 # Install dependencies
 sudo apt update
-sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
+sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 libportaudio2 ffmpeg
 
 # Install TRCC
 pip install --break-system-packages trcc-linux
@@ -830,7 +830,7 @@ Covers: Fedora Asahi Remix on Apple M1/M2/M3/M4 Macs
 Follow the [Fedora / Nobara (pip)](#fedora--nobara-pip) instructions — Asahi is Fedora-based:
 
 ```bash
-sudo dnf install python3-pip sg3_utils python3-pyside6 ffmpeg
+sudo dnf install python3-pip sg3_utils python3-pyside6 portaudio ffmpeg
 pip install trcc-linux
 trcc setup
 trcc gui
@@ -848,7 +848,7 @@ TRCC works on ARM64 (aarch64) systems:
 
 ```bash
 # Raspberry Pi OS / Armbian (Debian-based)
-sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 ffmpeg
+sudo apt install python3-pip python3-venv sg3-utils python3-pyside6 libportaudio2 ffmpeg
 pip install --break-system-packages trcc-linux
 trcc setup
 trcc gui
@@ -974,6 +974,7 @@ If you see `OK` next to your package — it's clean. Source code is GPL-3.0, ful
 | `lm-sensors` / `lm_sensors` | Hardware sensor readings (CPU/GPU temps, fan speeds) — optional but recommended |
 | `grim` | Screen capture on Wayland desktops — optional |
 | `python3-gobject` / `python3-dbus` | PipeWire screen capture for GNOME/KDE on Wayland — optional |
+| `portaudio` / `libportaudio2` | Audio I/O library — required for the audio visualizer feature |
 | `pyusb` + `libusb` | USB communication for HID LCD/LED devices (pulled in by pip automatically) |
 
 ---

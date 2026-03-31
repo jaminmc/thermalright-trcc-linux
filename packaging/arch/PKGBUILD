@@ -17,12 +17,12 @@ depends=(
     'python-fastapi'
     'python-multipart'
     'python-prompt_toolkit'
-    'python-sounddevice'
+    'portaudio'
     'libusb'
     'sg3_utils'
     'p7zip'
 )
-# python-uvicorn not in official Arch repos — bundled via pip in package()
+# python-uvicorn + python-sounddevice not in official Arch repos — bundled via pip in package()
 optdepends=(
     'python-pynvml: NVIDIA GPU sensor support'
     'python-dbus: Wayland session support'
