@@ -222,8 +222,6 @@ class TrccApp:
             if w and h and (w, h) not in seen:
                 seen.add((w, h))
                 ensure_fn(w, h, progress_fn=lambda msg: self._notify(AppEvent.BOOTSTRAP_PROGRESS, msg))
-                import trcc.conf as _conf
-                _conf.settings.set_resolution(w, h)
                 device.notify_data_ready()
 
     def _ensure_data_background(self, lcd: LCDDevice, w: int, h: int) -> None:
@@ -231,10 +229,8 @@ class TrccApp:
         ensure_fn = self._ensure_data_fn
 
         def _bg() -> None:
-            import trcc.conf as _conf
             if ensure_fn is not None:
                 ensure_fn(w, h)
-            _conf.settings.set_resolution(w, h)
             lcd.notify_data_ready()
 
         threading.Thread(target=_bg, daemon=True, name="data-extract").start()
