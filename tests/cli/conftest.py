@@ -3,11 +3,13 @@
 Fixtures inherit from each other following the same DI chain as production code:
 
     mock_device_info → mock_device_svc ──┐
-    mock_display_svc ────────────────────┼→ lcd → mock_connect_lcd
-    mock_theme_svc ──────────────────────┘
-
+    renderer + mock_media ───────────────┼→ display_svc (REAL)
+                                         ├→ lcd (REAL LCDDevice) → mock_connect_lcd
     mock_led_svc → led → led_no_zones / led_no_segments
                  └→ led_empty (no svc)
+
+Real services (DisplayService, OverlayService, ImageService) exercise actual
+code paths. Only DeviceService (USB boundary) and MediaService are mocked.
 
 Patch-path constants are exported so individual test files never hardcode
 canonical module paths.
@@ -15,12 +17,16 @@ canonical module paths.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from trcc.core.lcd_device import LCDDevice
 from trcc.core.led_device import LEDDevice
+from trcc.services.display import DisplayService
+from trcc.services.image import ImageService
+from trcc.services.overlay import OverlayService
 
 # ── Canonical patch targets ──────────────────────────────────────────────────
 PATCH_SETTINGS = "trcc.conf.settings"
@@ -32,7 +38,15 @@ PATCH_CONNECT_LCD = "trcc.cli._display._connect_or_fail"
 PATCH_CONNECT_LED = "trcc.cli._led._connect_or_fail"
 
 
-# ── LCD device chain ─────────────────────────────────────────────────────────
+# ── Real renderer ────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def renderer() -> Any:
+    """Real QtRenderer (offscreen) — same as test_display_integration."""
+    return ImageService._r()
+
+
+# ── LCD device chain (real services) ─────────────────────────────────────────
 
 @pytest.fixture
 def mock_device_info():
@@ -43,6 +57,7 @@ def mock_device_info():
     dev.vid = 0x0402
     dev.pid = 0x3922
     dev.device_index = 0
+    dev.encoding_params = ('scsi', (320, 320), None, False)
     return dev
 
 
@@ -50,43 +65,54 @@ def mock_device_info():
 def mock_device_svc(mock_device_info):
     """Mock DeviceService with pre-selected device.
 
-    Inherits mock_device_info so selected.path / .vid / .pid are consistent.
+    Only the USB boundary is mocked — DeviceService sends raw frames
+    to hardware. Everything above (DisplayService, OverlayService) is real.
     """
     svc = MagicMock()
     svc.selected = mock_device_info
     svc.send_frame.return_value = True
+    svc.send_frame_async.return_value = None
     svc.is_busy = False
     return svc
 
 
 @pytest.fixture
-def mock_display_svc():
-    """Mock DisplayService."""
-    svc = MagicMock()
-    svc.lcd_width = 320
-    svc.lcd_height = 320
-    svc.overlay = MagicMock()
-    svc.overlay.enabled = False
-    svc.media = MagicMock()
-    svc.media.has_frames = False
-    svc.current_image = None
-    svc.auto_send = False
+def mock_media():
+    """Mock MediaService — video decoding boundary."""
+    media = MagicMock()
+    media._frames = []
+    media.has_frames = False
+    media.is_playing = False
+    media.source_path = None
+    media.get_frame.return_value = None
+    media.frame_interval_ms = 33
+    return media
+
+
+@pytest.fixture
+def display_svc(renderer, mock_media, mock_device_svc) -> DisplayService:
+    """Real DisplayService with real OverlayService, mocked device/media.
+
+    Sets resolution to 320x320 via conf.settings so lcd_size returns (320, 320).
+    """
+    import trcc.conf as _conf
+    _conf.settings.set_resolution(320, 320, persist=False)
+    overlay = OverlayService(320, 320, renderer=renderer)
+    svc = DisplayService(mock_device_svc, overlay, mock_media)
     return svc
 
 
 @pytest.fixture
-def mock_theme_svc():
-    """Mock ThemeService."""
-    return MagicMock()
+def lcd(mock_device_svc, display_svc, renderer) -> LCDDevice:
+    """LCDDevice wired to real DisplayService + real OverlayService.
 
-
-@pytest.fixture
-def lcd(mock_device_svc, mock_display_svc, mock_theme_svc):
-    """Fully wired LCDDevice with mock services."""
+    Only DeviceService (USB I/O) and MediaService (video decode) are mocked.
+    """
     return LCDDevice(
         device_svc=mock_device_svc,
-        display_svc=mock_display_svc,
-        theme_svc=mock_theme_svc,
+        display_svc=display_svc,
+        theme_svc=MagicMock(),
+        renderer=renderer,
     )
 
 

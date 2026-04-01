@@ -4,9 +4,13 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import pytest
+from conftest import get_pixel, make_test_surface
 
 from trcc.core.instance import InstanceKind
 from trcc.core.lcd_device import LCDDevice
+from trcc.services.display import DisplayService
+from trcc.services.image import ImageService
+from trcc.services.overlay import OverlayService
 
 
 def _make_lcd(**overrides) -> LCDDevice:
@@ -21,6 +25,43 @@ def _make_lcd(**overrides) -> LCDDevice:
     }
     defaults.update(overrides)
     return LCDDevice(**defaults)
+
+
+def _make_real_lcd() -> tuple[LCDDevice, MagicMock]:
+    """Create LCDDevice with real DisplayService + OverlayService.
+
+    Only DeviceService is mocked (USB boundary).
+    Returns (lcd, mock_device_svc) so tests can verify send_frame calls.
+    """
+    import trcc.conf as _conf
+    _conf.settings.set_resolution(320, 320, persist=False)
+    renderer = ImageService._r()
+    device_svc = MagicMock()
+    device_svc.selected = MagicMock()
+    device_svc.selected.encoding_params = ('scsi', (320, 320), None, False)
+    device_svc.selected.path = '/dev/sg0'
+    device_svc.selected.vid = 0x0402
+    device_svc.selected.pid = 0x3922
+    device_svc.selected.device_index = 0
+    device_svc.send_frame.return_value = True
+    device_svc.send_frame_async.return_value = None
+    device_svc.is_busy = False
+    mock_media = MagicMock()
+    mock_media._frames = []
+    mock_media.has_frames = False
+    mock_media.is_playing = False
+    mock_media.source_path = None
+    mock_media.get_frame.return_value = None
+    mock_media.frame_interval_ms = 33
+    overlay = OverlayService(320, 320, renderer=renderer)
+    display_svc = DisplayService(device_svc, overlay, mock_media)
+    lcd = LCDDevice(
+        device_svc=device_svc,
+        display_svc=display_svc,
+        theme_svc=MagicMock(),
+        renderer=renderer,
+    )
+    return lcd, device_svc
 
 
 # =============================================================================
@@ -186,7 +227,7 @@ class TestLCDDeviceProperties(unittest.TestCase):
 
 
 class TestLCDDeviceFrame(unittest.TestCase):
-    """Frame send operations."""
+    """Frame send operations — real image processing, mocked USB send."""
 
     def test_send_image_file_not_found(self):
         lcd = _make_lcd()
@@ -194,29 +235,34 @@ class TestLCDDeviceFrame(unittest.TestCase):
         self.assertFalse(result['success'])
         self.assertIn('not found', result['error'])
 
-    @patch('trcc.core.lcd_device.os.path.exists', return_value=True)
-    @patch('trcc.services.image.ImageService.open_and_resize')
-    def test_send_image_success(self, mock_resize, mock_exists):
-        """send_image with valid path delegates to device service."""
-        mock_resize.return_value = MagicMock()
-        disp = MagicMock()
-        disp.lcd_width = 320
-        disp.lcd_height = 320
-        lcd = _make_lcd(display_svc=disp)
-        result = lcd.send_image('/tmp/test.png')
-        self.assertTrue(result['success'])
-        lcd._device_svc.send_frame.assert_called_once()
+    def test_send_image_success(self):
+        """send_image with valid PNG processes through real services."""
+        import tempfile
+        from pathlib import Path
+        lcd, device_svc = _make_real_lcd()
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            make_test_surface(320, 320, (0, 0, 255)).save(f.name, "PNG")
+            path = f.name
+        try:
+            result = lcd.send_image(path)
+            self.assertTrue(result['success'])
+            device_svc.send_frame.assert_called_once()
+            # Verify actual blue pixels were sent
+            img = device_svc.send_frame.call_args[0][0]
+            r, g, b = get_pixel(img, 160, 160)[:3]
+            self.assertGreater(b, 200)
+        finally:
+            Path(path).unlink(missing_ok=True)
 
-    @patch('trcc.services.image.ImageService.solid_color')
-    def test_send_color_delegates(self, mock_solid):
-        mock_solid.return_value = MagicMock()
-        disp = MagicMock()
-        disp.lcd_width = 320
-        disp.lcd_height = 320
-        lcd = _make_lcd(display_svc=disp)
+    def test_send_color_creates_correct_pixels(self):
+        """send_color creates a real solid-color image."""
+        lcd, device_svc = _make_real_lcd()
         result = lcd.send_color(255, 0, 0)
         self.assertTrue(result['success'])
-        lcd._device_svc.send_frame.assert_called_once()
+        device_svc.send_frame.assert_called_once()
+        img = device_svc.send_frame.call_args[0][0]
+        r, g, b = get_pixel(img, 0, 0)[:3]
+        self.assertEqual((r, g, b), (255, 0, 0))
 
     def test_send_no_device_selected(self):
         svc = MagicMock()
@@ -226,15 +272,11 @@ class TestLCDDeviceFrame(unittest.TestCase):
         self.assertFalse(result['success'])
 
     def test_send_with_device(self):
-        svc = MagicMock()
-        svc.selected = MagicMock()
-        disp = MagicMock()
-        disp.lcd_width = 320
-        disp.lcd_height = 320
-        lcd = _make_lcd(device_svc=svc, display_svc=disp)
-        result = lcd.send(MagicMock())
+        lcd, device_svc = _make_real_lcd()
+        img = make_test_surface(320, 320, (128, 128, 128))
+        result = lcd.send(img)
         self.assertTrue(result['success'])
-        svc.send_frame_async.assert_called_once()
+        device_svc.send_frame_async.assert_called_once()
 
 
 # =============================================================================
@@ -243,33 +285,28 @@ class TestLCDDeviceFrame(unittest.TestCase):
 
 
 class TestLCDDeviceSettings(unittest.TestCase):
-    """Settings operations returning result dicts."""
+    """Settings operations — real DisplayService verifies actual state changes."""
 
     @patch.object(LCDDevice, '_persist')
     def test_set_brightness_percent(self, _):
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         result = lcd.set_brightness(75)
         self.assertTrue(result['success'])
-        disp.set_brightness.assert_called_once_with(75)
+        self.assertEqual(lcd._display_svc.brightness, 75)
 
     @patch.object(LCDDevice, '_persist')
     def test_set_brightness_1_percent(self, _):
-        """Value 1 is 1% — LCDDevice no longer maps level numbers to percents."""
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         result = lcd.set_brightness(1)
         self.assertTrue(result['success'])
-        disp.set_brightness.assert_called_once_with(1)
+        self.assertEqual(lcd._display_svc.brightness, 1)
 
     @patch.object(LCDDevice, '_persist')
     def test_set_brightness_100_percent(self, _):
-        """Value 100 → 100%."""
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         result = lcd.set_brightness(100)
         self.assertTrue(result['success'])
-        disp.set_brightness.assert_called_once_with(100)
+        self.assertEqual(lcd._display_svc.brightness, 100)
 
     def test_set_brightness_invalid(self):
         lcd = _make_lcd()
@@ -278,12 +315,12 @@ class TestLCDDeviceSettings(unittest.TestCase):
 
     @patch.object(LCDDevice, '_persist')
     def test_set_rotation_valid(self, _):
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         for deg in (0, 90, 180, 270):
             with self.subTest(deg=deg):
                 result = lcd.set_rotation(deg)
                 self.assertTrue(result['success'])
+                self.assertEqual(lcd._display_svc.rotation, deg)
 
     def test_set_rotation_invalid(self):
         lcd = _make_lcd()
@@ -292,12 +329,12 @@ class TestLCDDeviceSettings(unittest.TestCase):
 
     @patch.object(LCDDevice, '_persist')
     def test_set_split_mode_valid(self, _):
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         for mode in (0, 1, 2, 3):
             with self.subTest(mode=mode):
                 result = lcd.set_split_mode(mode)
                 self.assertTrue(result['success'])
+                self.assertEqual(lcd._display_svc.split_mode, mode)
 
     def test_set_split_mode_invalid(self):
         lcd = _make_lcd()
@@ -311,24 +348,27 @@ class TestLCDDeviceSettings(unittest.TestCase):
 
 
 class TestLCDDeviceOverlay(unittest.TestCase):
-    """Overlay enable/disable/config operations."""
+    """Overlay enable/disable/config operations — real OverlayService."""
 
     def test_enable_overlay(self):
-        disp = MagicMock()
-        lcd = _make_lcd(display_svc=disp)
+        lcd, _ = _make_real_lcd()
         result = lcd.enable(True)
         self.assertTrue(result['success'])
+        self.assertTrue(lcd._display_svc.overlay.enabled)
+
+    def test_disable_overlay(self):
+        lcd, _ = _make_real_lcd()
+        lcd.enable(True)
+        result = lcd.enable(False)
+        self.assertTrue(result['success'])
+        self.assertFalse(lcd._display_svc.overlay.enabled)
 
     def test_set_config(self):
-        disp = MagicMock()
-        disp.lcd_width = 320
-        disp.lcd_height = 320
-        disp.overlay = MagicMock(spec=['set_config_resolution', 'set_config'])
-        lcd = _make_lcd(display_svc=disp)
-        result = lcd.set_config({'key': 'val'})
+        lcd, _ = _make_real_lcd()
+        config = {'cpu_temp': {'x': 10, 'y': 20, 'color': 'ffffff', 'size': 14}}
+        result = lcd.set_config(config)
         self.assertTrue(result['success'])
-        disp.overlay.set_config_resolution.assert_called_once_with(320, 320)
-        disp.overlay.set_config.assert_called_once_with({'key': 'val'})
+        self.assertEqual(lcd._display_svc.overlay.config, config)
 
 
 # =============================================================================
