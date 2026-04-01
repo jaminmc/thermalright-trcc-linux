@@ -25,11 +25,12 @@ When the `qrcode` package is installed (`pip install qrcode`), startup prints a 
 5. [Display (LCD)](#display-lcd)
 6. [Video Playback](#video-playback)
 7. [Preview / Live Stream](#preview--live-stream)
-8. [Themes](#themes)
-9. [LED](#led)
-10. [System Metrics](#system-metrics)
-11. [i18n (Internationalization)](#i18n-internationalization)
-12. [Request/Response Models](#requestresponse-models)
+8. [Screencast](#screencast)
+9. [Themes](#themes)
+10. [LED](#led)
+11. [System Metrics](#system-metrics)
+12. [i18n (Internationalization)](#i18n-internationalization)
+13. [Request/Response Models](#requestresponse-models)
 
 ---
 
@@ -366,6 +367,46 @@ ws.send(JSON.stringify({quality: 70, fps: 15}));
 
 ---
 
+## Screencast
+
+Stream screen capture to the LCD device. Auto-detects backend: ffmpeg x11grab on X11/XWayland, PipeWire on pure Wayland. Mutually exclusive with video playback, overlay loops, and keepalive loops.
+
+### `POST /display/screencast/start`
+
+Start screen capture streaming.
+
+**Body:**
+```json
+{"x": 0, "y": 0, "w": 0, "h": 0, "fps": 10}
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `x` | int | 0 | Capture region X offset |
+| `y` | int | 0 | Capture region Y offset |
+| `w` | int | 0 | Capture width (0 = full screen) |
+| `h` | int | 0 | Capture height (0 = full screen) |
+| `fps` | int | 10 | Target frame rate |
+
+**Response:** `{"success": true, "backend": "x11"}` or `{"success": true, "backend": "pipewire"}`
+
+### `POST /display/screencast/stop`
+
+Stop screen capture streaming.
+
+**Response:** `{"success": true, "message": "Screencast stopped"}`
+
+### `GET /display/screencast/status`
+
+Check screencast state.
+
+**Response:**
+```json
+{"running": true, "backend": "x11", "fps": 10, "region": {"x": 0, "y": 0, "w": 0, "h": 0}, "frames": 142}
+```
+
+---
+
 ## Themes
 
 ### `POST /themes/init`
@@ -416,12 +457,14 @@ Load a theme by name and send to device. Handles static images, animated themes 
 
 ### `POST /themes/save`
 
-Save current device display as a named theme.
+Save current device display as a named theme. Saves to `~/.trcc-user/` so custom themes survive uninstall and data re-downloads. Routes through `LCDDevice.save()` → `DisplayService.save_theme()`.
 
 **Body:**
 ```json
 {"name": "MyTheme"}
 ```
+
+**Requires:** An image loaded on the device (via theme load, send, etc.). Returns 409 if no image.
 
 ### `POST /themes/import`
 

@@ -80,11 +80,21 @@ On first launch, TRCC downloads theme packs automatically. If themes are missing
 trcc download
 ```
 
+CLI:
+```bash
+trcc theme-list                   # list local themes
+trcc theme-load Theme1            # load by name
+trcc theme-load Theme1 -p        # load with live ANSI preview
+trcc mask-list                    # list available masks
+```
+
 ### Cloud Themes
 The **Gallery** tab shows themes available for download from the cloud. Click to download and apply.
 
 ### Masks
 Masks are decorative overlays (borders, shapes, gauges) that sit on top of your theme. Browse them in the **Cloud Masks** tab or load your own PNG.
+
+Masks are listed from both cloud cache (`~/.trcc/data/web/zt{W}{H}/`) and user-created (`~/.trcc-user/data/web/zt{W}{H}/`).
 
 ### Theme Carousel
 Set up automatic theme rotation:
@@ -95,9 +105,11 @@ Set up automatic theme rotation:
 Themes cycle automatically at the configured interval.
 
 ### Saving and Exporting
-- **Save** — saves your current overlay config to the theme directory
+- **Save** — saves your current display state as a custom theme to `~/.trcc-user/` (survives uninstall and data re-downloads)
 - **Export** — creates a `.tr` archive you can share with others
 - **Import** — loads a `.tr` archive from someone else
+
+All three interfaces (GUI, CLI, API) save through the same code path (`LCDDevice.save()`).
 
 ---
 

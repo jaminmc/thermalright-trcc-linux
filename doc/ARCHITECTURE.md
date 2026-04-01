@@ -4,9 +4,9 @@
 
 The project follows hexagonal architecture. The **services layer** is the core hexagon containing all business logic (pure Python, no framework deps). Four driving adapters consume the services via **Device ABCs** (`LCDDevice` / `LEDDevice`):
 
-- **CLI** (`cli/` package) — Typer, 56 commands across 8 submodules. Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
+- **CLI** (`cli/` package) — Typer, 58 commands across 8 submodules, 7 help panels. Thin presentation wrappers over `LCDDevice`/`LEDDevice` — connect, call device method, print result.
 - **GUI** (`gui/`) — PySide6, `TRCCApp` (thin shell) + `LCDHandler` (one per LCD device)
-- **API** (`api/` package) — FastAPI REST adapter, 49 endpoints across 7 submodules
+- **API** (`api/` package) — FastAPI REST adapter, 61 endpoints across 7 submodules
 - **IPC** (`ipc.py`) — Unix socket daemon for GUI-as-server single-device-owner safety
 - **Setup GUI** (`install/gui.py`) — Standalone PySide6 setup wizard
 
@@ -119,6 +119,18 @@ src/trcc/
 ### Hexagonal / Device ABCs
 
 `LCDDevice` and `LEDDevice` in `core/` are the single entry point for all adapters. `LCDDevice` has direct methods (capabilities inlined in v8.0.0) that delegate to services. `LEDDevice` has direct methods. CLI, GUI, and API all import from `core/` — never adapter→adapter. Law of Demeter: Adapter→Device→Services only.
+
+Key `LCDDevice` methods for adapter parity:
+- `send(image)` — async send (non-blocking, latest-frame-wins queue)
+- `send_frame(image)` — sync send (blocks until USB write completes, used by frame pump loops)
+- `save(name)` — saves to `~/.trcc-user/` via `DisplayService.save_theme()`
+- `load_theme_by_name(name)` — discovers from both stock + user dirs, loads overlay for static and animated
+- `set_mask_from_path(path)` — handles both file and directory mask paths
+- `load_overlay_config_from_dir(path)` — reads DC/config.json overlay config
+
+Key `ThemeService` static methods:
+- `discover_local_merged(primary_dir, user_content_dir)` — scans both dirs, deduplicates, sorts
+- `discover_masks(cloud_dir, user_dir)` — merges cloud + user masks, user first
 
 ### Strict Dependency Injection (v8.1.0)
 

@@ -2,9 +2,9 @@
 
 TRCC Linux is **feature-complete** — all 45 features from the Windows TRCC 2.1.2 have been ported, with full CLI/GUI/API parity via hexagonal architecture.
 
-**Current version:** 9.3.2
+**Current version:** 9.3.3
 **Branch:** `main`
-**Tests:** 5577 across 96 files in 9 hexagonal directories
+**Tests:** 5603 across 102 files in 9 hexagonal directories
 **PyPI:** [trcc-linux](https://pypi.org/project/trcc-linux/)
 
 ## What's Stable
@@ -18,12 +18,12 @@ All features are tested and working on the `main` branch:
 - **Per-device config** — each LCD remembers its theme, brightness, rotation, overlay, and carousel settings
 - **Autostart** — launches minimized to system tray on login, sends last-used theme
 - **Setup wizard** — CLI (`trcc setup`) and GUI (`trcc setup-gui`)
-- **CLI** — 56 Typer commands with full service parity (theme, LED, display, overlay, screencast, video, diagnostics, setup, i18n)
-- **REST API** — 49 endpoints with full CLI parity (`trcc serve`), Pydantic models, uses LCDDevice/LEDDevice from core/
+- **CLI** — 58 Typer commands with full service parity (theme, LED, display, overlay, screencast, video, diagnostics, setup, i18n), grouped into 7 help panels
+- **REST API** — 61 endpoints with full CLI parity (`trcc serve`), Pydantic models, uses LCDDevice/LEDDevice from core/
 - **IPC daemon** — GUI owns device exclusively; CLI auto-routes through Unix socket when GUI is running
 - **Services layer** — 8 pure-Python service classes shared by GUI, CLI, and API
 - **Cross-distro compatibility** — tested on Fedora, Debian/Ubuntu, Arch, openSUSE, Void, Alpine, Gentoo, NixOS, SteamOS, Bazzite
-- **5323 tests** across 89 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,gui}/`)
+- **5603 tests** across 102 test files in hexagonal directory layout (`tests/{core,services,adapters/,cli,api,gui}/`)
 
 ### Supported Devices
 
@@ -62,7 +62,7 @@ All features are tested and working on the `main` branch:
 | # | Item | Status |
 |---|------|--------|
 | 1 | Full GUI port of Windows TRCC 2.1.2 | Done |
-| 2 | Test coverage | Done (5323 tests, 89 files, hexagonal layout) |
+| 2 | Test coverage | Done (5603 tests, 102 files, hexagonal layout) |
 | 3 | CI/CD (GitHub Actions) | Done |
 | 4 | Type checking (pyright basic) | Done |
 | 5 | Cross-distro compatibility | Done |
@@ -75,7 +75,7 @@ All features are tested and working on the `main` branch:
 | 12 | On-demand download | Done — 16 resolutions + 33 web archives |
 | 13 | Diagnostic report (`trcc report`) | Done |
 | 14 | Hexagonal architecture (services layer) | Done — 8 services |
-| 15 | CLI Typer refactor | Done — 56 commands |
+| 15 | CLI Typer refactor | Done — 58 commands, 7 help panels |
 | 16 | REST API adapter | Done — FastAPI (`trcc serve`) |
 | 17 | Unified segment display renderer | Done — 10 styles, OOP class hierarchy |
 | 18 | Hexagonal adapters/ restructure | Done — adapters/device, system, infra |
@@ -83,7 +83,7 @@ All features are tested and working on the `main` branch:
 | 20 | SELinux support | Done — `trcc setup-selinux` + policy module + wizard integration |
 | 21 | Windows C# feature parity audit | Done — 45/49 ported, 4 hidden/unreleased |
 | 22 | GoF refactoring (5-phase OOP overhaul) | Done — -1203 lines, Facade/Flyweight/Strategy/Template Method/Memento, GoF file renames (v7.0.1), SOLID (v7.0.2) |
-| 23 | REST API full CLI parity | Done — 49 endpoints, Pydantic models, uses LCDDevice/LEDDevice |
+| 23 | REST API full CLI parity | Done — 61 endpoints, Pydantic models, uses LCDDevice/LEDDevice |
 | 24 | Full wire remap audit (12 LED styles) | Done — styles 2/3/4 fixed, 9 verified correct |
 | 25 | LY bulk protocol | Done — `0416:5408` / `0416:5409` |
 | 26 | IPC daemon (GUI-as-server) | Done — Unix socket, CLI auto-routes through GUI |
@@ -118,7 +118,7 @@ If something breaks:
 - [CHANGELOG.md](CHANGELOG.md) — version history
 - [GUIDE_DEVICE_TESTING.md](GUIDE_DEVICE_TESTING.md) — how to help test devices
 - [GUIDE_INSTALL.md](GUIDE_INSTALL.md) — installation for all distros
-- [REFERENCE_CLI.md](REFERENCE_CLI.md) — all 56 commands
-- [REFERENCE_API.md](REFERENCE_API.md) — all 53 REST API endpoints
+- [REFERENCE_CLI.md](REFERENCE_CLI.md) — all 58 commands
+- [REFERENCE_API.md](REFERENCE_API.md) — all 61 REST API endpoints
 - [PROTOCOL_USBLCDNEW.md](PROTOCOL_USBLCDNEW.md) — USB bulk protocol (from USBLCDNEW.exe reverse engineering)
 - [PROTOCOL_USBLED.md](PROTOCOL_USBLED.md) — HID LED protocol (from FormLED.cs reverse engineering)

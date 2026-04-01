@@ -754,6 +754,20 @@ trcc theme-list --cloud --category a   # gallery category only
 | `--cloud`, `-c` | List cloud themes instead of local |
 | `--category` | Filter by category (a=Gallery, b=Tech, c=HUD, d=Light, e=Nature, y=Aesthetic) |
 
+Scans both `~/.trcc/data/` (stock themes) and `~/.trcc-user/` (user-created themes).
+
+---
+
+### `trcc mask-list`
+
+List available mask overlays for the current device resolution.
+
+```bash
+trcc mask-list
+```
+
+Scans both cloud masks (`~/.trcc/data/web/zt{W}{H}/`) and user masks (`~/.trcc-user/data/web/zt{W}{H}/`). Custom masks are tagged `[custom]`.
+
 ---
 
 ### `trcc theme-load`
@@ -769,9 +783,9 @@ trcc theme-load warframe          # partial match
 | Option | Description |
 |--------|-------------|
 | `--device`, `-d` | Device path (default: auto-detect) |
-| `--preview`, `-p` | Show ANSI art preview in terminal |
+| `--preview`, `-p` | Live ANSI preview in terminal (updates with metrics) |
 
-Applies saved brightness/rotation, saves as last-used theme.
+Handles both static and animated themes. Loads overlay config (DC/config.json), wires metrics, applies mask. Static themes enter a keep-alive loop; animated themes play video with overlay. `-p` shows live-updating ANSI preview for both.
 
 ---
 
