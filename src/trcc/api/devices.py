@@ -154,52 +154,45 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
     """Send an image to the device LCD.
 
     Accepts image file upload. Validates size and format before processing.
+    Routes through LCDDevice for consistent encoding and send behavior.
     """
-    from trcc.api import _device_svc
+    import tempfile
+    from pathlib import Path
 
-    dev = _get_device_by_id(device_id)
-    _device_svc.select(dev)
+    from trcc.core.app import TrccApp
+
+    _get_device_by_id(device_id)  # validate device exists
+
+    app = TrccApp.get()
+    if not app.has_lcd:
+        raise HTTPException(status_code=409, detail="No LCD device connected")
+    lcd = app.lcd
 
     # Read and validate upload
     data = await image.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit")
 
-    from PySide6.QtGui import QImage
-    img = QImage.fromData(bytes(data))
-    if img.isNull():
-        raise HTTPException(status_code=400, detail="Invalid image format")
+    # Save upload to temp file, load via LCDDevice
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+        f.write(data)
+        tmp_path = Path(f.name)
 
-    # Apply rotation and brightness
-    if rotation:
-        img = ImageService.apply_rotation(img, rotation)
-    if brightness != 100:
-        img = ImageService.apply_brightness(img, brightness)
+    try:
+        result = lcd.load_image(tmp_path)
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "Invalid image"))
 
-    # Discover resolution via handshake if not yet known
-    w, h = dev.resolution
-    if (w, h) == (0, 0):
-        from trcc.adapters.device.factory import DeviceProtocolFactory
-        protocol = DeviceProtocolFactory.get_protocol(dev)
-        result = protocol.handshake()
-        if result:
-            res = getattr(result, 'resolution', None)
-            if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
-                dev.resolution = res
-                w, h = res
-            # Propagate FBL code for JPEG mode detection
-            fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
-            if fbl:
-                dev.fbl_code = fbl
-        if (w, h) == (0, 0):
-            raise HTTPException(status_code=503, detail="Cannot discover device resolution")
-    img = ImageService.resize(img, w, h)
+        if rotation:
+            lcd.set_rotation(rotation)
+        if brightness != 100:
+            lcd.set_brightness(brightness)
 
-    # Encode and send via service (handles JPEG vs RGB565, rotation, byte order)
-    # Frame capture is automatic via on_frame_sent callback
-    ok = _device_svc.send_frame(img, w, h)
+        send_result = lcd.send(result["image"])
+        if not send_result.get("success"):
+            raise HTTPException(status_code=500, detail="Send failed (device busy or error)")
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
-    if not ok:
-        raise HTTPException(status_code=500, detail="Send failed (device busy or error)")
-
+    w, h = lcd.lcd_size
     return {"sent": True, "resolution": (w, h)}

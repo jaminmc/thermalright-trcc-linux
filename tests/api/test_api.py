@@ -155,7 +155,7 @@ class TestDeviceEndpoints(unittest.TestCase):
 
 
 class TestSendImage(unittest.TestCase):
-    """POST /devices/{id}/send — image upload and processing."""
+    """POST /devices/{id}/send — routes through LCDDevice."""
 
     def setUp(self):
         configure_auth(None)
@@ -164,31 +164,47 @@ class TestSendImage(unittest.TestCase):
         _device_svc._devices = [self.dev]
         _device_svc._selected = None
 
-    @patch.object(_device_svc, 'send_frame', return_value=True)
-    def test_send_image_success(self, mock_send):
-        buf = io.BytesIO(_png_bytes(100, 100))
-        buf.seek(0)
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_image_success(self, mock_get):
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": True, "image": MagicMock()}
+        mock_lcd.send.return_value = {"success": True}
+        mock_lcd.lcd_size = (320, 320)
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
 
+        buf = io.BytesIO(_png_bytes(100, 100))
         resp = self.client.post(
             "/devices/0/send",
             files={"image": ("test.png", buf, "image/png")},
         )
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["sent"])
-        mock_send.assert_called_once()
+        mock_lcd.send.assert_called_once()
 
-    @patch.object(_device_svc, 'send_frame', return_value=False)
-    def test_send_image_failure(self, mock_send):
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_image_failure(self, mock_get):
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": True, "image": MagicMock()}
+        mock_lcd.send.return_value = {"success": False, "error": "busy"}
+        mock_lcd.lcd_size = (320, 320)
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
+
         buf = io.BytesIO(_png_bytes(100, 100))
-        buf.seek(0)
-
         resp = self.client.post(
             "/devices/0/send",
             files={"image": ("test.png", buf, "image/png")},
         )
         self.assertEqual(resp.status_code, 500)
 
-    def test_send_image_invalid_format(self):
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_image_invalid_format(self, mock_get):
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": False, "error": "Failed to load"}
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
+
         resp = self.client.post(
             "/devices/0/send",
             files={"image": ("test.txt", io.BytesIO(b"not an image"), "text/plain")},
@@ -196,7 +212,6 @@ class TestSendImage(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_send_image_too_large(self):
-        # 11 MB of zeros
         big = io.BytesIO(b'\x00' * (11 * 1024 * 1024))
         resp = self.client.post(
             "/devices/0/send",
@@ -207,54 +222,28 @@ class TestSendImage(unittest.TestCase):
     def test_send_image_device_not_found(self):
         _device_svc._devices = []
         buf = io.BytesIO(_png_bytes(10, 10))
-        buf.seek(0)
-
         resp = self.client.post(
             "/devices/99/send",
             files={"image": ("test.png", buf, "image/png")},
         )
         self.assertEqual(resp.status_code, 404)
 
-    @patch.object(_device_svc, 'send_frame', return_value=True)
-    def test_send_with_rotation(self, mock_send):
-        buf = io.BytesIO(_png_bytes(100, 100))
-        buf.seek(0)
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_with_rotation(self, mock_get):
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": True, "image": MagicMock()}
+        mock_lcd.send.return_value = {"success": True}
+        mock_lcd.lcd_size = (320, 320)
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
 
+        buf = io.BytesIO(_png_bytes(100, 100))
         resp = self.client.post(
             "/devices/0/send?rotation=90",
             files={"image": ("test.png", buf, "image/png")},
         )
         self.assertEqual(resp.status_code, 200)
-
-
-    @patch.object(_device_svc, 'send_frame', return_value=True)
-    def test_send_propagates_fbl_from_handshake(self, mock_send):
-        """Handshake fbl_code propagates to DeviceInfo for JPEG mode detection."""
-        dev = DeviceInfo(name="HID", path="hid:0416:5302", vid=0x0416, pid=0x5302,
-                         protocol="hid", resolution=(0, 0))
-        _device_svc._devices = [dev]
-
-        mock_result = MagicMock()
-        mock_result.resolution = (1280, 480)
-        mock_result.fbl = 128
-        mock_result.model_id = 128
-
-        with patch('trcc.adapters.device.factory.DeviceProtocolFactory') as mock_factory:
-            mock_protocol = MagicMock()
-            mock_protocol.handshake.return_value = mock_result
-            mock_factory.get_protocol.return_value = mock_protocol
-
-            buf = io.BytesIO(_png_bytes(100, 100))
-            buf.seek(0)
-
-            resp = self.client.post(
-                "/devices/0/send",
-                files={"image": ("test.png", buf, "image/png")},
-            )
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(dev.fbl_code, 128)
-            self.assertEqual(dev.resolution, (1280, 480))
-            mock_send.assert_called_once()
+        mock_lcd.set_rotation.assert_called_once_with(90)
 
 
 class TestThemesEndpoint(unittest.TestCase):
@@ -1636,47 +1625,59 @@ class TestSendImageEdgeCases(unittest.TestCase):
         _device_svc._devices = [dev]
         _device_svc._selected = None
 
-    def test_send_with_brightness_param(self) -> None:
-        with patch.object(_device_svc, "send_frame", return_value=True):
-            resp = self.client.post(
-                "/devices/0/send?brightness=50",
-                files={"image": ("t.png", io.BytesIO(_png_bytes()), "image/png")},
-            )
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_with_brightness_param(self, mock_get) -> None:
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": True, "image": MagicMock()}
+        mock_lcd.send.return_value = {"success": True}
+        mock_lcd.lcd_size = (320, 320)
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
+        resp = self.client.post(
+            "/devices/0/send?brightness=50",
+            files={"image": ("t.png", io.BytesIO(_png_bytes()), "image/png")},
+        )
         self.assertEqual(resp.status_code, 200)
+        mock_lcd.set_brightness.assert_called_once_with(50)
 
-    def test_send_resolution_zero_cannot_discover_raises_503(self) -> None:
-        dev = _scsi_dev(resolution=(0, 0))
-        _device_svc._devices = [dev]
-        with patch("trcc.adapters.device.factory.DeviceProtocolFactory.get_protocol") as mock_gp:
-            mock_protocol = MagicMock()
-            mock_protocol.handshake.return_value = None
-            mock_gp.return_value = mock_protocol
-            resp = self.client.post(
-                "/devices/0/send",
-                files={"image": ("t.png", io.BytesIO(_png_bytes()), "image/png")},
-            )
-        self.assertEqual(resp.status_code, 503)
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_corrupt_image_returns_400(self, mock_get) -> None:
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": False, "error": "Failed to load"}
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
 
-    def test_send_corrupt_image_returns_400(self) -> None:
         resp = self.client.post(
             "/devices/0/send",
             files={"image": ("broken.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8), "image/png")},
         )
         self.assertEqual(resp.status_code, 400)
 
-    def test_send_empty_file_returns_400(self) -> None:
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_empty_file_returns_400(self, mock_get) -> None:
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": False, "error": "Failed to load"}
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
+
         resp = self.client.post(
             "/devices/0/send",
             files={"image": ("empty.png", io.BytesIO(b""), "image/png")},
         )
         self.assertEqual(resp.status_code, 400)
 
-    def test_send_response_has_resolution_field(self) -> None:
-        with patch.object(_device_svc, "send_frame", return_value=True):
-            resp = self.client.post(
-                "/devices/0/send",
-                files={"image": ("t.png", io.BytesIO(_png_bytes()), "image/png")},
-            )
+    @patch('trcc.core.app.TrccApp.get')
+    def test_send_response_has_resolution_field(self, mock_get) -> None:
+        mock_lcd = MagicMock()
+        mock_lcd.load_image.return_value = {"success": True, "image": MagicMock()}
+        mock_lcd.send.return_value = {"success": True}
+        mock_lcd.lcd_size = (320, 320)
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
+        resp = self.client.post(
+            "/devices/0/send",
+            files={"image": ("t.png", io.BytesIO(_png_bytes()), "image/png")},
+        )
         self.assertEqual(resp.status_code, 200)
         self.assertIn("resolution", resp.json())
 

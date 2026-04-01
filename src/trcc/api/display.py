@@ -397,26 +397,20 @@ async def create_theme(
             raise HTTPException(status_code=400, detail=mask_result.get("error", "Mask load failed"))
         img = mask_result.get("image", img)
 
+    from trcc.core.app import TrccApp
+    lcd_device = TrccApp.get().lcd
+
+    # Load background into DisplayService state
+    lcd_device.load_image(bg_path)
+
     if overlay_config:
-        from trcc.adapters.infra.dc_config import DcConfig
-        from trcc.adapters.infra.dc_parser import load_config_json
-        from trcc.services.image import ImageService
-        from trcc.services.overlay import OverlayService
-        overlay_svc = OverlayService(
-            w, h, renderer=ImageService._r(),
-            load_config_json_fn=load_config_json,
-            dc_config_cls=DcConfig,
-        )
-        overlay_svc.set_background(img)
-        overlay_svc.set_config(overlay_config)
-        overlay_svc.enabled = True
-        api._overlay_svc = overlay_svc
-        from trcc.services.system import get_all_metrics
-        frame = overlay_svc.render(get_all_metrics())
-        lcd.send(frame)
+        lcd_device.set_config(overlay_config)
+        lcd_device.enable_overlay(True)
+        result = lcd_device.render_and_send()
+        frame = result.get("image", img)
         api.set_current_image(frame)
     else:
-        lcd.send(img)
+        lcd_device.send(img)
         api.set_current_image(img)
 
     return {"success": True, "animated": False, "resolution": f"{w}x{h}"}
