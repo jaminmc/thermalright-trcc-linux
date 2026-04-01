@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from ..core.models import ThemeData, ThemeDir, ThemeInfo, ThemeType
+from ..core.models import MaskInfo, ThemeData, ThemeDir, ThemeInfo, ThemeType
 from .image import ImageService
 
 log = logging.getLogger(__name__)
@@ -178,6 +178,80 @@ class ThemeService:
             themes.append(theme)
 
         return themes
+
+    @staticmethod
+    def discover_local_merged(
+        primary_dir: Path,
+        user_content_dir: Path | None = None,
+        resolution: tuple[int, int] = (0, 0),
+        filter_mode: str = 'all',
+    ) -> list[ThemeInfo]:
+        """Discover local themes from primary + user content directories.
+
+        Scans primary_dir first, then the matching subdirectory under
+        user_content_dir.  Deduplicates by name (first seen wins) and
+        sorts stock themes before user themes (Custom_/User prefix).
+        """
+        dirs_to_scan: list[Path] = []
+        if primary_dir and primary_dir.exists():
+            dirs_to_scan.append(primary_dir)
+        if user_content_dir is not None and primary_dir is not None:
+            user_theme_dir = user_content_dir / primary_dir.name
+            if user_theme_dir != primary_dir and user_theme_dir.exists():
+                dirs_to_scan.append(user_theme_dir)
+
+        seen_names: set[str] = set()
+        themes: list[ThemeInfo] = []
+
+        for scan_dir in dirs_to_scan:
+            for item in sorted(scan_dir.iterdir()):
+                if item.is_dir() and item.name not in seen_names:
+                    td = ThemeDir(item)
+                    if td.is_valid():
+                        theme = ThemeInfo.from_directory(item, resolution)
+                        if ThemeService._passes_filter(theme, filter_mode):
+                            seen_names.add(item.name)
+                            themes.append(theme)
+
+        themes.sort(key=lambda t: (
+            t.name.startswith(('User', 'Custom')),
+            t.name,
+        ))
+        return themes
+
+    @staticmethod
+    def discover_masks(
+        cloud_masks_dir: Path | None = None,
+        user_masks_dir: Path | None = None,
+    ) -> list[MaskInfo]:
+        """Discover local masks from user + cloud-cache directories.
+
+        User masks appear first (custom content), then cloud-cached masks.
+        Deduplicates by name (first seen wins).
+        """
+        masks: list[MaskInfo] = []
+        seen: set[str] = set()
+
+        def _scan(directory: Path | None, is_custom: bool) -> None:
+            if directory is None or not directory.exists():
+                return
+            for item in sorted(directory.iterdir()):
+                if not item.is_dir() or item.name in seen:
+                    continue
+                thumb = item / 'Theme.png'
+                mask_file = item / '01.png'
+                if thumb.exists() or mask_file.exists():
+                    seen.add(item.name)
+                    masks.append(MaskInfo(
+                        name=item.name,
+                        path=item,
+                        preview_path=thumb if thumb.exists() else mask_file,
+                        is_custom=is_custom,
+                    ))
+
+        _scan(user_masks_dir, is_custom=True)
+        _scan(cloud_masks_dir, is_custom=False)
+        return masks
 
     # ── Load ─────────────────────────────────────────────────────────
 

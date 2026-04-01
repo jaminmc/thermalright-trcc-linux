@@ -669,13 +669,15 @@ class LCDDevice(Device):
         Returns dict with: success, image, is_animated, interval,
         theme_path (Path), config_path (Path|None for overlay dc).
         """
-        from ..conf import Settings
+        from ..conf import Settings, settings
         from ..services import ThemeService
         from .models import ThemeDir as CoreThemeDir
 
         w, h = (width, height) if width and height else self.lcd_size
         theme_dir = Path(str(CoreThemeDir.for_resolution(w, h)))
-        themes = ThemeService.discover_local(theme_dir, (w, h))
+        user_content_dir = getattr(settings, 'user_content_dir', None)
+        themes = ThemeService.discover_local_merged(
+            theme_dir, user_content_dir, (w, h))
         match = next((t for t in themes if t.name == name), None)
         if not match:
             return {"success": False, "error": f"Theme '{name}' not found"}
@@ -687,9 +689,25 @@ class LCDDevice(Device):
         image = result.get("image")
         is_animated = result.get("is_animated", False)
 
-        # Send static image to device (matches GUI/CLI behavior)
-        if image and not is_animated:
+        # Load overlay config (config.json / config1.dc) — matches GUI behavior
+        overlay_config = None
+        if match.path:
+            overlay_config = self.load_overlay_config_from_dir(str(match.path))
+            if overlay_config:
+                Settings.apply_format_prefs(overlay_config)
+                self.set_config(overlay_config)
+                self.enable_overlay(True)
+                if not is_animated:
+                    rendered = self.render_and_send()
+                    image = rendered.get("image") or image
+                    result["image"] = image
+            else:
+                self.enable_overlay(False)
+                if image and not is_animated:
+                    self.send(image)
+        elif image and not is_animated:
             self.send(image)
+        result["overlay_config"] = overlay_config
 
         # Include theme paths for caller to handle overlay/persist
         result["theme_path"] = match.path
@@ -708,9 +726,31 @@ class LCDDevice(Device):
         themes = self._theme_svc.load_local_themes(resolution)
         return {"success": True, "themes": themes, "count": len(themes)}
 
-    def save(self, name: str, data_dir: Any) -> dict:
-        ok, msg = self._display_svc.save_theme(name, Path(data_dir))
+    def save(self, name: str) -> dict:
+        ok, msg = self._display_svc.save_theme(name)
         return {"success": ok, "message": msg}
+
+    def set_mask_from_path(self, path: Any) -> dict:
+        """Load and apply a mask from a file or directory path.
+
+        File → loads PNG as mask via OverlayService.
+        Directory → delegates to DisplayService.apply_mask().
+        """
+        p = Path(path)
+        if p.is_dir():
+            image = self._display_svc.apply_mask(p)
+            return {"success": True, "image": image,
+                    "message": f"Mask: {p.name}"}
+        from ..services.image import ImageService
+        from ..services.overlay import OverlayService
+        r = ImageService._r()
+        w, h = self.lcd_size
+        mask_img = OverlayService.load_mask_from_path(p, r, w, h)
+        if mask_img is None:
+            return {"success": False, "error": f"Failed to load mask: {path}"}
+        self._display_svc.overlay.set_theme_mask(mask_img)
+        self._display_svc._mask_source_dir = p.parent
+        return {"success": True, "message": f"Mask: {p.name}"}
 
     def export_config(self, path: Any) -> dict:
         ok, msg = self._display_svc.export_config(Path(path))
@@ -862,6 +902,29 @@ class LCDDevice(Device):
             on_progress=on_progress,
             loop=loop,
             duration=duration,
+        )
+
+    # ── Blocking static keepalive loop (CLI / API) ──────────────
+
+    def keep_alive_loop(
+        self,
+        *,
+        interval: float = 0.150,
+        duration: float = 0,
+        metrics_fn: Any | None = None,
+        on_frame: Any | None = None,
+    ) -> dict:
+        """Re-send current frame at *interval* until interrupted.
+
+        Bulk/LY devices don't retain frames — firmware reverts to the
+        built-in logo unless frames keep arriving.  Mirrors
+        ``play_video_loop`` for static themes.
+        """
+        if not self._display_svc:
+            return {"success": False, "error": "DisplayService not initialized"}
+        return self._display_svc.run_static_loop(
+            interval=interval, duration=duration,
+            metrics_fn=metrics_fn, on_frame=on_frame,
         )
 
     # ── Flat convenience aliases ──────────────────────────────────

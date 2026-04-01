@@ -80,6 +80,18 @@ class MaskItem(ThemeItem):
     is_custom: bool = False  # User-uploaded mask (enables delete in context menu)
 
 
+@dataclass
+class MaskInfo:
+    """Mask overlay info returned by ThemeService.discover_masks().
+
+    Pure domain object — adapters (GUI, API) convert to their own types.
+    """
+    name: str
+    path: Optional[Path] = None
+    preview_path: Optional[Path] = None
+    is_custom: bool = False  # User-created vs cloud-downloaded
+
+
 # =============================================================================
 # Theme Model
 # =============================================================================

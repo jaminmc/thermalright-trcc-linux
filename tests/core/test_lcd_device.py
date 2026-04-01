@@ -462,7 +462,7 @@ def lcd_with_mocks():
 class TestLoadThemeByName:
     """LCDDevice.load_theme_by_name — core theme loading by name."""
 
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_found_theme_calls_select(self, mock_for_res, mock_discover, lcd_with_mocks):
         from trcc.core.models import ThemeInfo, ThemeType
@@ -476,7 +476,7 @@ class TestLoadThemeByName:
         assert result["success"] is True
         lcd_with_mocks._theme_svc.select.assert_called_once_with(theme)
 
-    @patch("trcc.services.ThemeService.discover_local", return_value=[])
+    @patch("trcc.services.ThemeService.discover_local_merged", return_value=[])
     @patch("trcc.core.models.ThemeDir.for_resolution",
            return_value=MagicMock(path="/tmp/themes", __str__=lambda s: "/tmp/themes"))
     def test_not_found_returns_error(self, mock_for_res, mock_discover, lcd_with_mocks):
@@ -485,7 +485,7 @@ class TestLoadThemeByName:
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_explicit_resolution_overrides_device(self, mock_for_res, mock_discover, lcd_with_mocks):
         mock_for_res.return_value = MagicMock(path="/tmp/themes", __str__=lambda s: "/tmp/themes")
@@ -495,10 +495,10 @@ class TestLoadThemeByName:
 
         mock_for_res.assert_called_once_with(480, 480)
         mock_discover.assert_called_once()
-        # Second arg is the resolution tuple
-        assert mock_discover.call_args[0][1] == (480, 480)
+        # Third arg is the resolution tuple (after primary_dir, user_content_dir)
+        assert mock_discover.call_args[0][2] == (480, 480)
 
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_zero_resolution_uses_device_size(self, mock_for_res, mock_discover, lcd_with_mocks):
         mock_for_res.return_value = MagicMock(path="/tmp/themes", __str__=lambda s: "/tmp/themes")
@@ -511,7 +511,7 @@ class TestLoadThemeByName:
 
     @patch("trcc.conf.Settings.save_device_setting")
     @patch("trcc.conf.Settings.device_config_key", return_value="0")
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_sends_static_image_to_device(
         self, mock_for_res, mock_discover, mock_key, mock_save, lcd_with_mocks,
@@ -541,7 +541,7 @@ class TestLoadThemeByName:
 
     @patch("trcc.conf.Settings.save_device_setting")
     @patch("trcc.conf.Settings.device_config_key", return_value="0")
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_does_not_send_animated_theme(
         self, mock_for_res, mock_discover, mock_key, mock_save, lcd_with_mocks,
@@ -571,7 +571,7 @@ class TestLoadThemeByName:
 
     @patch("trcc.conf.Settings.save_device_setting")
     @patch("trcc.conf.Settings.device_config_key", return_value="0")
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_persists_theme_path(
         self, mock_for_res, mock_discover, mock_key, mock_save, lcd_with_mocks,
@@ -607,7 +607,7 @@ class TestLoadThemeByName:
 
     @patch("trcc.conf.Settings.save_device_setting")
     @patch("trcc.conf.Settings.device_config_key", return_value="0")
-    @patch("trcc.services.ThemeService.discover_local")
+    @patch("trcc.services.ThemeService.discover_local_merged")
     @patch("trcc.core.models.ThemeDir.for_resolution")
     def test_result_includes_theme_and_config_paths(
         self, mock_for_res, mock_discover, mock_key, mock_save, lcd_with_mocks,
@@ -729,6 +729,121 @@ class TestLCDDeviceProxyRouting:
         )
         lcd.connect("/dev/sg0")
         find_fn.assert_not_called()
+
+
+# =============================================================================
+# keep_alive_loop + load_theme_by_name overlay activation
+# =============================================================================
+
+
+class TestKeepAliveLoop:
+    """LCDDevice.keep_alive_loop — delegates to DisplayService.run_static_loop."""
+
+    def test_delegates_to_display_service(self):
+        disp = MagicMock()
+        disp.run_static_loop.return_value = {"success": True, "message": "Stopped"}
+        lcd = _make_lcd(display_svc=disp)
+
+        result = lcd.keep_alive_loop(interval=0.2, duration=1.0)
+
+        disp.run_static_loop.assert_called_once_with(
+            interval=0.2, duration=1.0, metrics_fn=None, on_frame=None,
+        )
+        assert result["success"] is True
+
+    def test_passes_metrics_fn(self):
+        disp = MagicMock()
+        disp.run_static_loop.return_value = {"success": True, "message": "Done"}
+        lcd = _make_lcd(display_svc=disp)
+        fn = MagicMock()
+
+        lcd.keep_alive_loop(metrics_fn=fn)
+
+        assert disp.run_static_loop.call_args[1]["metrics_fn"] is fn
+
+    def test_no_display_svc_returns_error(self):
+        lcd = _make_lcd(display_svc=None)
+
+        result = lcd.keep_alive_loop()
+
+        assert result["success"] is False
+        assert "not initialized" in result["error"].lower()
+
+
+class TestLoadThemeByNameOverlay:
+    """load_theme_by_name enables overlay when theme has config."""
+
+    @patch("trcc.conf.Settings.save_device_setting")
+    @patch("trcc.conf.Settings.device_config_key", return_value="0")
+    @patch("trcc.conf.Settings.apply_format_prefs")
+    @patch("trcc.services.ThemeService.discover_local_merged")
+    @patch("trcc.core.models.ThemeDir.for_resolution")
+    def test_enables_overlay_when_config_exists(
+        self, mock_for_res, mock_discover, mock_fmt, mock_key, mock_save,
+        lcd_with_mocks,
+    ):
+        """Static theme with config1.dc → overlay enabled + render_and_send called."""
+        from pathlib import Path
+
+        from trcc.core.models import ThemeInfo, ThemeType
+
+        theme = ThemeInfo(
+            name="Overlay001", theme_type=ThemeType.LOCAL,
+            path=Path("/tmp/themes/Overlay001"),
+        )
+        mock_for_res.return_value = MagicMock(
+            path="/tmp/themes", __str__=lambda s: "/tmp/themes")
+        mock_discover.return_value = [theme]
+        lcd_with_mocks._display_svc.load_local_theme.return_value = {
+            "image": MagicMock(), "is_animated": False,
+        }
+        # Theme has overlay config
+        lcd_with_mocks.load_overlay_config_from_dir = MagicMock(
+            return_value={"elem0": {"x": 10, "y": 20, "text": "CPU"}})
+        lcd_with_mocks.set_config = MagicMock(return_value={"success": True})
+        lcd_with_mocks.enable_overlay = MagicMock(return_value={"success": True})
+        lcd_with_mocks.render_and_send = MagicMock(
+            return_value={"success": True, "image": MagicMock()})
+
+        result = lcd_with_mocks.load_theme_by_name("Overlay001")
+
+        assert result["success"] is True
+        lcd_with_mocks.set_config.assert_called_once()
+        lcd_with_mocks.enable_overlay.assert_called_once_with(True)
+        lcd_with_mocks.render_and_send.assert_called_once()
+
+    @patch("trcc.conf.Settings.save_device_setting")
+    @patch("trcc.conf.Settings.device_config_key", return_value="0")
+    @patch("trcc.services.ThemeService.discover_local_merged")
+    @patch("trcc.core.models.ThemeDir.for_resolution")
+    def test_disables_overlay_when_no_config(
+        self, mock_for_res, mock_discover, mock_key, mock_save,
+        lcd_with_mocks,
+    ):
+        """Static theme without config → overlay disabled, image sent directly."""
+        from pathlib import Path
+
+        from trcc.core.models import ThemeInfo, ThemeType
+
+        fake_image = MagicMock()
+        theme = ThemeInfo(
+            name="Plain001", theme_type=ThemeType.LOCAL,
+            path=Path("/tmp/themes/Plain001"),
+        )
+        mock_for_res.return_value = MagicMock(
+            path="/tmp/themes", __str__=lambda s: "/tmp/themes")
+        mock_discover.return_value = [theme]
+        lcd_with_mocks._display_svc.load_local_theme.return_value = {
+            "image": fake_image, "is_animated": False,
+        }
+        lcd_with_mocks.load_overlay_config_from_dir = MagicMock(return_value=None)
+        lcd_with_mocks.enable_overlay = MagicMock(return_value={"success": True})
+
+        result = lcd_with_mocks.load_theme_by_name("Plain001")
+
+        assert result["success"] is True
+        lcd_with_mocks.enable_overlay.assert_called_once_with(False)
+        lcd_with_mocks._device_svc.send_frame_async.assert_called_once()
 
 
 if __name__ == '__main__':

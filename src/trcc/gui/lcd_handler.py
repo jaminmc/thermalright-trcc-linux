@@ -330,7 +330,7 @@ class LCDHandler(BaseHandler):
         self._render_and_send()
 
     def save_theme(self, name: str) -> None:
-        result = self._lcd.save(name, str(self._data_dir))
+        result = self._lcd.save(name)
         self._w['preview'].set_status(result.get('message', ''))
         if result.get("success"):
             td = _conf.settings.theme_dir

@@ -554,6 +554,15 @@ class Settings:
         self.web_dir = Path(self._path_resolver.web_dir(w, h))
         self.masks_dir = Path(self._path_resolver.web_masks_dir(w, h))
 
+    def user_masks_dir(self, width: int = 0, height: int = 0) -> Path:
+        """User-created masks directory for a resolution.
+
+        Falls back to current resolution if width/height not specified.
+        """
+        w = width or self._width
+        h = height or self._height
+        return Path(self._path_resolver.user_masks_dir(w, h))
+
     def resolve_cloud_dirs(self, rotation: int = 0) -> None:
         """Re-resolve cloud background/mask dirs for rotation.
 

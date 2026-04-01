@@ -204,7 +204,7 @@ class TestDisplayServiceSaveTheme:
 
         mock_settings.user_content_dir = tmp_path
         with patch.object(ThemePersistence, 'save', return_value=(True, 'ok')) as mock_save:
-            display_svc.save_theme('Test', tmp_path)
+            display_svc.save_theme('Test')
 
         passed = mock_save.call_args.kwargs.get('current_image') or mock_save.call_args[0][3]
         assert passed is clean
@@ -220,7 +220,7 @@ class TestDisplayServiceSaveTheme:
 
         mock_settings.user_content_dir = tmp_path
         with patch.object(ThemePersistence, 'save', return_value=(True, 'ok')) as mock_save:
-            display_svc.save_theme('Fallback', tmp_path)
+            display_svc.save_theme('Fallback')
 
         passed = mock_save.call_args.kwargs.get('current_image') or mock_save.call_args[0][3]
         assert passed is current
@@ -250,7 +250,7 @@ class TestLoadMaskStandaloneWiring:
         lcd.load_mask_standalone(str(mask_dir))
 
         mock_settings.user_content_dir = tmp_path
-        ok, msg = display_svc.save_theme('MaskTest', tmp_path)
+        ok, msg = display_svc.save_theme('MaskTest')
         assert ok is True
 
         config = json.loads(
@@ -335,7 +335,7 @@ class TestCloudThemeStateWiring:
 
         mock_settings.user_content_dir = tmp_path
         with patch.object(ThemePersistence, 'save', return_value=(True, 'ok')) as mock_save:
-            display_svc.save_theme('CloudSave', tmp_path)
+            display_svc.save_theme('CloudSave')
 
         assert mock_save.call_args.kwargs.get('mask_source_dir') == mask_dir
 

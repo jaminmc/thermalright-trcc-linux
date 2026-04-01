@@ -37,13 +37,42 @@ def list_themes(cloud=False, category=None):
         if not td or not td.exists():
             print(f"No local themes for {w}x{h}.")
             return 0
-        themes = ThemeService.discover_local(td.path, (w, h))
+        themes = ThemeService.discover_local_merged(
+            td.path, settings.user_content_dir, (w, h))
         print(f"Local themes ({w}x{h}): {len(themes)}")
         for t in themes:
             kind = "video" if t.is_animated else "static"
             user = " [user]" if t.name.startswith(('Custom_', 'User')) else ""
             print(f"  {t.name} ({kind}){user}")
 
+    return 0
+
+
+@_cli_handler
+def list_masks():
+    """List available mask overlays for the current device resolution."""
+    from trcc.conf import settings
+    from trcc.services import ThemeService
+
+    w, h = settings.width, settings.height
+    if not w or not h:
+        print("No device resolution saved. Connect your device first.")
+        return 1
+
+    settings._resolve_paths()
+
+    masks = ThemeService.discover_masks(
+        cloud_masks_dir=settings.masks_dir,
+        user_masks_dir=settings.user_masks_dir(),
+    )
+    if not masks:
+        print(f"No masks for {w}x{h}.")
+        return 0
+
+    print(f"Masks ({w}x{h}): {len(masks)}")
+    for m in masks:
+        tag = " [custom]" if m.is_custom else ""
+        print(f"  {m.name}{tag}")
     return 0
 
 
@@ -67,11 +96,64 @@ def load_theme(builder, name, *, device=None, preview=False):
         return 1
 
     if result.get("is_animated") and result.get("theme_path"):
+        from pathlib import Path
+
+        theme_dir = Path(str(result["theme_path"]))
+        video_path = None
+        for ext in ('.zt', '.mp4', '.gif', '.avi', '.mkv', '.webm'):
+            for stem in ('Theme', 'theme'):
+                candidate = theme_dir / f"{stem}{ext}"
+                if candidate.exists():
+                    video_path = str(candidate)
+                    break
+            if video_path:
+                break
+        if not video_path:
+            print(f"Error: No video file found in {theme_dir}")
+            return 1
+
+        overlay_config = result.get("overlay_config")
+
+        # Wire metrics if overlay is configured
+        metrics_fn = None
+        if overlay_config:
+            import trcc.cli as _cli_mod
+            _cli_mod._ensure_system(builder)
+            svc = _cli_mod._system_svc
+            metrics_fn = (lambda: svc.all_metrics) if svc else None
+
+        # Wire mask from theme dir
+        mask_path = None
+        mask_file = theme_dir / '01.png'
+        if mask_file.exists():
+            mask_path = str(mask_file)
+
         print(f"Playing '{name}' → {lcd.device_path}")
+        if overlay_config:
+            print(f"  Overlay: {len(overlay_config)} elements")
         print("Press Ctrl+C to stop.")
+
+        if preview:
+            print('\033[2J', end='', flush=True)
+
+        def _on_frame(img):
+            lcd.send(img)
+            if preview:
+                print(ImageService.to_ansi_cursor_home(img), flush=True)
+
+        def _on_progress(pct, cur, total_t):
+            if not preview:
+                print(f"\r  {cur} / {total_t} ({pct:.0f}%)",
+                      end="", flush=True)
+
         try:
             loop_result = lcd.play_video_loop(
-                str(result["theme_path"]), loop=True)
+                video_path, loop=True,
+                overlay_config=overlay_config,
+                mask_path=mask_path,
+                metrics_fn=metrics_fn,
+                on_frame=_on_frame,
+                on_progress=_on_progress)
             print(f"\n{loop_result.get('message', 'Done')}.")
         except KeyboardInterrupt:
             print("\nStopped.")
@@ -81,6 +163,22 @@ def load_theme(builder, name, *, device=None, preview=False):
             print(f"Loaded '{name}' → {lcd.device_path}")
             if preview:
                 print(ImageService.to_ansi(img))
+            print("Press Ctrl+C to stop.")
+            try:
+                import trcc.cli as _cli_mod
+                _cli_mod._ensure_system(builder)
+                svc = _cli_mod._system_svc
+                metrics_fn = (lambda: svc.all_metrics) if svc else None
+                def _preview_frame(img):
+                    print(ImageService.to_ansi_cursor_home(img), flush=True)
+
+                if preview:
+                    print('\033[2J', end='', flush=True)
+                lcd.keep_alive_loop(
+                    metrics_fn=metrics_fn,
+                    on_frame=_preview_frame if preview else None)
+            except KeyboardInterrupt:
+                print("\nStopped.")
         else:
             print(f"Theme '{name}' has no background image.")
             return 1
@@ -97,9 +195,7 @@ def save_theme(name, *, device=None, video=None, background=None,
     from pathlib import Path
 
     from trcc.cli._display import _connect_or_fail
-    from trcc.conf import settings as _settings
     from trcc.core.app import TrccApp
-    from trcc.services import ImageService, ThemeService
 
     log.debug("save_theme name=%s device=%s background=%s", name, device, background)
     rc = _connect_or_fail(device)
@@ -107,40 +203,25 @@ def save_theme(name, *, device=None, video=None, background=None,
         return rc
 
     lcd = TrccApp.get().lcd
-    w, h = lcd.lcd_size
 
-    # --background replaces --video (auto-detect animated vs static)
+    # --background / --video → load into DisplayService state
     bg_source = background or video
-    video_path = None
-    bg = None
-
     if bg_source:
         p = Path(bg_source)
         if not p.exists():
             print(f"Error: File not found: {bg_source}")
             return 1
-        suffix = p.suffix.lower()
-        if suffix in ('.mp4', '.gif', '.zt', '.webm', '.avi', '.mkv'):
-            video_path = p
-            bg = ImageService.open_and_resize(p, w, h)
-        else:
-            bg = ImageService.open_and_resize(p, w, h)
+        result = lcd.load_image(p)
+        if not result.get("success"):
+            print(f"Error: {result.get('error')}")
+            return 1
 
-    if not bg:
-        from trcc.conf import Settings
-        cfg = Settings.get_device_config("0")
-        theme_path = cfg.get('theme_path')
-        if theme_path:
-            from trcc.core.models import ThemeDir as TDir
-            td = TDir(theme_path)
-            if td.bg.exists():
-                bg = ImageService.open_and_resize(td.bg, w, h)
-
-    if not bg:
+    # No explicit background → current display state (from load_theme etc.)
+    if not lcd.current_image:
         print("No background to save. Provide --background or load a theme first.")
         return 1
 
-    overlay_config: dict = {}
+    # --metric → configure overlay
     if metrics:
         from trcc.core.models import build_overlay_config
         try:
@@ -157,29 +238,24 @@ def save_theme(name, *, device=None, video=None, background=None,
         except ValueError as e:
             print(f"Error: {e}")
             return 1
+        lcd.set_config(overlay_config)
+        lcd.enable_overlay(True)
 
-    mask_img = None
-    mask_source = None
+    # --mask → load mask
     if mask:
-        from trcc.services.overlay import OverlayService
-        r = ImageService._r()
-        mask_img = OverlayService.load_mask_from_path(Path(mask), r, w, h)
-        mask_source = Path(mask)
+        result = lcd.set_mask_from_path(Path(mask))
+        if not result.get("success"):
+            print(f"Error: {result.get('error')}")
+            return 1
 
-    data_dir = _settings.user_data_dir
-    ok, msg = ThemeService.save(
-        name, data_dir, (w, h),
-        background=bg, overlay_config=overlay_config,
-        video_path=video_path,
-        mask=mask_img,
-        mask_source=mask_source,
-    )
-    print(msg)
-    if overlay_config:
+    # Save via service layer (always to ~/.trcc-user/)
+    result = lcd.save(name)
+    print(result.get("message", ""))
+    if metrics:
         print(f"  Overlay: {len(overlay_config)} elements")
     if mask:
         print(f"  Mask: {mask}")
-    return 0 if ok else 1
+    return 0 if result.get("success") else 1
 
 
 @_cli_handler
@@ -203,7 +279,8 @@ def export_theme(theme_name, output_path):
         print(f"No themes for {w}x{h}.")
         return 1
 
-    themes = ThemeService.discover_local(td.path, (w, h))
+    themes = ThemeService.discover_local_merged(
+        td.path, settings.user_content_dir, (w, h))
     match = next((t for t in themes if t.name == theme_name), None)
     if not match:
         match = next(

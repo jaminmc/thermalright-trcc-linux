@@ -214,37 +214,23 @@ class UCThemeLocal(BaseThemeBrowser):
             self._show_empty_message()
             return
 
-        # Scan primary dir + user content dir (merge, dedup by name).
-        # Custom themes are saved to ~/.trcc-user/ so they survive uninstall.
         from ..conf import settings
-        dirs_to_scan = [self.theme_directory]
-        user_theme_dir = settings.user_content_dir / self.theme_directory.name
-        if user_theme_dir != self.theme_directory and user_theme_dir.exists():
-            dirs_to_scan.append(user_theme_dir)
+        from ..services import ThemeService
+
+        themes = ThemeService.discover_local_merged(
+            self.theme_directory, settings.user_content_dir)
 
         all_items: list[LocalThemeItem] = []
-        seen_names: set[str] = set()
-
-        def _sort_key(p):
-            is_user = p.name.startswith('User') or p.name.startswith('Custom')
-            return (is_user, p.name)
-
-        for scan_dir in dirs_to_scan:
-            for item in sorted(scan_dir.iterdir(), key=_sort_key):
-                if item.is_dir() and item.name not in seen_names:
-                    thumb = item / 'Theme.png'
-                    bg = item / '00.png'
-                    if thumb.exists() or bg.exists():
-                        seen_names.add(item.name)
-                        all_items.append(LocalThemeItem(
-                            name=item.name,
-                            path=str(item),
-                            thumbnail=str(thumb if thumb.exists() else bg),
-                            is_user=item.name.startswith('User') or item.name.startswith('Custom'),
-                        ))
-
-        # Re-sort merged list
-        all_items.sort(key=lambda t: (t.is_user, t.name))
+        for t in themes:
+            thumb = t.path / 'Theme.png' if t.path else None
+            bg = t.path / '00.png' if t.path else None
+            preview = thumb if (thumb and thumb.exists()) else bg
+            all_items.append(LocalThemeItem(
+                name=t.name,
+                path=str(t.path) if t.path else "",
+                thumbnail=str(preview) if preview else "",
+                is_user=t.name.startswith(('User', 'Custom')),
+            ))
 
         self._all_themes = all_items
 

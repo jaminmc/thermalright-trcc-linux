@@ -292,7 +292,7 @@ class TestThemeSaveRoundTrip:
         })
 
         mock_settings.user_content_dir = tmp_path
-        ok, msg = display_svc.save_theme('OverlayTest', tmp_path)
+        ok, msg = display_svc.save_theme('OverlayTest')
         assert ok is True
 
         # 00.png should be clean blue bg
@@ -325,7 +325,7 @@ class TestThemeSaveRoundTrip:
         display_svc.overlay.enabled = True
 
         mock_settings.user_content_dir = tmp_path
-        ok, msg = display_svc.save_theme('MaskSave', tmp_path)
+        ok, msg = display_svc.save_theme('MaskSave')
         assert ok is True
 
         config = json.loads(
@@ -361,7 +361,7 @@ class TestThemeSaveRoundTrip:
         # Save should reference the mask
         mock_settings.user_content_dir = tmp_path
         with patch.object(ThemePersistence, 'save', return_value=(True, 'ok')) as mock_save:
-            display_svc.save_theme('CloudSave', tmp_path)
+            display_svc.save_theme('CloudSave')
         assert mock_save.call_args.kwargs.get('mask_source_dir') == mask_dir
 
     def test_save_after_brightness_uses_clean_bg(
@@ -376,7 +376,7 @@ class TestThemeSaveRoundTrip:
         display_svc.set_brightness(25)
 
         mock_settings.user_content_dir = tmp_path
-        ok, msg = display_svc.save_theme('BrightSave', tmp_path)
+        ok, msg = display_svc.save_theme('BrightSave')
         assert ok is True
 
         theme_path = tmp_path / 'theme320320' / 'Custom_BrightSave'
@@ -434,7 +434,7 @@ class TestLCDDeviceIntegration:
         display_svc._clean_background = blue
 
         mock_settings.user_content_dir = tmp_path
-        result = lcd.save('RoundTrip', tmp_path)
+        result = lcd.save('RoundTrip')
         assert result['success'] is True
 
         theme_path = tmp_path / 'theme320320' / 'Custom_RoundTrip'
@@ -885,7 +885,7 @@ class TestDisplayServiceContracts:
         mock_settings.user_content_dir = tmp_path
         with patch('trcc.conf.settings', mock_settings):
             with patch.object(ThemePersistence, 'save', return_value=(True, 'ok')) as m:
-                display_svc.save_theme('Saved', tmp_path)
+                display_svc.save_theme('Saved')
         m.assert_called_once()
         _, kwargs = m.call_args
         assert kwargs.get('current_image') is img or m.call_args[0][3] is img
@@ -948,3 +948,92 @@ class TestDisplayServiceContracts:
         """masks_dir property returns _masks_dir value."""
         display_svc._masks_dir = Path('/some/masks')
         assert display_svc.masks_dir == Path('/some/masks')
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Group 6: run_static_loop (keepalive for bulk/LY devices)
+# ═════════════════════════════════════════════════════════════════════════
+
+
+class TestRunStaticLoop:
+    """DisplayService.run_static_loop — blocking frame resend for CLI/API."""
+
+    def test_no_image_returns_error(self, display_svc: DisplayService) -> None:
+        """No current_image → returns error dict."""
+        display_svc.current_image = None
+        result = display_svc.run_static_loop(duration=0.01)
+        assert result["success"] is False
+        assert "no image" in result["error"].lower()
+
+    def test_sends_frames_to_device(
+        self, display_svc: DisplayService, renderer: Any,
+    ) -> None:
+        """Loop sends frames via devices.send_frame for duration."""
+        white = renderer.create_surface(320, 320, (255, 255, 255))
+        display_svc.current_image = white
+
+        result = display_svc.run_static_loop(interval=0.01, duration=0.05)
+
+        assert result["success"] is True
+        assert display_svc.devices.send_frame.call_count >= 2
+
+    def test_polls_metrics_when_overlay_enabled(
+        self, display_svc: DisplayService, renderer: Any,
+    ) -> None:
+        """With overlay enabled + metrics_fn, metrics are polled."""
+        white = renderer.create_surface(320, 320, (255, 255, 255))
+        display_svc.current_image = white
+        display_svc.overlay.enabled = True
+        display_svc.overlay.set_config({"elem0": {"x": 0, "y": 0, "text": "test"}})
+
+        from trcc.core.models import HardwareMetrics
+        metrics_fn = MagicMock(return_value=HardwareMetrics())
+
+        result = display_svc.run_static_loop(
+            interval=0.01, duration=0.05, metrics_fn=metrics_fn)
+
+        assert result["success"] is True
+        assert metrics_fn.call_count >= 1
+
+    def test_skips_metrics_when_overlay_disabled(
+        self, display_svc: DisplayService, renderer: Any,
+    ) -> None:
+        """With overlay disabled, metrics_fn is never called."""
+        white = renderer.create_surface(320, 320, (255, 255, 255))
+        display_svc.current_image = white
+        display_svc.overlay.enabled = False
+
+        metrics_fn = MagicMock()
+
+        result = display_svc.run_static_loop(
+            interval=0.01, duration=0.05, metrics_fn=metrics_fn)
+
+        assert result["success"] is True
+        metrics_fn.assert_not_called()
+
+    def test_on_frame_callback(
+        self, display_svc: DisplayService, renderer: Any,
+    ) -> None:
+        """on_frame callback is invoked each iteration."""
+        white = renderer.create_surface(320, 320, (255, 255, 255))
+        display_svc.current_image = white
+        on_frame = MagicMock()
+
+        display_svc.run_static_loop(interval=0.01, duration=0.03, on_frame=on_frame)
+
+        assert on_frame.call_count >= 1
+
+    def test_duration_stops_loop(
+        self, display_svc: DisplayService, renderer: Any,
+    ) -> None:
+        """duration parameter limits loop execution time."""
+        import time as _time
+
+        white = renderer.create_surface(320, 320, (255, 255, 255))
+        display_svc.current_image = white
+
+        start = _time.monotonic()
+        display_svc.run_static_loop(interval=0.01, duration=0.1)
+        elapsed = _time.monotonic() - start
+
+        assert elapsed < 0.5  # Should finish well within 500ms

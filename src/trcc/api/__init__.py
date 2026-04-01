@@ -230,6 +230,44 @@ def stop_overlay_loop() -> None:
     _overlay_stop_event = None
 
 
+# ── Static frame keepalive loop (bulk/LY devices don't retain frames) ──
+
+_keepalive_thread: threading.Thread | None = None
+_keepalive_stop_event: threading.Event | None = None
+
+
+def start_keepalive_loop(image, width: int, height: int) -> bool:
+    """Re-send a static frame every 150 ms to keep bulk/LY displays alive."""
+    global _keepalive_thread, _keepalive_stop_event  # noqa: PLW0603
+
+    stop_keepalive_loop()
+
+    _keepalive_stop_event = threading.Event()
+    stop_event = _keepalive_stop_event
+
+    def _loop() -> None:
+        while not stop_event.is_set():
+            _device_svc.send_frame(image, width, height)
+            stop_event.wait(0.150)
+
+    _keepalive_thread = threading.Thread(target=_loop, daemon=True, name="api-keepalive")
+    _keepalive_thread.start()
+    log.info("Keepalive loop started (%dx%d)", width, height)
+    return True
+
+
+def stop_keepalive_loop() -> None:
+    """Stop background frame keepalive if running."""
+    global _keepalive_thread, _keepalive_stop_event  # noqa: PLW0603
+
+    if _keepalive_stop_event:
+        _keepalive_stop_event.set()
+    if _keepalive_thread and _keepalive_thread.is_alive():
+        _keepalive_thread.join(timeout=2)
+    _keepalive_thread = None
+    _keepalive_stop_event = None
+
+
 # ── LED keepalive loop (background thread for animated modes) ─────────
 
 _led_thread: threading.Thread | None = None

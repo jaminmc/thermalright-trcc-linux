@@ -192,8 +192,14 @@ def uninstall(*, yes: bool = False):
         autostart.disable()
         removed.append("autostart entry")
 
-    # Shut down logging before deleting ~/.trcc
+    # Shut down logging before deleting ~/.trcc — remove file handlers
+    # so subsequent log calls don't try to reopen the deleted log file
     import logging as _logging
+    root = _logging.getLogger()
+    for h in list(root.handlers):
+        if isinstance(h, _logging.FileHandler):
+            root.removeHandler(h)
+            h.close()
     _logging.shutdown()
 
     # Handle user files/dirs

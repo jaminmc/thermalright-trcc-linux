@@ -195,74 +195,7 @@ def gui(verbose=0, decorated=False, start_hidden=False):
 # Typer command functions (thin wrappers → submodule functions)
 # =========================================================================
 
-@app.command("gui")
-def _cmd_gui(
-    decorated: Annotated[bool, typer.Option(
-        "--decorated", "-d",
-        help="Use decorated window (normal window with titlebar, can minimize)",
-    )] = False,
-    resume: Annotated[bool, typer.Option(
-        "--resume",
-        help="Start hidden in system tray and restore last-used theme (autostart)",
-    )] = False,
-) -> int:
-    """Launch graphical interface."""
-    return gui(verbose=_verbose, decorated=decorated, start_hidden=resume)
-
-
-@app.command("shell")
-def _cmd_shell() -> int:
-    """Open interactive TRCC shell — type commands without the 'trcc' prefix."""
-    import shlex
-
-    import click
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.completion import WordCompleter
-    from prompt_toolkit.history import FileHistory
-
-    from trcc.core.paths import USER_DATA_DIR
-
-    # Build tab-completer from all registered commands
-    click_app = typer.main.get_command(app)
-    commands = sorted(click_app.commands.keys())  # type: ignore[union-attr]
-    completer = WordCompleter(commands, sentence=True)
-
-    history_file = Path(USER_DATA_DIR) / "shell_history"
-    session: PromptSession = PromptSession(
-        history=FileHistory(str(history_file)),
-        completer=completer,
-    )
-
-    print("TRCC shell — type commands without 'trcc' prefix. Tab to complete. Ctrl+D to exit.")
-    while True:
-        try:
-            text = session.prompt("trcc> ").strip()
-        except KeyboardInterrupt:
-            continue
-        except EOFError:
-            break
-
-        if not text:
-            continue
-        if text in ("exit", "quit"):
-            break
-
-        try:
-            args = shlex.split(text)
-            click_app.main(args, standalone_mode=False)
-        except click.exceptions.Exit:
-            pass
-        except click.exceptions.Abort:
-            print("\nAborted.")
-        except SystemExit:
-            pass
-        except Exception as e:
-            print(f"Error: {e}")
-
-    return 0
-
-
-@app.command("detect")
+@app.command("detect", rich_help_panel="Device")
 def _cmd_detect(
     all_devices: Annotated[bool, typer.Option(
         "--all", "-a", help="Show all devices",
@@ -272,7 +205,7 @@ def _cmd_detect(
     return _device.detect(show_all=all_devices)
 
 
-@app.command("select")
+@app.command("select", rich_help_panel="Device")
 def _cmd_select(
     number: Annotated[int, typer.Argument(help="Device number from 'trcc detect --all'")],
 ) -> int:
@@ -280,7 +213,7 @@ def _cmd_select(
     return _device.select(number)
 
 
-@app.command("test")
+@app.command("test", rich_help_panel="LCD Display")
 def _cmd_test(
     device: Annotated[Optional[str], typer.Option(
         "--device", "-d", help="Device path (e.g., /dev/sg0)",
@@ -296,7 +229,7 @@ def _cmd_test(
     return _display.test(device=device, loop=loop, preview=preview)
 
 
-@app.command("send")
+@app.command("send", rich_help_panel="LCD Display")
 def _cmd_send(
     image: Annotated[str, typer.Argument(help="Image file to send")],
     device: Annotated[Optional[str], typer.Option(
@@ -311,7 +244,7 @@ def _cmd_send(
     return _display.send_image(TrccApp.get(), image, device=device, preview=preview)
 
 
-@app.command("color")
+@app.command("color", rich_help_panel="LCD Display")
 def _cmd_color(
     hex_color: Annotated[str, typer.Argument(
         metavar="HEX", help="Hex color code (e.g., ff0000 for red)",
@@ -328,7 +261,7 @@ def _cmd_color(
     return _display.send_color(TrccApp.get(), hex_color, device=device, preview=preview)
 
 
-@app.command("video")
+@app.command("video", rich_help_panel="LCD Display")
 def _cmd_video(
     path: Annotated[str, typer.Argument(help="Video/GIF/ZT file to play")],
     device: Annotated[Optional[str], typer.Option(
@@ -351,7 +284,7 @@ def _cmd_video(
         duration=duration, preview=preview)
 
 
-@app.command("theme")
+@app.command("theme", rich_help_panel="LCD Display")
 def _cmd_theme(
     background: Annotated[str, typer.Option(
         "--background", "-b", help="Background image/video/GIF",
@@ -417,7 +350,7 @@ def _cmd_theme(
         time_format=time_format, date_format=date_format)
 
 
-@app.command("brightness")
+@app.command("brightness", rich_help_panel="LCD Display")
 def _cmd_brightness(
     level: Annotated[int, typer.Argument(help="Brightness level: 1=25%, 2=50%, 3=100%")],
     device: Annotated[Optional[str], typer.Option(
@@ -429,7 +362,7 @@ def _cmd_brightness(
     return _display.set_brightness(TrccApp.get(), level, device=device)
 
 
-@app.command("rotation")
+@app.command("rotation", rich_help_panel="LCD Display")
 def _cmd_rotation(
     degrees: Annotated[int, typer.Argument(help="Rotation: 0, 90, 180, or 270")],
     device: Annotated[Optional[str], typer.Option(
@@ -441,7 +374,7 @@ def _cmd_rotation(
     return _display.set_rotation(TrccApp.get(), degrees, device=device)
 
 
-@app.command("screencast")
+@app.command("screencast", rich_help_panel="LCD Display")
 def _cmd_screencast(
     device: Annotated[Optional[str], typer.Option(
         "--device", "-d", help="Device path",
@@ -461,7 +394,7 @@ def _cmd_screencast(
                                x=x, y=y, w=w, h=h, fps=fps, preview=preview)
 
 
-@app.command("mask")
+@app.command("mask", rich_help_panel="LCD Display")
 def _cmd_mask(
     path: Annotated[Optional[str], typer.Argument(
         help="Mask PNG file or theme directory",
@@ -487,7 +420,7 @@ def _cmd_mask(
     return _display.load_mask(builder, path, device=device, preview=preview)
 
 
-@app.command("overlay")
+@app.command("overlay", rich_help_panel="LCD Display")
 def _cmd_overlay(
     dc_path: Annotated[str, typer.Argument(help="DC config or theme directory path")],
     device: Annotated[Optional[str], typer.Option(
@@ -510,7 +443,7 @@ def _cmd_overlay(
         device=device, send=send, output=output, preview=preview)
 
 
-@app.command("theme-list")
+@app.command("theme-list", rich_help_panel="Themes")
 def _cmd_theme_list(
     cloud: Annotated[bool, typer.Option(
         "--cloud", "-c", help="List cloud themes instead of local",
@@ -523,7 +456,13 @@ def _cmd_theme_list(
     return _theme.list_themes(cloud=cloud, category=category)
 
 
-@app.command("theme-load")
+@app.command("mask-list", rich_help_panel="Themes")
+def _cmd_mask_list() -> int:
+    """List available mask overlays."""
+    return _theme.list_masks()
+
+
+@app.command("theme-load", rich_help_panel="Themes")
 def _cmd_theme_load(
     name: Annotated[str, typer.Argument(help="Theme name (from theme-list)")],
     device: Annotated[Optional[str], typer.Option(
@@ -538,7 +477,7 @@ def _cmd_theme_load(
     return _theme.load_theme(TrccApp.get(), name, device=device, preview=preview)
 
 
-@app.command("led-color")
+@app.command("led-color", rich_help_panel="LED")
 def _cmd_led_color(
     hex_color: Annotated[str, typer.Argument(
         metavar="HEX", help="Hex color (e.g., ff0000 for red)",
@@ -552,7 +491,7 @@ def _cmd_led_color(
     return _led.set_color(TrccApp.get(), hex_color, preview=preview)
 
 
-@app.command("led-mode")
+@app.command("led-mode", rich_help_panel="LED")
 def _cmd_led_mode(
     mode: Annotated[str, typer.Argument(
         help="Effect: static, breathing, colorful, rainbow",
@@ -566,7 +505,7 @@ def _cmd_led_mode(
     return _led.set_mode(TrccApp.get(), mode, preview=preview)
 
 
-@app.command("led-brightness")
+@app.command("led-brightness", rich_help_panel="LED")
 def _cmd_led_brightness(
     level: Annotated[int, typer.Argument(help="Brightness 0-100")],
     preview: Annotated[bool, typer.Option(
@@ -578,14 +517,14 @@ def _cmd_led_brightness(
     return _led.set_led_brightness(TrccApp.get(), level, preview=preview)
 
 
-@app.command("led-off")
+@app.command("led-off", rich_help_panel="LED")
 def _cmd_led_off() -> int:
     """Turn LEDs off."""
     from trcc.core.app import TrccApp
     return _led.led_off(TrccApp.get())
 
 
-@app.command("led-sensor")
+@app.command("led-sensor", rich_help_panel="LED")
 def _cmd_led_sensor(
     source: Annotated[str, typer.Argument(
         help="Sensor source: cpu or gpu",
@@ -596,7 +535,7 @@ def _cmd_led_sensor(
     return _led.set_sensor_source(TrccApp.get(), source)
 
 
-@app.command("led-zone-color")
+@app.command("led-zone-color", rich_help_panel="LED")
 def _cmd_led_zone_color(
     zone: Annotated[int, typer.Argument(help="Zone index (0-based)")],
     hex_color: Annotated[str, typer.Argument(
@@ -611,7 +550,7 @@ def _cmd_led_zone_color(
     return _led.set_zone_color(TrccApp.get(), zone, hex_color, preview=preview)
 
 
-@app.command("led-zone-mode")
+@app.command("led-zone-mode", rich_help_panel="LED")
 def _cmd_led_zone_mode(
     zone: Annotated[int, typer.Argument(help="Zone index (0-based)")],
     mode: Annotated[str, typer.Argument(
@@ -626,7 +565,7 @@ def _cmd_led_zone_mode(
     return _led.set_zone_mode(TrccApp.get(), zone, mode, preview=preview)
 
 
-@app.command("led-zone-brightness")
+@app.command("led-zone-brightness", rich_help_panel="LED")
 def _cmd_led_zone_brightness(
     zone: Annotated[int, typer.Argument(help="Zone index (0-based)")],
     level: Annotated[int, typer.Argument(help="Brightness 0-100")],
@@ -639,7 +578,7 @@ def _cmd_led_zone_brightness(
     return _led.set_zone_brightness(TrccApp.get(), zone, level, preview=preview)
 
 
-@app.command("led-zone-toggle")
+@app.command("led-zone-toggle", rich_help_panel="LED")
 def _cmd_led_zone_toggle(
     zone: Annotated[int, typer.Argument(help="Zone index (0-based)")],
     on: Annotated[bool, typer.Argument(help="true/false")],
@@ -649,7 +588,7 @@ def _cmd_led_zone_toggle(
     return _led.toggle_zone(TrccApp.get(), zone, on)
 
 
-@app.command("led-zone-sync")
+@app.command("led-zone-sync", rich_help_panel="LED")
 def _cmd_led_zone_sync(
     enabled: Annotated[bool, typer.Argument(help="true/false")],
     interval: Annotated[Optional[int], typer.Option(
@@ -661,7 +600,7 @@ def _cmd_led_zone_sync(
     return _led.set_zone_sync(TrccApp.get(), enabled, interval=interval)
 
 
-@app.command("led-segment")
+@app.command("led-segment", rich_help_panel="LED")
 def _cmd_led_segment(
     index: Annotated[int, typer.Argument(help="Segment index (0-based)")],
     on: Annotated[bool, typer.Argument(help="true/false")],
@@ -671,7 +610,7 @@ def _cmd_led_segment(
     return _led.toggle_segment(TrccApp.get(), index, on)
 
 
-@app.command("led-clock")
+@app.command("led-clock", rich_help_panel="LED")
 def _cmd_led_clock(
     is_24h: Annotated[bool, typer.Argument(help="true=24h, false=12h")],
 ) -> int:
@@ -680,7 +619,7 @@ def _cmd_led_clock(
     return _led.set_clock_format(TrccApp.get(), is_24h)
 
 
-@app.command("led-temp-unit")
+@app.command("led-temp-unit", rich_help_panel="LED")
 def _cmd_led_temp_unit(
     unit: Annotated[str, typer.Argument(help="C or F")],
 ) -> int:
@@ -689,13 +628,13 @@ def _cmd_led_temp_unit(
     return _led.set_temp_unit(TrccApp.get(), unit)
 
 
-@app.command("lang")
+@app.command("lang", rich_help_panel="System")
 def _cmd_lang() -> int:
     """Show current language."""
     return _i18n.get_language()
 
 
-@app.command("lang-set")
+@app.command("lang-set", rich_help_panel="System")
 def _cmd_lang_set(
     code: Annotated[str, typer.Argument(
         help="ISO 639-1 language code (e.g., en, de, ja, zh)",
@@ -705,13 +644,13 @@ def _cmd_lang_set(
     return _i18n.set_language(code)
 
 
-@app.command("lang-list")
+@app.command("lang-list", rich_help_panel="System")
 def _cmd_lang_list() -> int:
     """List all available languages."""
     return _i18n.get_languages()
 
 
-@app.command("split")
+@app.command("split", rich_help_panel="LCD Display")
 def _cmd_split(
     mode: Annotated[int, typer.Argument(
         help="Split mode: 0=off, 1-3=Dynamic Island style",
@@ -725,7 +664,7 @@ def _cmd_split(
     return _display.set_split_mode(TrccApp.get(), mode, device=device)
 
 
-@app.command("test-led")
+@app.command("test-led", rich_help_panel="Diagnostics")
 def _cmd_test_led(
     mode: Annotated[Optional[str], typer.Argument(
         help="LED mode: static, breathing, colorful, rainbow (omit for all)",
@@ -742,7 +681,7 @@ def _cmd_test_led(
     return _led.test_led(TrccApp.get(), mode=mode, segments=segments, duration=duration)
 
 
-@app.command("test-lcd")
+@app.command("test-lcd", rich_help_panel="Diagnostics")
 def _cmd_test_lcd(
     cols: Annotated[int, typer.Option(
         "--cols", "-c", help="Terminal width in columns",
@@ -753,7 +692,7 @@ def _cmd_test_lcd(
     return _led.test_lcd(TrccApp.get(), cols=cols)
 
 
-@app.command("theme-save", deprecated=True)
+@app.command("theme-save", deprecated=True, rich_help_panel="Themes")
 def _cmd_theme_save(
     name: Annotated[str, typer.Argument(help="Theme name")],
     background: Annotated[Optional[str], typer.Option(
@@ -800,7 +739,7 @@ def _cmd_theme_save(
         save=name)
 
 
-@app.command("theme-export")
+@app.command("theme-export", rich_help_panel="Themes")
 def _cmd_theme_export(
     theme_name: Annotated[str, typer.Argument(help="Theme name to export")],
     output: Annotated[str, typer.Argument(help="Output .tr file path")],
@@ -809,7 +748,7 @@ def _cmd_theme_export(
     return _theme.export_theme(theme_name, output)
 
 
-@app.command("theme-import")
+@app.command("theme-import", rich_help_panel="Themes")
 def _cmd_theme_import(
     file_path: Annotated[str, typer.Argument(help="Path to .tr file")],
     device: Annotated[Optional[str], typer.Option(
@@ -820,7 +759,7 @@ def _cmd_theme_import(
     return _theme.import_theme(file_path, device=device)
 
 
-@app.command("info")
+@app.command("info", rich_help_panel="System")
 def _cmd_info(
     preview: Annotated[bool, typer.Option(
         "--preview", "-p", help="Show ANSI terminal dashboard",
@@ -835,7 +774,7 @@ def _cmd_info(
     return _system.show_info(TrccApp.get(), preview=preview, metric=metric)
 
 
-@app.command("reset")
+@app.command("reset", rich_help_panel="LCD Display")
 def _cmd_reset(
     device: Annotated[Optional[str], typer.Option(
         "--device", "-d", help="Device path (e.g., /dev/sg0)",
@@ -849,7 +788,7 @@ def _cmd_reset(
     return _display.reset(TrccApp.get(), device=device, preview=preview)
 
 
-@app.command("setup-udev")
+@app.command("setup-udev", rich_help_panel="System")
 def _cmd_setup_udev(
     dry_run: Annotated[bool, typer.Option(
         "--dry-run", "-n", help="Print rules without installing",
@@ -859,38 +798,38 @@ def _cmd_setup_udev(
     return _system.setup_udev(dry_run=dry_run)
 
 
-@app.command("setup-selinux")
+@app.command("setup-selinux", rich_help_panel="System")
 def _cmd_setup_selinux() -> int:
     """Install SELinux policy module for USB device access."""
     return _system.setup_selinux()
 
 
-@app.command("setup-polkit")
+@app.command("setup-polkit", rich_help_panel="System")
 def _cmd_setup_polkit() -> int:
     """Install polkit policy for passwordless dmidecode/smartctl."""
     return _system.setup_polkit()
 
 
-@app.command("setup-winusb")
+@app.command("setup-winusb", rich_help_panel="System")
 def _cmd_setup_winusb() -> int:
     """Install WinUSB driver for Thermalright USB devices (Windows only)."""
     return _system.setup_winusb()
 
 
-@app.command("install-desktop")
+@app.command("install-desktop", rich_help_panel="System")
 def _cmd_install_desktop() -> int:
     """Install application menu entry and icon."""
     return _system.install_desktop()
 
 
-@app.command("resume")
+@app.command("resume", rich_help_panel="LCD Display")
 def _cmd_resume() -> int:
     """Send last-used theme to each detected device (headless)."""
     from trcc.core.app import TrccApp
     return _display.resume(TrccApp.get())
 
 
-@app.command("uninstall")
+@app.command("uninstall", rich_help_panel="System")
 def _cmd_uninstall(
     yes: Annotated[bool, typer.Option(
         "--yes", "-y", help="Skip confirmation prompts (for non-interactive use)",
@@ -900,7 +839,7 @@ def _cmd_uninstall(
     return _system.uninstall(yes=yes)
 
 
-@app.command("hid-debug")
+@app.command("hid-debug", rich_help_panel="Diagnostics")
 def _cmd_hid_debug(
     test_frame: Annotated[bool, typer.Option(
         "--test-frame", "-t", help="Send solid red test frame after handshake",
@@ -910,7 +849,7 @@ def _cmd_hid_debug(
     return _diag.device_debug(test_frame=test_frame)
 
 
-@app.command("led-debug")
+@app.command("led-debug", rich_help_panel="Diagnostics")
 def _cmd_led_debug(
     test_colors: Annotated[bool, typer.Option(
         "--test", "-t", help="Send test colors after handshake",
@@ -920,20 +859,20 @@ def _cmd_led_debug(
     return _diag.led_debug_interactive(test_colors=test_colors)
 
 
-@app.command("report")
+@app.command("report", rich_help_panel="Diagnostics")
 def _cmd_report() -> int:
     """Generate full diagnostic report for bug reports."""
     return _system.report()
 
 
-@app.command("doctor")
+@app.command("doctor", rich_help_panel="Diagnostics")
 def _cmd_doctor() -> int:
     """Check dependencies, libraries, and permissions."""
     from trcc.adapters.infra.diagnostics import run_doctor
     return run_doctor()
 
 
-@app.command("perf")
+@app.command("perf", rich_help_panel="Diagnostics")
 def _cmd_perf(
     device: Annotated[bool, typer.Option(
         "--device", "-d", help="Benchmark connected hardware (USB I/O latency, FPS)",
@@ -974,7 +913,7 @@ def _cmd_perf(
     return 0 if report.all_passed else 1
 
 
-@app.command("setup")
+@app.command("setup", rich_help_panel="System")
 def _cmd_setup(
     yes: Annotated[bool, typer.Option(
         "--yes", "-y", help="Accept all defaults (non-interactive)",
@@ -984,14 +923,14 @@ def _cmd_setup(
     return _system.run_setup(auto_yes=yes)
 
 
-@app.command("setup-gui")
+@app.command("setup-gui", rich_help_panel="Interfaces")
 def _cmd_setup_gui() -> None:
     """Launch the setup wizard GUI."""
     from trcc.install.gui import main
     raise SystemExit(main())
 
 
-@app.command("download")
+@app.command("download", rich_help_panel="Themes")
 def _cmd_download(
     pack: Annotated[Optional[str], typer.Argument(
         help="Theme pack name (e.g., themes-320x320 or themes-480)",
@@ -1011,7 +950,74 @@ def _cmd_download(
         pack=pack, show_list=show_list, force=force, show_info=show_info)
 
 
-@app.command("api")
+@app.command("gui", rich_help_panel="Interfaces")
+def _cmd_gui(
+    decorated: Annotated[bool, typer.Option(
+        "--decorated", "-d",
+        help="Use decorated window (normal window with titlebar, can minimize)",
+    )] = False,
+    resume: Annotated[bool, typer.Option(
+        "--resume",
+        help="Start hidden in system tray and restore last-used theme (autostart)",
+    )] = False,
+) -> int:
+    """Launch graphical interface."""
+    return gui(verbose=_verbose, decorated=decorated, start_hidden=resume)
+
+
+@app.command("shell", rich_help_panel="Interfaces")
+def _cmd_shell() -> int:
+    """Open interactive TRCC shell — type commands without the 'trcc' prefix."""
+    import shlex
+
+    import click
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.completion import WordCompleter
+    from prompt_toolkit.history import FileHistory
+
+    from trcc.core.paths import USER_DATA_DIR
+
+    # Build tab-completer from all registered commands
+    click_app = typer.main.get_command(app)
+    commands = sorted(click_app.commands.keys())  # type: ignore[union-attr]
+    completer = WordCompleter(commands, sentence=True)
+
+    history_file = Path(USER_DATA_DIR) / "shell_history"
+    session: PromptSession = PromptSession(
+        history=FileHistory(str(history_file)),
+        completer=completer,
+    )
+
+    print("TRCC shell — type commands without 'trcc' prefix. Tab to complete. Ctrl+D to exit.")
+    while True:
+        try:
+            text = session.prompt("trcc> ").strip()
+        except KeyboardInterrupt:
+            continue
+        except EOFError:
+            break
+
+        if not text:
+            continue
+        if text in ("exit", "quit"):
+            break
+
+        try:
+            args = shlex.split(text)
+            click_app.main(args, standalone_mode=False)
+        except click.exceptions.Exit:
+            pass
+        except click.exceptions.Abort:
+            print("\nAborted.")
+        except SystemExit:
+            pass
+        except Exception as e:
+            print(f"Error: {e}")
+
+    return 0
+
+
+@app.command("api", rich_help_panel="Interfaces")
 def _cmd_api() -> int:
     """List all REST API endpoints."""
     from trcc.api import app as api_app
@@ -1036,7 +1042,7 @@ def _cmd_api() -> int:
     return 0
 
 
-@app.command("serve")
+@app.command("serve", rich_help_panel="Interfaces")
 def _cmd_serve(
     host: Annotated[str, typer.Option(
         "--host", "-H", help="Bind address (use 0.0.0.0 for LAN)",
@@ -1267,6 +1273,7 @@ render_overlay = _display.render_overlay
 
 # Theme commands
 list_themes = _theme.list_themes
+list_masks = _theme.list_masks
 load_theme = _theme.load_theme
 save_theme = _theme.save_theme
 export_theme = _theme.export_theme

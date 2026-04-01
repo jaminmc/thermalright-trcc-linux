@@ -130,46 +130,31 @@ class UCThemeMask(DownloadableThemeBrowser):
     def _user_masks_dir(self) -> Path:
         """Get the user custom masks directory for current resolution."""
         w, h = self._parse_resolution()
-        return Path(_conf.settings._path_resolver.user_masks_dir(w, h))
-
-    def _scan_mask_dir(self, directory: Path, is_custom: bool = False) -> list[MaskItem]:
-        """Scan a directory for local mask subdirs."""
-        masks: list[MaskItem] = []
-        if not directory.exists():
-            return masks
-        for item in sorted(directory.iterdir()):
-            if not item.is_dir():
-                continue
-            thumb_path = item / 'Theme.png'
-            mask_path = item / '01.png'
-            if thumb_path.exists() or mask_path.exists():
-                masks.append(MaskItem(
-                    name=item.name,
-                    path=str(item),
-                    preview=str(thumb_path if thumb_path.exists() else mask_path),
-                    is_local=True,
-                    is_custom=is_custom,
-                ))
-                self._local_masks.add(item.name.lower())
-        return masks
+        return _conf.settings.user_masks_dir(w, h)
 
     def refresh_masks(self):
         """Reload masks from disk and show cloud masks available for download."""
+        from ..services import ThemeService
+
         self._clear_grid()
         self._local_masks.clear()
 
         if self.mask_directory:
             self.mask_directory.mkdir(parents=True, exist_ok=True)
 
-        masks: list[MaskItem] = []
-
-        # Load user custom masks first (shown at top)
         user_dir = self._user_masks_dir()
-        masks.extend(self._scan_mask_dir(user_dir, is_custom=True))
+        discovered = ThemeService.discover_masks(self.mask_directory, user_dir)
 
-        # Load cloud masks (downloaded cache)
-        if self.mask_directory and self.mask_directory.exists():
-            masks.extend(self._scan_mask_dir(self.mask_directory))
+        masks: list[MaskItem] = []
+        for m in discovered:
+            masks.append(MaskItem(
+                name=m.name,
+                path=str(m.path) if m.path else None,
+                preview=str(m.preview_path) if m.preview_path else None,
+                is_local=True,
+                is_custom=m.is_custom,
+            ))
+            self._local_masks.add(m.name.lower())
 
         # Add known cloud masks that aren't locally cached
         for mask_id in self.KNOWN_MASKS:

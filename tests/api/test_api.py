@@ -264,14 +264,14 @@ class TestThemesEndpoint(unittest.TestCase):
         configure_auth(None)
         self.client = TestClient(app)
 
-    @patch('trcc.api.themes.ThemeService.discover_local', return_value=[])
+    @patch('trcc.api.themes.ThemeService.discover_local_merged', return_value=[])
     @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution', return_value=MagicMock(__str__=lambda s: '/tmp/themes'))
     def test_list_themes_empty(self, mock_dir, mock_discover):
         resp = self.client.get("/themes?resolution=320x320")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), [])
 
-    @patch('trcc.api.themes.ThemeService.discover_local')
+    @patch('trcc.api.themes.ThemeService.discover_local_merged')
     @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
     def test_list_themes_with_results(self, mock_dir, mock_discover):
         mock_td = MagicMock(__str__=lambda s: '/tmp/themes')
@@ -575,11 +575,17 @@ class TestThemeOperations(unittest.TestCase):
                                 json={"name": "Theme001", "resolution": "bad"})
         self.assertEqual(resp.status_code, 400)
 
-    @patch('trcc.conf.load_config', return_value={"some": "config"})
-    def test_save_theme(self, mock_load):
+    @patch('trcc.core.app.TrccApp.get')
+    def test_save_theme(self, mock_get):
+        mock_lcd = MagicMock()
+        mock_lcd.current_image = MagicMock()
+        mock_lcd.save.return_value = {"success": True, "message": "Saved: Custom_MyTheme"}
+        mock_get.return_value.has_lcd = True
+        mock_get.return_value.lcd = mock_lcd
         resp = self.client.post("/themes/save", json={"name": "MyTheme"})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["name"], "MyTheme")
+        mock_lcd.save.assert_called_once_with("MyTheme")
 
     def test_import_theme_wrong_extension(self):
         buf = io.BytesIO(b"not a theme")
@@ -1021,6 +1027,72 @@ class TestOverlayLoop(unittest.TestCase):
 
 
 # =============================================================================
+# Keepalive loop (static frame resend for bulk/LY devices)
+# =============================================================================
+
+class TestKeepaliveLoop(unittest.TestCase):
+    """start_keepalive_loop / stop_keepalive_loop lifecycle."""
+
+    def setUp(self):
+        configure_auth(None)
+
+    def tearDown(self):
+        api_module.stop_keepalive_loop()
+        api_module._display_dispatcher = None
+
+    @patch('trcc.api._device_svc')
+    def test_start_keepalive_starts_thread(self, mock_svc):
+        """start_keepalive_loop() starts a daemon thread that sends frames."""
+        bg = make_test_surface(320, 320, (0, 0, 0))
+
+        ok = api_module.start_keepalive_loop(bg, 320, 320)
+
+        self.assertTrue(ok)
+        self.assertIsNotNone(api_module._keepalive_thread)
+        self.assertTrue(api_module._keepalive_thread.is_alive())
+
+    def test_stop_keepalive_cleans_up(self):
+        """stop_keepalive_loop() clears all keepalive state."""
+        api_module._keepalive_stop_event = MagicMock()
+        api_module._keepalive_thread = MagicMock()
+        api_module._keepalive_thread.is_alive.return_value = False
+
+        api_module.stop_keepalive_loop()
+
+        self.assertIsNone(api_module._keepalive_thread)
+        self.assertIsNone(api_module._keepalive_stop_event)
+
+    @patch('trcc.api._device_svc')
+    def test_start_stops_previous(self, mock_svc):
+        """Starting a new keepalive stops the previous one."""
+        bg = make_test_surface(320, 320, (0, 0, 0))
+        api_module.start_keepalive_loop(bg, 320, 320)
+        first_thread = api_module._keepalive_thread
+
+        api_module.start_keepalive_loop(bg, 320, 320)
+
+        self.assertIsNotNone(api_module._keepalive_thread)
+        self.assertIsNot(api_module._keepalive_thread, first_thread)
+
+    def test_load_theme_stops_keepalive(self):
+        """POST /themes/load stops running keepalive before dispatching."""
+        mock_lcd = MagicMock()
+        mock_lcd.connected = True
+        mock_lcd.resolution = (320, 320)
+        mock_lcd.load_theme_by_name.return_value = {"success": True}
+        api_module._display_dispatcher = mock_lcd
+
+        api_module._keepalive_stop_event = MagicMock()
+        api_module._keepalive_thread = MagicMock()
+        api_module._keepalive_thread.is_alive.return_value = False
+
+        client = TestClient(app)
+        client.post("/themes/load", json={"name": "AnyTheme"})
+
+        self.assertIsNone(api_module._keepalive_thread)
+
+
+# =============================================================================
 # IPC frame sharing (GUI daemon mode)
 # =============================================================================
 
@@ -1197,7 +1269,7 @@ class TestStandaloneThemeInit(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         mock_ensure.assert_not_called()
 
-    @patch('trcc.api.themes.ThemeService.discover_local', return_value=[])
+    @patch('trcc.api.themes.ThemeService.discover_local_merged', return_value=[])
     @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution',
            return_value=MagicMock(__str__=lambda s: '/tmp/themes', path='/tmp/themes'))
     def test_list_themes_no_auto_download(self, _td, _discover):
@@ -1827,7 +1899,7 @@ class TestThemeEdgeCases(unittest.TestCase):
         TrccApp.reset()
 
     def test_list_themes_resolution_boundary_min(self) -> None:
-        with patch("trcc.api.themes.ThemeService.discover_local", return_value=[]), \
+        with patch("trcc.api.themes.ThemeService.discover_local_merged", return_value=[]), \
              patch("trcc.adapters.infra.data_repository.ThemeDir.for_resolution") as mock_td:
             mock_td.return_value = MagicMock(path="/tmp/none", __str__=lambda s: "/tmp/none")
             resp = self.client.get("/themes?resolution=100x100")
@@ -1911,10 +1983,14 @@ class TestThemeEdgeCases(unittest.TestCase):
         self.assertNotIn("/home/user", resp.json()["detail"])
         self.assertEqual(resp.json()["detail"], "Internal server error")
 
-    def test_save_theme_empty_config_returns_500(self) -> None:
-        with patch("trcc.conf.load_config", return_value={}):
+    def test_save_theme_no_image_returns_409(self) -> None:
+        with patch("trcc.core.app.TrccApp.get") as mock_get:
+            mock_lcd = MagicMock()
+            mock_lcd.current_image = None
+            mock_get.return_value.has_lcd = True
+            mock_get.return_value.lcd = mock_lcd
             resp = self.client.post("/themes/save", json={"name": "Empty"})
-        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp.status_code, 409)
 
     def test_load_theme_success_delegates_to_dispatcher(self) -> None:
         """API layer delegates to lcd.load_theme_by_name — thin adapter."""
@@ -1960,7 +2036,9 @@ class TestThemeEdgeCases(unittest.TestCase):
             (mask_dir / "Theme.png").write_bytes(b"fake")
 
             with patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
-                       return_value=td):
+                       return_value=td), \
+                 patch("trcc.conf.settings.user_masks_dir",
+                       return_value=Path("/nonexistent_user_masks")):
                 resp = self.client.get("/themes/masks?resolution=320x320")
 
         self.assertEqual(resp.status_code, 200)
@@ -1976,7 +2054,9 @@ class TestThemeEdgeCases(unittest.TestCase):
             (mask_dir / "something.txt").write_text("ignored")
 
             with patch("trcc.adapters.infra.data_repository.DataManager.get_web_masks_dir",
-                       return_value=td):
+                       return_value=td), \
+                 patch("trcc.conf.settings.user_masks_dir",
+                       return_value=Path("/nonexistent_user_masks")):
                 resp = self.client.get("/themes/masks?resolution=320x320")
 
         self.assertEqual(resp.status_code, 200)
@@ -2770,7 +2850,7 @@ class TestThemeExportEndpoint(unittest.TestCase):
         resp = self.client.post("/themes/export?theme_name=Theme001&resolution=bad")
         self.assertEqual(resp.status_code, 400)
 
-    @patch('trcc.services.ThemeService.discover_local', return_value=[])
+    @patch('trcc.services.ThemeService.discover_local_merged', return_value=[])
     @patch('trcc.adapters.infra.data_repository.DataManager.ensure_themes')
     @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
     def test_export_theme_not_found(self, mock_td, mock_ensure, mock_discover):
@@ -2778,7 +2858,7 @@ class TestThemeExportEndpoint(unittest.TestCase):
         resp = self.client.post("/themes/export?theme_name=NonExistent")
         self.assertEqual(resp.status_code, 404)
 
-    @patch('trcc.services.ThemeService.discover_local')
+    @patch('trcc.services.ThemeService.discover_local_merged')
     @patch('trcc.adapters.infra.data_repository.DataManager.ensure_themes')
     @patch('trcc.adapters.infra.data_repository.ThemeDir.for_resolution')
     @patch('trcc.services.ThemeService.export_tr')

@@ -74,9 +74,12 @@ def list_themes(resolution: str) -> list[ThemeResponse]:
     from pathlib import Path
 
     from trcc.adapters.infra.data_repository import ThemeDir
+    from trcc.conf import settings as _settings
     td = ThemeDir.for_resolution(w, h)
     theme_dir = Path(str(td))
-    themes = ThemeService.discover_local(theme_dir, (w, h))
+    user_content_dir = getattr(_settings, 'user_content_dir', None)
+    themes = ThemeService.discover_local_merged(
+        theme_dir, user_content_dir, (w, h))
     return [
         ThemeResponse(
             name=t.name,
@@ -167,10 +170,16 @@ def download_web_theme(
 
     # Optionally start video playback on device
     if send:
-        from trcc.api import start_video_playback, stop_overlay_loop, stop_video_playback
+        from trcc.api import (
+            start_video_playback,
+            stop_keepalive_loop,
+            stop_overlay_loop,
+            stop_video_playback,
+        )
 
         stop_video_playback()
         stop_overlay_loop()
+        stop_keepalive_loop()
         ok = start_video_playback(result_path, w, h, loop=True)
         if not ok:
             log.warning("Failed to start video playback for %s", theme_id)
@@ -188,26 +197,23 @@ def list_masks(resolution: str) -> list[MaskResponse]:
     """List available mask overlays for a given resolution."""
     w, h = _parse_resolution(resolution)
 
+    from pathlib import Path
+
     from trcc.adapters.infra.data_repository import DataManager
-    masks_dir = DataManager.get_web_masks_dir(w, h)
+    from trcc.conf import settings as _settings
 
-    results: list[MaskResponse] = []
-    if not os.path.isdir(masks_dir):
-        return results
+    cloud_masks_dir = Path(DataManager.get_web_masks_dir(w, h))
+    user_masks_dir = _settings.user_masks_dir(w, h)
 
-    for entry in sorted(os.listdir(masks_dir)):
-        entry_path = os.path.join(masks_dir, entry)
-        if not os.path.isdir(entry_path):
-            continue
-        # Use Theme.png if available, else 00.png
-        if os.path.isfile(os.path.join(entry_path, 'Theme.png')):
-            url = f"/static/masks/{entry}/Theme.png"
-        elif os.path.isfile(os.path.join(entry_path, '00.png')):
-            url = f"/static/masks/{entry}/00.png"
-        else:
-            continue
-        results.append(MaskResponse(name=entry, preview_url=url))
-    return results
+    masks = ThemeService.discover_masks(cloud_masks_dir, user_masks_dir)
+    return [
+        MaskResponse(
+            name=m.name,
+            preview_url=f"/static/masks/{m.name}/{m.preview_path.name}"
+            if m.preview_path else "",
+        )
+        for m in masks
+    ]
 
 
 @router.post("/load")
@@ -232,6 +238,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
 
     api.stop_video_playback()
     api.stop_overlay_loop()
+    api.stop_keepalive_loop()
 
     w, h = 0, 0
     if body.resolution:
@@ -283,19 +290,29 @@ def load_theme(body: ThemeLoadRequest) -> dict:
         # Static theme with overlay config — start metrics loop
         api.start_overlay_loop(image, str(config_path), w, h)
 
+    elif image:
+        # Static theme without overlay — keepalive for bulk/LY devices
+        api.start_keepalive_loop(image, w, h)
+
     return dispatch_result(result)
 
 
 @router.post("/save")
 def save_theme(body: ThemeSaveRequest) -> dict:
     """Save current device display as a named theme."""
-    from trcc.conf import load_config
+    from trcc.core.app import TrccApp
 
-    config = load_config()
-    if not config:
-        raise HTTPException(status_code=500, detail="No configuration to save")
+    app = TrccApp.get()
+    if not app.has_lcd or not app.lcd.current_image:
+        raise HTTPException(
+            status_code=409,
+            detail="No image loaded. Load a theme or send an image first.",
+        )
 
-    return {"success": True, "message": f"Theme '{body.name}' saved", "name": body.name}
+    result = app.lcd.save(body.name)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("message", "Save failed"))
+    return {"success": True, "message": result["message"], "name": body.name}
 
 
 @router.post("/export")
@@ -325,10 +342,13 @@ def export_theme(theme_name: str, resolution: str | None = None) -> Response:
         )
 
     from trcc.adapters.infra.data_repository import ThemeDir
+    from trcc.conf import settings as _settings
     td = ThemeDir.for_resolution(w, h)
     theme_dir = Path(str(td))
+    user_content_dir = getattr(_settings, 'user_content_dir', None)
 
-    themes = ThemeService.discover_local(theme_dir, (w, h))
+    themes = ThemeService.discover_local_merged(
+        theme_dir, user_content_dir, (w, h))
     match = next((t for t in themes if t.name == theme_name), None)
     if not match:
         match = next(

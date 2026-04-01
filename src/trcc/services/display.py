@@ -644,6 +644,69 @@ class DisplayService:
         return {"success": True, "message": "Done",
                 "frames": total, "fps": fps}
 
+    # -- Blocking static keepalive loop (CLI / API) -------------------------
+
+    def run_static_loop(
+        self,
+        *,
+        interval: float = 0.150,
+        duration: float = 0,
+        metrics_fn: Any | None = None,
+        on_frame: Any | None = None,
+    ) -> dict:
+        """Re-send current static image at *interval* seconds until interrupted.
+
+        Bulk/LY devices don't retain frames — firmware reverts to the
+        built-in logo unless frames keep arriving.  The GUI metrics loop
+        handles this automatically; CLI and API call this instead.
+
+        The DeviceService encoding cache makes repeated sends cheap —
+        only the USB write happens, no image re-encoding.
+
+        Args:
+            interval: Seconds between re-sends (default 150 ms).
+            duration: Stop after N seconds (0 = no limit).
+            metrics_fn: Callable returning ``HardwareMetrics`` — polled
+                once per second for live overlay updates.
+            on_frame: Optional callback ``(processed_image)`` per send.
+
+        Returns:
+            Result dict with success/message.
+        """
+        import time as _time
+
+        image = self.current_image
+        if not image:
+            return {"success": False, "error": "No image loaded"}
+
+        w, h = self.lcd_size
+        start = _time.monotonic()
+        last_metrics = 0.0
+
+        try:
+            while True:
+                if metrics_fn and self.overlay.enabled:
+                    now = _time.monotonic()
+                    if now - last_metrics >= 1.0:
+                        self.overlay.update_metrics(metrics_fn())
+                        last_metrics = now
+
+                if self.overlay.enabled:
+                    frame = self.overlay.render(image)
+                else:
+                    frame = image
+                processed = self._apply_adjustments(frame)
+                if on_frame:
+                    on_frame(processed)
+                self.devices.send_frame(processed, w, h)
+                if duration and (_time.monotonic() - start) >= duration:
+                    break
+                _time.sleep(interval)
+        except KeyboardInterrupt:
+            return {"success": True, "message": "Stopped"}
+
+        return {"success": True, "message": "Done"}
+
     # -- LCD send ----------------------------------------------------------
 
     def send_current_image(self) -> bytes | None:
@@ -666,7 +729,7 @@ class DisplayService:
 
     # -- Theme save (delegates to ThemePersistence) ------------------------
 
-    def save_theme(self, name: str, data_dir: Path) -> Tuple[bool, str]:
+    def save_theme(self, name: str) -> Tuple[bool, str]:
         """Save current config as a custom theme.
 
         Custom themes always go to user_content_dir (~/.trcc-user/) so they
