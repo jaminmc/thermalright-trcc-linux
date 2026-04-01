@@ -447,6 +447,8 @@ class TrccApp:
                             if image is not None:
                                 self._notify(AppEvent.FRAME_RENDERED,
                                              {'path': path, 'image': image})
+                            elif getattr(device, 'playing', False):
+                                device.update_video_cache_text(metrics)
                         except Exception:
                             log.exception("Device update error: %s", device)
                     self._notify(AppEvent.METRICS_UPDATED, metrics)
