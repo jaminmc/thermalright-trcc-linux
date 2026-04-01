@@ -233,7 +233,7 @@ class TestNewCommandDispatch(unittest.TestCase):
              patch('trcc.cli._theme.list_themes',
                           return_value=0) as mock:
             main()
-            mock.assert_called_once_with(cloud=False, category=None)
+            mock.assert_called_once_with()
 
     def test_theme_load_dispatches(self):
         """'theme-load myTheme' calls _theme.load_theme()."""

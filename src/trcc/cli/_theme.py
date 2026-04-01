@@ -9,12 +9,12 @@ log = logging.getLogger(__name__)
 
 
 @_cli_handler
-def list_themes(cloud=False, category=None):
-    """List available themes for the current device resolution."""
+def list_themes():
+    """List local themes for the current device resolution."""
     from trcc.conf import settings
     from trcc.services import ThemeService
 
-    log.debug("list_themes cloud=%s category=%s", cloud, category)
+    log.debug("list_themes")
     w, h = settings.width, settings.height
     if not w or not h:
         print("No device resolution saved. Connect your device first.")
@@ -22,28 +22,44 @@ def list_themes(cloud=False, category=None):
 
     settings._resolve_paths()
 
-    if cloud:
-        web_dir = settings.web_dir
-        if not web_dir or not web_dir.exists():
-            print(f"No cloud themes for {w}x{h}.")
-            return 0
-        themes = ThemeService.discover_cloud(web_dir, category)
-        print(f"Cloud themes ({w}x{h}): {len(themes)}")
-        for t in themes:
-            cat = f" [{t.category}]" if t.category else ""
-            print(f"  {t.name}{cat}")
-    else:
-        td = settings.theme_dir
-        if not td or not td.exists():
-            print(f"No local themes for {w}x{h}.")
-            return 0
-        themes = ThemeService.discover_local_merged(
-            td.path, settings.user_content_dir, (w, h))
-        print(f"Local themes ({w}x{h}): {len(themes)}")
-        for t in themes:
-            kind = "video" if t.is_animated else "static"
-            user = " [user]" if t.name.startswith(('Custom_', 'User')) else ""
-            print(f"  {t.name} ({kind}){user}")
+    td = settings.theme_dir
+    if not td or not td.exists():
+        print(f"No local themes for {w}x{h}.")
+        return 0
+    themes = ThemeService.discover_local_merged(
+        td.path, settings.user_content_dir, (w, h))
+    print(f"Local themes ({w}x{h}): {len(themes)}")
+    for t in themes:
+        kind = "video" if t.is_animated else "static"
+        user = " [user]" if t.name.startswith(('Custom_', 'User')) else ""
+        print(f"  {t.name} ({kind}){user}")
+
+    return 0
+
+
+@_cli_handler
+def list_backgrounds(category=None):
+    """List cloud backgrounds for the current device resolution."""
+    from trcc.conf import settings
+    from trcc.services import ThemeService
+
+    log.debug("list_backgrounds category=%s", category)
+    w, h = settings.width, settings.height
+    if not w or not h:
+        print("No device resolution saved. Connect your device first.")
+        return 1
+
+    settings._resolve_paths()
+
+    web_dir = settings.web_dir
+    if not web_dir or not web_dir.exists():
+        print(f"No cloud backgrounds for {w}x{h}.")
+        return 0
+    themes = ThemeService.discover_cloud(web_dir, category)
+    print(f"Cloud backgrounds ({w}x{h}): {len(themes)}")
+    for t in themes:
+        cat = f" [{t.category}]" if t.category else ""
+        print(f"  {t.name}{cat}")
 
     return 0
 

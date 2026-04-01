@@ -444,22 +444,25 @@ def _cmd_overlay(
 
 
 @app.command("theme-list", rich_help_panel="Themes")
-def _cmd_theme_list(
-    cloud: Annotated[bool, typer.Option(
-        "--cloud", "-c", help="List cloud themes instead of local",
-    )] = False,
-    category: Annotated[Optional[str], typer.Option(
-        "--category", help="Filter by category (a=Gallery, b=Tech, c=HUD, etc.)",
-    )] = None,
-) -> int:
-    """List available themes."""
-    return _theme.list_themes(cloud=cloud, category=category)
+def _cmd_theme_list() -> int:
+    """List local themes."""
+    return _theme.list_themes()
 
 
 @app.command("mask-list", rich_help_panel="Themes")
 def _cmd_mask_list() -> int:
-    """List available mask overlays."""
+    """List cloud masks."""
     return _theme.list_masks()
+
+
+@app.command("background-list", rich_help_panel="Themes")
+def _cmd_background_list(
+    category: Annotated[Optional[str], typer.Option(
+        "--category", help="Filter by category (a=Gallery, b=Tech, c=HUD, etc.)",
+    )] = None,
+) -> int:
+    """List cloud backgrounds."""
+    return _theme.list_backgrounds(category=category)
 
 
 @app.command("theme-load", rich_help_panel="Themes")
@@ -1274,6 +1277,7 @@ render_overlay = _display.render_overlay
 # Theme commands
 list_themes = _theme.list_themes
 list_masks = _theme.list_masks
+list_backgrounds = _theme.list_backgrounds
 load_theme = _theme.load_theme
 save_theme = _theme.save_theme
 export_theme = _theme.export_theme
