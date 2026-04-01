@@ -1,5 +1,27 @@
 # Changelog
 
+## v9.3.3
+
+### Refactors
+- **Centralized theme/mask listing**: `ThemeService.discover_local_merged()` + `discover_masks()` — CLI, API, GUI all go through the same service method. Scans both `~/.trcc/data/` (stock) and `~/.trcc-user/` (user-created) directories.
+- **Unified theme save**: CLI, API, GUI all route through `lcd.save()` → `DisplayService.save_theme()`. Always saves to `~/.trcc-user/`. Dropped `data_dir` parameter — single code path, single destination.
+- **CLI help panels**: Commands grouped into Device, LCD Display, Themes, LED, System, Diagnostics, Interfaces sections via `rich_help_panel`.
+
+### Fixes
+- **User themes not found by CLI/API**: `load_theme_by_name`, `list_themes`, `export_theme` now scan `~/.trcc-user/` in addition to `~/.trcc/data/`
+- **Animated theme overlay missing**: `load_theme_by_name` now loads DC overlay config for animated themes (was skipped, only static themes got overlay)
+- **`theme-load` animated themes not sending frames to LCD**: CLI now wires `on_frame` callback and resolves video file from theme directory
+- **`theme-load -p` no live preview on static themes**: keep-alive loop now accepts `on_frame` for live ANSI terminal preview
+- **CLI save to wrong directory**: Was saving to `~/.trcc/data/` instead of `~/.trcc-user/`
+- **API `save_theme` was a stub**: Now fully implemented via `lcd.save()`
+- **`trcc uninstall` logging crash**: File handlers removed before deleting `~/.trcc/` directory
+
+### New
+- **`trcc mask-list`**: List available mask overlays from both cloud cache and user directories
+- **`MaskInfo` dataclass**: Domain object for mask discovery (service layer)
+- **`Settings.user_masks_dir()`**: Public method for user mask directory resolution
+- **`LCDDevice.set_mask_from_path()`**: Handles both file and directory mask paths
+
 ## v9.3.2
 
 ### Fixes
