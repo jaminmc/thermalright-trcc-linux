@@ -1722,15 +1722,16 @@ class TRCCApp(QMainWindow):
     def _on_temp_unit_changed(self, unit: str) -> None:
         log.debug("_on_temp_unit_changed: unit=%s", unit)
         temp_int = 1 if unit == 'F' else 0
+        _conf.settings.set_temp_unit(temp_int)
         h = self._active_lcd()
         if h:
             h.display.set_overlay_temp_unit(temp_int)
+            h._render_and_send()
         self.uc_system_info.set_temp_unit(temp_int)
         self.uc_led_control.set_temp_unit(temp_int)
-        for h in self._handlers.values():
-            if isinstance(h, LEDHandler):
-                h.set_temp_unit(unit)
-        _conf.settings.set_temp_unit(temp_int)
+        for handler in self._handlers.values():
+            if isinstance(handler, LEDHandler):
+                handler.set_temp_unit(unit)
         self.uc_preview.set_status(f"Temperature: °{unit}")
 
     def _on_hdd_toggle_changed(self, on: bool) -> None:
