@@ -377,6 +377,47 @@ class TrccApp:
         self.wake_metrics_loop()
         return {"success": True, "message": f"Refresh interval set to {clamped}s"}
 
+    def apply_temp_unit(self, unit: int) -> dict[str, Any]:
+        """Set temperature unit system-wide: persist, update all devices, wake metrics.
+
+        Args:
+            unit: 0 = Celsius, 1 = Fahrenheit.
+        """
+        import trcc.conf as _conf
+
+        from .models import HardwareMetrics
+
+        _conf.settings.set_temp_unit(unit)
+
+        # Fetch fresh metrics with new unit applied
+        fresh = None
+        if self._system_svc is not None:
+            raw = self._system_svc.all_metrics  # type: ignore[union-attr]
+            fresh = HardwareMetrics.with_temp_unit(raw, unit)
+            self._current_metrics = fresh
+
+        # Push to all connected devices
+        unit_str = 'F' if unit else 'C'
+        from .lcd_device import LCDDevice as _LCD
+        from .led_device import LEDDevice as _LED
+        for device in self._devices.values():
+            if isinstance(device, _LCD):
+                device.set_temp_unit(unit)
+                if fresh is not None:
+                    device.update_metrics(fresh)
+            elif isinstance(device, _LED):
+                device.set_temp_unit(unit_str)
+
+        self.wake_metrics_loop()
+        return {"success": True, "message": f"Temperature unit set to °{unit_str}"}
+
+    def set_hdd_enabled(self, enabled: bool) -> dict[str, Any]:
+        """Set HDD info toggle and persist."""
+        import trcc.conf as _conf
+        _conf.settings.set_hdd_enabled(enabled)
+        return {"success": True,
+                "message": f"HDD info {'enabled' if enabled else 'disabled'}"}
+
     def setup_platform(self, auto_yes: bool = False) -> int:
         """Run interactive platform setup wizard. Returns exit code."""
         return self._builder.build_setup().run(auto_yes=auto_yes)
@@ -448,7 +489,7 @@ class TrccApp:
                                 self._notify(AppEvent.FRAME_RENDERED,
                                              {'path': path, 'image': image})
                             elif getattr(device, 'playing', False):
-                                device.update_video_cache_text(metrics)
+                                device.update_video_cache_text(metrics)  # type: ignore[union-attr]
                         except Exception:
                             log.exception("Device update error: %s", device)
                     self._notify(AppEvent.METRICS_UPDATED, metrics)
