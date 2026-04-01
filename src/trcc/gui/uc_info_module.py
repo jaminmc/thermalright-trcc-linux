@@ -86,8 +86,8 @@ class UCInfoModule(QWidget):
             self._sensor_boxes[key] = box
 
     def set_temp_unit(self, unit):
-        """Set temperature display unit ('°C' or '°F')."""
-        self._temp_unit = unit
+        """Set temperature display unit (0=Celsius, 1=Fahrenheit)."""
+        self._temp_unit = '\u00b0F' if unit else '\u00b0C'
 
     def update_from_metrics(self, metrics) -> None:
         """Accept pre-polled metrics from MetricsMediator."""
