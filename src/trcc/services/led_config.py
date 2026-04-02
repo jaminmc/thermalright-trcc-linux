@@ -1,11 +1,10 @@
 """LED config persistence — save/load LEDState to per-device config.
 
 Extracted from LEDService (SRP). Memento pattern — _PERSIST_FIELDS and
-_ALIASES define the serialization schema. All functions operate on provided
-state; no mutable service state.
+_ALIASES define the serialization schema.
 
-Config callables (save_setting_fn, get_config_fn) are passed in by the
-caller — no lazy imports from conf.
+LEDConfigService: concrete DeviceConfigService for LED.
+save_led_config / load_led_config: bulk serialization functions.
 """
 from __future__ import annotations
 
@@ -13,6 +12,7 @@ import logging
 from typing import Any, Callable, Dict
 
 from ..core.models import LEDMode, LEDState
+from ..core.ports import DeviceConfigService
 
 log = logging.getLogger(__name__)
 
@@ -118,3 +118,43 @@ def load_led_config(
                     z.on = zc.get('on', True)
     except Exception as e:
         log.error("Failed to load LED config: %s", e)
+
+
+class LEDConfigService(DeviceConfigService):
+    """LED per-device config persistence — injected into LEDDevice/LEDService.
+
+    Same interface as LCDConfigService. Adds save_state/load_state for
+    bulk LEDState serialization (LED-specific).
+    """
+
+    def __init__(
+        self,
+        config_key_fn: Callable[..., str],
+        save_setting_fn: Callable[..., None],
+        get_config_fn: Callable[..., dict],
+    ) -> None:
+        self._config_key_fn = config_key_fn
+        self._save_fn = save_setting_fn
+        self._get_fn = get_config_fn
+
+    def device_key(self, dev: Any) -> str:
+        return self._config_key_fn(dev.device_index, dev.vid, dev.pid)
+
+    def persist(self, dev: Any, field: str, value: Any) -> None:
+        if dev:
+            self._save_fn(self.device_key(dev), field, value)
+
+    def get_config(self, dev: Any) -> dict:
+        if not dev:
+            return {}
+        return self._get_fn(self.device_key(dev))
+
+    def save_state(self, dev: Any, state: LEDState) -> None:
+        """Bulk serialize LEDState. LED-specific."""
+        if dev:
+            save_led_config(state, self.device_key(dev), self._save_fn)
+
+    def load_state(self, dev: Any, state: LEDState) -> None:
+        """Bulk deserialize LEDState. LED-specific."""
+        if dev:
+            load_led_config(state, self.device_key(dev), self._get_fn)

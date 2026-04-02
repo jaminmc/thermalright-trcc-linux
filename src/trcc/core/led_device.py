@@ -44,18 +44,14 @@ class LEDDevice(Device):
                  get_protocol: Any = None,
                  device_svc: Any = None,
                  led_svc_factory: Any = None,
-                 config_key_fn: Any = None,
-                 save_setting_fn: Any = None,
-                 get_config_fn: Any = None,
+                 led_config: Any = None,
                  find_active_fn: Any = None,
                  proxy_factory_fn: Any = None) -> None:
         self._svc = svc
         self._get_protocol = get_protocol
         self._device_svc = device_svc
         self._led_svc_factory = led_svc_factory
-        self._config_key_fn = config_key_fn
-        self._save_setting_fn = save_setting_fn
-        self._get_config_fn = get_config_fn
+        self._led_config = led_config
         self._find_active_fn = find_active_fn
         self._proxy_factory_fn = proxy_factory_fn
         self._proxy: Any = None
@@ -104,9 +100,7 @@ class LEDDevice(Device):
         self._device = led_dev
         self._svc = self._led_svc_factory(
             get_protocol=self._get_protocol,
-            config_key_fn=self._config_key_fn,
-            save_setting_fn=self._save_setting_fn,
-            get_config_fn=self._get_config_fn,
+            led_config=self._led_config,
         )
         style_id = led_dev.led_style_id or 1
         self._init_status = self._svc.initialize(led_dev, style_id)
@@ -153,9 +147,7 @@ class LEDDevice(Device):
         if not self._svc:
             self._svc = self._led_svc_factory(
                 get_protocol=self._get_protocol,
-                config_key_fn=self._config_key_fn,
-                save_setting_fn=self._save_setting_fn,
-                get_config_fn=self._get_config_fn,
+                led_config=self._led_config,
             )
         self._device = device
         self._init_status = self._svc.initialize(device, led_style)

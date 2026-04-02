@@ -163,13 +163,15 @@ class ControllerBuilder:
         """Build and return a LEDDevice."""
         from ..adapters.device.factory import DeviceProtocolFactory
         from ..services import LEDService
+        from ..services.led_config import LEDConfigService
         from .led_device import LEDDevice
 
+        led_config = LEDConfigService(**self._build_config_callables())
         return LEDDevice(
             device_svc=self._build_device_svc(),
             get_protocol=DeviceProtocolFactory.get_protocol,
             led_svc_factory=LEDService,
-            **self._build_config_callables(),
+            led_config=led_config,
         )
 
     def build_device(self, detected: Any = None) -> 'Device':
@@ -192,12 +194,13 @@ class ControllerBuilder:
 
         if is_led:
             from ..services import LEDService
+            from ..services.led_config import LEDConfigService
             from .led_device import LEDDevice
             return LEDDevice(
                 device_svc=device_svc,
                 get_protocol=DeviceProtocolFactory.get_protocol,
                 led_svc_factory=LEDService,
-                **cfg,
+                led_config=LEDConfigService(**cfg),
             )
 
         from ..conf import Settings

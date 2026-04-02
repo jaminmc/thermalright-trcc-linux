@@ -250,6 +250,26 @@ class Device(ABC):
         """Release resources on shutdown."""
 
 
+class DeviceConfigService(ABC):
+    """Port: per-device config persistence.
+
+    Shared interface for LCD and LED config services.
+    Concrete: LCDConfigService, LEDConfigService.
+    """
+
+    @abstractmethod
+    def device_key(self, dev: Any) -> str:
+        """Compute per-device config key from device info."""
+
+    @abstractmethod
+    def persist(self, dev: Any, field: str, value: Any) -> None:
+        """Save a single setting for a device."""
+
+    @abstractmethod
+    def get_config(self, dev: Any) -> dict:
+        """Read full per-device config dict."""
+
+
 # =========================================================================
 # Infrastructure port types — injected into services via DI
 # =========================================================================

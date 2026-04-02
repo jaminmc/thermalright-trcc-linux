@@ -1223,33 +1223,34 @@ class TestLEDServiceProtocolAndConfig:
         result = svc.initialize(dev_info, led_style=1)
         assert 'LED:' in result or 'AX120' in result
 
-    def test_save_config_delegates_when_device_key_set(self):
-        """save_config calls save_led_config when _device_key is set."""
-        mock_save = MagicMock()
-        svc = LEDService(save_setting_fn=mock_save)
-        svc._device_key = '0:1234:5678'
-        with patch('trcc.services.led.save_led_config') as m:
-            svc.save_config()
-        m.assert_called_once_with(svc.state, '0:1234:5678', mock_save)
+    def test_save_config_delegates_to_led_config(self):
+        """save_config calls led_config.save_state when device is set."""
+        mock_cfg = MagicMock()
+        mock_dev = MagicMock()
+        svc = LEDService(led_config=mock_cfg)
+        svc._device = mock_dev
+        svc.save_config()
+        mock_cfg.save_state.assert_called_once_with(mock_dev, svc.state)
 
-    def test_load_config_delegates_when_device_key_set(self):
-        """load_config calls load_led_config when _device_key is set."""
-        mock_get = MagicMock()
-        svc = LEDService(get_config_fn=mock_get)
-        svc._device_key = '0:1234:5678'
-        with patch('trcc.services.led.load_led_config') as m:
-            svc.load_config()
-        m.assert_called_once_with(svc.state, '0:1234:5678', mock_get)
+    def test_load_config_delegates_to_led_config(self):
+        """load_config calls led_config.load_state when device is set."""
+        mock_cfg = MagicMock()
+        mock_dev = MagicMock()
+        svc = LEDService(led_config=mock_cfg)
+        svc._device = mock_dev
+        svc.load_config()
+        mock_cfg.load_state.assert_called_once_with(mock_dev, svc.state)
 
     def test_cleanup_saves_config_and_clears_protocol(self):
         """cleanup saves config and sets protocol to None."""
-        svc = LEDService(save_setting_fn=MagicMock())
-        svc._device_key = '0:1234:5678'
+        mock_cfg = MagicMock()
+        mock_dev = MagicMock()
+        svc = LEDService(led_config=mock_cfg)
+        svc._device = mock_dev
         proto = MagicMock()
         svc.set_protocol(proto)
-        with patch('trcc.services.led.save_led_config') as m:
-            svc.cleanup()
-        m.assert_called_once()
+        svc.cleanup()
+        mock_cfg.save_state.assert_called_once()
         assert svc.has_protocol is False
 
 

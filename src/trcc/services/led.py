@@ -18,7 +18,6 @@ from ..core.models import (
     LEDZoneState,
     resolve_led_style_id,
 )
-from .led_config import load_led_config, save_led_config
 from .led_effects import LEDEffectEngine
 
 log = logging.getLogger(__name__)
@@ -52,17 +51,13 @@ class LEDService:
 
     def __init__(self, state: LEDState | None = None,
                  get_protocol: Any = None,
-                 config_key_fn: Any = None,
-                 save_setting_fn: Any = None,
-                 get_config_fn: Any = None) -> None:
+                 led_config: Any = None) -> None:
         self.state = state or LEDState()
         self._metrics: HardwareMetrics = HardwareMetrics()
         self._engine = LEDEffectEngine(self.state, self._metrics)
         self._protocol: Any = None
         self._get_protocol = get_protocol
-        self._config_key_fn = config_key_fn
-        self._save_setting_fn = save_setting_fn
-        self._get_config_fn = get_config_fn
+        self._led_config = led_config
 
         # Segment display state (styles 1-11 — all digit-display LED devices)
         self._segment_mode = False
@@ -429,12 +424,9 @@ class LEDService:
     def initialize(self, device_info: Any, led_style: int = 1) -> str:
         """Initialize for a device. Returns status message."""
         self._led_style = led_style
-        if self._config_key_fn:
-            self._device_key = self._config_key_fn(
-                getattr(device_info, 'device_index', 0),
-                device_info.vid,
-                device_info.pid,
-            )
+        self._device = device_info
+        if self._led_config:
+            self._device_key = self._led_config.device_key(device_info)
 
         style_sub = getattr(device_info, 'led_style_sub', 0)
         self.configure_for_style(led_style, style_sub)
@@ -461,13 +453,13 @@ class LEDService:
 
     def save_config(self) -> None:
         """Serialize LEDState to config file."""
-        if self._device_key and self._save_setting_fn:
-            save_led_config(self.state, self._device_key, self._save_setting_fn)
+        if self._device and self._led_config:
+            self._led_config.save_state(self._device, self.state)
 
     def load_config(self) -> None:
         """Deserialize LEDState from config file."""
-        if self._device_key and self._get_config_fn:
-            load_led_config(self.state, self._device_key, self._get_config_fn)
+        if self._device and self._led_config:
+            self._led_config.load_state(self._device, self.state)
 
     def cleanup(self) -> None:
         """Save config and release protocol."""
