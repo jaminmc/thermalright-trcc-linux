@@ -22,14 +22,6 @@ def celsius_to_fahrenheit(celsius: float) -> float:
     return celsius * 9 / 5 + 32
 
 
-def display_temp(celsius: float, unit: str = "C") -> int:
-    """Convert temperature for display. Returns int for segment digits."""
-    v = int(celsius)
-    if unit == "F":
-        v = int(celsius_to_fahrenheit(celsius))
-    return v
-
-
 def parse_hex_color(hex_color: str) -> Optional[Tuple[int, int, int]]:
     """Parse '#RRGGBB' or 'RRGGBB' → (r, g, b), or None on invalid input."""
     hex_color = hex_color.lstrip('#')

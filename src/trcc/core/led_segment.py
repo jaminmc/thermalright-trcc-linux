@@ -99,9 +99,13 @@ class SegmentDisplay:
     # ── Temperature conversion ──────────────────────────────────────
 
     @staticmethod
-    def _to_display_temp(celsius: float, temp_unit: str) -> int:
-        from .models import display_temp
-        return display_temp(celsius, temp_unit)
+    def _to_display_temp(value: float, temp_unit: str) -> int:
+        """Truncate pre-converted temperature to int for segment display.
+
+        Metrics are already converted to the target unit by
+        HardwareMetrics.with_temp_unit — no conversion here.
+        """
+        return int(value)
 
     # ── Encoding helpers ────────────────────────────────────────────
 
@@ -396,8 +400,6 @@ class LC1Display(SegmentDisplay):
         mask[indicator_idx] = True
         value = int(getattr(metrics, metric_key, 0))
         if mode == 0:
-            if temp_unit == "F":
-                value = self._to_display_temp(value, "F")
             self._encode_3digit(value, self.DIGITS, mask)
             self._encode_unit(-1 if temp_unit == "F" else 0, self.UNIT_DIGIT, mask)
         else:

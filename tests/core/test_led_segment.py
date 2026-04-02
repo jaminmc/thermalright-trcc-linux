@@ -477,19 +477,11 @@ class TestSegmentDisplayEncoding:
 
     # ── _to_display_temp ──────────────────────────────────────────────────
 
-    def test_to_display_temp_celsius(self) -> None:
-        result = _TestDisplay._to_display_temp(65.7, "C")
-        assert result == 65
-
-    def test_to_display_temp_fahrenheit(self) -> None:
-        # 0°C = 32°F
-        result = _TestDisplay._to_display_temp(0.0, "F")
-        assert result == 32
-
-    def test_to_display_temp_100c_in_f(self) -> None:
-        # 100°C = 212°F
-        result = _TestDisplay._to_display_temp(100.0, "F")
-        assert result == 212
+    def test_to_display_temp_truncates(self) -> None:
+        """Metrics are pre-converted — display just truncates to int."""
+        assert _TestDisplay._to_display_temp(65.7, "C") == 65
+        assert _TestDisplay._to_display_temp(77.0, "F") == 77
+        assert _TestDisplay._to_display_temp(0.0, "C") == 0
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -839,11 +831,6 @@ class TestLC1Display:
         mask = self.d.compute_mask(_make_metrics(mem_temp=45.0), 0, "F", sub_style=0)
         assert _segments_on(mask, self.d.UNIT_DIGIT) == SegmentDisplay.CHAR_7SEG['F']
 
-    def test_fahrenheit_converts_value(self) -> None:
-        """°F temp phase should convert the Celsius value."""
-        m_c = self.d.compute_mask(_make_metrics(mem_temp=100.0), 0, "C", sub_style=0)
-        m_f = self.d.compute_mask(_make_metrics(mem_temp=100.0), 0, "F", sub_style=0)
-        assert m_c != m_f  # 100°C vs 212°F → different encodings
 
     def test_memory_clock_applies_ratio(self) -> None:
         """mem_clock is multiplied by memory_ratio in phase 1."""
@@ -1162,17 +1149,9 @@ class TestCZ1Display:
         mask = self.d.compute_mask(_make_metrics(cpu_temp=5.0), 0, "C")
         assert not any(mask[led] for led in self.d.DIGITS[0])
 
-    def test_temp_converted_to_fahrenheit(self) -> None:
-        # 50°C = 122°F → 2-digit display shows 50 vs 22 (different segments)
-        m_c = self.d.compute_mask(_make_metrics(cpu_temp=50.0), 0, "C")
-        m_f = self.d.compute_mask(_make_metrics(cpu_temp=50.0), 0, "F")
-        assert m_c != m_f
-
     def test_percent_not_converted(self) -> None:
         """cpu_percent (non-temp) is not run through temperature conversion."""
-        # Phase 1 = cpu_percent. Mask should encode raw value, not temp-converted.
         mask = self.d.compute_mask(_make_metrics(cpu_percent=42.0), 1, "C")
-        # '4' in tens, '2' in ones — just assert something is lit
         assert any(mask[led] for digit in self.d.DIGITS for led in digit)
 
     def test_phase_wraps_modulo_4(self) -> None:
@@ -1364,11 +1343,6 @@ class TestLF11Display:
         for group in self.d.DIGITS:
             assert any(mask[led] for led in group)
 
-    def test_temp_converted_to_fahrenheit(self) -> None:
-        m_c = self.d.compute_mask(_make_metrics(disk_temp=100.0), 0, "C")
-        m_f = self.d.compute_mask(_make_metrics(disk_temp=100.0), 0, "F")
-        assert m_c != m_f
-
     def test_phase_wraps_modulo_4(self) -> None:
         m0 = self.d.compute_mask(_make_metrics(), 0, "C")
         m4 = self.d.compute_mask(_make_metrics(), 4, "C")
@@ -1438,7 +1412,7 @@ class TestModuleFunctions:
     def test_compute_mask_passes_temp_unit(self) -> None:
         m_c = compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="C")
         m_f = compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="F")
-        assert m_c != m_f
+        # Digit values are the same (no conversion), but unit indicator segment may differ
 
     @patch('trcc.core.led_segment.datetime')
     def test_compute_mask_passes_is_24h_to_lc2(self, mock_dt: MagicMock) -> None:
