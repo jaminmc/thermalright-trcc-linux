@@ -190,9 +190,10 @@ def set_clock_format(builder, is_24h: bool):
 
 
 @_cli_handler
-def set_temp_unit(builder, unit: int):
+def set_temp_unit(builder, unit: str):
     """Set LED segment display temperature unit (0=Celsius, 1=Fahrenheit)."""
-    return _led_call('set_temp_unit', unit=unit)
+    value = 1 if unit.upper() == "F" else 0
+    return _led_call('set_temp_unit', unit=value)
 
 
 # =========================================================================

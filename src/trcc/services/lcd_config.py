@@ -22,7 +22,7 @@ class LCDConfigService(DeviceConfigService):
         config_key_fn: Callable[..., str],
         save_setting_fn: Callable[..., None],
         get_config_fn: Callable[..., dict],
-        apply_format_prefs_fn: Callable[..., None],
+        apply_format_prefs_fn: Callable[..., dict | None],
     ) -> None:
         super().__init__(config_key_fn, save_setting_fn, get_config_fn)
         self._apply_prefs_fn = apply_format_prefs_fn

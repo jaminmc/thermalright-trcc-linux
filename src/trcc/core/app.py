@@ -273,12 +273,15 @@ class TrccApp:
         IPC handlers (set via set_ipc_handlers) are injected here so that
         devices built by scan() can proxy to a running GUI/API instance.
         """
+        from .lcd_device import LCDDevice
+        from .led_device import LEDDevice
+
         device.wire_ipc(self._find_active_fn, self._proxy_factory_fn)
-        if device.is_lcd:
+        if isinstance(device, LCDDevice):
             self._lcd_device = device
             log.debug("LCD device ready: %s", getattr(device, 'device_path', '?'))
             device.initialize_pipeline(self._settings)
-        elif device.is_led:
+        elif isinstance(device, LEDDevice):
             self._led_device = device
             log.debug("LED device ready: %s", getattr(device, 'device_path', '?'))
 
