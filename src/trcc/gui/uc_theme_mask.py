@@ -43,9 +43,6 @@ class UCThemeMask(DownloadableThemeBrowser):
     Custom masks live in ~/.trcc-user/data/web/zt{W}{H}/.
     """
 
-    # Known cloud mask IDs (000a-023e pattern)
-    KNOWN_MASKS = [f"{i:03d}{c}" for i in range(24) for c in "abcde"]
-
     # Cloud mask server URLs by resolution — canonical source in core/models.py
     CLOUD_URLS = CLOUD_MASK_URLS
 
@@ -58,7 +55,7 @@ class UCThemeMask(DownloadableThemeBrowser):
         self.mask_directory = None
         _w, _h = _conf.settings.width, _conf.settings.height
         self._resolution = f"{_w}x{_h}" if (_w and _h) else ""
-        self._local_masks = set()
+        self._local_masks: set[str] = set()
         self._category = 'all'
         super().__init__(parent)
 
@@ -133,7 +130,7 @@ class UCThemeMask(DownloadableThemeBrowser):
         return _conf.settings.user_masks_dir(w, h)
 
     def refresh_masks(self):
-        """Reload masks from disk and show cloud masks available for download."""
+        """Reload masks from disk — only shows what exists per device resolution."""
         from ..services import ThemeService
 
         self._clear_grid()
@@ -156,21 +153,12 @@ class UCThemeMask(DownloadableThemeBrowser):
             ))
             self._local_masks.add(m.name.lower())
 
-        # Add known cloud masks that aren't locally cached
-        for mask_id in self.KNOWN_MASKS:
-            if mask_id.lower() not in self._local_masks:
-                masks.append(MaskItem(
-                    name=mask_id,
-                    is_local=False,
-                ))
-
         # Filter by category (last char of mask name matches suffix)
         if self._category != 'all':
             masks = [m for m in masks if m.name and m.name[-1:] == self._category]
 
-        log.debug("refresh_masks: %d local, %d cloud, cat=%s, dir=%s",
-                   len(self._local_masks), len(masks) - len(self._local_masks),
-                   self._category, self.mask_directory)
+        log.debug("refresh_masks: %d masks, cat=%s, dir=%s",
+                   len(masks), self._category, self.mask_directory)
         self._populate_grid(masks)
 
     def _on_item_clicked(self, item_info: MaskItem):

@@ -1118,19 +1118,6 @@ class TestUCThemeMask:
         msg = widget._no_items_message()
         assert "mask" in msg.lower()
 
-    def test_known_masks_count(self, widget):
-        from trcc.gui.uc_theme_mask import UCThemeMask
-
-        # 24 * 5 = 120 known masks (000a through 023e)
-        assert len(UCThemeMask.KNOWN_MASKS) == 120
-
-    def test_known_masks_format(self, widget):
-        from trcc.gui.uc_theme_mask import UCThemeMask
-
-        for mask_id in UCThemeMask.KNOWN_MASKS:
-            assert len(mask_id) == 4
-            assert mask_id[-1] in "abcde"
-
     def test_cloud_urls(self, widget):
         from trcc.gui.uc_theme_mask import UCThemeMask
 
@@ -1140,32 +1127,35 @@ class TestUCThemeMask:
     def test_refresh_masks_no_directory(self, widget):
         widget.mask_directory = None
         widget.refresh_masks()
-        # Should show cloud masks only
-        assert len(widget.items) == 120  # all KNOWN_MASKS
+        # No directory → no masks (disk-only, no cloud placeholders)
+        assert len(widget.items) == 0
 
-    def test_refresh_masks_with_local(self, widget, tmp_path):
+    def test_refresh_masks_shows_only_local(self, widget, tmp_path):
         mask_dir = tmp_path / "masks"
         mask_dir.mkdir()
-        # Create a local mask directory with Theme.png
-        local = mask_dir / "000a"
-        local.mkdir()
-        make_test_surface(120, 120, (0, 0, 0)).save(str(local / "Theme.png"))
+        # Create two local mask directories with Theme.png
+        for name in ("001a", "002b"):
+            d = mask_dir / name
+            d.mkdir()
+            make_test_surface(120, 120, (0, 0, 0)).save(str(d / "Theme.png"))
         widget.mask_directory = mask_dir
         widget.refresh_masks()
-        # One local + (120 - 1) cloud = 120 total
-        assert len(widget.items) == 120
-        # The local one should be marked as local
-        local_items = [i for i in widget.items if i.is_local]
-        assert len(local_items) == 1
-        assert local_items[0].name == "000a"
+        assert len(widget.items) == 2
+        names = {i.name for i in widget.items}
+        assert names == {"001a", "002b"}
+        assert all(i.is_local for i in widget.items)
 
     def test_category_filter(self, widget, tmp_path):
         mask_dir = tmp_path / "masks"
         mask_dir.mkdir()
+        for name in ("001a", "001b", "002a"):
+            d = mask_dir / name
+            d.mkdir()
+            make_test_surface(120, 120, (0, 0, 0)).save(str(d / "Theme.png"))
         widget.mask_directory = mask_dir
         widget._category = "a"
         widget.refresh_masks()
-        # Only masks ending with "a"
+        assert len(widget.items) == 2
         for item in widget.items:
             assert item.name.endswith("a")
 
