@@ -56,7 +56,8 @@ def list_backgrounds(category=None):
         print("No device resolution saved. Connect your device first.")
         return 1
 
-    ew, eh = effective_resolution(settings.width, settings.height, settings.rotation)
+    w, h = settings.width, settings.height
+    ew, eh = effective_resolution(w, h, settings.rotation)
     web_dir = Path(settings._path_resolver.web_dir(ew, eh))
 
     if not web_dir.exists():
@@ -84,7 +85,8 @@ def list_masks():
         print("No device resolution saved. Connect your device first.")
         return 1
 
-    ew, eh = effective_resolution(settings.width, settings.height, settings.rotation)
+    w, h = settings.width, settings.height
+    ew, eh = effective_resolution(w, h, settings.rotation)
     cloud_masks_dir = Path(settings._path_resolver.web_masks_dir(ew, eh))
 
     masks = ThemeService.discover_masks(

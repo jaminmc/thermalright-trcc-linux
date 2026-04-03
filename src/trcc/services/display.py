@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from ..core.ports import PathResolver
 
 from ..core.models import SPLIT_MODE_RESOLUTIONS, SPLIT_OVERLAY_MAP, ThemeDir
+from ..core.orientation import effective_resolution as _eff_res
+from ..core.orientation import image_rotation as _img_rot
 from ..core.paths import RESOURCES_DIR, has_themes, resolve_theme_dir
 from .device import DeviceService
 from .image import ImageService
@@ -86,7 +88,6 @@ class DisplayService:
         self._web_dir: Path | None = None
         self._masks_dir: Path | None = None
         self._mask_source_dir: Path | None = None
-        self._has_rotated_dirs: bool = False
 
     # -- Properties --------------------------------------------------------
 
@@ -104,10 +105,8 @@ class DisplayService:
 
     @property
     def effective_resolution(self) -> tuple[int, int]:
-        """Resolution after rotation — swaps w,h only when rotated dirs exist."""
-        if self._has_rotated_dirs and self.rotation in (90, 270):
-            return (self._height, self._width)
-        return (self._width, self._height)
+        """Resolution after rotation — swaps w,h for non-square at 90/270."""
+        return _eff_res(self._width, self._height, self.rotation)
 
     @property
     def canvas_size(self) -> tuple[int, int]:
@@ -115,16 +114,9 @@ class DisplayService:
         return self.effective_resolution
 
     @property
-    def has_rotated_dirs(self) -> bool:
-        """True if this device has separate landscape/portrait theme directories."""
-        return self._has_rotated_dirs
-
-    @property
     def _image_rotation(self) -> int:
-        """Rotation to apply to images. 0 when rotated dirs handle orientation."""
-        if self._has_rotated_dirs and self.rotation in (90, 270):
-            return 0
-        return self.rotation
+        """Rotation to apply to images. 0 when canvas is already portrait."""
+        return _img_rot(self._width, self._height, self.rotation)
 
     def _encode_angle(self) -> int:
         """Device encode rotation angle (C# RotateImg in ImageToJpg)."""
@@ -148,17 +140,6 @@ class DisplayService:
             self.overlay.set_resolution(cw, ch)
             self._setup_dirs(self._width, self._height)
 
-    def _detect_rotated_dirs(self, width: int, height: int) -> None:
-        """Check if both orientation theme directories exist on disk.
-
-        Called once on resolution set — not re-evaluated during rotation.
-        """
-        if width != height:
-            swapped = ThemeDir(resolve_theme_dir(height, width))
-            self._has_rotated_dirs = has_themes(str(swapped.path))
-        else:
-            self._has_rotated_dirs = False
-
     def _setup_dirs(self, width: int, height: int) -> None:
         """Resolve theme/web/mask directories from own resolution + path_resolver.
 
@@ -169,16 +150,26 @@ class DisplayService:
         Cloud/mask dirs always use effective_resolution.
         """
         ew, eh = self.effective_resolution
+        nw, nh = self._width, self._height
+
+        # Local themes: try rotated dir, fall back to native
         td = ThemeDir(resolve_theme_dir(ew, eh))
         if not has_themes(str(td.path)):
-            td = ThemeDir(resolve_theme_dir(self._width, self._height))
+            td = ThemeDir(resolve_theme_dir(nw, nh))
         self._theme_dir = td
         self._local_dir = td.path if td and td.path.exists() else None
 
+        # Cloud/masks: try rotated dir, fall back to native
         if self._path_resolver:
             web = Path(self._path_resolver.web_dir(ew, eh))
+            if not web.exists() and (ew, eh) != (nw, nh):
+                web = Path(self._path_resolver.web_dir(nw, nh))
             self._web_dir = web if web.exists() else None
-            self._masks_dir = Path(self._path_resolver.web_masks_dir(ew, eh))
+
+            masks = Path(self._path_resolver.web_masks_dir(ew, eh))
+            if not masks.exists() and (ew, eh) != (nw, nh):
+                masks = Path(self._path_resolver.web_masks_dir(nw, nh))
+            self._masks_dir = masks if masks.exists() else None
 
     def cleanup(self) -> None:
         """Clean up working directory on exit."""
@@ -196,13 +187,12 @@ class DisplayService:
         self._width = width
         self._height = height
 
-        if width and height:
-            self._detect_rotated_dirs(width, height)
-            self._setup_dirs(width, height)
-
         cw, ch = self.canvas_size
         self.media.set_target_size(cw, ch)
         self.overlay.set_resolution(cw, ch)
+
+        if width and height:
+            self._setup_dirs(width, height)
 
     # -- Display adjustments -----------------------------------------------
 
