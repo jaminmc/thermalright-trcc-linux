@@ -163,7 +163,7 @@ class LCDHandler(BaseHandler):
         self._w['rotation_combo'].blockSignals(False)
         ew, eh = self._lcd._display_svc.canvas_size
         self._w['preview'].set_resolution(ew, eh)
-        self._update_cloud_widgets()
+        self._update_theme_directories()
 
     def _restore_split_mode(self, cfg: dict, w: int, h: int) -> None:
         self._split_mode = cfg.get('split_mode', 2)
@@ -525,10 +525,7 @@ class LCDHandler(BaseHandler):
         svc = self._lcd._display_svc
         ew, eh = svc.canvas_size
         self._w['preview'].set_resolution(ew, eh)
-        if svc.lcd_width != svc.lcd_height:
-            self._update_theme_directories()
-        else:
-            self._update_cloud_widgets()
+        self._update_theme_directories()
 
     def set_split_mode(self, mode: int) -> None:
         log.debug("set_split_mode: mode=%d", mode)
@@ -656,17 +653,6 @@ class LCDHandler(BaseHandler):
                         self._select_theme_from_path(item, persist=True, overlay_config=True)
                         return True
         return False
-
-    def _update_cloud_widgets(self) -> None:
-        """Push current cloud dirs and effective resolution to theme browsers."""
-        svc = self._lcd._display_svc
-        ew, eh = svc.canvas_size
-        if svc.web_dir:
-            self._w['theme_web'].set_web_directory(svc.web_dir)
-        self._w['theme_web'].set_resolution(f'{ew}x{eh}')
-        if svc.masks_dir:
-            self._w['theme_mask'].set_mask_directory(svc.masks_dir)
-        self._w['theme_mask'].set_resolution(f'{ew}x{eh}')
 
     @property
     def is_background_active(self) -> bool:
