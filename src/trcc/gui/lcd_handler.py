@@ -525,9 +525,10 @@ class LCDHandler(BaseHandler):
         svc = self._lcd._display_svc
         ew, eh = svc.canvas_size
         self._w['preview'].set_resolution(ew, eh)
-        self._update_cloud_widgets()
         if svc.lcd_width != svc.lcd_height:
             self._update_theme_directories()
+        else:
+            self._update_cloud_widgets()
 
     def set_split_mode(self, mode: int) -> None:
         log.debug("set_split_mode: mode=%d", mode)
@@ -634,16 +635,16 @@ class LCDHandler(BaseHandler):
         skip restore_last_theme to avoid a redundant double-load).
         """
         svc = self._lcd._display_svc
-        w, h = svc.lcd_width, svc.lcd_height
+        ew, eh = svc.canvas_size
         td = svc.theme_dir
         if td and td.path.exists():
             self._w['theme_local'].set_theme_directory(td.path)
         if svc.web_dir:
             self._w['theme_web'].set_web_directory(svc.web_dir)
-        self._w['theme_web'].set_resolution(f'{w}x{h}')
+        self._w['theme_web'].set_resolution(f'{ew}x{eh}')
         if svc.masks_dir:
             self._w['theme_mask'].set_mask_directory(svc.masks_dir)
-        self._w['theme_mask'].set_resolution(f'{w}x{h}')
+        self._w['theme_mask'].set_resolution(f'{ew}x{eh}')
 
         # First install: themes just extracted — load first one onto LCD + preview
         if self._lcd.current_image is None and td and td.path.exists():
