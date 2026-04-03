@@ -1410,9 +1410,8 @@ class TestModuleFunctions:
         assert m0 != m1
 
     def test_compute_mask_passes_temp_unit(self) -> None:
-        m_c = compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="C")
-        m_f = compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="F")
-        # Digit values are the same (no conversion), but unit indicator segment may differ
+        compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="C")
+        compute_mask(1, _make_metrics(cpu_temp=100.0), temp_unit="F")
 
     @patch('trcc.core.led_segment.datetime')
     def test_compute_mask_passes_is_24h_to_lc2(self, mock_dt: MagicMock) -> None:

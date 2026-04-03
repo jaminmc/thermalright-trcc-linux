@@ -186,6 +186,48 @@ class TestLCDDeviceProperties(unittest.TestCase):
         lcd = _make_lcd(display_svc=disp)
         self.assertEqual(lcd.resolution, lcd.lcd_size)
 
+    def test_collect_other_resolutions_empty_when_no_devices(self):
+        lcd = LCDDevice()
+        assert lcd.collect_other_device_resolutions() == []
+
+    def test_collect_other_resolutions_skips_current(self):
+        disp = MagicMock()
+        disp.lcd_width = 320
+        disp.lcd_height = 320
+        dev_svc = MagicMock()
+        dev0 = MagicMock()
+        dev0.resolution = (320, 320)
+        dev_svc.devices = [dev0]
+        lcd = _make_lcd(device_svc=dev_svc, display_svc=disp)
+        assert lcd.collect_other_device_resolutions() == []
+
+    def test_collect_other_resolutions_includes_both_orientations(self):
+        disp = MagicMock()
+        disp.lcd_width = 320
+        disp.lcd_height = 320
+        dev_svc = MagicMock()
+        dev0 = MagicMock()
+        dev0.resolution = (320, 320)
+        dev1 = MagicMock()
+        dev1.resolution = (480, 1280)
+        dev_svc.devices = [dev0, dev1]
+        lcd = _make_lcd(device_svc=dev_svc, display_svc=disp)
+        result = sorted(lcd.collect_other_device_resolutions())
+        assert result == [(480, 1280), (1280, 480)]
+
+    def test_collect_other_resolutions_square_single_entry(self):
+        disp = MagicMock()
+        disp.lcd_width = 320
+        disp.lcd_height = 320
+        dev_svc = MagicMock()
+        dev0 = MagicMock()
+        dev0.resolution = (320, 320)
+        dev1 = MagicMock()
+        dev1.resolution = (480, 480)
+        dev_svc.devices = [dev0, dev1]
+        lcd = _make_lcd(device_svc=dev_svc, display_svc=disp)
+        assert lcd.collect_other_device_resolutions() == [(480, 480)]
+
     def test_device_path_from_device_info(self):
         dev = MagicMock()
         dev.path = '/dev/sg0'
@@ -490,6 +532,102 @@ class TestLoadLastTheme(unittest.TestCase):
             )
             result = lcd.load_last_theme()
             self.assertTrue(result['success'])
+
+    @patch("trcc.core.lcd_device.resolve_theme_dir")
+    def test_restore_sends_static_frame_to_device(self, mock_resolve):
+        """Static theme → render_and_send() composites mask/overlay + sends."""
+        import tempfile
+        from pathlib import Path
+        dev = MagicMock(device_index=0, vid=0x0402, pid=0x3922)
+        svc = MagicMock(selected=dev)
+        fake_image = MagicMock()
+        rendered_image = MagicMock()
+        disp = MagicMock(
+            lcd_width=320, lcd_height=320, auto_send=True,
+            load_local_theme=MagicMock(return_value={
+                'image': fake_image, 'is_animated': False,
+            }),
+            render_overlay=MagicMock(return_value=rendered_image),
+        )
+        with tempfile.TemporaryDirectory() as td:
+            theme_dir = Path(td) / "Theme1"
+            theme_dir.mkdir()
+            (theme_dir / "00.png").write_bytes(b"fake")
+            mock_resolve.return_value = td
+            lcd = _make_lcd(
+                device_svc=svc, display_svc=disp,
+                lcd_config=MagicMock(**{'get_config.return_value': {
+                    'theme_name': 'Theme1', 'theme_type': 'local',
+                }}),
+            )
+            result = lcd.restore_last_theme()
+            self.assertTrue(result['success'])
+            disp.render_overlay.assert_called_once()
+            svc.send_frame_async.assert_called_once()
+
+    @patch("trcc.core.lcd_device.resolve_theme_dir")
+    def test_restore_renders_and_sends_overlay(self, mock_resolve):
+        """Static theme with overlay → render_and_send() called."""
+        import tempfile
+        from pathlib import Path
+        dev = MagicMock(device_index=0, vid=0x0402, pid=0x3922)
+        svc = MagicMock(selected=dev)
+        fake_image = MagicMock()
+        rendered_image = MagicMock()
+        disp = MagicMock(
+            lcd_width=320, lcd_height=320, auto_send=True,
+            load_local_theme=MagicMock(return_value={
+                'image': fake_image, 'is_animated': False,
+            }),
+            render_overlay=MagicMock(return_value=rendered_image),
+        )
+        with tempfile.TemporaryDirectory() as td:
+            theme_dir = Path(td) / "Theme1"
+            theme_dir.mkdir()
+            (theme_dir / "00.png").write_bytes(b"fake")
+            mock_resolve.return_value = td
+            lcd = _make_lcd(
+                device_svc=svc, display_svc=disp,
+                lcd_config=MagicMock(**{'get_config.return_value': {
+                    'theme_name': 'Theme1', 'theme_type': 'local',
+                    'overlay': {'enabled': True, 'config': {'elements': []}},
+                }}),
+            )
+            result = lcd.restore_last_theme()
+            self.assertTrue(result['success'])
+            self.assertTrue(result['overlay_enabled'])
+            disp.render_overlay.assert_called_once()
+
+    @patch("trcc.core.lcd_device.resolve_theme_dir")
+    def test_restore_skips_send_for_animated(self, mock_resolve):
+        """Animated theme → no send() call (caller runs the loop)."""
+        import tempfile
+        from pathlib import Path
+        dev = MagicMock(device_index=0, vid=0x0402, pid=0x3922)
+        svc = MagicMock(selected=dev)
+        fake_image = MagicMock()
+        disp = MagicMock(
+            lcd_width=320, lcd_height=320,
+            load_local_theme=MagicMock(return_value={
+                'image': fake_image, 'is_animated': True,
+            }),
+        )
+        with tempfile.TemporaryDirectory() as td:
+            theme_dir = Path(td) / "Theme1"
+            theme_dir.mkdir()
+            (theme_dir / "00.png").write_bytes(b"fake")
+            mock_resolve.return_value = td
+            lcd = _make_lcd(
+                device_svc=svc, display_svc=disp,
+                lcd_config=MagicMock(**{'get_config.return_value': {
+                    'theme_name': 'Theme1', 'theme_type': 'local',
+                }}),
+            )
+            result = lcd.restore_last_theme()
+            self.assertTrue(result['success'])
+            self.assertTrue(result['is_animated'])
+            svc.send_frame_async.assert_not_called()
+            svc.send_frame.assert_not_called()
 
 
 # =============================================================================

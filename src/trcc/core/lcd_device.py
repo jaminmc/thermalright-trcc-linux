@@ -713,10 +713,17 @@ class LCDDevice(Device):
                 self.set_config(overlay_config)
             self.enable(overlay_enabled)
 
+        # ── Send to device ─────────────────────────────────────────────
+        image = result.get("image")
+        is_animated = result.get("is_animated", False)
+        if not is_animated and self.connected:
+            rendered = self.render_and_send()
+            image = rendered.get("image") or image
+
         return {
             "success": True,
-            "image": result.get("image"),
-            "is_animated": result.get("is_animated", False),
+            "image": image,
+            "is_animated": is_animated,
             "overlay_config": overlay_config,
             "overlay_enabled": overlay_enabled,
             "message": f"Restored theme: {path.name}",
@@ -725,6 +732,26 @@ class LCDDevice(Device):
     def load_last_theme(self) -> dict:
         """Thin backward-compat wrapper — delegates to restore_last_theme()."""
         return self.restore_last_theme()
+
+    def collect_other_device_resolutions(self) -> list[tuple[int, int]]:
+        """Collect resolutions for all connected LCD devices except current.
+
+        For non-square devices, includes both orientations (WxH and HxW).
+        Returns deduplicated list of (width, height) tuples.
+        """
+        if not self._device_svc:
+            return []
+        current = self.lcd_size
+        seen: set[tuple[int, int]] = set()
+        for dev in self._device_svc.devices:
+            res = dev.resolution
+            if not res or res == (0, 0) or res == current:
+                continue
+            w, h = res
+            seen.add((w, h))
+            if w != h:
+                seen.add((h, w))
+        return list(seen)
 
     # ── Theme ops (loading, saving, import/export) ─────────────
 

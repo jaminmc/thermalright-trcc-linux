@@ -213,8 +213,6 @@ class LCDHandler(BaseHandler):
                 self._animation_timer.start(self._lcd.interval)
                 self._w['preview'].set_playing(True)
                 self._w['preview'].show_video_controls(True)
-            elif overlay_enabled:
-                self._render_and_send()
             return
 
         # No saved theme — show device's current image or clear preview
