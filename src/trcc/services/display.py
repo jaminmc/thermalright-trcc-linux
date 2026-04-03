@@ -88,6 +88,7 @@ class DisplayService:
         self._web_dir: Path | None = None
         self._masks_dir: Path | None = None
         self._mask_source_dir: Path | None = None
+        self._has_rotated_dirs: bool = False
 
     # -- Properties --------------------------------------------------------
 
@@ -112,6 +113,11 @@ class DisplayService:
     def canvas_size(self) -> tuple[int, int]:
         """Effective rendering dimensions — portrait for non-square at 90/270."""
         return self.effective_resolution
+
+    @property
+    def has_rotated_dirs(self) -> bool:
+        """True if this device has separate landscape/portrait theme directories."""
+        return self._has_rotated_dirs
 
     @property
     def _image_rotation(self) -> int:
@@ -148,8 +154,17 @@ class DisplayService:
         (theme800480) when portrait dir doesn't exist — local themes get
         rotated by _apply_adjustments in that case.
         Cloud/mask dirs always use effective_resolution.
+
+        Sets has_rotated_dirs: True when both orientations have theme
+        directories on disk (non-square devices only).
         """
         ew, eh = self.effective_resolution
+        if width != height:
+            swapped = ThemeDir(resolve_theme_dir(height, width))
+            self._has_rotated_dirs = has_themes(str(swapped.path))
+        else:
+            self._has_rotated_dirs = False
+
         td = ThemeDir(resolve_theme_dir(ew, eh))
         if not has_themes(str(td.path)):
             td = ThemeDir(resolve_theme_dir(self._width, self._height))
