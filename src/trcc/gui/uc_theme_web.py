@@ -150,11 +150,13 @@ class UCThemeWeb(DownloadableThemeBrowser):
 
     def set_web_directory(self, path):
         """Set the Web directory (bundled PNGs + downloaded MP4s) and load themes."""
+        log.debug("set_web_directory: %s", path)
         self.web_directory = Path(path) if path else None
         self.load_themes()
 
     def set_resolution(self, resolution: str):
         """Set resolution for cloud downloads (e.g., '320x320')."""
+        log.debug("set_resolution: %s", resolution)
         self._resolution = resolution
 
     def _set_category(self, category):

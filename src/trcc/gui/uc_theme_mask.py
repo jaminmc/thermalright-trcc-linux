@@ -109,6 +109,7 @@ class UCThemeMask(DownloadableThemeBrowser):
 
     def set_mask_directory(self, path):
         """Set the mask directory and load masks."""
+        log.debug("set_mask_directory: %s", path)
         self.mask_directory = Path(path) if path else None
         if self.mask_directory:
             self.mask_directory.mkdir(parents=True, exist_ok=True)
@@ -116,6 +117,7 @@ class UCThemeMask(DownloadableThemeBrowser):
 
     def set_resolution(self, resolution: str):
         """Set resolution for cloud downloads."""
+        log.debug("set_resolution: %s", resolution)
         self._resolution = resolution
 
     def _parse_resolution(self) -> tuple[int, int]:

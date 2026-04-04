@@ -465,6 +465,8 @@ class DisplayService:
         180° still rotate normally. encode_for_device() resizes to native.
         """
         rot = self._image_rotation
+        log.debug("_apply_adjustments: brightness=%d rotation=%d split_mode=%d",
+                  self.brightness, rot, self.split_mode)
         if self.brightness >= 100 and rot == 0 and not self.split_mode:
             return image
         image = ImageService.apply_brightness(image, self.brightness)
@@ -843,6 +845,8 @@ class DisplayService:
 
     def send_current_image(self) -> bytes | None:
         """Prepare current image for LCD send. Returns encoded bytes or None."""
+        log.debug("send_current_image: has_image=%s overlay_enabled=%s",
+                  self.current_image is not None, self.overlay.enabled)
         if not self.current_image:
             return None
         image = self.current_image

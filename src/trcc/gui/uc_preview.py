@@ -244,6 +244,11 @@ class UCPreview(BasePanel):
 
     def set_image(self, image, fast: bool = False):
         """Set preview image (QImage)."""
+        if image is not None:
+            iw = image.width() if hasattr(image, 'width') else '?'
+            ih = image.height() if hasattr(image, 'height') else '?'
+            log.debug("preview.set_image: %sx%s → widget %dx%d",
+                      iw, ih, self.preview_label._width, self.preview_label._height)
         self.preview_label.set_image(image, fast=fast)
 
     def set_status(self, text):
@@ -274,6 +279,9 @@ class UCPreview(BasePanel):
             set_background_pixmap(self.frame_container, pixmap_or_path)
 
     def set_resolution(self, width, height):
+        log.debug("preview.set_resolution: %dx%d → %dx%d",
+                  getattr(self, '_lcd_width', 0), getattr(self, '_lcd_height', 0),
+                  width, height)
         self._lcd_width = width
         self._lcd_height = height
         self._offset_info = self.RESOLUTION_OFFSETS.get(

@@ -480,6 +480,7 @@ class LCDDevice(Device):
 
     def send(self, image: Any) -> dict:
         """Encode and async-send image to LCD device."""
+        log.debug("send: image=%s", type(image).__name__ if image else None)
         if not self._device_svc.selected:
             return {"success": False, "error": "No device selected"}
         w, h = self.lcd_size
@@ -841,6 +842,9 @@ class LCDDevice(Device):
 
     def select(self, theme: Any) -> dict:
         """Select and load a theme (local or cloud)."""
+        log.debug("select: theme=%s type=%s",
+                  getattr(theme, 'name', theme),
+                  type(theme).__name__)
         self._theme_svc.select(theme)
         if not theme:
             return {"success": False, "error": "No theme provided"}
@@ -1027,6 +1031,7 @@ class LCDDevice(Device):
         ):
             new_frame = self._display_svc.render_overlay()
             if new_frame:
+                log.debug("tick: new overlay frame rendered")
                 self._last_overlay_frame = new_frame
         image = new_frame or getattr(self, '_last_overlay_frame', None) or self._display_svc.current_image
         if image:

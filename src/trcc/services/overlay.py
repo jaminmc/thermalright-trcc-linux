@@ -88,6 +88,7 @@ class OverlayService:
 
     def set_resolution(self, w: int, h: int) -> None:
         """Update LCD resolution. Clears font cache and background."""
+        log.debug("overlay.set_resolution: %dx%d → %dx%d", self.width, self.height, w, h)
         self.width = w
         self.height = h
         self._renderer.clear_font_cache()
@@ -240,6 +241,8 @@ class OverlayService:
         Masks are kept at original size (not stretched) and positioned
         at the bottom by default for partial overlays.
         """
+        log.debug("overlay.set_theme_mask: image=%s position=%s",
+                  type(image).__name__ if image else None, position)
         if image is None:
             self.theme_mask = None
             self.theme_mask_position = (0, 0)
@@ -419,6 +422,8 @@ class OverlayService:
         Returns:
             Native surface (QImage).
         """
+        log.debug("overlay.render: has_bg=%s has_mask=%s enabled=%s",
+                  background is not None, self.theme_mask is not None, self.enabled)
         if background is not None and background is not self.background:
             self.set_background(background)
         m = metrics if metrics is not None else self._metrics

@@ -185,6 +185,7 @@ class ThemeLoader:
 
         Returns the mask source dir (for caller to store), or None.
         """
+        log.info("ThemeLoader.apply_mask: mask_dir=%s lcd_size=%s", mask_dir, lcd_size)
         if not mask_dir or not mask_dir.exists():
             return None
 

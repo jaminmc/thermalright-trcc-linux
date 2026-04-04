@@ -127,6 +127,7 @@ class LCDHandler(BaseHandler):
         Device is already configured (resolution + dirs) from connect().
         This just syncs the shared GUI widgets to show this device's data.
         """
+        log.debug("_refresh: device_key=%s resolution=%dx%d", self._device_key, w, h)
         cfg = Settings.get_device_config(self._device_key) if self._device_key else {}
 
         self._w['preview'].set_resolution(w, h)
@@ -201,6 +202,7 @@ class LCDHandler(BaseHandler):
 
     def _restore_theme_and_preview(self, cfg: dict) -> None:
         """Restore last theme + overlay, or clear preview if none."""
+        log.debug("_restore_theme_and_preview: cfg keys=%s", list(cfg.keys()))
         result = self._lcd.restore_last_theme()
         if result.get("success"):
             image = result.get("image")
@@ -624,6 +626,9 @@ class LCDHandler(BaseHandler):
 
         Skipped when video/screencast is active — those own the device.
         """
+        log.debug("_render_and_send: playing=%s overlay_enabled=%s has_image=%s",
+                  self._lcd.playing, self._lcd.enabled,
+                  self._lcd.current_image is not None)
         if self._lcd.playing:
             return
         result = self._lcd.render_and_send()
@@ -649,6 +654,11 @@ class LCDHandler(BaseHandler):
         """
         o = self._lcd.orientation
         ow, oh = o.output_resolution
+        log.debug("_update_theme_directories: output=%dx%d theme_dir=%s "
+                  "web_dir=%s masks_dir=%s is_portrait=%s",
+                  ow, oh,
+                  o.theme_dir.path if o.theme_dir else None,
+                  o.web_dir, o.masks_dir, o.is_portrait)
         td = o.theme_dir
         if td and td.path.exists():
             self._w['theme_local'].set_theme_directory(td.path)
