@@ -1,5 +1,11 @@
 # Changelog
 
+## v9.3.6
+
+### Fixes
+- **BA120 Vision pixelated display (#100)**: FBL=52 was missing from `FBL_PROFILES` — fell back to 320x320 default instead of 320x240. Added profile.
+- **Bulk devices wrong encoding params (#78)**: Unknown PMs returned `model_id=PM` instead of `model_id=72` (bulk default). C# hardcodes FBL=72 for bulk; our code now matches.
+
 ## v9.3.5
 
 ### Refactors
