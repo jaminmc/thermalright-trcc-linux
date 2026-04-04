@@ -202,8 +202,8 @@ class TestImageCutWidget:
         assert widget._pan_x == 0
         assert widget._pan_y == 0
         assert widget._rotation == 0
-        assert widget._target_w == 320
-        assert widget._target_h == 320
+        assert widget._target_w == 0
+        assert widget._target_h == 0
 
     def test_fixed_size(self, widget):
         assert widget.width() == PANEL_W
@@ -422,8 +422,8 @@ class TestVideoCutWidget:
         assert widget._video_path is None
         assert widget._rotation == 0
         assert widget._width_fit is True
-        assert widget._target_w == 320
-        assert widget._target_h == 320
+        assert widget._target_w == 0
+        assert widget._target_h == 0
         assert widget._duration_ms == 0
         assert widget._is_processing is False
 
@@ -1022,7 +1022,7 @@ class TestUCThemeWeb:
         assert widget is not None
         assert widget.current_category == "all"
         assert widget.web_directory is None
-        assert widget._resolution == "320x320"
+        assert widget._resolution == ""
 
     def test_set_resolution(self, widget):
         widget.set_resolution("480x480")
@@ -1097,7 +1097,7 @@ class TestUCThemeMask:
     def test_construction(self, widget):
         assert widget is not None
         assert widget.mask_directory is None
-        assert widget._resolution == "320x320"
+        assert widget._resolution == ""
         assert widget._category == "all"
 
     def test_set_resolution(self, widget):

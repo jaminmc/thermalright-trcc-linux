@@ -1810,6 +1810,48 @@ SPLIT_MODE_RESOLUTIONS: set[tuple[int, int]] = {(1600, 720)}
 
 
 # =============================================================================
+# Panel Asset Dims — scaled dimensions for crop/video panel backgrounds
+# =============================================================================
+# C# buttonSelectBackgroundImage() maps each device resolution to scaled dims
+# that fit the fixed-size panel. Assets: P0裁减{pw}{ph}, P0图片裁减{pw}{ph}.
+# Both landscape and portrait entries included.
+PANEL_ASSET_DIMS: dict[tuple[int, int], tuple[int, int]] = {
+    # Square
+    (240, 240): (240, 240),
+    (320, 320): (320, 320),
+    (360, 360): (360, 360),
+    (480, 480): (480, 480),
+    # Rectangular — native size
+    (320, 240): (320, 240),   (240, 320): (240, 320),
+    # Rectangular — ÷2
+    (640, 480): (320, 240),   (480, 640): (240, 320),
+    (800, 480): (400, 240),   (480, 800): (240, 400),
+    (854, 480): (427, 240),   (480, 854): (240, 427),
+    (960, 540): (480, 270),   (540, 960): (270, 480),
+    (960, 320): (480, 160),   (320, 960): (160, 480),
+    (640, 172): (320, 86),    (172, 640): (86, 320),
+    # Widescreen — ÷2.67
+    (1280, 480): (480, 180),  (480, 1280): (180, 480),
+    # Widescreen — ÷4
+    (1600, 720): (400, 180),  (720, 1600): (180, 400),
+    (1920, 462): (480, 116),  (462, 1920): (116, 480),
+    (1920, 440): (480, 110),  (440, 1920): (110, 480),
+}
+
+
+def panel_asset_dims(w: int, h: int) -> tuple[int, int]:
+    """Look up scaled panel dims for a device resolution.
+
+    Falls back to (320, 240) landscape or (240, 320) portrait,
+    matching the C# else branch in buttonSelectBackgroundImage().
+    """
+    dims = PANEL_ASSET_DIMS.get((w, h))
+    if dims:
+        return dims
+    return (240, 320) if h > w else (320, 240)
+
+
+# =============================================================================
 # Device Button Image Map (from UCDevice.cs ADDUserButton)
 # =============================================================================
 

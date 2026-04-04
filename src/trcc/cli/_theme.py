@@ -8,31 +8,36 @@ from trcc.cli import _cli_handler
 log = logging.getLogger(__name__)
 
 
+def _get_device_cfg() -> dict | None:
+    """Read the last active device's config. Returns None if no device configured."""
+    from trcc.conf import Settings
+    key = str(Settings.get_last_device())
+    cfg = Settings.get_device_config(key)
+    if not cfg or not cfg.get('w'):
+        return None
+    return cfg
+
+
 @_cli_handler
 def list_themes():
     """List local themes for the current device resolution."""
+    from pathlib import Path
+
     from trcc.conf import settings
-    from trcc.core.models import ThemeDir
-    from trcc.core.orientation import effective_resolution
-    from trcc.core.paths import has_themes, resolve_theme_dir
     from trcc.services import ThemeService
 
-    log.debug("list_themes")
-    w, h = settings.width, settings.height
-    if not w or not h:
-        print("No device resolution saved. Connect your device first.")
+    cfg = _get_device_cfg()
+    if not cfg:
+        print("No device configured. Connect your device first.")
         return 1
 
-    ew, eh = effective_resolution(w, h, settings.rotation)
-    td = ThemeDir(resolve_theme_dir(ew, eh))
-    if not has_themes(str(td.path)):
-        td = ThemeDir(resolve_theme_dir(w, h))
-
-    if not td.path.exists():
+    w, h = cfg['w'], cfg['h']
+    theme_dir = cfg.get('theme_dir')
+    if not theme_dir or not Path(theme_dir).exists():
         print(f"No local themes for {w}x{h}.")
         return 0
     themes = ThemeService.discover_local_merged(
-        td.path, settings.user_content_dir, (w, h))
+        Path(theme_dir), settings.user_content_dir, (w, h))
     print(f"Local themes ({w}x{h}): {len(themes)}")
     for t in themes:
         kind = "video" if t.is_animated else "static"
@@ -47,24 +52,21 @@ def list_backgrounds(category=None):
     """List cloud backgrounds for the current device resolution."""
     from pathlib import Path
 
-    from trcc.conf import settings
-    from trcc.core.orientation import effective_resolution
     from trcc.services import ThemeService
 
     log.debug("list_backgrounds category=%s", category)
-    if not settings.width or not settings.height:
-        print("No device resolution saved. Connect your device first.")
+    cfg = _get_device_cfg()
+    if not cfg:
+        print("No device configured. Connect your device first.")
         return 1
 
-    w, h = settings.width, settings.height
-    ew, eh = effective_resolution(w, h, settings.rotation)
-    web_dir = Path(settings._path_resolver.web_dir(ew, eh))
-
-    if not web_dir.exists():
-        print(f"No cloud backgrounds for {ew}x{eh}.")
+    w, h = cfg['w'], cfg['h']
+    web_dir = cfg.get('web_dir')
+    if not web_dir or not Path(web_dir).exists():
+        print(f"No cloud backgrounds for {w}x{h}.")
         return 0
-    themes = ThemeService.discover_cloud(web_dir, category)
-    print(f"Cloud backgrounds ({ew}x{eh}): {len(themes)}")
+    themes = ThemeService.discover_cloud(Path(web_dir), category)
+    print(f"Cloud backgrounds ({w}x{h}): {len(themes)}")
     for t in themes:
         cat = f" [{t.category}]" if t.category else ""
         print(f"  {t.name}{cat}")
@@ -78,26 +80,25 @@ def list_masks():
     from pathlib import Path
 
     from trcc.conf import settings
-    from trcc.core.orientation import effective_resolution
     from trcc.services import ThemeService
 
-    if not settings.width or not settings.height:
-        print("No device resolution saved. Connect your device first.")
+    cfg = _get_device_cfg()
+    if not cfg:
+        print("No device configured. Connect your device first.")
         return 1
 
-    w, h = settings.width, settings.height
-    ew, eh = effective_resolution(w, h, settings.rotation)
-    cloud_masks_dir = Path(settings._path_resolver.web_masks_dir(ew, eh))
+    w, h = cfg['w'], cfg['h']
+    masks_dir = cfg.get('masks_dir')
 
     masks = ThemeService.discover_masks(
-        cloud_masks_dir=cloud_masks_dir,
+        cloud_masks_dir=Path(masks_dir) if masks_dir else None,
         user_masks_dir=settings.user_masks_dir(),
     )
     if not masks:
-        print(f"No masks for {ew}x{eh}.")
+        print(f"No masks for {w}x{h}.")
         return 0
 
-    print(f"Masks ({ew}x{eh}): {len(masks)}")
+    print(f"Masks ({w}x{h}): {len(masks)}")
     for m in masks:
         tag = " [custom]" if m.is_custom else ""
         print(f"  {m.name}{tag}")
@@ -292,28 +293,22 @@ def export_theme(theme_name, output_path):
     from pathlib import Path
 
     from trcc.conf import settings
-    from trcc.core.models import ThemeDir
-    from trcc.core.orientation import effective_resolution
-    from trcc.core.paths import has_themes, resolve_theme_dir
     from trcc.services import ThemeService
 
     log.debug("export_theme name=%s output=%s", theme_name, output_path)
-    w, h = settings.width, settings.height
-    if not w or not h:
-        print("No device resolution saved. Connect your device first.")
+    cfg = _get_device_cfg()
+    if not cfg:
+        print("No device configured. Connect your device first.")
         return 1
 
-    ew, eh = effective_resolution(w, h, settings.rotation)
-    td = ThemeDir(resolve_theme_dir(ew, eh))
-    if not has_themes(str(td.path)):
-        td = ThemeDir(resolve_theme_dir(w, h))
-
-    if not td.path.exists():
+    w, h = cfg['w'], cfg['h']
+    theme_dir = cfg.get('theme_dir')
+    if not theme_dir or not Path(theme_dir).exists():
         print(f"No themes for {w}x{h}.")
         return 1
 
     themes = ThemeService.discover_local_merged(
-        td.path, settings.user_content_dir, (w, h))
+        Path(theme_dir), settings.user_content_dir, (w, h))
     match = next((t for t in themes if t.name == theme_name), None)
     if not match:
         match = next(

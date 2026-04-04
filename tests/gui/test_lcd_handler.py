@@ -110,14 +110,9 @@ class TestApplyDeviceConfig:
     def test_resolution_change_updates_widgets(self, mock_settings, make_lcd_handler, mock_lcd_device):
         mock_settings.device_config_key.return_value = 'k'
         mock_settings.get_device_config.return_value = {}
-        mock_lcd_device.lcd_size = (320, 320)
-        # Make _display_svc.canvas_size track set_resolution calls
-        svc = mock_lcd_device._display_svc
-        def _track_res(w, h):
-            svc.canvas_size = (w, h)
-            svc.lcd_width = w
-            svc.lcd_height = h
-        svc.set_resolution.side_effect = _track_res
+        # Device already configured at 480x480 from connect() — orientation matches
+        from trcc.core.orientation import Orientation
+        mock_lcd_device.orientation = Orientation(480, 480)
         h = make_lcd_handler(lcd=mock_lcd_device)
         h.apply_device_config(self._device(), 480, 480)
         h._w['preview'].set_resolution.assert_called_with(480, 480)
@@ -155,10 +150,11 @@ class TestReactivate:
     def test_updates_all_widget_resolutions(self, mock_settings,
                                             make_lcd_handler, mock_lcd_device):
         mock_settings.get_device_config.return_value = {}
+        from trcc.core.orientation import Orientation
+        mock_lcd_device.orientation = Orientation(480, 480)
         h = make_lcd_handler()
         h._device_key = 'k'
         h.reactivate(480, 480)
-        mock_lcd_device._display_svc.set_resolution.assert_called_with(480, 480)
         h._w['preview'].set_resolution.assert_called_with(480, 480)
         h._w['image_cut'].set_resolution.assert_called_with(480, 480)
         h._w['video_cut'].set_resolution.assert_called_with(480, 480)
@@ -239,12 +235,10 @@ class TestUpdateThemeDirectories:
     def test_auto_loads_first_theme_on_first_install(self, mock_settings, make_lcd_handler, mock_lcd_device, tmp_path):
         """With no current image and no saved theme_path, auto-loads the first theme folder."""
         td = self._make_theme_dir(tmp_path)
-        svc = mock_lcd_device._display_svc
-        svc.lcd_width = 320
-        svc.lcd_height = 320
-        svc.theme_dir = td
-        svc.web_dir = None
-        svc.masks_dir = None
+        from trcc.core.orientation import Orientation
+        o = Orientation(320, 320)
+        o.landscape_theme_dir = td
+        mock_lcd_device.orientation = o
 
         mock_settings.get_device_config.return_value = {}  # no saved theme_path
 
@@ -746,7 +740,7 @@ class TestThemeIO:
     def test_save_theme_success(self, mock_settings_cls, lcd_handler, mock_lcd_device):
         td = MagicMock()
         td.exists.return_value = True
-        mock_lcd_device._display_svc.theme_dir = td
+        mock_lcd_device.orientation.landscape_theme_dir = td
         lcd_handler.save_theme("MyTheme")
         mock_lcd_device.save.assert_called()
         lcd_handler._w['preview'].set_status.assert_called_with('Saved')
@@ -758,7 +752,7 @@ class TestThemeIO:
     def test_import_config_success_reloads(self, lcd_handler, mock_lcd_device):
         td = MagicMock()
         td.exists.return_value = True
-        mock_lcd_device._display_svc.theme_dir = td
+        mock_lcd_device.orientation.landscape_theme_dir = td
         lcd_handler.import_config(Path('/in/theme.tr'))
         mock_lcd_device.import_config.assert_called()
         lcd_handler._w['theme_local'].set_theme_directory.assert_called_once()

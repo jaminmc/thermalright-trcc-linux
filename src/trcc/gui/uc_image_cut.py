@@ -21,7 +21,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QWidget
 
-import trcc.conf as _conf
+from trcc.core.models import panel_asset_dims
 
 from .assets import Assets
 from .base import make_icon_button
@@ -79,8 +79,8 @@ class UCImageCut(QWidget):
 
         # Image state
         self._source_image: QImage | None = None  # Original (never modified)
-        self._target_w = _conf.settings.width
-        self._target_h = _conf.settings.height
+        self._target_w = 0
+        self._target_h = 0
 
         # View state
         self._zoom = 1.0
@@ -148,18 +148,26 @@ class UCImageCut(QWidget):
         else:
             self._fit_width()
 
-        # Load resolution-specific background
-        bg_name = f'P0图片裁减{target_w}{target_h}.png'
-        bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
-        if not bg_pix.isNull():
-            palette = self.palette()
-            palette.setBrush(QPalette.ColorRole.Window, QBrush(bg_pix))
-            self.setPalette(palette)
+        # Load resolution-specific background (C# scaled dims, not raw LCD dims)
+        self._load_panel_background(target_w, target_h)
 
     def set_resolution(self, w: int, h: int) -> None:
         self._target_w = w
         self._target_h = h
         self._pan_multiplier = _PAN_MULTIPLIERS.get((w, h), 1)
+        self._load_panel_background(w, h)
+
+    def _load_panel_background(self, w: int, h: int) -> None:
+        """Load the scaled panel background asset for a device resolution."""
+        pw, ph = panel_asset_dims(w, h)
+        bg_name = f'P0图片裁减{pw}{ph}.png'
+        log.debug("_load_panel_background: %dx%d → panel %dx%d asset=%s",
+                  w, h, pw, ph, bg_name)
+        bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
+        if not bg_pix.isNull():
+            palette = self.palette()
+            palette.setBrush(QPalette.ColorRole.Window, QBrush(bg_pix))
+            self.setPalette(palette)
 
     # =========================================================================
     # Internal: zoom / fit

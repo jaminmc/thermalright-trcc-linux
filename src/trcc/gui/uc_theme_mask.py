@@ -53,8 +53,7 @@ class UCThemeMask(DownloadableThemeBrowser):
 
     def __init__(self, parent=None):
         self.mask_directory = None
-        _w, _h = _conf.settings.width, _conf.settings.height
-        self._resolution = f"{_w}x{_h}" if (_w and _h) else ""
+        self._resolution = ""
         self._local_masks: set[str] = set()
         self._category = 'all'
         super().__init__(parent)
@@ -121,6 +120,8 @@ class UCThemeMask(DownloadableThemeBrowser):
 
     def _parse_resolution(self) -> tuple[int, int]:
         """Parse resolution string (e.g. '320x320') into (width, height)."""
+        if not self._resolution or 'x' not in self._resolution:
+            return (0, 0)
         parts = self._resolution.split('x')
         return (int(parts[0]), int(parts[1]))
 

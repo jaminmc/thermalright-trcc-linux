@@ -755,7 +755,6 @@ class TRCCApp(QMainWindow):
         self.form1_help_btn.clicked.connect(self._on_help_clicked)
 
         self._create_i18n_overlays()
-        self._init_theme_directories()
 
     def _set_panel_bg(self, widget: QWidget, asset_name: str) -> None:
         pix = set_background_pixmap(widget, asset_name)
@@ -870,31 +869,6 @@ class TRCCApp(QMainWindow):
             (s.color_panel, 'Panel_params.png'),
         ]:
             self._set_panel_bg(panel, bg_name)
-
-    def _init_theme_directories(self) -> None:
-        from ..core.models import ThemeDir
-        from ..core.orientation import effective_resolution
-        from ..core.paths import has_themes, resolve_theme_dir
-
-        w, h = _conf.settings.width, _conf.settings.height
-        if not w or not h:
-            return
-        ew, eh = effective_resolution(w, h, _conf.settings.rotation)
-        td = ThemeDir(resolve_theme_dir(ew, eh))
-        if not has_themes(str(td.path)):
-            td = ThemeDir(resolve_theme_dir(w, h))
-        self.uc_theme_local.set_theme_directory(td.path)
-        if td.path.exists():
-            self._load_carousel_config(td.path)
-        pr = _conf.settings._path_resolver
-        web_dir = Path(pr.web_dir(ew, eh))
-        if web_dir.exists():
-            self.uc_theme_web.set_web_directory(web_dir)
-        self.uc_theme_web.set_resolution(f'{w}x{h}')
-        masks_dir = Path(pr.web_masks_dir(ew, eh))
-        if masks_dir.exists():
-            self.uc_theme_mask.set_mask_directory(masks_dir)
-        self.uc_theme_mask.set_resolution(f'{w}x{h}')
 
     # ── i18n overlays ───────────────────────────────────────────────
 

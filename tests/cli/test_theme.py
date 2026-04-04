@@ -33,29 +33,29 @@ _PATCH_IMAGE_SVC = "trcc.services.ImageService"
 
 _PATCH_RESOLVE_THEME_DIR = "trcc.core.paths.resolve_theme_dir"
 _PATCH_HAS_THEMES = "trcc.core.paths.has_themes"
+_PATCH_GET_DEVICE_CFG = "trcc.cli._theme._get_device_cfg"
 
 
 class TestListThemes:
-    """list_themes() — local theme discovery."""
+    """list_themes() — reads from device config (DI via tmp_config fixture)."""
 
-    def _base_patches(self, w=320, h=320):
-        settings_mock = MagicMock()
-        settings_mock.width = w
-        settings_mock.height = h
-        settings_mock.rotation = 0
-        theme_svc = MagicMock()
-        return settings_mock, theme_svc
+    @staticmethod
+    def _setup_device_config(mock_theme_dir):
+        """Write device config with theme_dir — same as connect() does."""
+        from trcc.conf import save_config
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': 320, 'h': 320, 'theme_dir': str(mock_theme_dir.path)},
+        }}
+        save_config(config)
 
     def test_local_themes_prints_count(self, capsys, make_local_theme, mock_theme_dir):
-        settings_mock, theme_svc = self._base_patches()
+        self._setup_device_config(mock_theme_dir)
+        theme_svc = MagicMock()
         theme_svc.discover_local_merged.return_value = [
             make_local_theme("Alpha"),
             make_local_theme("Beta"),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value=str(mock_theme_dir.path)), \
-             patch(_PATCH_HAS_THEMES, return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             rc = list_themes()
         assert rc == 0
         out = capsys.readouterr().out
@@ -63,71 +63,60 @@ class TestListThemes:
         assert "2" in out
 
     def test_local_themes_lists_names(self, capsys, make_local_theme, mock_theme_dir):
-        settings_mock, theme_svc = self._base_patches()
+        self._setup_device_config(mock_theme_dir)
+        theme_svc = MagicMock()
         theme_svc.discover_local_merged.return_value = [
             make_local_theme("Alpha"),
             make_local_theme("Beta"),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value=str(mock_theme_dir.path)), \
-             patch(_PATCH_HAS_THEMES, return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_themes()
         out = capsys.readouterr().out
         assert "Alpha" in out
         assert "Beta" in out
 
     def test_local_animated_theme_shown_as_video(self, capsys, make_local_theme, mock_theme_dir):
-        settings_mock, theme_svc = self._base_patches()
+        self._setup_device_config(mock_theme_dir)
+        theme_svc = MagicMock()
         animated = make_local_theme("VideoTheme", is_animated=True)
         theme_svc.discover_local_merged.return_value = [animated]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value=str(mock_theme_dir.path)), \
-             patch(_PATCH_HAS_THEMES, return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_themes()
         out = capsys.readouterr().out
         assert "video" in out
 
     def test_local_static_theme_shown_as_static(self, capsys, make_local_theme, mock_theme_dir):
-        settings_mock, theme_svc = self._base_patches()
+        self._setup_device_config(mock_theme_dir)
+        theme_svc = MagicMock()
         static = make_local_theme("StaticTheme", is_animated=False)
         theme_svc.discover_local_merged.return_value = [static]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value=str(mock_theme_dir.path)), \
-             patch(_PATCH_HAS_THEMES, return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_themes()
         out = capsys.readouterr().out
         assert "static" in out
 
     def test_local_user_theme_shown_with_user_tag(self, capsys, make_local_theme, mock_theme_dir):
-        settings_mock, theme_svc = self._base_patches()
+        self._setup_device_config(mock_theme_dir)
+        theme_svc = MagicMock()
         user = make_local_theme("MyTheme", is_user=True)
         theme_svc.discover_local_merged.return_value = [user]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value=str(mock_theme_dir.path)), \
-             patch(_PATCH_HAS_THEMES, return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_themes()
         out = capsys.readouterr().out
         assert "[user]" in out
 
-    def test_local_no_themes_returns_0(self, capsys):
-        settings_mock, _ = self._base_patches()
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value="/nonexistent"), \
-             patch(_PATCH_HAS_THEMES, return_value=False), \
-             patch("pathlib.Path.exists", return_value=False):
-            rc = list_themes()
+    def test_local_no_themes_returns_0(self, capsys, tmp_path):
+        from trcc.conf import save_config
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': 320, 'h': 320, 'theme_dir': str(tmp_path / 'empty')},
+        }}
+        save_config(config)
+        rc = list_themes()
         assert rc == 0
         assert "No local themes" in capsys.readouterr().out
 
-    def test_zero_resolution_errors(self, capsys):
-        settings_mock, theme_svc = self._base_patches(w=0, h=0)
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc):
-            rc = list_themes()
+    def test_no_device_config_errors(self, capsys):
+        rc = list_themes()
         assert rc == 1
         assert "connect" in capsys.readouterr().out.lower()
 
@@ -137,83 +126,78 @@ class TestListThemes:
 # ===========================================================================
 
 class TestListBackgrounds:
-    """list_backgrounds() — cloud background discovery."""
+    """list_backgrounds() — reads web_dir from device config."""
 
-    def _base_patches(self, w=320, h=320):
-        settings_mock = MagicMock()
-        settings_mock.width = w
-        settings_mock.height = h
-        settings_mock.rotation = 0
-        # _path_resolver.web_dir returns a string path
-        web_path = MagicMock()
-        web_path.exists.return_value = True
-        settings_mock._path_resolver.web_dir.return_value = str(web_path)
+    @staticmethod
+    def _setup_device_config(web_dir):
+        from trcc.conf import save_config
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': 320, 'h': 320, 'web_dir': str(web_dir)},
+        }}
+        save_config(config)
+
+    def test_cloud_backgrounds_prints_count(self, capsys, make_cloud_theme, tmp_path):
+        web_dir = tmp_path / 'web'
+        web_dir.mkdir()
+        self._setup_device_config(web_dir)
         theme_svc = MagicMock()
-        return settings_mock, theme_svc
-
-    def test_cloud_backgrounds_prints_count(self, capsys, make_cloud_theme):
-        settings_mock, theme_svc = self._base_patches()
         theme_svc.discover_cloud.return_value = [
             make_cloud_theme("CloudA"),
             make_cloud_theme("CloudB"),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("pathlib.Path.exists", return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             rc = list_backgrounds()
         assert rc == 0
         out = capsys.readouterr().out
         assert "Cloud backgrounds" in out
         assert "2" in out
 
-    def test_cloud_backgrounds_shows_category(self, capsys, make_cloud_theme):
-        settings_mock, theme_svc = self._base_patches()
+    def test_cloud_backgrounds_shows_category(self, capsys, make_cloud_theme, tmp_path):
+        web_dir = tmp_path / 'web'
+        web_dir.mkdir()
+        self._setup_device_config(web_dir)
+        theme_svc = MagicMock()
         theme_svc.discover_cloud.return_value = [
             make_cloud_theme("CloudA", category="b"),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("pathlib.Path.exists", return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_backgrounds()
         out = capsys.readouterr().out
         assert "[b]" in out
 
-    def test_cloud_no_category_no_bracket(self, capsys, make_cloud_theme):
-        settings_mock, theme_svc = self._base_patches()
+    def test_cloud_no_category_no_bracket(self, capsys, make_cloud_theme, tmp_path):
+        web_dir = tmp_path / 'web'
+        web_dir.mkdir()
+        self._setup_device_config(web_dir)
+        theme_svc = MagicMock()
         t = make_cloud_theme("CloudA")
         t.category = None
         theme_svc.discover_cloud.return_value = [t]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("pathlib.Path.exists", return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_backgrounds()
         out = capsys.readouterr().out
         assert "[" not in out
 
-    def test_cloud_web_dir_not_exists_returns_0(self, capsys):
-        settings_mock, _ = self._base_patches()
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch("pathlib.Path.exists", return_value=False):
-            rc = list_backgrounds()
+    def test_cloud_web_dir_not_exists_returns_0(self, capsys, tmp_path):
+        self._setup_device_config(tmp_path / 'missing')
+        rc = list_backgrounds()
         assert rc == 0
         assert "No cloud backgrounds" in capsys.readouterr().out
 
-    def test_cloud_passes_category_to_service(self, capsys):
-        settings_mock, theme_svc = self._base_patches()
+    def test_cloud_passes_category_to_service(self, capsys, tmp_path):
+        web_dir = tmp_path / 'web'
+        web_dir.mkdir()
+        self._setup_device_config(web_dir)
+        theme_svc = MagicMock()
         theme_svc.discover_cloud.return_value = []
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc), \
-             patch("pathlib.Path.exists", return_value=True):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_backgrounds(category="c")
         theme_svc.discover_cloud.assert_called_once()
         args = theme_svc.discover_cloud.call_args
         assert args[0][1] == "c" or args[1].get("category") == "c" or "c" in args[0]
 
-    def test_zero_resolution_errors(self, capsys):
-        settings_mock, theme_svc = self._base_patches(w=0, h=0)
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc):
-            rc = list_backgrounds()
+    def test_no_device_config_errors(self, capsys):
+        rc = list_backgrounds()
         assert rc == 1
         assert "connect" in capsys.readouterr().out.lower()
 
@@ -223,27 +207,25 @@ class TestListBackgrounds:
 # ===========================================================================
 
 class TestListMasks:
-    """list_masks() — mask discovery from cloud + user dirs."""
+    """list_masks() — reads masks_dir from device config."""
 
-    def _make_settings(self, w=320, h=320):
-        s = MagicMock()
-        s.width = w
-        s.height = h
-        s.rotation = 0
-        s._path_resolver.web_masks_dir.return_value = "/masks/zt320320"
-        s.user_masks_dir.return_value = Path("/user_masks")
-        return s
+    @staticmethod
+    def _setup_device_config(masks_dir='/masks/zt320320'):
+        from trcc.conf import save_config
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': 320, 'h': 320, 'masks_dir': masks_dir},
+        }}
+        save_config(config)
 
     def test_lists_masks_with_count(self, capsys):
         from trcc.core.models import MaskInfo
-        settings_mock = self._make_settings()
+        self._setup_device_config()
         theme_svc = MagicMock()
         theme_svc.discover_masks.return_value = [
             MaskInfo(name="001a", path=Path("/masks/001a")),
             MaskInfo(name="002b", path=Path("/masks/002b")),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             rc = list_masks()
         assert rc == 0
         out = capsys.readouterr().out
@@ -254,36 +236,33 @@ class TestListMasks:
 
     def test_custom_mask_shown_with_tag(self, capsys):
         from trcc.core.models import MaskInfo
-        settings_mock = self._make_settings()
+        self._setup_device_config()
         theme_svc = MagicMock()
         theme_svc.discover_masks.return_value = [
             MaskInfo(name="MyMask", path=Path("/user_masks/MyMask"), is_custom=True),
         ]
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             list_masks()
         out = capsys.readouterr().out
         assert "[custom]" in out
 
-    def test_no_resolution_returns_1(self, capsys):
-        settings_mock = self._make_settings(w=0, h=0)
-        with patch(_PATCH_SETTINGS, settings_mock):
-            rc = list_masks()
+    def test_no_device_config_returns_1(self, capsys):
+        rc = list_masks()
         assert rc == 1
         assert "connect" in capsys.readouterr().out.lower()
 
     def test_empty_result_returns_0(self, capsys):
-        settings_mock = self._make_settings()
+        self._setup_device_config()
         theme_svc = MagicMock()
         theme_svc.discover_masks.return_value = []
-        with patch(_PATCH_SETTINGS, settings_mock), \
-             patch(_PATCH_THEME_SVC, theme_svc):
+        with patch(_PATCH_THEME_SVC, theme_svc):
             rc = list_masks()
         assert rc == 0
         assert "No masks" in capsys.readouterr().out
 
     def test_passes_user_masks_dir_to_service(self, capsys):
-        settings_mock = self._make_settings()
+        self._setup_device_config()
+        settings_mock = MagicMock()
         settings_mock.user_masks_dir.return_value = Path("/user_masks")
         theme_svc = MagicMock()
         theme_svc.discover_masks.return_value = []
@@ -552,6 +531,12 @@ class TestExportTheme:
     """export_theme() — success, partial match, not found, no themes dir."""
 
     def _base_patches(self, mock_theme_dir, themes=None, w=320, h=320):
+        from trcc.conf import save_config
+        # Write device config so _get_device_cfg() finds it
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': w, 'h': h, 'theme_dir': str(mock_theme_dir.path)},
+        }}
+        save_config(config)
         settings_mock = MagicMock()
         settings_mock.width = w
         settings_mock.height = h
@@ -614,18 +599,19 @@ class TestExportTheme:
         assert rc == 1
 
     def test_no_themes_dir_returns_1(self, capsys, tmp_path):
+        from trcc.conf import save_config
+        # Device configured but theme_dir doesn't exist
+        config = {'last_device': 0, 'devices': {
+            '0': {'w': 320, 'h': 320, 'theme_dir': '/nonexistent'},
+        }}
+        save_config(config)
         sm = MagicMock()
         sm.width = 320
         sm.height = 320
         sm.rotation = 0
-        td = MagicMock()
-        td.exists.return_value = False
         dm = MagicMock()
         with patch(_PATCH_SETTINGS, sm), \
-             patch(_PATCH_DATA_MANAGER, dm), \
-             patch(_PATCH_RESOLVE_THEME_DIR, return_value="/nonexistent"), \
-             patch(_PATCH_HAS_THEMES, return_value=False), \
-             patch("pathlib.Path.exists", return_value=False):
+             patch(_PATCH_DATA_MANAGER, dm):
             rc = export_theme("AnyTheme", str(tmp_path / "out.tr"))
         assert rc == 1
         assert "No themes" in capsys.readouterr().out

@@ -12,7 +12,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .models import DEFAULT_BRIGHTNESS_LEVEL, ThemeDir, ThemeInfo, ThemeType
+from .models import DEFAULT_BRIGHTNESS_LEVEL, ThemeInfo, ThemeType
+from .orientation import Orientation
 from .paths import resolve_theme_dir
 from .ports import Device
 
@@ -60,6 +61,10 @@ class LCDDevice(Device):
         self._proxy_factory_fn = proxy_factory_fn
         self._build_services_fn = build_services_fn
         self._proxy: Any = None  # Set when routing through another instance
+
+        # Per-device orientation — owns rotation + resolved dirs.
+        # Shared by reference with DisplayService after connect.
+        self.orientation = Orientation(0, 0)
 
         # All capability accessors point to self — methods are on LCDDevice
         self.theme: LCDDevice = self  # type: ignore[assignment]
@@ -196,6 +201,8 @@ class LCDDevice(Device):
         w, h = dev.resolution
         if w and h and self._display_svc:
             self._display_svc.set_resolution(w, h)
+            self.orientation = self._display_svc.orientation
+            self.persist_dirs()
         return {
             "success": True,
             "resolution": dev.resolution,
@@ -515,6 +522,27 @@ class LCDDevice(Device):
         if dev and self._lcd_config:
             self._lcd_config.persist(dev, field, value)
 
+    def persist_dirs(self) -> None:
+        """Write device's resolved dirs to config — records what's downloaded.
+
+        Local themes are landscape only (no portrait theme dirs exist).
+        Web backgrounds and masks have portrait variants for non-square devices.
+        """
+        o = self.orientation
+        td = o.landscape_theme_dir
+        self._persist('theme_dir', str(td.path) if td else None)
+        self._persist('web_dir', str(o.landscape_web_dir) if o.landscape_web_dir else None)
+        self._persist('masks_dir', str(o.landscape_masks_dir) if o.landscape_masks_dir else None)
+        self._persist('web_dir_portrait', str(o.portrait_web_dir) if o.portrait_web_dir else None)
+        self._persist('masks_dir_portrait', str(o.portrait_masks_dir) if o.portrait_masks_dir else None)
+
+    def refresh_dirs(self) -> None:
+        """Re-probe filesystem dirs and update config. Called after DATA_READY."""
+        if self._display_svc:
+            self._display_svc.refresh_dirs()
+            self.orientation = self._display_svc.orientation
+        self.persist_dirs()
+
     def restore_device_settings(self) -> None:
         """Restore brightness + rotation from per-device config.
 
@@ -548,15 +576,37 @@ class LCDDevice(Device):
                     "error": "Rotation must be 0, 90, 180, or 270"}
         svc = self._display_svc
         old_canvas = svc.canvas_size
+        old_theme_dir = svc.theme_dir
+        # Save before _reload_theme_for_rotation → select() clobbers it
+        saved_mask_dir = svc._mask_source_dir
+        log.debug("set_rotation: %d° saved_mask_dir=%s old_theme_dir=%s",
+                  degrees, saved_mask_dir,
+                  old_theme_dir.path if old_theme_dir else None)
         image = svc.set_rotation(degrees)
         self._persist('rotation', degrees)
 
-        # Non-square canvas change: reload theme from new directory
-        # C# UpDateUCComboBox1: ReadFileTheme() + Theme_Click_Event()
-        if old_canvas != svc.canvas_size:
+        # Only reload theme if the theme dir actually changed (portrait themes
+        # exist). When only web/mask dirs swap, the theme stays in the landscape
+        # dir and just gets pixel-rotated — no reload needed.
+        new_theme_dir = svc.theme_dir
+        theme_dir_changed = (old_theme_dir != new_theme_dir)
+        if old_canvas != svc.canvas_size and theme_dir_changed:
+            log.info("set_rotation: theme dir changed %s→%s, reloading",
+                     old_theme_dir.path if old_theme_dir else None,
+                     new_theme_dir.path if new_theme_dir else None)
             reloaded = self._reload_theme_for_rotation()
             if reloaded is not None:
                 image = reloaded
+        elif old_canvas != svc.canvas_size:
+            log.info("set_rotation: canvas changed %s→%s but theme dir "
+                     "unchanged — pixel-rotating only",
+                     old_canvas, svc.canvas_size)
+
+        # Mask dir switches independently — reload from saved reference
+        if not self.orientation.is_square and saved_mask_dir:
+            log.info("set_rotation: reloading mask from saved_mask_dir=%s",
+                     saved_mask_dir)
+            image = self._reload_mask_for_rotation(svc, saved_mask_dir) or image
 
         return {"success": True, "image": image,
                 "message": f"Rotation set to {degrees}°"}
@@ -566,12 +616,12 @@ class LCDDevice(Device):
 
         After DisplayService.set_rotation() switches dirs, find the same
         theme name in the new directory and reload with overlay config.
-        Also reloads mask from the new rotation-aware masks directory
-        (C# GetFileListMBDir switches zt1280480 ↔ zt4801280 on rotation).
-        All UIs (CLI, API, GUI) get this via LCDDevice.set_rotation().
+        Mask reload is handled separately in set_rotation() with the saved
+        mask dir reference (select() clobbers _mask_source_dir).
         """
         current = self.current_theme_path
         if not current:
+            log.debug("_reload_theme_for_rotation: no current_theme_path")
             return None
         theme_name = current.name
         svc = self._display_svc
@@ -580,12 +630,9 @@ class LCDDevice(Device):
                 continue
             candidate = Path(base) / theme_name
             if candidate.exists():
-                log.info("Rotation reload: %s → %s", theme_name, candidate)
+                log.info("_reload_theme_for_rotation: %s → %s", theme_name, candidate)
                 theme = self._theme_info_from_dir_fn(candidate)
                 result = self.select(theme)
-
-                # Reload mask from new rotation directory
-                self._reload_mask_for_rotation(svc)
 
                 # Reload overlay config from new dir
                 overlay_cfg = self.load_overlay_config_from_dir(str(candidate))
@@ -599,28 +646,37 @@ class LCDDevice(Device):
                 else:
                     self.enable_overlay(False)
                 return result.get('image')
-        log.debug("Rotation: theme '%s' not in new dirs", theme_name)
+        log.debug("_reload_theme_for_rotation: theme '%s' not in new dirs", theme_name)
         return None
 
-    def _reload_mask_for_rotation(self, svc: Any) -> None:
+    def _reload_mask_for_rotation(
+        self, svc: Any, saved_mask_dir: Path | None = None,
+    ) -> Any | None:
         """Reload mask from the new rotation-aware masks directory.
 
         C# GetFileListMBDir() returns zt{EW}{EH} based on rotation.
         After _setup_dirs() updates masks_dir, find the same mask name
         in the new directory and reload it at the new canvas dimensions.
+
+        Uses saved_mask_dir (captured before select() clobbers it) to
+        resolve the mask name reliably.
         """
-        old_mask_dir = svc._mask_source_dir
+        old_mask_dir = saved_mask_dir or svc._mask_source_dir
         if not old_mask_dir or not svc.masks_dir:
-            return
+            log.debug("_reload_mask_for_rotation: no mask dir to reload "
+                      "(old=%s, masks_dir=%s)", old_mask_dir, svc.masks_dir)
+            return None
         mask_name = old_mask_dir.name
         new_mask_dir = Path(svc.masks_dir) / mask_name
         if new_mask_dir.exists():
-            log.info("Rotation mask reload: %s → %s", old_mask_dir, new_mask_dir)
+            log.info("_reload_mask_for_rotation: %s → %s", old_mask_dir, new_mask_dir)
             self.load_mask_standalone(str(new_mask_dir))
-        else:
-            log.debug("Rotation: mask '%s' not in new masks dir", mask_name)
-            svc.overlay.set_theme_mask(None)
-            svc._mask_source_dir = None
+            return svc._render_and_process()
+        log.debug("_reload_mask_for_rotation: mask '%s' not in new masks dir %s",
+                  mask_name, svc.masks_dir)
+        svc.overlay.set_theme_mask(None)
+        svc._mask_source_dir = None
+        return None
 
     def set_split_mode(self, mode: int) -> dict:
         if mode not in (0, 1, 2, 3):
@@ -698,8 +754,10 @@ class LCDDevice(Device):
             return {**result, "overlay_config": None,
                     "overlay_enabled": False, "is_animated": False}
         else:
-            # Local theme — resolve against device's resolution directory
-            td = ThemeDir(resolve_theme_dir(w, h))
+            # Local theme — use device's own orientation dirs
+            td = self.orientation.theme_dir
+            if not td:
+                return {"success": False, "error": "No theme directory"}
             path = td.path / theme_name
             if not path.exists():
                 return {"success": False, "error": f"Theme not found: {theme_name}"}
@@ -720,7 +778,7 @@ class LCDDevice(Device):
         if mask_id:
             is_custom = cfg.get("mask_custom", False)
             svc = self._display_svc
-            base = svc.user_masks_dir() if is_custom and svc else (svc.masks_dir if svc else None)
+            base = svc.user_masks_dir() if is_custom and svc else self.orientation.masks_dir
             mask_dir = Path(base) / mask_id if base else None
             if mask_dir and mask_dir.exists():
                 svc = self._display_svc
@@ -817,8 +875,9 @@ class LCDDevice(Device):
         theme_path (Path), config_path (Path|None for overlay dc).
         """
         w, h = (width, height) if width and height else self.lcd_size
-        theme_dir = Path(resolve_theme_dir(w, h))
         svc = self._display_svc
+        td = self.orientation.theme_dir
+        theme_dir = td.path if td else Path(resolve_theme_dir(w, h))
         pr = svc._path_resolver if svc else None
         user_content_dir = Path(pr.user_content_dir()) if pr else None
         themes = self._theme_svc.discover_local_merged(

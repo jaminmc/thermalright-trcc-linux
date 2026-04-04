@@ -118,6 +118,7 @@ def mock_lcd_device():
     display_svc.lcd_size = (320, 320)
     display_svc.canvas_size = (320, 320)
     display_svc.effective_resolution = (320, 320)
+    display_svc.output_resolution = (320, 320)
     display_svc.rotation = 0
     display_svc.theme_dir = None
     display_svc.local_dir = None
@@ -130,9 +131,15 @@ def mock_lcd_device():
         display_svc.lcd_size = (w, h)
         display_svc.canvas_size = (w, h)
         display_svc.effective_resolution = (w, h)
+        display_svc.output_resolution = (w, h)
     display_svc.set_resolution.side_effect = _track_resolution
 
     lcd._display_svc = display_svc
+
+    # Orientation mock — DI'd per device
+    from trcc.core.orientation import Orientation
+    lcd.orientation = Orientation(320, 320)
+
     return lcd
 
 

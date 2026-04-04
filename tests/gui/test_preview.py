@@ -562,7 +562,7 @@ class TestResolutionOffsets:
             assert all(isinstance(v, int) for v in key), f"Key {key} has non-int values"
 
     def test_expected_count(self, qapp: object) -> None:
-        assert len(UCPreview.RESOLUTION_OFFSETS) == 25
+        assert len(UCPreview.RESOLUTION_OFFSETS) == 32
 
     def test_all_offsets_within_500x500(self, qapp: object) -> None:
         for key, (left, top, w, h, _) in UCPreview.RESOLUTION_OFFSETS.items():

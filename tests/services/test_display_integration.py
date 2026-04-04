@@ -265,6 +265,60 @@ class TestBrightnessRotationRealImages:
         assert abs(g - 200) <= 1
 
 
+class TestRotationBackgroundResize:
+    """_clean_background must match canvas after rotation on non-square devices."""
+
+    def test_rotation_90_rotates_clean_background(
+        self, renderer: Any, mock_media: MagicMock, mock_path_resolver: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Non-square 90° rotation pixel-rotates _clean_background to portrait dims."""
+        devices = MagicMock()
+        devices.selected.encoding_params = ('scsi', (1280, 480), None, False)
+        overlay = OverlayService(1280, 480, renderer=renderer)
+        svc = DisplayService(devices, overlay, mock_media, path_resolver=mock_path_resolver)
+        svc.set_resolution(1280, 480)
+        # Set up portrait web dir so has_rotated_dirs is True
+        web_dir = tmp_path / 'data' / 'web' / '4801280'
+        web_dir.mkdir(parents=True)
+        svc.orientation.portrait_web_dir = web_dir
+
+        bg = renderer.create_surface(1280, 480, (100, 50, 200))
+        svc._clean_background = bg
+        svc.current_image = bg
+
+        svc.set_rotation(90)
+
+        bg_w, bg_h = renderer.surface_size(svc._clean_background)
+        assert (bg_w, bg_h) == (480, 1280), f"Expected (480, 1280), got ({bg_w}, {bg_h})"
+        ci_w, ci_h = renderer.surface_size(svc.current_image)
+        assert (ci_w, ci_h) == (480, 1280), f"Expected (480, 1280), got ({ci_w}, {ci_h})"
+
+    def test_rotation_back_to_0_restores_landscape(
+        self, renderer: Any, mock_media: MagicMock, mock_path_resolver: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Rotating back to 0° restores background to landscape dims."""
+        devices = MagicMock()
+        devices.selected.encoding_params = ('scsi', (1280, 480), None, False)
+        overlay = OverlayService(1280, 480, renderer=renderer)
+        svc = DisplayService(devices, overlay, mock_media, path_resolver=mock_path_resolver)
+        svc.set_resolution(1280, 480)
+        web_dir = tmp_path / 'data' / 'web' / '4801280'
+        web_dir.mkdir(parents=True)
+        svc.orientation.portrait_web_dir = web_dir
+
+        bg = renderer.create_surface(1280, 480, (100, 50, 200))
+        svc._clean_background = bg
+        svc.current_image = bg
+
+        svc.set_rotation(90)
+        svc.set_rotation(0)
+
+        bg_w, bg_h = renderer.surface_size(svc._clean_background)
+        assert (bg_w, bg_h) == (1280, 480), f"Expected (1280, 480), got ({bg_w}, {bg_h})"
+
+
 # ═════════════════════════════════════════════════════════════════════════
 # Group 3: Theme load -> save round-trip
 # ═════════════════════════════════════════════════════════════════════════
@@ -593,9 +647,9 @@ class TestDisplayServiceContracts:
     def test_setup_dirs_populates_theme_dir(
         self, display_svc: DisplayService,
     ) -> None:
-        """_setup_dirs populates _theme_dir via ThemeDir.for_resolution."""
+        """_setup_dirs populates theme_dir via Orientation."""
         display_svc._setup_dirs(320, 320)
-        assert display_svc._theme_dir is not None
+        assert display_svc.theme_dir is not None
 
     def test_cleanup_removes_working_dir(self, display_svc: DisplayService) -> None:
         """cleanup() removes the working directory."""
@@ -876,19 +930,22 @@ class TestDisplayServiceContracts:
         call_data_dir = display_svc._persistence.import_config.call_args[0][1]
         assert call_data_dir == Path(display_svc._path_resolver.data_dir())
 
-    def test_local_dir_property(self, display_svc: DisplayService) -> None:
-        """local_dir property returns _local_dir value."""
-        display_svc._local_dir = Path('/some/dir')
-        assert display_svc.local_dir == Path('/some/dir')
+    def test_local_dir_property(self, display_svc: DisplayService, tmp_path: Path) -> None:
+        """local_dir delegates to orientation.theme_dir (must exist on disk)."""
+        from trcc.core.models import ThemeDir
+        d = tmp_path / 'themes'
+        d.mkdir()
+        display_svc._orientation.landscape_theme_dir = ThemeDir(d)
+        assert display_svc.local_dir == d
 
     def test_web_dir_property(self, display_svc: DisplayService) -> None:
-        """web_dir property returns _web_dir value."""
-        display_svc._web_dir = Path('/some/web')
+        """web_dir delegates to orientation."""
+        display_svc._orientation.landscape_web_dir = Path('/some/web')
         assert display_svc.web_dir == Path('/some/web')
 
     def test_masks_dir_property(self, display_svc: DisplayService) -> None:
-        """masks_dir property returns _masks_dir value."""
-        display_svc._masks_dir = Path('/some/masks')
+        """masks_dir delegates to orientation."""
+        display_svc._orientation.landscape_masks_dir = Path('/some/masks')
         assert display_svc.masks_dir == Path('/some/masks')
 
 

@@ -148,6 +148,7 @@ class OverlayService:
 
     def set_config(self, config: dict) -> None:
         """Set overlay config dict directly."""
+        log.info("overlay.set_config: %d elements", len(config) if config else 0)
         self.config = config
         self._invalidate_cache()
 
@@ -195,6 +196,7 @@ class OverlayService:
         Returns:
             display_options dict (may contain 'animation_file', etc.).
         """
+        log.info("load_from_dc: %s", dc_path)
         from ..core.models import ThemeDir
 
         json_path = ThemeDir(dc_path.parent).json if dc_path else None

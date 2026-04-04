@@ -48,7 +48,8 @@ class ThemeLoader:
         log.info("Loading local theme: %s", theme.path)
         self._media.stop()
 
-        # Full reset
+        # Full reset — overlay gets reconfigured from this theme's DC
+        log.info("ThemeLoader: resetting overlay for new theme")
         self._overlay.enabled = False
         self._overlay.set_background(None)
         self._overlay.set_mask(None)
@@ -157,6 +158,7 @@ class ThemeLoader:
 
     def load_cloud_theme(self, theme, working_dir: Path) -> dict:
         """Load a cloud video theme as background."""
+        log.info("ThemeLoader: loading cloud theme %s (overlay untouched)", theme.name)
         self._media.stop()
 
         if theme.animation_path:

@@ -855,7 +855,7 @@ class TestFindResourceDefault(unittest.TestCase):
 
 
 class TestPortraitDirectorySwitching(unittest.TestCase):
-    """Test effective_resolution portrait directory switching.
+    """Test output_resolution portrait directory switching.
 
     C# GetWebBackgroundImageDirectory / GetFileListMBDir: non-square displays
     swap width/height when directionB is 90 or 270.
@@ -865,27 +865,27 @@ class TestPortraitDirectorySwitching(unittest.TestCase):
 
     def test_landscape_rotation_keeps_landscape(self):
         """Rotation 0 or 180 keeps original w×h."""
-        from trcc.core.orientation import effective_resolution
-        self.assertEqual(effective_resolution(1280, 480, 0), (1280, 480))
-        self.assertEqual(effective_resolution(1280, 480, 180), (1280, 480))
+        from trcc.core.orientation import output_resolution
+        self.assertEqual(output_resolution(1280, 480, 0), (1280, 480))
+        self.assertEqual(output_resolution(1280, 480, 180), (1280, 480))
 
     def test_portrait_rotation_swaps_dims(self):
         """Rotation 90 or 270 swaps to h×w."""
-        from trcc.core.orientation import effective_resolution
-        self.assertEqual(effective_resolution(1280, 480, 90), (480, 1280))
-        self.assertEqual(effective_resolution(1280, 480, 270), (480, 1280))
+        from trcc.core.orientation import output_resolution
+        self.assertEqual(output_resolution(1280, 480, 90), (480, 1280))
+        self.assertEqual(output_resolution(1280, 480, 270), (480, 1280))
 
     def test_square_display_no_swap(self):
         """Square displays never swap, regardless of rotation."""
-        from trcc.core.orientation import effective_resolution
-        self.assertEqual(effective_resolution(320, 320, 90), (320, 320))
+        from trcc.core.orientation import output_resolution
+        self.assertEqual(output_resolution(320, 320, 90), (320, 320))
 
     def test_1600x720_portrait(self):
         """1600x720 swaps to 720x1600 on portrait rotation."""
-        from trcc.core.orientation import effective_resolution
-        self.assertEqual(effective_resolution(1600, 720, 90), (720, 1600))
+        from trcc.core.orientation import output_resolution
+        self.assertEqual(output_resolution(1600, 720, 90), (720, 1600))
 
     def test_640x480_portrait(self):
         """640x480 swaps to 480x640 on portrait rotation."""
-        from trcc.core.orientation import effective_resolution
-        self.assertEqual(effective_resolution(640, 480, 270), (480, 640))
+        from trcc.core.orientation import output_resolution
+        self.assertEqual(output_resolution(640, 480, 270), (480, 640))

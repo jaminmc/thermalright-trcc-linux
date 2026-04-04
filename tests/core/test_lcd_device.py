@@ -8,6 +8,8 @@ from conftest import get_pixel, make_test_surface
 
 from trcc.core.instance import InstanceKind
 from trcc.core.lcd_device import LCDDevice
+from trcc.core.models import ThemeDir
+from trcc.core.orientation import Orientation
 from trcc.services.display import DisplayService
 from trcc.services.image import ImageService
 from trcc.services.overlay import OverlayService
@@ -65,6 +67,7 @@ def _make_real_lcd() -> tuple[LCDDevice, MagicMock]:
         theme_svc=MagicMock(),
         renderer=renderer,
     )
+    lcd.orientation = display_svc.orientation
     return lcd, device_svc
 
 
@@ -374,15 +377,15 @@ class TestLCDDeviceSettings(unittest.TestCase):
         self.assertFalse(result['success'])
 
     @patch.object(LCDDevice, '_persist')
-    def test_set_rotation_reloads_theme_on_canvas_change(self, _):
-        """Non-square device rotation triggers canvas swap."""
+    def test_set_rotation_swaps_output_resolution(self, _):
+        """Non-square device rotation swaps output resolution."""
         lcd, _ = _make_real_lcd()
         lcd._display_svc.set_resolution(800, 480)
         lcd._display_svc.current_theme_path = None  # No theme loaded
         result = lcd.set_rotation(90)
         self.assertTrue(result['success'])
-        # Canvas swapped — non-square always swaps at 90/270
-        self.assertEqual(lcd._display_svc.effective_resolution, (480, 800))
+        # Output always swaps for non-square at 90/270
+        self.assertEqual(lcd._display_svc.output_resolution, (480, 800))
 
     @patch.object(LCDDevice, '_persist')
     def test_rotation_reloads_mask_from_new_dir(self, _):
@@ -401,7 +404,7 @@ class TestLCDDeviceSettings(unittest.TestCase):
             new_mask = Path(td) / 'zt4801280' / 'Mask01'
             new_mask.mkdir(parents=True)
             (new_mask / '01.png').write_bytes(b'fake')
-            lcd._display_svc._masks_dir = Path(td) / 'zt4801280'
+            lcd._display_svc.orientation.landscape_masks_dir = Path(td) / 'zt4801280'
 
             with patch.object(lcd, 'load_mask_standalone',
                               return_value={'success': True}) as mock_load:
@@ -423,11 +426,77 @@ class TestLCDDeviceSettings(unittest.TestCase):
 
             new_masks = Path(td) / 'zt4801280'
             new_masks.mkdir()
-            lcd._display_svc._masks_dir = new_masks
+            lcd._display_svc.orientation.landscape_masks_dir = new_masks
 
             lcd._reload_mask_for_rotation(lcd._display_svc)
             self.assertIsNone(lcd._display_svc.overlay.theme_mask)
             self.assertIsNone(lcd._display_svc._mask_source_dir)
+
+    @patch.object(LCDDevice, '_persist')
+    def test_rotation_skips_theme_reload_when_only_web_mask_dirs(self, _):
+        """No theme reload when only web/mask portrait dirs exist."""
+        from pathlib import Path
+        lcd, _ = _make_real_lcd()
+        lcd._display_svc.set_resolution(1280, 480)
+        lcd.orientation = lcd._display_svc.orientation
+        o = lcd.orientation
+        o.portrait_web_dir = Path('/fake/web/4801280')
+        o.portrait_masks_dir = Path('/fake/web/zt4801280')
+        # portrait_theme_dir stays None
+
+        with patch.object(lcd, '_reload_theme_for_rotation') as mock_reload:
+            result = lcd.set_rotation(90)
+        self.assertTrue(result['success'])
+        mock_reload.assert_not_called()
+        # Canvas still swapped because has_rotated_dirs is True
+        self.assertEqual(lcd._display_svc.canvas_size, (480, 1280))
+
+    @patch.object(LCDDevice, '_persist')
+    def test_rotation_fires_theme_reload_when_portrait_theme_dir(self, _):
+        """Theme reload fires when portrait theme dir exists."""
+        import tempfile
+        from pathlib import Path
+        lcd, _ = _make_real_lcd()
+        lcd._display_svc.set_resolution(1280, 480)
+        lcd.orientation = lcd._display_svc.orientation
+        o = lcd.orientation
+
+        with tempfile.TemporaryDirectory() as td:
+            o.portrait_theme_dir = ThemeDir(Path(td) / 'theme4801280')
+            lcd._display_svc.current_theme_path = Path('/fake/theme1280480/Theme1')
+
+            with patch.object(lcd, '_reload_theme_for_rotation',
+                              return_value=None) as mock_reload:
+                lcd.set_rotation(90)
+            mock_reload.assert_called_once()
+
+    @patch.object(LCDDevice, '_persist')
+    def test_rotation_mask_uses_saved_dir_not_clobbered(self, _):
+        """Full set_rotation() uses saved mask dir, not the one select() clobbers."""
+        import tempfile
+        from pathlib import Path
+        lcd, _ = _make_real_lcd()
+        lcd._display_svc.set_resolution(1280, 480)
+        lcd.orientation = lcd._display_svc.orientation
+        o = lcd.orientation
+
+        with tempfile.TemporaryDirectory() as td:
+            # Set up portrait masks dir with matching mask
+            old_mask = Path(td) / 'zt1280480' / 'Mask01'
+            old_mask.mkdir(parents=True)
+            (old_mask / '01.png').write_bytes(b'fake')
+            new_mask = Path(td) / 'zt4801280' / 'Mask01'
+            new_mask.mkdir(parents=True)
+            (new_mask / '01.png').write_bytes(b'fake')
+
+            lcd._display_svc._mask_source_dir = old_mask
+            o.portrait_web_dir = Path(td) / 'web' / '4801280'
+            o.portrait_masks_dir = Path(td) / 'zt4801280'
+
+            with patch.object(lcd, 'load_mask_standalone',
+                              return_value={'success': True}) as mock_load:
+                lcd.set_rotation(90)
+            mock_load.assert_called_once_with(str(new_mask))
 
     @patch.object(LCDDevice, '_persist')
     def test_set_split_mode_valid(self, _):
@@ -531,7 +600,10 @@ class TestLoadLastTheme(unittest.TestCase):
                 'theme_name': 'NonExistent', 'theme_type': 'local',
             }}),
         )
-        result = lcd.load_last_theme()
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            lcd.orientation.landscape_theme_dir = ThemeDir(td)
+            result = lcd.load_last_theme()
         self.assertFalse(result['success'])
         self.assertIn("not found", result['error'])
 
@@ -557,8 +629,7 @@ class TestLoadLastTheme(unittest.TestCase):
         finally:
             tmp.unlink(missing_ok=True)
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir")
-    def test_local_theme_resolves_by_name(self, mock_resolve):
+    def test_local_theme_resolves_by_name(self):
         import tempfile
         from pathlib import Path
         dev = MagicMock(device_index=0, vid=0x0402, pid=0x3922)
@@ -568,18 +639,17 @@ class TestLoadLastTheme(unittest.TestCase):
             theme_dir = Path(td) / "Theme1"
             theme_dir.mkdir()
             (theme_dir / "00.png").write_bytes(b"fake")
-            mock_resolve.return_value = td
             lcd = _make_lcd(
                 device_svc=svc, display_svc=disp,
                 lcd_config=MagicMock(**{'get_config.return_value': {
                     'theme_name': 'Theme1', 'theme_type': 'local',
                 }}),
             )
+            lcd.orientation.landscape_theme_dir = ThemeDir(td)
             result = lcd.load_last_theme()
             self.assertTrue(result['success'])
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir")
-    def test_restore_sends_static_frame_to_device(self, mock_resolve):
+    def test_restore_sends_static_frame_to_device(self):
         """Static theme → render_and_send() composites mask/overlay + sends."""
         import tempfile
         from pathlib import Path
@@ -598,20 +668,19 @@ class TestLoadLastTheme(unittest.TestCase):
             theme_dir = Path(td) / "Theme1"
             theme_dir.mkdir()
             (theme_dir / "00.png").write_bytes(b"fake")
-            mock_resolve.return_value = td
             lcd = _make_lcd(
                 device_svc=svc, display_svc=disp,
                 lcd_config=MagicMock(**{'get_config.return_value': {
                     'theme_name': 'Theme1', 'theme_type': 'local',
                 }}),
             )
+            lcd.orientation.landscape_theme_dir = ThemeDir(td)
             result = lcd.restore_last_theme()
             self.assertTrue(result['success'])
             disp.render_overlay.assert_called_once()
             svc.send_frame_async.assert_called_once()
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir")
-    def test_restore_renders_and_sends_overlay(self, mock_resolve):
+    def test_restore_renders_and_sends_overlay(self):
         """Static theme with overlay → render_and_send() called."""
         import tempfile
         from pathlib import Path
@@ -630,7 +699,6 @@ class TestLoadLastTheme(unittest.TestCase):
             theme_dir = Path(td) / "Theme1"
             theme_dir.mkdir()
             (theme_dir / "00.png").write_bytes(b"fake")
-            mock_resolve.return_value = td
             lcd = _make_lcd(
                 device_svc=svc, display_svc=disp,
                 lcd_config=MagicMock(**{'get_config.return_value': {
@@ -638,13 +706,13 @@ class TestLoadLastTheme(unittest.TestCase):
                     'overlay': {'enabled': True, 'config': {'elements': []}},
                 }}),
             )
+            lcd.orientation.landscape_theme_dir = ThemeDir(td)
             result = lcd.restore_last_theme()
             self.assertTrue(result['success'])
             self.assertTrue(result['overlay_enabled'])
             disp.render_overlay.assert_called_once()
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir")
-    def test_restore_skips_send_for_animated(self, mock_resolve):
+    def test_restore_skips_send_for_animated(self):
         """Animated theme → no send() call (caller runs the loop)."""
         import tempfile
         from pathlib import Path
@@ -661,13 +729,13 @@ class TestLoadLastTheme(unittest.TestCase):
             theme_dir = Path(td) / "Theme1"
             theme_dir.mkdir()
             (theme_dir / "00.png").write_bytes(b"fake")
-            mock_resolve.return_value = td
             lcd = _make_lcd(
                 device_svc=svc, display_svc=disp,
                 lcd_config=MagicMock(**{'get_config.return_value': {
                     'theme_name': 'Theme1', 'theme_type': 'local',
                 }}),
             )
+            lcd.orientation.landscape_theme_dir = ThemeDir(td)
             result = lcd.restore_last_theme()
             self.assertTrue(result['success'])
             self.assertTrue(result['is_animated'])
@@ -696,14 +764,15 @@ def lcd_with_mocks():
     disp.get_video_interval.return_value = 0
     theme = MagicMock()
     lcd = _make_lcd(device_svc=svc, display_svc=disp, theme_svc=theme)
+    lcd.orientation = Orientation(320, 320)
+    lcd.orientation.landscape_theme_dir = ThemeDir('/tmp/themes')
     return lcd
 
 
 class TestLoadThemeByName:
     """LCDDevice.load_theme_by_name — core theme loading by name."""
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_found_theme_calls_select(self, mock_for_res, lcd_with_mocks):
+    def test_found_theme_calls_select(self, lcd_with_mocks):
         from trcc.core.models import ThemeInfo, ThemeType
 
         theme = ThemeInfo(name="CyberPunk", theme_type=ThemeType.LOCAL)
@@ -714,35 +783,30 @@ class TestLoadThemeByName:
         assert result["success"] is True
         lcd_with_mocks._theme_svc.select.assert_called_once_with(theme)
 
-    @patch("trcc.services.ThemeService.discover_local_merged", return_value=[])
-    @patch("trcc.core.lcd_device.resolve_theme_dir",
-           return_value="/tmp/themes")
-    def test_not_found_returns_error(self, mock_for_res, mock_discover, lcd_with_mocks):
+    def test_not_found_returns_error(self, lcd_with_mocks):
+        lcd_with_mocks._theme_svc.discover_local_merged.return_value = []
         result = lcd_with_mocks.load_theme_by_name("NonExistent")
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_explicit_resolution_overrides_device(self, mock_for_res, lcd_with_mocks):
+    def test_explicit_resolution_passes_to_discover(self, lcd_with_mocks):
         lcd_with_mocks._theme_svc.discover_local_merged.return_value = []
 
         lcd_with_mocks.load_theme_by_name("Theme001", 480, 480)
 
-        mock_for_res.assert_called_once_with(480, 480)
         lcd_with_mocks._theme_svc.discover_local_merged.assert_called_once()
         assert lcd_with_mocks._theme_svc.discover_local_merged.call_args[0][2] == (480, 480)
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_zero_resolution_uses_device_size(self, mock_for_res, lcd_with_mocks):
+    def test_zero_resolution_uses_device_size(self, lcd_with_mocks):
         lcd_with_mocks._theme_svc.discover_local_merged.return_value = []
 
         lcd_with_mocks.load_theme_by_name("Theme001", 0, 0)
 
-        mock_for_res.assert_called_once_with(320, 320)
+        lcd_with_mocks._theme_svc.discover_local_merged.assert_called_once()
+        assert lcd_with_mocks._theme_svc.discover_local_merged.call_args[0][2] == (320, 320)
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_sends_static_image_to_device(self, mock_for_res, lcd_with_mocks):
+    def test_sends_static_image_to_device(self, lcd_with_mocks):
         """Static theme image is sent to device after select()."""
         from pathlib import Path
 
@@ -763,8 +827,7 @@ class TestLoadThemeByName:
         assert result["success"] is True
         lcd_with_mocks._device_svc.send_frame_async.assert_called_once()
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_does_not_send_animated_theme(self, mock_for_res, lcd_with_mocks):
+    def test_does_not_send_animated_theme(self, lcd_with_mocks):
         """Animated themes return image but don't call send (caller loops)."""
         from pathlib import Path
 
@@ -785,8 +848,7 @@ class TestLoadThemeByName:
         assert result["is_animated"] is True
         lcd_with_mocks._device_svc.send_frame_async.assert_not_called()
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_persists_theme_name(self, mock_for_res, lcd_with_mocks):
+    def test_persists_theme_name(self, lcd_with_mocks):
         """Theme name + type saved to per-device config, mask cleared."""
         from pathlib import Path
 
@@ -817,8 +879,7 @@ class TestLoadThemeByName:
             for c in calls
         ), f"Expected mask_id clear, got: {calls}"
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
-    def test_result_includes_theme_and_config_paths(self, mock_for_res, lcd_with_mocks):
+    def test_result_includes_theme_and_config_paths(self, lcd_with_mocks):
         """Result dict includes theme_path and config_path for caller."""
         from pathlib import Path
 
@@ -978,9 +1039,8 @@ class TestKeepAliveLoop:
 class TestLoadThemeByNameOverlay:
     """load_theme_by_name enables overlay when theme has config."""
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
     def test_enables_overlay_when_config_exists(
-        self, mock_for_res,
+        self,
         lcd_with_mocks,
     ):
         """Static theme with config1.dc → overlay enabled + render_and_send called."""
@@ -1011,9 +1071,8 @@ class TestLoadThemeByNameOverlay:
         lcd_with_mocks.enable_overlay.assert_called_once_with(True)
         lcd_with_mocks.render_and_send.assert_called_once()
 
-    @patch("trcc.core.lcd_device.resolve_theme_dir", return_value="/tmp/themes")
     def test_disables_overlay_when_no_config(
-        self, mock_for_res,
+        self,
         lcd_with_mocks,
     ):
         """Static theme without config → overlay disabled, image sent directly."""

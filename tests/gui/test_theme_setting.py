@@ -816,7 +816,7 @@ class TestScreenCastPanel:
     def test_construction(self, qapp):
         panel = ScreenCastPanel()
         assert panel.mode_id == "screencast"
-        assert panel._resolution == (320, 320)
+        assert panel._resolution == (0, 0)
 
     def test_set_values(self, qapp):
         panel = ScreenCastPanel()

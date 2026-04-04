@@ -514,6 +514,7 @@ def mount_static_dirs(width: int, height: int) -> None:
 
     Called after device select when resolution is known. Remounts if resolution
     changes (e.g., user switches device).
+    Reads dirs from active device's Orientation (DI'd per device).
     """
     from trcc.adapters.infra.data_repository import DataManager
     from trcc.core.paths import resolve_theme_dir
@@ -523,20 +524,21 @@ def mount_static_dirs(width: int, height: int) -> None:
         app.routes[:] = [r for r in app.routes if getattr(r, 'path', '') != path]
     _mounted_routes.clear()
 
-    # Theme directory (local themes)
-    theme_dir = resolve_theme_dir(width, height)
+    # Read from device's orientation when available, fallback to resolve
+    o = getattr(_display_dispatcher, 'orientation', None) if _display_dispatcher else None
+    if o is not None and not hasattr(o, 'theme_dir'):
+        o = None  # proxy/mock without real Orientation
+    td = o.theme_dir if o else None
+    theme_dir = str(td.path) if td else resolve_theme_dir(width, height)
+    web_dir = str(o.web_dir) if o and o.web_dir else DataManager.get_web_dir(width, height)
+    masks_dir = str(o.masks_dir) if o and o.masks_dir else DataManager.get_web_masks_dir(width, height)
+
     if os.path.isdir(theme_dir):
         app.mount("/static/themes", StaticFiles(directory=theme_dir), name="themes")
         _mounted_routes.append("/static/themes")
-
-    # Cloud theme previews
-    web_dir = DataManager.get_web_dir(width, height)
     if os.path.isdir(web_dir):
         app.mount("/static/web", StaticFiles(directory=web_dir), name="web")
         _mounted_routes.append("/static/web")
-
-    # Cloud masks
-    masks_dir = DataManager.get_web_masks_dir(width, height)
     if os.path.isdir(masks_dir):
         app.mount("/static/masks", StaticFiles(directory=masks_dir), name="masks")
         _mounted_routes.append("/static/masks")

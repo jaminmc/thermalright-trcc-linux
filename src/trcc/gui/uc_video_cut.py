@@ -27,7 +27,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
 
-import trcc.conf as _conf
+from trcc.core.models import panel_asset_dims
 from trcc.core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 
 from .assets import Assets
@@ -220,8 +220,8 @@ class UCVideoCut(QWidget):
         self._total_frames = 0
         self._fps = 30.0
         self._duration_ms = 0
-        self._target_w = _conf.settings.width
-        self._target_h = _conf.settings.height
+        self._target_w = 0
+        self._target_h = 0
         self._rotation = 0
         self._width_fit = True
 
@@ -505,8 +505,10 @@ class UCVideoCut(QWidget):
         self._target_w = w
         self._target_h = h
 
-        # Try to load resolution-specific background
-        bg_name = f'P0裁减{w}{h}.png'
+        # Load resolution-specific background (C# scaled dims, not raw LCD dims)
+        pw, ph = panel_asset_dims(w, h)
+        bg_name = f'P0裁减{pw}{ph}.png'
+        log.debug("set_resolution: %dx%d → panel %dx%d asset=%s", w, h, pw, ph, bg_name)
         bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
         if not bg_pix.isNull():
             palette = self.palette()
