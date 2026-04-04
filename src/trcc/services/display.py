@@ -43,7 +43,13 @@ class DisplayService:
                  media: MediaService,
                  theme_svc: Any = None,
                  cpu_percent_fn: Callable[[], float] | None = None,
-                 path_resolver: 'PathResolver | None' = None) -> None:
+                 path_resolver: 'PathResolver | None' = None,
+                 device_label: str = '') -> None:
+        # Per-device child logger — tags every record with device identity
+        self.log: logging.Logger = logging.getLogger(f'{__name__}.{device_label}' if device_label else __name__)
+        if hasattr(self.log, 'dev'):
+            self.log.dev = device_label or '-'  # type: ignore[attr-defined]
+
         # Sub-services (injected)
         self.devices = devices
         self.overlay = overlay
@@ -145,7 +151,7 @@ class DisplayService:
 
     def initialize(self, data_dir: Path) -> None:
         """Initialize service with data directory."""
-        log.debug("DisplayService: init data_dir=%s", data_dir)
+        self.log.debug("DisplayService: init data_dir=%s", data_dir)
         self._data_dir = data_dir
 
         cw, ch = self.canvas_size
@@ -167,7 +173,7 @@ class DisplayService:
 
         # ── Landscape (always set) ────────────────────────────────────
         o.landscape_theme_dir = ThemeDir(resolve_theme_dir(nw, nh))
-        log.info("Orientation: landscape_theme_dir=%s (has_themes=%s)",
+        self.log.info("Orientation: landscape_theme_dir=%s (has_themes=%s)",
                  o.landscape_theme_dir.path,
                  has_themes(str(o.landscape_theme_dir.path)))
 
@@ -176,7 +182,7 @@ class DisplayService:
             o.landscape_web_dir = web if web.exists() else None
             masks = Path(self._path_resolver.web_masks_dir(nw, nh))
             o.landscape_masks_dir = masks if masks.exists() else None
-            log.info("Orientation: landscape_web=%s landscape_masks=%s",
+            self.log.info("Orientation: landscape_web=%s landscape_masks=%s",
                      o.landscape_web_dir, o.landscape_masks_dir)
 
         # ── Portrait (only for non-square, only if dirs exist) ────────
@@ -190,7 +196,7 @@ class DisplayService:
                 masks = Path(self._path_resolver.web_masks_dir(sw, sh))
                 o.portrait_masks_dir = masks if masks.exists() else None
 
-            log.info("Orientation: portrait_theme=%s portrait_web=%s portrait_masks=%s",
+            self.log.info("Orientation: portrait_theme=%s portrait_web=%s portrait_masks=%s",
                      o.portrait_theme_dir.path if o.portrait_theme_dir else None,
                      o.portrait_web_dir, o.portrait_masks_dir)
         else:
@@ -209,7 +215,7 @@ class DisplayService:
         """Set LCD resolution and update sub-services."""
         if width == self._width and height == self._height:
             return
-        log.info("Resolution changed: %dx%d -> %dx%d",
+        self.log.info("Resolution changed: %dx%d -> %dx%d",
                  self._width, self._height, width, height)
         self._width = width
         self._height = height
@@ -223,7 +229,7 @@ class DisplayService:
         cw, ch = self.canvas_size
         self.media.set_target_size(cw, ch)
         self.overlay.set_resolution(cw, ch)
-        log.info("set_resolution: canvas=%s output=%s image_rotation=%d",
+        self.log.info("set_resolution: canvas=%s output=%s image_rotation=%d",
                  self.canvas_size, self.output_resolution, self._image_rotation)
 
     def refresh_dirs(self) -> None:
@@ -244,11 +250,10 @@ class DisplayService:
         - swaps_dirs=False: canvas stays, composited output gets pixel-rotated
         """
         old_canvas = self.canvas_size
-        old_rotation = self.rotation
         self.rotation = degrees % 360
         new_canvas = self.canvas_size
 
-        log.info("set_rotation: %d° canvas %s→%s swaps_dirs=%s image_rotation=%d",
+        self.log.info("set_rotation: %d° canvas %s→%s swaps_dirs=%s image_rotation=%d",
                  degrees, old_canvas, new_canvas,
                  self._orientation.swaps_dirs, self._image_rotation)
 
@@ -257,19 +262,6 @@ class DisplayService:
             self.overlay.set_resolution(cw, ch)
             self.media.set_target_size(cw, ch)
             self._cache = None
-            # Pixel-rotate backgrounds to match new canvas dims.
-            # Local themes don't have portrait dirs — the image content
-            # needs rotation even when web/mask dirs handle orientation.
-            delta = (degrees - old_rotation) % 360
-            if delta:
-                if self._clean_background is not None:
-                    self._clean_background = ImageService.apply_rotation(
-                        self._clean_background, delta)
-                if self.current_image is not None:
-                    self.current_image = ImageService.apply_rotation(
-                        self.current_image, delta)
-                log.info("set_rotation: rotated backgrounds by %d° "
-                         "to match canvas %s", delta, new_canvas)
         elif self._cache and self._cache.active:
             self._cache.rebuild_from_rotation(self._image_rotation)
 
@@ -330,7 +322,7 @@ class DisplayService:
         # Wire up state from loader result
         self._mask_source_dir = result.get('mask_source_dir')
         self.current_theme_path = result.get('theme_path')
-        log.debug("load_local_theme: _mask_source_dir=%s", self._mask_source_dir)
+        self.log.debug("load_local_theme: _mask_source_dir=%s", self._mask_source_dir)
 
         # Set current_image from result or from video first frame
         if result.get('image'):
@@ -356,7 +348,7 @@ class DisplayService:
         """Load a cloud video theme as background."""
         self._cache = None  # Invalidate previous video cache
         result = self._loader.load_cloud_theme(theme, self.working_dir)
-        log.debug("load_cloud_theme: loader result keys=%s", list(result.keys()))
+        self.log.debug("load_cloud_theme: loader result keys=%s", list(result.keys()))
 
         # Wire up state — cloud themes are video-only, so preserve
         # existing mask source dir (user may have applied a mask before
@@ -367,11 +359,11 @@ class DisplayService:
 
         # Convert decoded frames to native renderer surfaces
         self._convert_media_frames()
-        log.debug("load_cloud_theme: frames converted, count=%d",
+        self.log.debug("load_cloud_theme: frames converted, count=%d",
                   len(self.media._frames) if self.media._frames else 0)
 
         first_frame = self.media.get_frame(0)
-        log.debug("load_cloud_theme: first_frame=%s",
+        self.log.debug("load_cloud_theme: first_frame=%s",
                   type(first_frame).__name__ if first_frame else None)
         if first_frame:
             self.current_image = first_frame
@@ -380,9 +372,9 @@ class DisplayService:
 
         # Build cache in background — avoids GUI freeze on cloud theme load
         if self.media.has_frames:
-            log.debug("load_cloud_theme: starting async video cache build")
+            self.log.debug("load_cloud_theme: starting async video cache build")
             self._start_video_cache_async()
-            log.debug("load_cloud_theme: async cache build started")
+            self.log.debug("load_cloud_theme: async cache build started")
         return result
 
     def apply_mask(self, mask_dir: Path) -> Any | None:
@@ -395,7 +387,7 @@ class DisplayService:
 
         self._mask_source_dir = self._loader.apply_mask(
             mask_dir, self.working_dir, self.canvas_size)
-        log.debug("apply_mask: _mask_source_dir=%s", self._mask_source_dir)
+        self.log.debug("apply_mask: _mask_source_dir=%s", self._mask_source_dir)
 
         # Rebuild cache async — new mask must be composited into L2
         self._cache = None
@@ -425,7 +417,7 @@ class DisplayService:
             self.current_image = ImageService.open_and_resize(path, *self.canvas_size)
             self._clean_background = self.current_image
         except Exception as e:
-            log.error("Failed to load image: %s", e)
+            self.log.error("Failed to load image: %s", e)
 
     def _create_black_background(self) -> None:
         """Create black background for mask-only themes."""
@@ -436,14 +428,14 @@ class DisplayService:
     def _render_and_process(self) -> Any | None:
         """Render overlay on current image, apply brightness + rotation."""
         if not self.current_image:
-            log.debug("_render_and_process: no current_image")
+            self.log.debug("_render_and_process: no current_image")
             return None
         image = self.current_image
-        log.debug("_render_and_process: current_image type=%s overlay_enabled=%s",
+        self.log.debug("_render_and_process: current_image type=%s overlay_enabled=%s",
                   type(image).__name__, self.overlay.enabled)
         if self.overlay.enabled:
             image = self.overlay.render(image)
-            log.debug("_render_and_process: after overlay type=%s", type(image).__name__)
+            self.log.debug("_render_and_process: after overlay type=%s", type(image).__name__)
         return self._apply_adjustments(image)
 
     def render_overlay(self) -> Any | None:
@@ -451,7 +443,7 @@ class DisplayService:
         # Use clean background (no old overlay baked in)
         bg = self._clean_background or self.current_image
         if not bg:
-            log.debug("render_overlay: no background, creating black bg")
+            self.log.debug("render_overlay: no background, creating black bg")
             self._create_black_background()
             bg = self.current_image
         image = self.overlay.render(bg, force=True)
@@ -465,7 +457,7 @@ class DisplayService:
         180° still rotate normally. encode_for_device() resizes to native.
         """
         rot = self._image_rotation
-        log.debug("_apply_adjustments: brightness=%d rotation=%d split_mode=%d",
+        self.log.debug("_apply_adjustments: brightness=%d rotation=%d split_mode=%d",
                   self.brightness, rot, self.split_mode)
         if self.brightness >= 100 and rot == 0 and not self.split_mode:
             return image
@@ -502,7 +494,7 @@ class DisplayService:
             image = r.composite(image, overlay, (0, 0))
             return r.convert_to_rgb(image)
         except Exception as e:
-            log.error("Split overlay composite failed: %s", e)
+            self.log.error("Split overlay composite failed: %s", e)
             return image
 
     @staticmethod
@@ -603,7 +595,7 @@ class DisplayService:
 
         device = self.devices.selected
         if not device:
-            log.warning("_build_video_cache: no device selected — skipping")
+            self.log.warning("_build_video_cache: no device selected — skipping")
             return
         protocol, resolution, fbl, use_jpeg = device.encoding_params
         cache = VideoFrameCache()
@@ -623,10 +615,10 @@ class DisplayService:
         )
         self._cache = cache  # atomic assignment — GIL keeps this safe
         if self._cpu_percent_fn is not None:
-            log.info("video cache built: %d frames, trcc CPU %.1f%%",
+            self.log.info("video cache built: %d frames, trcc CPU %.1f%%",
                      len(self.media._frames), self._cpu_percent_fn())
         else:
-            log.info("video cache built: %d frames", len(self.media._frames))
+            self.log.info("video cache built: %d frames", len(self.media._frames))
 
     def update_video_cache_text(self, metrics: Any) -> None:
         """Update text overlay in cache once per refresh interval.
@@ -676,32 +668,32 @@ class DisplayService:
         Returns:
             Result dict with success/error/message.
         """
-        log.info("run_video_loop: path=%s overlay=%s mask=%s loop=%s duration=%s",
+        self.log.info("run_video_loop: path=%s overlay=%s mask=%s loop=%s duration=%s",
                  video_path, bool(overlay_config), bool(mask_path), loop, duration)
 
         # 1. Load video
         w, h = self.canvas_size
         self.media.set_target_size(w, h)
         if not self.media.load(video_path):
-            log.error("run_video_loop: failed to load %s", video_path)
+            self.log.error("run_video_loop: failed to load %s", video_path)
             return {"success": False, "error": f"Failed to load: {video_path}"}
 
         self._convert_media_frames()
 
         total = self.media.state.total_frames
         fps = self.media.state.fps
-        log.info("run_video_loop: loaded %d frames, %.0ffps, %dx%d", total, fps, w, h)
+        self.log.info("run_video_loop: loaded %d frames, %.0ffps, %dx%d", total, fps, w, h)
 
         # 2. Set up overlay if config or mask provided
         if overlay_config or mask_path:
             if overlay_config:
-                log.debug("run_video_loop: overlay config with %d elements", len(overlay_config))
+                self.log.debug("run_video_loop: overlay config with %d elements", len(overlay_config))
                 self.overlay.set_config(overlay_config)
             if mask_path:
                 mask_img = OverlayService.load_mask_from_path(
                     Path(mask_path), self.overlay._renderer, w, h)
                 if mask_img is not None:
-                    log.debug("run_video_loop: mask loaded from %s", mask_path)
+                    self.log.debug("run_video_loop: mask loaded from %s", mask_path)
                     self.overlay.set_theme_mask(mask_img)
             self.overlay.enabled = True
 
@@ -845,7 +837,7 @@ class DisplayService:
 
     def send_current_image(self) -> bytes | None:
         """Prepare current image for LCD send. Returns encoded bytes or None."""
-        log.debug("send_current_image: has_image=%s overlay_enabled=%s",
+        self.log.debug("send_current_image: has_image=%s overlay_enabled=%s",
                   self.current_image is not None, self.overlay.enabled)
         if not self.current_image:
             return None

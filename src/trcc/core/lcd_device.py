@@ -62,6 +62,9 @@ class LCDDevice(Device):
         self._build_services_fn = build_services_fn
         self._proxy: Any = None  # Set when routing through another instance
 
+        # Per-device child logger — tagged with device index after connect
+        self.log: logging.Logger = log  # module-level until connect sets device label
+
         # Per-device orientation — owns rotation + resolved dirs.
         # Shared by reference with DisplayService after connect.
         self.orientation = Orientation(0, 0)
@@ -198,6 +201,23 @@ class LCDDevice(Device):
 
         self._build_services(svc)
         dev = svc.selected
+
+        # Tag this device's logger chain with its index
+        label = f'lcd:{dev.device_index}'
+        self.log = logging.getLogger(f'{__name__}.{label}')
+        if hasattr(self.log, 'dev'):
+            self.log.dev = label  # type: ignore[attr-defined]
+        if self._display_svc:
+            self._display_svc.log = logging.getLogger(f'trcc.services.display.{label}')
+            if hasattr(self._display_svc.log, 'dev'):
+                self._display_svc.log.dev = label  # type: ignore[attr-defined]
+            if self._display_svc.overlay:
+                self._display_svc.overlay.log = logging.getLogger(f'trcc.services.overlay.{label}')
+                if hasattr(self._display_svc.overlay.log, 'dev'):
+                    self._display_svc.overlay.log.dev = label  # type: ignore[attr-defined]
+        self.log.info("connected: %s [%04X:%04X] %dx%d",
+                      dev.path, dev.vid, dev.pid, *dev.resolution)
+
         w, h = dev.resolution
         if w and h and self._display_svc:
             self._display_svc.set_resolution(w, h)
@@ -398,7 +418,7 @@ class LCDDevice(Device):
             ovl.enabled = True
             # Track mask source for theme save
             self._display_svc._mask_source_dir = p if p.is_dir() else p.parent
-            log.debug("load_mask_standalone: _mask_source_dir=%s", self._display_svc._mask_source_dir)
+            self.log.debug("load_mask_standalone: _mask_source_dir=%s", self._display_svc._mask_source_dir)
             # Use current theme bg, fall back to black
             bg = self._display_svc._clean_background or \
                 self._display_svc.current_image or \
@@ -454,7 +474,7 @@ class LCDDevice(Device):
                         center_pos[1] - mask_h // 2,
                     )
         except Exception as e:
-            log.warning("DC config parse failed for %s — using centered mask position: %s",
+            self.log.warning("DC config parse failed for %s — using centered mask position: %s",
                         dc_path, e)
         # Fallback: center the mask
         return ((lcd_w - mask_w) // 2, (lcd_h - mask_h) // 2)
@@ -480,7 +500,7 @@ class LCDDevice(Device):
 
     def send(self, image: Any) -> dict:
         """Encode and async-send image to LCD device."""
-        log.debug("send: image=%s", type(image).__name__ if image else None)
+        self.log.debug("send: image=%s", type(image).__name__ if image else None)
         if not self._device_svc.selected:
             return {"success": False, "error": "No device selected"}
         w, h = self.lcd_size
@@ -580,7 +600,7 @@ class LCDDevice(Device):
         old_theme_dir = svc.theme_dir
         # Save before _reload_theme_for_rotation → select() clobbers it
         saved_mask_dir = svc._mask_source_dir
-        log.debug("set_rotation: %d° saved_mask_dir=%s old_theme_dir=%s",
+        self.log.debug("set_rotation: %d° saved_mask_dir=%s old_theme_dir=%s",
                   degrees, saved_mask_dir,
                   old_theme_dir.path if old_theme_dir else None)
         image = svc.set_rotation(degrees)
@@ -592,20 +612,20 @@ class LCDDevice(Device):
         new_theme_dir = svc.theme_dir
         theme_dir_changed = (old_theme_dir != new_theme_dir)
         if old_canvas != svc.canvas_size and theme_dir_changed:
-            log.info("set_rotation: theme dir changed %s→%s, reloading",
+            self.log.info("set_rotation: theme dir changed %s→%s, reloading",
                      old_theme_dir.path if old_theme_dir else None,
                      new_theme_dir.path if new_theme_dir else None)
             reloaded = self._reload_theme_for_rotation()
             if reloaded is not None:
                 image = reloaded
         elif old_canvas != svc.canvas_size:
-            log.info("set_rotation: canvas changed %s→%s but theme dir "
+            self.log.info("set_rotation: canvas changed %s→%s but theme dir "
                      "unchanged — pixel-rotating only",
                      old_canvas, svc.canvas_size)
 
         # Mask dir switches independently — reload from saved reference
         if not self.orientation.is_square and saved_mask_dir:
-            log.info("set_rotation: reloading mask from saved_mask_dir=%s",
+            self.log.info("set_rotation: reloading mask from saved_mask_dir=%s",
                      saved_mask_dir)
             image = self._reload_mask_for_rotation(svc, saved_mask_dir) or image
 
@@ -622,7 +642,7 @@ class LCDDevice(Device):
         """
         current = self.current_theme_path
         if not current:
-            log.debug("_reload_theme_for_rotation: no current_theme_path")
+            self.log.debug("_reload_theme_for_rotation: no current_theme_path")
             return None
         theme_name = current.name
         svc = self._display_svc
@@ -631,7 +651,7 @@ class LCDDevice(Device):
                 continue
             candidate = Path(base) / theme_name
             if candidate.exists():
-                log.info("_reload_theme_for_rotation: %s → %s", theme_name, candidate)
+                self.log.info("_reload_theme_for_rotation: %s → %s", theme_name, candidate)
                 theme = self._theme_info_from_dir_fn(candidate)
                 result = self.select(theme)
 
@@ -647,7 +667,7 @@ class LCDDevice(Device):
                 else:
                     self.enable_overlay(False)
                 return result.get('image')
-        log.debug("_reload_theme_for_rotation: theme '%s' not in new dirs", theme_name)
+        self.log.debug("_reload_theme_for_rotation: theme '%s' not in new dirs", theme_name)
         return None
 
     def _reload_mask_for_rotation(
@@ -664,16 +684,24 @@ class LCDDevice(Device):
         """
         old_mask_dir = saved_mask_dir or svc._mask_source_dir
         if not old_mask_dir or not svc.masks_dir:
-            log.debug("_reload_mask_for_rotation: no mask dir to reload "
+            self.log.debug("_reload_mask_for_rotation: no mask dir to reload "
                       "(old=%s, masks_dir=%s)", old_mask_dir, svc.masks_dir)
             return None
         mask_name = old_mask_dir.name
         new_mask_dir = Path(svc.masks_dir) / mask_name
         if new_mask_dir.exists():
-            log.info("_reload_mask_for_rotation: %s → %s", old_mask_dir, new_mask_dir)
+            self.log.info("_reload_mask_for_rotation: %s → %s", old_mask_dir, new_mask_dir)
+            # DC first — sets overlay resolution + positions for new orientation
+            overlay_cfg = self.load_overlay_config_from_dir(str(new_mask_dir))
+            if overlay_cfg:
+                if self._lcd_config:
+                    self._lcd_config.apply_format_prefs(overlay_cfg)
+                self.set_config(overlay_cfg)
+                self.enable_overlay(True)
+            # Then mask PNG composites at correct dims
             self.load_mask_standalone(str(new_mask_dir))
             return svc._render_and_process()
-        log.debug("_reload_mask_for_rotation: mask '%s' not in new masks dir %s",
+        self.log.debug("_reload_mask_for_rotation: mask '%s' not in new masks dir %s",
                   mask_name, svc.masks_dir)
         svc.overlay.set_theme_mask(None)
         svc._mask_source_dir = None
@@ -842,7 +870,7 @@ class LCDDevice(Device):
 
     def select(self, theme: Any) -> dict:
         """Select and load a theme (local or cloud)."""
-        log.debug("select: theme=%s type=%s",
+        self.log.debug("select: theme=%s type=%s",
                   getattr(theme, 'name', theme),
                   type(theme).__name__)
         self._theme_svc.select(theme)
@@ -1031,7 +1059,7 @@ class LCDDevice(Device):
         ):
             new_frame = self._display_svc.render_overlay()
             if new_frame:
-                log.debug("tick: new overlay frame rendered")
+                self.log.debug("tick: new overlay frame rendered")
                 self._last_overlay_frame = new_frame
         image = new_frame or getattr(self, '_last_overlay_frame', None) or self._display_svc.current_image
         if image:
@@ -1100,7 +1128,7 @@ class LCDDevice(Device):
         """
         if not self._display_svc:
             return {"success": False, "error": "DisplayService not initialized"}
-        log.info("play_video_loop: %s overlay=%s mask=%s",
+        self.log.info("play_video_loop: %s overlay=%s mask=%s",
                  video_path, bool(overlay_config), bool(mask_path))
         from pathlib import Path
         return self._display_svc.run_video_loop(
@@ -1283,7 +1311,7 @@ class LCDDevice(Device):
         if not self._display_svc:
             return {"success": False, "error": "Not connected"}
         data_dir = Path(data_dir)
-        log.debug("LCDDevice: initializing, data_dir=%s", data_dir)
+        self.log.debug("LCDDevice: initializing, data_dir=%s", data_dir)
         self._display_svc.initialize(data_dir)
         self._theme_svc.set_directories(
             local_dir=self._display_svc.local_dir,

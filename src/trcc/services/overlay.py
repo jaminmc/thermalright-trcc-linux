@@ -35,7 +35,13 @@ class OverlayService:
     def __init__(self, width: int = 0, height: int = 0,
                  renderer: Renderer | None = None,
                  load_config_json_fn: Any = None,
-                 dc_config_cls: Any = None) -> None:
+                 dc_config_cls: Any = None,
+                 device_label: str = '') -> None:
+        # Per-device child logger
+        self.log: logging.Logger = logging.getLogger(f'{__name__}.{device_label}' if device_label else __name__)
+        if hasattr(self.log, 'dev'):
+            self.log.dev = device_label or '-'  # type: ignore[attr-defined]
+
         # Rendering backend (Strategy pattern) — must be injected
         if renderer is None:
             raise RuntimeError(
@@ -88,7 +94,7 @@ class OverlayService:
 
     def set_resolution(self, w: int, h: int) -> None:
         """Update LCD resolution. Clears font cache and background."""
-        log.debug("overlay.set_resolution: %dx%d → %dx%d", self.width, self.height, w, h)
+        self.log.debug("overlay.set_resolution: %dx%d → %dx%d", self.width, self.height, w, h)
         self.width = w
         self.height = h
         self._renderer.clear_font_cache()
@@ -103,7 +109,7 @@ class OverlayService:
 
     @enabled.setter
     def enabled(self, value: bool) -> None:
-        log.debug("Overlay %s", "enabled" if value else "disabled")
+        self.log.debug("Overlay %s", "enabled" if value else "disabled")
         self._enabled = value
 
     # ── Format detection ────────────────────────────────────────────
@@ -126,7 +132,7 @@ class OverlayService:
         (VideoPlayer pre-resizes frames).
         """
         if image is None:
-            log.debug("overlay.set_background: None")
+            self.log.debug("overlay.set_background: None")
             self.background = None
             return
 
@@ -149,7 +155,7 @@ class OverlayService:
 
     def set_config(self, config: dict) -> None:
         """Set overlay config dict directly."""
-        log.info("overlay.set_config: %d elements", len(config) if config else 0)
+        self.log.info("overlay.set_config: %d elements", len(config) if config else 0)
         self.config = config
         self._invalidate_cache()
 
@@ -197,7 +203,7 @@ class OverlayService:
         Returns:
             display_options dict (may contain 'animation_file', etc.).
         """
-        log.info("load_from_dc: %s", dc_path)
+        self.log.info("load_from_dc: %s", dc_path)
         from ..core.models import ThemeDir
 
         json_path = ThemeDir(dc_path.parent).json if dc_path else None
@@ -211,12 +217,12 @@ class OverlayService:
                     self.set_dc_data({'display_options': display_options})
                     return display_options
             except Exception as e:
-                log.warning("Failed to load config.json, falling back to DC: %s", e)
+                self.log.warning("Failed to load config.json, falling back to DC: %s", e)
 
         if not dc_path or not dc_path.exists():
             return {}
         if self._dc_config_cls is None:
-            log.warning("DcConfig class not injected, cannot parse DC file")
+            self.log.warning("DcConfig class not injected, cannot parse DC file")
             return {}
         try:
             dc = self._dc_config_cls(dc_path)
@@ -226,7 +232,7 @@ class OverlayService:
             self.set_dc_data(dc.to_dict())
             return dc.display_options
         except Exception as e:
-            log.error("Failed to parse DC file: %s", e)
+            self.log.error("Failed to parse DC file: %s", e)
             return {}
 
     # ── Mask ─────────────────────────────────────────────────────────
@@ -241,7 +247,7 @@ class OverlayService:
         Masks are kept at original size (not stretched) and positioned
         at the bottom by default for partial overlays.
         """
-        log.debug("overlay.set_theme_mask: image=%s position=%s",
+        self.log.debug("overlay.set_theme_mask: image=%s position=%s",
                   type(image).__name__ if image else None, position)
         if image is None:
             self.theme_mask = None
@@ -343,7 +349,7 @@ class OverlayService:
                     _CACHE_KEY_NAMES, self._cache_key, new_key)
                 if old != new
             ]
-            log.debug("overlay cache invalidated — changed: %s", ', '.join(changed))
+            self.log.debug("overlay cache invalidated — changed: %s", ', '.join(changed))
         return True
 
     def _build_cache_key(self, metrics: HardwareMetrics) -> tuple:
@@ -422,7 +428,7 @@ class OverlayService:
         Returns:
             Native surface (QImage).
         """
-        log.debug("overlay.render: has_bg=%s has_mask=%s enabled=%s",
+        self.log.debug("overlay.render: has_bg=%s has_mask=%s enabled=%s",
                   background is not None, self.theme_mask is not None, self.enabled)
         if background is not None and background is not self.background:
             self.set_background(background)

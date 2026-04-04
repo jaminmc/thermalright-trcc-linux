@@ -434,7 +434,12 @@ class TestLCDDeviceSettings(unittest.TestCase):
 
     @patch.object(LCDDevice, '_persist')
     def test_rotation_skips_theme_reload_when_only_web_mask_dirs(self, _):
-        """No theme reload when only web/mask portrait dirs exist."""
+        """No theme reload when only web/mask portrait dirs exist.
+
+        Canvas stays landscape (no portrait theme dir), so the canvas
+        doesn't change and _reload_theme_for_rotation is never called.
+        Local themes pixel-rotate via image_rotation instead.
+        """
         from pathlib import Path
         lcd, _ = _make_real_lcd()
         lcd._display_svc.set_resolution(1280, 480)
@@ -448,8 +453,8 @@ class TestLCDDeviceSettings(unittest.TestCase):
             result = lcd.set_rotation(90)
         self.assertTrue(result['success'])
         mock_reload.assert_not_called()
-        # Canvas still swapped because has_rotated_dirs is True
-        self.assertEqual(lcd._display_svc.canvas_size, (480, 1280))
+        # Canvas stays landscape — no portrait theme dir
+        self.assertEqual(lcd._display_svc.canvas_size, (1280, 480))
 
     @patch.object(LCDDevice, '_persist')
     def test_rotation_fires_theme_reload_when_portrait_theme_dir(self, _):

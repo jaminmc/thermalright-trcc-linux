@@ -178,6 +178,14 @@ class DeviceService:
                 fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
                 if fbl:
                     dev.fbl_code = fbl
+                pm = getattr(result, 'pm_byte', 0)
+                sub = getattr(result, 'sub_byte', 0)
+                if pm:
+                    dev.pm_byte = pm
+                if sub:
+                    dev.sub_byte = sub
+                log.debug("discover_resolution: %s fbl=%s pm=%d sub=%d",
+                          dev.path, fbl, pm, sub)
         except Exception as e:
             log.warning(
                 "Resolution discovery failed for %s [%04X:%04X]: %s",

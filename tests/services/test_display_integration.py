@@ -265,20 +265,20 @@ class TestBrightnessRotationRealImages:
         assert abs(g - 200) <= 1
 
 
-class TestRotationBackgroundResize:
-    """_clean_background must match canvas after rotation on non-square devices."""
+class TestRotationWebOnlyNoCanvasSwap:
+    """Web-only portrait dirs don't swap canvas — local themes pixel-rotate."""
 
-    def test_rotation_90_rotates_clean_background(
+    def test_rotation_90_canvas_stays_landscape(
         self, renderer: Any, mock_media: MagicMock, mock_path_resolver: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """Non-square 90° rotation pixel-rotates _clean_background to portrait dims."""
+        """Non-square 90° with web-only portrait dirs: canvas stays landscape."""
         devices = MagicMock()
         devices.selected.encoding_params = ('scsi', (1280, 480), None, False)
         overlay = OverlayService(1280, 480, renderer=renderer)
         svc = DisplayService(devices, overlay, mock_media, path_resolver=mock_path_resolver)
         svc.set_resolution(1280, 480)
-        # Set up portrait web dir so has_rotated_dirs is True
+        # Portrait web dir exists but no portrait theme dir
         web_dir = tmp_path / 'data' / 'web' / '4801280'
         web_dir.mkdir(parents=True)
         svc.orientation.portrait_web_dir = web_dir
@@ -289,34 +289,13 @@ class TestRotationBackgroundResize:
 
         svc.set_rotation(90)
 
+        # Canvas stays landscape — no portrait theme dir
+        assert svc.canvas_size == (1280, 480)
+        # Background unchanged (pixel-rotation happens in _apply_adjustments)
         bg_w, bg_h = renderer.surface_size(svc._clean_background)
-        assert (bg_w, bg_h) == (480, 1280), f"Expected (480, 1280), got ({bg_w}, {bg_h})"
-        ci_w, ci_h = renderer.surface_size(svc.current_image)
-        assert (ci_w, ci_h) == (480, 1280), f"Expected (480, 1280), got ({ci_w}, {ci_h})"
-
-    def test_rotation_back_to_0_restores_landscape(
-        self, renderer: Any, mock_media: MagicMock, mock_path_resolver: MagicMock,
-        tmp_path: Path,
-    ) -> None:
-        """Rotating back to 0° restores background to landscape dims."""
-        devices = MagicMock()
-        devices.selected.encoding_params = ('scsi', (1280, 480), None, False)
-        overlay = OverlayService(1280, 480, renderer=renderer)
-        svc = DisplayService(devices, overlay, mock_media, path_resolver=mock_path_resolver)
-        svc.set_resolution(1280, 480)
-        web_dir = tmp_path / 'data' / 'web' / '4801280'
-        web_dir.mkdir(parents=True)
-        svc.orientation.portrait_web_dir = web_dir
-
-        bg = renderer.create_surface(1280, 480, (100, 50, 200))
-        svc._clean_background = bg
-        svc.current_image = bg
-
-        svc.set_rotation(90)
-        svc.set_rotation(0)
-
-        bg_w, bg_h = renderer.surface_size(svc._clean_background)
-        assert (bg_w, bg_h) == (1280, 480), f"Expected (1280, 480), got ({bg_w}, {bg_h})"
+        assert (bg_w, bg_h) == (1280, 480)
+        # image_rotation returns actual degrees for pixel-rotate
+        assert svc._image_rotation == 90
 
 
 # ═════════════════════════════════════════════════════════════════════════

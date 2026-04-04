@@ -44,6 +44,40 @@ log = logging.getLogger(__name__)
 _DEFAULT_LOG_FILE = Path.home() / '.trcc' / 'trcc.log'
 
 
+class DeviceLogger(logging.Logger):
+    """Logger subclass that tags every record with a device identifier.
+
+    Device-owned services create child loggers with a device label
+    (e.g. ``logging.getLogger('trcc.services.display.lcd:0')``).
+    Setting ``logger.dev = 'lcd:0'`` flows into every log record
+    via ``makeRecord``. Format string uses ``%(dev)s``.
+    """
+
+    def __init__(self, name: str, level: int = logging.NOTSET) -> None:
+        super().__init__(name, level)
+        self.dev = '-'
+
+    def makeRecord(self, *args: Any, **kwargs: Any) -> logging.LogRecord:
+        record = super().makeRecord(*args, **kwargs)
+        record.dev = self.dev  # type: ignore[attr-defined]
+        return record
+
+
+# Register before any getLogger() calls in this module or importers.
+logging.setLoggerClass(DeviceLogger)
+
+
+class _DeviceDefaultFilter(logging.Filter):
+    """Ensure ``%(dev)s`` is always present — covers loggers created
+    before ``setLoggerClass`` (stdlib, third-party).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, 'dev'):
+            record.dev = '-'  # type: ignore[attr-defined]
+        return True
+
+
 class TrccLoggingConfigurator(ABC):
     """Port: TRCC application logging configuration.
 
@@ -69,7 +103,7 @@ class StandardLoggingConfigurator(TrccLoggingConfigurator):
     updates log output.
     """
 
-    FORMAT = '%(asctime)s [%(levelname)s] %(name)s.%(funcName)s: %(message)s'
+    FORMAT = '%(asctime)s [%(levelname)s] [%(dev)s] %(name)s.%(funcName)s: %(message)s'
     DATE_FMT = '%Y-%m-%d %H:%M:%S'
     DATE_FMT_CONSOLE = '%H:%M:%S'
 
@@ -87,11 +121,12 @@ class StandardLoggingConfigurator(TrccLoggingConfigurator):
         root.setLevel(logging.DEBUG)
 
         self._log_file.parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.handlers.RotatingFileHandler(
-            self._log_file, maxBytes=1_000_000, backupCount=3,
-        )
+        dev_filter = _DeviceDefaultFilter()
+
+        fh = logging.FileHandler(self._log_file, mode='w')
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(logging.Formatter(self.FORMAT, datefmt=self.DATE_FMT))
+        fh.addFilter(dev_filter)
         root.addHandler(fh)
 
         console_level = (
@@ -102,6 +137,7 @@ class StandardLoggingConfigurator(TrccLoggingConfigurator):
         ch = logging.StreamHandler()
         ch.setLevel(console_level)
         ch.setFormatter(logging.Formatter(self.FORMAT, datefmt=self.DATE_FMT_CONSOLE))
+        ch.addFilter(dev_filter)
         root.addHandler(ch)
 
 

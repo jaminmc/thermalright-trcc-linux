@@ -64,6 +64,7 @@ class LCDHandler(BaseHandler):
         self._w = widgets  # preview, theme_setting, theme_local, etc.
         self._data_dir = data_dir
         self._is_visible = is_visible_fn or (lambda: True)
+        self.log: logging.Logger = log  # module-level until apply_device_config
 
         # Per-device state
         self._device_key = ''
@@ -112,6 +113,11 @@ class LCDHandler(BaseHandler):
         """First-time device setup + full widget refresh."""
         self._device_key = Settings.device_config_key(
             device.device_index, device.vid, device.pid)
+        # Per-device child logger — tags handler logs with device index
+        label = f'lcd:{device.device_index}'
+        self.log: logging.Logger = logging.getLogger(f'{__name__}.{label}')
+        if hasattr(self.log, 'dev'):
+            self.log.dev = label  # type: ignore[attr-defined]
         Settings.save_device_setting(self._device_key, 'w', w)
         Settings.save_device_setting(self._device_key, 'h', h)
         self._lcd.set_data_ready_callback(self._data_notifier.ready.emit)
@@ -127,7 +133,7 @@ class LCDHandler(BaseHandler):
         Device is already configured (resolution + dirs) from connect().
         This just syncs the shared GUI widgets to show this device's data.
         """
-        log.debug("_refresh: device_key=%s resolution=%dx%d", self._device_key, w, h)
+        self.log.debug("_refresh: device_key=%s resolution=%dx%d", self._device_key, w, h)
         cfg = Settings.get_device_config(self._device_key) if self._device_key else {}
 
         self._w['preview'].set_resolution(w, h)
@@ -154,13 +160,13 @@ class LCDHandler(BaseHandler):
 
     def _restore_brightness(self, cfg: dict) -> None:
         self._brightness_level = cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL)
-        log.info("Restoring brightness: %d%%", self._brightness_level)
+        self.log.info("Restoring brightness: %d%%", self._brightness_level)
         self._lcd.set_brightness(self._brightness_level)
 
     def _restore_rotation(self, cfg: dict) -> None:
         rotation_index = cfg.get('rotation', 0) // 90
         rotation = rotation_index * 90
-        log.debug("_restore_rotation: rotation=%d", rotation)
+        self.log.debug("_restore_rotation: rotation=%d", rotation)
         self._lcd.set_rotation(rotation)
         self._w['rotation_combo'].blockSignals(True)
         self._w['rotation_combo'].setCurrentIndex(rotation_index)
@@ -172,7 +178,7 @@ class LCDHandler(BaseHandler):
     def _restore_split_mode(self, cfg: dict, w: int, h: int) -> None:
         self._split_mode = cfg.get('split_mode', 2)
         self._ldd_is_split = (w, h) in SPLIT_MODE_RESOLUTIONS
-        log.debug("_restore_split_mode: split_mode=%d ldd_is_split=%s", self._split_mode, self._ldd_is_split)
+        self.log.debug("_restore_split_mode: split_mode=%d ldd_is_split=%s", self._split_mode, self._ldd_is_split)
         if self._ldd_is_split:
             if not self._split_mode:
                 self._split_mode = 2
@@ -202,7 +208,7 @@ class LCDHandler(BaseHandler):
 
     def _restore_theme_and_preview(self, cfg: dict) -> None:
         """Restore last theme + overlay, or clear preview if none."""
-        log.debug("_restore_theme_and_preview: cfg keys=%s", list(cfg.keys()))
+        self.log.debug("_restore_theme_and_preview: cfg keys=%s", list(cfg.keys()))
         result = self._lcd.restore_last_theme()
         if result.get("success"):
             image = result.get("image")
@@ -238,7 +244,7 @@ class LCDHandler(BaseHandler):
 
     def _select_theme(self, theme: ThemeInfo, *, send_frame: bool = True) -> None:
         """Select theme and handle result."""
-        log.info("Theme selected: %s (animated=%s)", theme.name, theme.is_animated)
+        self.log.info("Theme selected: %s (animated=%s)", theme.name, theme.is_animated)
         self._pixmap_cache.clear()
         payload = self._lcd.select(theme)
         image = payload.get('image')
@@ -261,10 +267,10 @@ class LCDHandler(BaseHandler):
     def _select_theme_from_path(self, path: Path, persist: bool = True,
                                 overlay_config: bool = True) -> None:
         """Load a local/mask theme by directory path."""
-        log.info("_select_theme_from_path: %s persist=%s overlay_config=%s",
+        self.log.info("_select_theme_from_path: %s persist=%s overlay_config=%s",
                  path, persist, overlay_config)
         if not path.exists():
-            log.warning("_select_theme_from_path: path does not exist: %s", path)
+            self.log.warning("_select_theme_from_path: path does not exist: %s", path)
             return
         self._slideshow_timer.stop()
         self._lcd.enable_overlay(False)
@@ -285,14 +291,14 @@ class LCDHandler(BaseHandler):
             self._load_theme_overlay_config(path, persist=persist)
 
         if persist and self._device_key:
-            log.info("Saving theme_name: %s (key=%s)", path.name, self._device_key)
+            self.log.info("Saving theme_name: %s (key=%s)", path.name, self._device_key)
             Settings.save_device_setting(self._device_key, 'theme_name', path.name)
             Settings.save_device_setting(self._device_key, 'theme_type', 'local')
             Settings.save_device_setting(self._device_key, 'mask_id', '')
 
     def select_cloud_theme(self, theme_info: Any) -> None:
         """Handle cloud theme selection (video backgrounds)."""
-        log.info("select_cloud_theme: %s (video=%s)", theme_info.name,
+        self.log.info("select_cloud_theme: %s (video=%s)", theme_info.name,
                  getattr(theme_info, 'video', None))
         self._slideshow_timer.stop()
         self._background_active = False
@@ -313,14 +319,16 @@ class LCDHandler(BaseHandler):
 
     def apply_mask(self, mask_info: Any) -> None:
         """Apply mask overlay on top of current content."""
-        log.info("apply_mask: %s path=%s", mask_info.name, mask_info.path)
+        self.log.info("apply_mask: %s path=%s", mask_info.name, mask_info.path)
         if mask_info.path:
             mask_dir = Path(mask_info.path)
+            # DC first — sets overlay resolution + element positions for this mask
+            self._load_theme_overlay_config(mask_dir, persist=False)
+            # Then mask PNG composites at the correct dims
             result = self._lcd.load_mask_standalone(str(mask_dir))
             image = result.get('image')
             if image:
                 self._w['preview'].set_image(image)
-            self._load_theme_overlay_config(mask_dir, persist=False)
             if self._device_key:
                 is_custom = getattr(mask_info, 'is_custom', False)
                 Settings.save_device_setting(
@@ -366,11 +374,11 @@ class LCDHandler(BaseHandler):
     def _load_theme_overlay_config(self, theme_dir: Path,
                                     *, persist: bool = True) -> None:
         """Load overlay config from theme's config.json or config1.dc."""
-        log.info("_load_theme_overlay_config: dir=%s persist=%s", theme_dir, persist)
+        self.log.info("_load_theme_overlay_config: dir=%s persist=%s", theme_dir, persist)
         overlay_config = self._lcd.load_overlay_config_from_dir(str(theme_dir))
 
         if not overlay_config:
-            log.info("_load_theme_overlay_config: no DC found → overlay disabled")
+            self.log.info("_load_theme_overlay_config: no DC found → overlay disabled")
             self._w['theme_setting'].set_overlay_enabled(False)
             if persist and self._device_key:
                 Settings.save_device_setting(self._device_key, 'overlay', {
@@ -379,7 +387,7 @@ class LCDHandler(BaseHandler):
             self._render_and_send()
             return
 
-        log.info("_load_theme_overlay_config: DC loaded, %d elements → overlay enabled",
+        self.log.info("_load_theme_overlay_config: DC loaded, %d elements → overlay enabled",
                  len(overlay_config))
         Settings.apply_format_prefs(overlay_config)
         self._w['theme_setting'].set_overlay_enabled(True)
@@ -397,7 +405,7 @@ class LCDHandler(BaseHandler):
     # ── Video (C# ucBoFangQiKongZhi1) ─────────────────────────────
 
     def play_pause(self) -> None:
-        log.debug("play_pause")
+        self.log.debug("play_pause")
         result = self._lcd.pause()
         playing = result.get('state') == 'playing'
         self._w['preview'].set_playing(playing)
@@ -407,7 +415,7 @@ class LCDHandler(BaseHandler):
             self._animation_timer.stop()
 
     def stop_video(self) -> None:
-        log.debug("stop_video")
+        self.log.debug("stop_video")
         self._lcd.stop()
         self._animation_timer.stop()
         self._w['preview'].set_playing(False)
@@ -429,7 +437,7 @@ class LCDHandler(BaseHandler):
             return
         frame_index = result.get('frame_index')
         if frame_index is not None and frame_index % 30 == 0:
-            log.debug("_on_video_tick: frame=%d encoded=%s", frame_index, result.get('encoded') is not None)
+            self.log.debug("_on_video_tick: frame=%d encoded=%s", frame_index, result.get('encoded') is not None)
 
         # Update progress bar
         progress = result.get('progress')
@@ -461,7 +469,7 @@ class LCDHandler(BaseHandler):
         encoded = result.get('encoded')
         if encoded is not None:
             w, h = self._lcd.lcd_size
-            log.debug("_on_video_tick: sending encoded frame %s (%dx%d, %d bytes)",
+            self.log.debug("_on_video_tick: sending encoded frame %s (%dx%d, %d bytes)",
                       result.get('frame_index'), w, h, len(encoded))
             self._lcd.device_service.send_rgb565_async(encoded, w, h)
             return
@@ -470,21 +478,21 @@ class LCDHandler(BaseHandler):
         send_img = result.get('send_image')
         if send_img:
             w, h = self._lcd.lcd_size
-            log.debug("_on_video_tick: sending raw frame %s (%dx%d)", result.get('frame_index'), w, h)
+            self.log.debug("_on_video_tick: sending raw frame %s (%dx%d)", result.get('frame_index'), w, h)
             self._lcd.frame.send_async(send_img, w, h)
 
     # ── Overlay (C# ucXiTongXianShi1) ─────────────────────────────
 
     def on_overlay_changed(self, element_data: dict) -> None:
         """Forward overlay config change from settings panel."""
-        log.debug("on_overlay_changed: %d elements", len(element_data) if element_data else 0)
+        self.log.debug("on_overlay_changed: %d elements", len(element_data) if element_data else 0)
         if not element_data:
             return
         if not self._lcd.enabled:
             self._lcd.enable_overlay(True)
         self._lcd.set_config(element_data)
         if self._lcd.playing and self._lcd.last_metrics is not None:
-            log.debug("on_overlay_changed: video playing — updating cache text overlay")
+            self.log.debug("on_overlay_changed: video playing — updating cache text overlay")
             self._lcd.update_video_cache_text(self._lcd.last_metrics)
         else:
             self._render_and_send()
@@ -503,7 +511,7 @@ class LCDHandler(BaseHandler):
         """Metrics tick: video cache text update only."""
         if not self._lcd.connected or not self._lcd.playing:
             return
-        log.debug("overlay_tick: video playing — updating cache text overlay")
+        self.log.debug("overlay_tick: video playing — updating cache text overlay")
         self._lcd.update_video_cache_text(metrics)
 
     def flash_element(self, index: int) -> None:
@@ -519,7 +527,7 @@ class LCDHandler(BaseHandler):
     # ── Display Settings ───────────────────────────────────────────
 
     def set_brightness(self, percent: int) -> None:
-        log.debug("set_brightness: %d%%", percent)
+        self.log.debug("set_brightness: %d%%", percent)
         self._brightness_level = percent
         result = self._lcd.set_brightness(percent)
         image = result.get('image')
@@ -529,14 +537,14 @@ class LCDHandler(BaseHandler):
                 self._lcd.send(image)
 
     def set_rotation(self, degrees: int) -> None:
-        log.debug("set_rotation: degrees=%d", degrees)
+        self.log.debug("set_rotation: degrees=%d", degrees)
         result = self._lcd.set_rotation(degrees)  # Handles dir switch + theme reload
         image = result.get('image')
         if self._device_key:
             Settings.save_device_setting(self._device_key, 'rotation', degrees)
         o = self._lcd.orientation
         ow, oh = o.output_resolution
-        log.info("set_rotation: orientation.rotation=%d output=%dx%d "
+        self.log.info("set_rotation: orientation.rotation=%d output=%dx%d "
                  "masks_dir=%s web_dir=%s is_portrait=%s",
                  o.rotation, ow, oh, o.masks_dir, o.web_dir, o.is_portrait)
         # Resolution BEFORE image — ImageLabel.set_image() scales to widget dims
@@ -546,7 +554,7 @@ class LCDHandler(BaseHandler):
         self._update_theme_directories()
 
     def set_split_mode(self, mode: int) -> None:
-        log.debug("set_split_mode: mode=%d", mode)
+        self.log.debug("set_split_mode: mode=%d", mode)
         self._split_mode = mode
         result = self._lcd.set_split_mode(mode)
         image = result.get('image')
@@ -561,7 +569,7 @@ class LCDHandler(BaseHandler):
 
     def on_background_toggle(self, enabled: bool) -> None:
         """Handle background display toggle."""
-        log.debug("on_background_toggle: enabled=%s", enabled)
+        self.log.debug("on_background_toggle: enabled=%s", enabled)
         self._background_active = enabled
         if enabled:
             self._animation_timer.stop()
@@ -581,7 +589,7 @@ class LCDHandler(BaseHandler):
     # ── Slideshow / Carousel ───────────────────────────────────────
 
     def _update_slideshow_state(self) -> None:
-        log.debug("_update_slideshow_state")
+        self.log.debug("_update_slideshow_state")
         local = self._w['theme_local']
         if local.is_slideshow() and local.get_slideshow_themes():
             interval_s = local.get_slideshow_interval()
@@ -626,7 +634,7 @@ class LCDHandler(BaseHandler):
 
         Skipped when video/screencast is active — those own the device.
         """
-        log.debug("_render_and_send: playing=%s overlay_enabled=%s has_image=%s",
+        self.log.debug("_render_and_send: playing=%s overlay_enabled=%s has_image=%s",
                   self._lcd.playing, self._lcd.enabled,
                   self._lcd.current_image is not None)
         if self._lcd.playing:
@@ -654,7 +662,7 @@ class LCDHandler(BaseHandler):
         """
         o = self._lcd.orientation
         ow, oh = o.output_resolution
-        log.debug("_update_theme_directories: output=%dx%d theme_dir=%s "
+        self.log.debug("_update_theme_directories: output=%dx%d theme_dir=%s "
                   "web_dir=%s masks_dir=%s is_portrait=%s",
                   ow, oh,
                   o.theme_dir.path if o.theme_dir else None,
@@ -677,7 +685,7 @@ class LCDHandler(BaseHandler):
             if not saved_cfg.get('theme_path'):
                 for item in sorted(td.path.iterdir()):
                     if item.is_dir() and (item / '00.png').exists():
-                        log.info("Data ready: auto-loading first theme: %s", item)
+                        self.log.info("Data ready: auto-loading first theme: %s", item)
                         self._select_theme_from_path(item, persist=True, overlay_config=True)
                         return True
         return False

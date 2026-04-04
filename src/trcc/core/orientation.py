@@ -66,8 +66,13 @@ class Orientation:
 
     @property
     def swaps_dirs(self) -> bool:
-        """True when portrait dirs exist and rotation is 90/270."""
-        return self.is_portrait and self.has_rotated_dirs
+        """True when portrait THEME dir exists and rotation is 90/270.
+
+        Only theme dirs trigger canvas swap. Web/mask dirs swap
+        independently via their own properties — they don't affect
+        canvas_resolution or image_rotation.
+        """
+        return self.is_portrait and self.portrait_theme_dir is not None
 
     # ── Resolution properties ───────────────────────────────────────
 

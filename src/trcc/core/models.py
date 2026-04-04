@@ -337,6 +337,7 @@ class DeviceInfo:
     device_type: int = 1  # 1=SCSI, 2=HID Type 2 ("H"), 3=HID Type 3 ("ALi")
     implementation: str = "generic"  # e.g. "thermalright_lcd_v1", "hid_type2", "hid_led"
     button_image: str = "A1CZTV"    # Sidebar image prefix (resolved from detection or handshake PM+SUB)
+    pm_byte: int = 0                # Raw PM from handshake (for button image lookup)
     sub_byte: int = 0               # Raw SUB from handshake (for encode rotation lookup)
     led_style_id: Optional[int] = None  # LED style from probe (avoids name-based lookup)
     led_style_sub: int = 0              # LED style sub-variant (C# nowLedStyleSub)

@@ -133,23 +133,23 @@ class TestOrientationNonSquare:
         o.rotation = 90
         assert o.canvas_resolution == (1280, 480)
 
-    # With web/mask portrait dirs only (no portrait themes) — dir swap
-    def test_web_only_portrait_swaps_dirs(self):
+    # With web/mask portrait dirs only (no portrait themes) — no canvas swap
+    def test_web_only_portrait_no_canvas_swap(self):
         o = self._make(with_portrait=False)
         o.portrait_web_dir = Path('/data/web/4801280')
         o.portrait_masks_dir = Path('/data/web/zt4801280')
         o.rotation = 90
         assert o.has_rotated_dirs is True
-        assert o.swaps_dirs is True
-        assert o.canvas_resolution == (480, 1280)
-        assert o.image_rotation == 0
+        assert o.swaps_dirs is False  # no portrait theme dir
+        assert o.canvas_resolution == (1280, 480)  # stays landscape
+        assert o.image_rotation == 90  # pixel-rotate
 
-    def test_web_only_portrait_theme_falls_back_to_landscape(self):
+    def test_web_only_portrait_dirs_swap_independently(self):
         o = self._make(with_portrait=False)
         o.portrait_web_dir = Path('/data/web/4801280')
         o.rotation = 90
-        assert 'theme1280480' in str(o.theme_dir.path)
-        assert str(o.web_dir) == '/data/web/4801280'
+        assert 'theme1280480' in str(o.theme_dir.path)  # theme stays landscape
+        assert str(o.web_dir) == '/data/web/4801280'  # web swaps to portrait
 
     # With all portrait dirs — dir swap
     def test_portrait_swaps_dirs_true_at_90(self):

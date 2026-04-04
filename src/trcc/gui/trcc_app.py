@@ -448,13 +448,16 @@ class TRCCApp(QMainWindow):
                 if self._ipc_server and lcd_handler.display.device_service:
                     lcd_handler.display.device_service.on_frame_sent = self._ipc_server.capture_frame
 
-        # Resolve button image from handshake FBL/PM before sidebar builds.
-        # For SCSI: pm_byte=0, so fbl_code is used as PM (matches C# USBLCD.exe).
+        # Resolve button image from handshake PM+SUB before sidebar builds.
+        # HID devices: pm_byte != fbl_code (e.g. PM=63 → FBL=114).
+        # SCSI devices: pm_byte=0, fall back to fbl_code.
         if info.fbl_code:
             from ..core.models import get_button_image
-            pm = info.fbl_code
-            sub = 0
-            btn_img = get_button_image(pm, sub)
+            effective_pm = info.pm_byte or info.fbl_code
+            sub = info.sub_byte
+            log.debug("button image lookup: pm_byte=%d fbl=%d effective_pm=%d sub=%d",
+                      info.pm_byte, info.fbl_code, effective_pm, sub)
+            btn_img = get_button_image(effective_pm, sub)
             if btn_img:
                 product = btn_img.replace('A1', '', 1).replace('_', ' ')
                 info.button_image = btn_img
@@ -550,7 +553,7 @@ class TRCCApp(QMainWindow):
         path: str = payload['path']
         image: Any = payload['image']
         handler = self._handlers.get(path)
-        if isinstance(handler, LCDHandler):
+        if isinstance(handler, LCDHandler) and path == self._active_path:
             handler.update_preview(image)
 
     # ── Sleep monitor ───────────────────────────────────────────────
