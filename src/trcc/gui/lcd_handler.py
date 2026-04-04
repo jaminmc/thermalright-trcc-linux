@@ -275,6 +275,13 @@ class LCDHandler(BaseHandler):
         self._slideshow_timer.stop()
         self._lcd.enable_overlay(False)
 
+        # Reset overlay to canvas (landscape) dims — local themes pixel-rotate
+        svc = self._lcd._display_svc
+        if svc:
+            cw, ch = svc.canvas_size
+            svc.overlay.set_resolution(cw, ch)
+            self.log.debug("_select_theme_from_path: overlay reset to canvas %dx%d", cw, ch)
+
         # Reset mode toggles (C# ReadSystemConfiguration override)
         self._background_active = False
         self._animation_timer.stop()

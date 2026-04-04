@@ -390,8 +390,17 @@ class LCDDevice(Device):
         if not self._display_svc:
             return {"success": False, "error": "Display service not initialized"}
 
-        w, h = self._display_svc.canvas_size
         p = Path(mask_path)
+        # zt masks at portrait rotation use output_resolution (portrait dims).
+        # Theme built-in masks and landscape use canvas_size (native landscape).
+        mask_dir = p if p.is_dir() else p.parent
+        is_zt = mask_dir.parent.name.startswith('zt')
+        if is_zt and self.orientation.is_portrait:
+            w, h = self._display_svc.output_resolution
+            self._display_svc.overlay.set_resolution(w, h)
+            self.log.info("load_mask_standalone: portrait zt mask → overlay %dx%d", w, h)
+        else:
+            w, h = self._display_svc.canvas_size
         if p.is_dir():
             mask_file = p / "01.png"
             if not mask_file.exists():
@@ -623,11 +632,18 @@ class LCDDevice(Device):
                      "unchanged — pixel-rotating only",
                      old_canvas, svc.canvas_size)
 
-        # Mask dir switches independently — reload from saved reference
+        # Mask dir switches independently — reload only zt masks (not theme built-in).
+        # Theme masks (theme{w}{h}/ThemeName) pixel-rotate with the theme.
+        # zt masks (zt{w}{h}/maskName) switch to the portrait dir.
         if not self.orientation.is_square and saved_mask_dir:
-            self.log.info("set_rotation: reloading mask from saved_mask_dir=%s",
-                     saved_mask_dir)
-            image = self._reload_mask_for_rotation(svc, saved_mask_dir) or image
+            is_zt_mask = saved_mask_dir.parent.name.startswith('zt')
+            if is_zt_mask:
+                self.log.info("set_rotation: reloading zt mask from saved_mask_dir=%s",
+                         saved_mask_dir)
+                image = self._reload_mask_for_rotation(svc, saved_mask_dir) or image
+            else:
+                self.log.debug("set_rotation: skipping mask reload — "
+                          "theme built-in mask %s", saved_mask_dir)
 
         return {"success": True, "image": image,
                 "message": f"Rotation set to {degrees}°"}
@@ -691,14 +707,23 @@ class LCDDevice(Device):
         new_mask_dir = Path(svc.masks_dir) / mask_name
         if new_mask_dir.exists():
             self.log.info("_reload_mask_for_rotation: %s → %s", old_mask_dir, new_mask_dir)
-            # DC first — sets overlay resolution + positions for new orientation
+            # Set overlay resolution for new orientation FIRST
+            if self.orientation.is_portrait:
+                ow, oh = svc.output_resolution
+                svc.overlay.set_resolution(ow, oh)
+                self.log.info("_reload_mask_for_rotation: portrait → overlay %dx%d", ow, oh)
+            else:
+                cw, ch = svc.canvas_size
+                svc.overlay.set_resolution(cw, ch)
+                self.log.info("_reload_mask_for_rotation: landscape → overlay %dx%d", cw, ch)
+            # DC second — positions match overlay resolution
             overlay_cfg = self.load_overlay_config_from_dir(str(new_mask_dir))
             if overlay_cfg:
                 if self._lcd_config:
                     self._lcd_config.apply_format_prefs(overlay_cfg)
                 self.set_config(overlay_cfg)
                 self.enable_overlay(True)
-            # Then mask PNG composites at correct dims
+            # Mask PNG last — composites at correct dims
             self.load_mask_standalone(str(new_mask_dir))
             return svc._render_and_process()
         self.log.debug("_reload_mask_for_rotation: mask '%s' not in new masks dir %s",
@@ -1187,8 +1212,10 @@ class LCDDevice(Device):
                 "message": f"Overlay: {'on' if on else 'off'}"}
 
     def set_config(self, config: dict) -> dict:
-        w, h = self.lcd_size
-        self._display_svc.overlay.set_config_resolution(w, h)
+        # Use current overlay resolution — matches content orientation
+        ovl = self._display_svc.overlay
+        w, h = ovl.width, ovl.height
+        ovl.set_config_resolution(w, h)
         self._display_svc.overlay.set_config(config)
         return {"success": True, "message": f"Overlay config: {len(config)} elements"}
 
