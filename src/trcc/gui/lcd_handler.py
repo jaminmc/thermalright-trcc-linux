@@ -111,6 +111,8 @@ class LCDHandler(BaseHandler):
 
     def apply_device_config(self, device: DeviceInfo, w: int, h: int) -> None:
         """First-time device setup + full widget refresh."""
+        self.log.info("apply_device_config: device_index=%d %04x:%04x %dx%d",
+                      device.device_index, device.vid, device.pid, w, h)
         self._device_key = Settings.device_config_key(
             device.device_index, device.vid, device.pid)
         # Per-device child logger — tags handler logs with device index
@@ -155,8 +157,10 @@ class LCDHandler(BaseHandler):
 
     def _on_data_ready(self) -> None:
         """Background data extraction finished — re-probe dirs and update UI."""
+        self.log.info("_on_data_ready: refreshing dirs and theme lists")
         self._lcd.refresh_dirs()
-        self._update_theme_directories()
+        auto_loaded = self._update_theme_directories()
+        self.log.info("_on_data_ready: done, auto_loaded=%s", auto_loaded)
 
     def _restore_brightness(self, cfg: dict) -> None:
         self._brightness_level = cfg.get('brightness_level', DEFAULT_BRIGHTNESS_LEVEL)
@@ -210,6 +214,9 @@ class LCDHandler(BaseHandler):
         """Restore last theme + overlay, or clear preview if none."""
         self.log.debug("_restore_theme_and_preview: cfg keys=%s", list(cfg.keys()))
         result = self._lcd.restore_last_theme()
+        if not result.get("success"):
+            self.log.info("_restore_theme_and_preview: no saved theme — %s",
+                          result.get("error", "unknown"))
         if result.get("success"):
             image = result.get("image")
             is_animated = result.get("is_animated", False)
@@ -302,6 +309,8 @@ class LCDHandler(BaseHandler):
             Settings.save_device_setting(self._device_key, 'theme_name', path.name)
             Settings.save_device_setting(self._device_key, 'theme_type', 'local')
             Settings.save_device_setting(self._device_key, 'mask_id', '')
+        elif persist and not self._device_key:
+            self.log.warning("_select_theme_from_path: not persisting — device_key is empty")
 
     def select_cloud_theme(self, theme_info: Any) -> None:
         """Handle cloud theme selection (video backgrounds)."""
@@ -695,6 +704,7 @@ class LCDHandler(BaseHandler):
                         self.log.info("Data ready: auto-loading first theme: %s", item)
                         self._select_theme_from_path(item, persist=True, overlay_config=True)
                         return True
+                self.log.debug("_update_theme_directories: no valid theme found for auto-load in %s", td.path)
         return False
 
     @property

@@ -216,6 +216,7 @@ class DisplayService:
     def set_resolution(self, width: int, height: int) -> None:
         """Set LCD resolution and update sub-services."""
         if width == self._width and height == self._height:
+            self.log.debug("set_resolution: no change (%dx%d)", width, height)
             return
         self.log.info("Resolution changed: %dx%d -> %dx%d",
                  self._width, self._height, width, height)

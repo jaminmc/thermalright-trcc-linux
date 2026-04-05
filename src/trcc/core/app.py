@@ -137,6 +137,8 @@ class TrccApp:
         """
         detect_fn = self._builder.build_detect_fn()
         found: list[DetectedDevice] = detect_fn()
+        log.info("scan: detected %d device(s): %s", len(found),
+                 ", ".join(f"{d.path} ({d.protocol})" for d in found) or "(none)")
 
         self._devices = {}
         lock = threading.Lock()
@@ -148,6 +150,9 @@ class TrccApp:
             except Exception:
                 log.warning("scan: connect failed for %s — skipping", detected.path)
                 return
+            info = device.device_info
+            res = getattr(info, 'resolution', (0, 0)) if info else (0, 0)
+            log.info("scan: connected %s %dx%d", detected.path, *res)
             with lock:
                 self._devices[detected.path] = device
                 self._wire_device(device)
@@ -161,7 +166,7 @@ class TrccApp:
         for t in threads:
             t.join(timeout=30)
 
-        log.debug("scan: %d device(s) found", len(self._devices))
+        log.info("scan: %d of %d device(s) connected", len(self._devices), len(found))
         self._notify(AppEvent.DEVICES_CHANGED, list(self._devices.values()))
         return list(self._devices.values())
 
@@ -175,9 +180,13 @@ class TrccApp:
         before starting its UI.  Blocks until data is ready so the UI always
         starts with themes present — no empty-list-then-populate flash.
         """
+        log.info("bootstrap: init_platform")
         self.init_platform(renderer_factory=renderer_factory)
+        log.info("bootstrap: scanning devices")
         devices = self.scan()
+        log.info("bootstrap: ensuring data for %d device(s)", len(devices))
         self._ensure_data_blocking()
+        log.info("bootstrap: complete")
         return devices
 
     def init_platform(
@@ -216,45 +225,72 @@ class TrccApp:
         """
         ensure_fn = self._ensure_data_fn
         if ensure_fn is None:
+            log.warning("_ensure_data_blocking: no ensure_fn injected — skipping")
             return
+        log.info("_ensure_data_blocking: processing %d device(s)", len(self._devices))
         seen: set[tuple[int, int]] = set()
         for device in self._devices.values():
+            path = getattr(device.device_info, 'path', '?') if device.device_info else '?'
             if not device.is_lcd:
+                log.debug("_ensure_data_blocking: skip non-LCD %s", path)
                 continue
             info = device.device_info
             w, h = getattr(info, 'resolution', (0, 0))
-            if w and h and (w, h) not in seen:
-                seen.add((w, h))
-                ensure_fn(w, h, progress_fn=lambda msg: self._notify(AppEvent.BOOTSTRAP_PROGRESS, msg))
-                device.notify_data_ready()
+            if not (w and h):
+                log.warning("_ensure_data_blocking: skip %s — resolution (0,0)", path)
+                continue
+            if (w, h) in seen:
+                log.debug("_ensure_data_blocking: skip %s — duplicate %dx%d", path, w, h)
+                continue
+            seen.add((w, h))
+            log.info("_ensure_data_blocking: ensuring data %dx%d for %s", w, h, path)
+            ensure_fn(w, h, progress_fn=lambda msg: self._notify(AppEvent.BOOTSTRAP_PROGRESS, msg))
+            device.notify_data_ready()
+        log.info("_ensure_data_blocking: done — %d resolution(s) processed", len(seen))
 
     def _ensure_data_background(self, device: Device, w: int, h: int) -> None:
         """Ensure theme data in a background thread (hotplug path)."""
         ensure_fn = self._ensure_data_fn
+        path = getattr(device.device_info, 'path', '?') if device.device_info else '?'
+        log.info("_ensure_data_background: starting %dx%d for %s", w, h, path)
 
         def _bg() -> None:
-            if ensure_fn is not None:
-                ensure_fn(w, h)
-            device.notify_data_ready()
+            try:
+                if ensure_fn is not None:
+                    ensure_fn(w, h)
+                else:
+                    log.warning("_ensure_data_background: no ensure_fn for %s", path)
+                device.notify_data_ready()
+                log.info("_ensure_data_background: done %dx%d for %s", w, h, path)
+            except Exception:
+                log.exception("_ensure_data_background: failed %dx%d for %s", w, h, path)
 
         threading.Thread(target=_bg, daemon=True, name="data-extract").start()
 
     def device_connected(self, detected: DetectedDevice) -> None:
         """Build, connect, and register a newly discovered device, notify observers."""
+        log.info("device_connected: hotplug %s (%s)", detected.path, detected.protocol)
         device = self._builder.build_device(detected)
         try:
             device.connect(detected)
         except Exception:
             log.warning("device_connected: connect failed for %s", detected.path)
             return
+        info = device.device_info
+        res = getattr(info, 'resolution', (0, 0)) if info else (0, 0)
+        log.info("device_connected: connected %s %dx%d", detected.path, *res)
         self._devices[detected.path] = device
         self._wire_device(device)
         # Hotplug: ensure data in background (UI already running, can't block).
         if device.is_lcd:
-            info = device.device_info
-            w, h = getattr(info, 'resolution', (0, 0))
+            w, h = res
             if w and h:
+                log.info("device_connected: triggering data download %dx%d", w, h)
                 self._ensure_data_background(device, w, h)
+            else:
+                log.warning("device_connected: LCD %s has no resolution — skipping data download", detected.path)
+        else:
+            log.debug("device_connected: non-LCD %s — no data download needed", detected.path)
         self._notify(AppEvent.DEVICE_CONNECTED, device)
 
     def device_lost(self, path: str) -> None:
@@ -280,7 +316,10 @@ class TrccApp:
         if isinstance(device, LCDDevice):
             self._lcd_device = device
             log.debug("LCD device ready: %s", getattr(device, 'device_path', '?'))
-            device.initialize_pipeline(self._settings)
+            if self._settings is not None:
+                device.initialize_pipeline(self._settings)
+            else:
+                log.warning("_wire_device: settings not initialized — skipping pipeline init")
         elif isinstance(device, LEDDevice):
             self._led_device = device
             log.debug("LED device ready: %s", getattr(device, 'device_path', '?'))

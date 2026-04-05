@@ -23,6 +23,7 @@ def _forward_to_proxy(method):
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         if self._proxy is not None:
+            log.debug("proxy forward: %s → %s", method.__name__, type(self._proxy).__name__)
             return getattr(self._proxy, method.__name__)(*args, **kwargs)
         return method(self, *args, **kwargs)
     return wrapper
@@ -78,10 +79,12 @@ class LEDDevice(Device):
         Returns: {"success": bool, "status": str}
         """
         if self._svc:
+            log.debug("LED connect: already connected (status=%s)", self._init_status)
             return {"success": True, "status": self._init_status or ""}
 
         proxy_result = self._try_proxy_route(detected)
         if proxy_result is not None:
+            log.info("LED connect: routing through proxy instance")
             proxy_result["status"] = f"Connected (via {proxy_result['proxy'].value})"
             return proxy_result
 
@@ -95,6 +98,8 @@ class LEDDevice(Device):
             (d for d in self._device_svc.devices
              if d.implementation == 'hid_led'), None)
         if not led_dev:
+            log.warning("LED connect: no LED device found in %d detected devices",
+                        len(self._device_svc.devices))
             return {"success": False, "error": "No LED device found"}
 
         self._device = led_dev
@@ -469,17 +474,23 @@ class LEDDevice(Device):
     def tick(self) -> None:
         """Advance one LED animation frame and send to hardware."""
         if not self._svc:
+            log.debug("tick: no service — skipping")
             return
         colors = self._svc.tick()
         if self._svc.has_protocol:
-            self._svc.send_colors(colors)
+            ok = self._svc.send_colors(colors)
+            if not ok:
+                log.warning("tick: send_colors failed")
 
     def tick_with_result(self) -> dict:
         """Advance one animation frame. Returns colors + display_colors (GUI use)."""
         if not self._svc:
+            log.debug("tick_with_result: no service — skipping")
             return {"colors": [], "display_colors": []}
         colors = self._svc.tick()
         display_colors = self._svc.apply_mask(colors)
         if self._svc.has_protocol:
-            self._svc.send_colors(colors)
+            ok = self._svc.send_colors(colors)
+            if not ok:
+                log.warning("tick_with_result: send_colors failed")
         return {"colors": colors, "display_colors": display_colors}

@@ -308,6 +308,7 @@ class LedHidSender(LedDevice):
             True if all chunks were sent successfully.
         """
         if self._sending:
+            log.debug("send_led_data: already sending — skipped")
             return False
 
         self._sending = True
@@ -329,7 +330,8 @@ class LedHidSender(LedDevice):
 
             return True
 
-        except Exception:
+        except Exception as e:
+            log.warning("send_led_data: failed: %s", e)
             return False
         finally:
             self._sending = False

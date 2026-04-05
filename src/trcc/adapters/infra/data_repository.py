@@ -19,7 +19,7 @@ import logging
 import os
 import shutil
 import subprocess
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from ...core.models import ThemeDir  # noqa: F401 — re-export for back-compat
 from ...core.paths import (
@@ -160,6 +160,7 @@ class DataManager:
     @staticmethod
     def extract_7z(archive: str, target_dir: str) -> bool:
         """Extract a .7z archive into target_dir using 7z CLI. Returns True on success."""
+        log.debug("extract_7z: %s → %s", archive, target_dir)
         os.makedirs(target_dir, exist_ok=True)
         try:
             # Validate archive members before extraction (zip-slip prevention)
@@ -168,17 +169,20 @@ class DataManager:
                 capture_output=True, text=True, timeout=30,
                 creationflags=_NO_WINDOW,
             )
-            if listing.returncode == 0:
-                archive_norm = os.path.normpath(archive)
-                for line in listing.stdout.splitlines():
-                    if line.startswith('Path = '):
-                        member = line[7:]
-                        # Skip the archive path itself (7z lists it first)
-                        if os.path.normpath(member) == archive_norm:
-                            continue
-                        if not DataManager.is_safe_archive_member(member):
-                            log.warning("Blocked unsafe archive member: %s", member)
-                            return False
+            if listing.returncode != 0:
+                log.warning("extract_7z: listing failed (rc=%d): %s",
+                            listing.returncode, listing.stderr.strip())
+                return False
+            archive_norm = os.path.normpath(archive)
+            for line in listing.stdout.splitlines():
+                if line.startswith('Path = '):
+                    member = line[7:]
+                    # Skip the archive path itself (7z lists it first)
+                    if os.path.normpath(member) == archive_norm:
+                        continue
+                    if not DataManager.is_safe_archive_member(member):
+                        log.warning("Blocked unsafe archive member: %s", member)
+                        return False
 
             result = subprocess.run(
                 ['7z', 'x', archive, f'-o{target_dir}', '-y'],
@@ -186,16 +190,17 @@ class DataManager:
                 creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
-                log.info("Extracted %s", os.path.basename(archive))
+                log.info("extract_7z: OK %s", os.path.basename(archive))
                 return True
-            log.warning("7z failed (rc=%d): %s", result.returncode, result.stderr.decode())
+            log.warning("extract_7z: failed (rc=%d): %s",
+                        result.returncode, result.stderr.decode(errors='replace'))
         except FileNotFoundError:
             log.warning(
-                "7z not found — cannot extract %s\n%s",
+                "extract_7z: 7z not found — cannot extract %s\n%s",
                 archive, DataManager._7z_install_help(),
             )
         except Exception as e:
-            log.warning("7z extraction failed: %s", e)
+            log.warning("extract_7z: failed: %s", e)
         return False
 
     # ------------------------------------------------------------------
@@ -337,11 +342,16 @@ class DataManager:
         for base in (_PKG_DATA_DIR, DataManager._data_dir()):
             path = os.path.join(base, subdir, archive_name) if subdir else os.path.join(base, archive_name)
             if os.path.isfile(path):
+                log.debug("_fetch_archive: found local %s", path)
                 return path
+            log.debug("_fetch_archive: not at %s", path)
         user = os.path.join(DataManager._data_dir(), subdir, archive_name) if subdir else os.path.join(DataManager._data_dir(), archive_name)
         url_path = f'{subdir}/{archive_name}' if subdir else archive_name
-        if DataManager.download_archive(DataManager.GITHUB_BASE_URL + url_path, user):
+        url = DataManager.GITHUB_BASE_URL + url_path
+        log.info("_fetch_archive: downloading %s", url)
+        if DataManager.download_archive(url, user):
             return user
+        log.warning("_fetch_archive: all sources exhausted for %s", archive_name)
         return None
 
     # ------------------------------------------------------------------
@@ -419,18 +429,23 @@ class DataManager:
             else:
                 log.info(msg)
 
-        # All ensure_* are idempotent — each checks for existing content before extracting
-        _report(f"Downloading themes for {width}x{height}...")
-        DataManager.ensure_themes(width, height)
-        _report(f"Downloading web previews for {width}x{height}...")
-        DataManager.ensure_web(width, height)
-        _report(f"Downloading mask themes for {width}x{height}...")
-        DataManager.ensure_web_masks(width, height)
+        def _run(label: str, fn: callable, *args: Any) -> None:  # type: ignore[type-arg]
+            _report(f"Downloading {label}...")
+            try:
+                ok = fn(*args)
+                if not ok:
+                    log.warning("ensure_all: %s returned False", label)
+            except Exception:
+                log.exception("ensure_all: %s failed", label)
+
+        log.info("ensure_all: starting %dx%d", width, height)
+        _run(f"themes {width}x{height}", DataManager.ensure_themes, width, height)
+        _run(f"web {width}x{height}", DataManager.ensure_web, width, height)
+        _run(f"masks {width}x{height}", DataManager.ensure_web_masks, width, height)
         if width != height:
-            _report(f"Downloading web previews for {height}x{width}...")
-            DataManager.ensure_web(height, width)
-            _report(f"Downloading mask themes for {height}x{width}...")
-            DataManager.ensure_web_masks(height, width)
+            log.debug("ensure_all: non-square — also ensuring portrait %dx%d", height, width)
+            _run(f"web {height}x{width}", DataManager.ensure_web, height, width)
+            _run(f"masks {height}x{width}", DataManager.ensure_web_masks, height, width)
         DataManager.mark_resolution_installed(width, height)
         _report(f"Data ready for {width}x{height}.")
 

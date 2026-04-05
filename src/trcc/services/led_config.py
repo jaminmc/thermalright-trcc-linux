@@ -83,6 +83,7 @@ def load_led_config(
         dev_config = get_config_fn(device_key)
         led_config = dev_config.get('led_config', {})
         if not led_config:
+            log.debug("load_led_config: no led_config in device %s — using defaults", device_key)
             return
 
         # Backward-compat aliases (v5.0.x: zone_carousel → zone_sync)

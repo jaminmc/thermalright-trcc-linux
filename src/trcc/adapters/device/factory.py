@@ -519,8 +519,10 @@ class _BulkLikeProtocol(DeviceProtocol):
 
     def _ensure_device(self) -> None:
         if self._device is None:
+            log.debug("%s: creating device %04X:%04X", self._label, self._vid, self._pid)
             self._device = self._make_device(self._vid, self._pid)
             assert self._device is not None
+            log.debug("%s: starting handshake", self._label)
             result = self._device.handshake()
             self._handshake_result = result
             if result.resolution:
@@ -528,7 +530,8 @@ class _BulkLikeProtocol(DeviceProtocol):
                 log.info("%s handshake OK: PM=%d, resolution=%s",
                          self._label, result.model_id, result.resolution)
             else:
-                log.warning("%s handshake: no resolution detected", self._label)
+                log.warning("%s handshake: no resolution detected (result=%s)",
+                            self._label, result)
 
     def _do_handshake(self) -> Optional[HandshakeResult]:
         self._ensure_device()
@@ -678,6 +681,7 @@ class DeviceProtocolFactory:
         """
         protocol = getattr(device_info, 'protocol', 'scsi')
         implementation = getattr(device_info, 'implementation', '')
+        log.debug("create_protocol: protocol=%s impl=%s", protocol, implementation)
 
         factory_fn = cls._PROTOCOL_REGISTRY.get(
             (protocol, implementation),
@@ -687,9 +691,8 @@ class DeviceProtocolFactory:
             raise ValueError(f"Unknown protocol: {protocol!r}")
 
         result = factory_fn(device_info)
-        log.info("Created %s for %s", type(result).__name__,
-                 getattr(device_info, 'path',
-                         f'{device_info.vid:04X}:{device_info.pid:04X}'))
+        path = getattr(device_info, 'path', f'{device_info.vid:04X}:{device_info.pid:04X}')
+        log.info("create_protocol: %s for %s", type(result).__name__, path)
         return result
 
     @classmethod
@@ -704,7 +707,10 @@ class DeviceProtocolFactory:
         """
         key = cls._device_key(device_info)
         if key not in cls._protocols:
+            log.debug("get_protocol: cache miss for %s — creating", key)
             cls._protocols[key] = cls.create_protocol(device_info)
+        else:
+            log.debug("get_protocol: cache hit for %s", key)
         return cls._protocols[key]
 
     @classmethod

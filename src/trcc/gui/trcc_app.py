@@ -405,13 +405,18 @@ class TRCCApp(QMainWindow):
              if h.device_info and h.device_info.device_index == last_idx),
             None,
         )
-        if not target:
+        if target:
+            log.debug("_rebuild_all_handlers: restored last device index=%d path=%s", last_idx, target)
+        else:
             target = next(
                 (p for p, h in self._handlers.items() if isinstance(h, LCDHandler)),
                 next(iter(self._handlers), None),
             )
+            log.debug("_rebuild_all_handlers: fallback to first LCD/device: %s", target)
         if target:
             self._activate_device(target)
+        else:
+            log.warning("_rebuild_all_handlers: no device to activate")
 
     def _add_handler(self, device: Any) -> None:
         """Create handler for one new device."""
@@ -421,6 +426,7 @@ class TRCCApp(QMainWindow):
             return
         path = info.path
 
+        added = False
         match device:
             case LEDDevice() if path not in self._handlers:
                 handler: BaseHandler = LEDHandler(
@@ -428,6 +434,7 @@ class TRCCApp(QMainWindow):
                     make_timer=self._make_timer)
                 self._handlers[path] = handler
                 log.info("LED handler added: %s", path)
+                added = True
             case LCDDevice() if path not in self._handlers:
                 widgets = {
                     'preview': self.uc_preview,
@@ -444,9 +451,13 @@ class TRCCApp(QMainWindow):
                     is_visible_fn=self.is_app_visible)
                 self._handlers[path] = lcd_handler
                 log.info("LCD handler added: %s", path)
+                added = True
                 # Wire IPC frame capture if server is already running
                 if self._ipc_server and lcd_handler.display.device_service:
                     lcd_handler.display.device_service.on_frame_sent = self._ipc_server.capture_frame
+        if not added and path not in self._handlers:
+            log.warning("_add_handler: unhandled device type %s path=%s — skipped",
+                        type(device).__name__, path)
 
         # Resolve button image from handshake PM+SUB before sidebar builds.
         # HID devices: pm_byte != fbl_code (e.g. PM=63 → FBL=114).
@@ -496,6 +507,7 @@ class TRCCApp(QMainWindow):
         """Switch panel stack to show the given device."""
         if path == self._active_path:
             return
+        log.info("_activate_device: %s", path)
         # Stop previous device's timers before switching — prevents
         # stale video frames writing to the shared preview widget.
         if self._active_path:
@@ -505,6 +517,8 @@ class TRCCApp(QMainWindow):
         self._active_path = path
         handler = self._handlers.get(path)
         if handler is None:
+            log.warning("_activate_device: no handler for path=%s (known: %s)",
+                        path, list(self._handlers.keys()))
             return
 
         # Persist last active device so we restore it on next launch
@@ -517,15 +531,19 @@ class TRCCApp(QMainWindow):
                 if info:
                     w, h = info.resolution
                     if (w, h) == (0, 0):
+                        log.debug("_activate_device: LCD %s resolution (0,0) — starting handshake", path)
                         self._start_handshake(info)
                     elif not handler.device_key:
+                        log.debug("_activate_device: LCD %s first-time config %dx%d", path, w, h)
                         handler.apply_device_config(info, w, h)
                         self._update_ldd_icon()
                     else:
+                        log.debug("_activate_device: LCD %s reactivate %dx%d", path, w, h)
                         handler.reactivate(w, h)
         elif isinstance(handler, LEDHandler):
             info = handler.device_info
             if info and not handler.active:
+                log.debug("_activate_device: LED %s — showing", path)
                 handler.show(info)
 
         self._show_view(handler.view_name)

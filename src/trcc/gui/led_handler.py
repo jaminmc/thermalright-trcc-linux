@@ -98,6 +98,8 @@ class LEDHandler(BaseHandler):
         self._style_id = led_style
 
         style_info = LED_STYLES.get(led_style)
+        if not style_info:
+            log.warning("LED show: unknown style %d — panel init skipped", led_style)
         if style_info:
             self._panel.initialize(
                 led_style, style_info.segment_count, style_info.zone_count,

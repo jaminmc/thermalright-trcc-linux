@@ -91,9 +91,12 @@ class LCDDevice(Device):
         res = getattr(info, 'resolution', (0, 0))
         if res and res != (0, 0):
             w, h = res
+            self.log.info("initialize_pipeline: %dx%d", w, h)
             settings.set_resolution(w, h)
             self.set_resolution(w, h)
             self.initialize(settings.user_data_dir)
+        else:
+            self.log.warning("initialize_pipeline: skipped — resolution is %s", res)
 
     def set_data_ready_callback(self, fn: Any) -> None:
         """Register a callback invoked when background data extraction completes."""
@@ -177,6 +180,7 @@ class LCDDevice(Device):
         """
         proxy_result = self._try_proxy_route(detected)
         if proxy_result is not None:
+            self.log.info("connect: routing through active proxy instance")
             self._set_proxy(self._proxy)
             proxy_result["resolution"] = getattr(self._proxy, 'resolution', (0, 0))
             proxy_result["device_path"] = getattr(self._proxy, 'device_path', '')
@@ -775,6 +779,7 @@ class LCDDevice(Device):
             old_path = cfg.get("theme_path")
             if not old_path:
                 return {"success": False, "error": "No saved theme"}
+            self.log.info("restore_last_theme: migrating old config theme_path=%s", old_path)
             video_exts = {'.mp4', '.avi', '.mkv', '.webm'}
             image_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif'}
             suffix = Path(old_path).suffix.lower()
@@ -787,6 +792,7 @@ class LCDDevice(Device):
             else:
                 theme_name = Path(old_path).name
                 theme_type = "local"
+            self.log.info("restore_last_theme: migrated → name=%s type=%s", theme_name, theme_type)
 
         # Resolve path from name + device resolution
         w, h = self.lcd_size
@@ -1319,16 +1325,18 @@ class LCDDevice(Device):
                 result = self._load_config_json_fn(str(json_path))
                 if result is not None:
                     overlay_config = result[0]
-            except Exception:
-                pass
+                    self.log.debug("load_overlay_config_from_dir: loaded from config.json")
+            except Exception as e:
+                self.log.warning("load_overlay_config_from_dir: config.json parse failed: %s", e)
 
         if overlay_config is None and self._dc_config_cls is not None:
             dc_path = p / 'config1.dc'
             if dc_path.exists():
                 try:
                     overlay_config = self._dc_config_cls(dc_path).to_overlay_config()
-                except Exception:
-                    pass
+                    self.log.debug("load_overlay_config_from_dir: loaded from config1.dc")
+                except Exception as e:
+                    self.log.warning("load_overlay_config_from_dir: config1.dc parse failed: %s", e)
 
         return overlay_config or None
 

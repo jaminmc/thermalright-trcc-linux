@@ -366,6 +366,7 @@ class Settings:
     @staticmethod
     def save_device_setting(key: str, setting: str, value):
         """Save a single setting for a device."""
+        log.debug("save_device_setting: %s.%s = %r", key, setting, value)
         config = load_config()
         devices = config.setdefault('devices', {})
         dev_cfg = devices.setdefault(key, {})

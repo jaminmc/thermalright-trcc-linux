@@ -392,6 +392,8 @@ class LEDService:
     def send_colors(self, colors: List[Tuple[int, int, int]]) -> bool:
         """Send pre-computed colors to device. Returns success."""
         if not colors or not self._protocol:
+            log.debug("send_colors: skipped (colors=%d, protocol=%s)",
+                       len(colors) if colors else 0, self._protocol is not None)
             return False
 
         send_colors = self.apply_mask(colors)
@@ -402,7 +404,7 @@ class LEDService:
                 send_colors, is_on, self.state.global_on, self.state.brightness
             )
         except Exception as e:
-            log.debug("LED send error: %s", e)
+            log.warning("send_colors: failed: %s", e)
             return False
 
     def send_tick(self) -> bool:
