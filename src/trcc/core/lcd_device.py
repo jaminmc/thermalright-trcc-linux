@@ -567,8 +567,6 @@ class LCDDevice(Device):
         self._persist('theme_dir', str(td.path) if td else None)
         self._persist('web_dir', str(o.landscape_web_dir) if o.landscape_web_dir else None)
         self._persist('masks_dir', str(o.landscape_masks_dir) if o.landscape_masks_dir else None)
-        self._persist('web_dir_portrait', str(o.portrait_web_dir) if o.portrait_web_dir else None)
-        self._persist('masks_dir_portrait', str(o.portrait_masks_dir) if o.portrait_masks_dir else None)
 
     def refresh_dirs(self) -> None:
         """Re-probe filesystem dirs and update config. Called after DATA_READY."""
@@ -814,13 +812,21 @@ class LCDDevice(Device):
             return {**result, "overlay_config": None,
                     "overlay_enabled": False, "is_animated": False}
         else:
-            # Local theme — use device's own orientation dirs
+            # Local theme — check primary dir, then user content dir
             td = self.orientation.theme_dir
             if not td:
                 return {"success": False, "error": "No theme directory"}
             path = td.path / theme_name
             if not path.exists():
-                return {"success": False, "error": f"Theme not found: {theme_name}"}
+                # Custom themes live in ~/.trcc-user/
+                pr = self._display_svc._path_resolver if self._display_svc else None
+                if pr:
+                    user_path = Path(pr.user_content_dir()) / td.path.name / theme_name
+                    if user_path.exists():
+                        self.log.info("restore_last_theme: found in user content dir: %s", user_path)
+                        path = user_path
+                if not path.exists():
+                    return {"success": False, "error": f"Theme not found: {theme_name}"}
             theme = self._theme_info_from_dir_fn(path, (w, h))
 
         result = self.select(theme)

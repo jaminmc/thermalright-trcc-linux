@@ -437,6 +437,10 @@ def resume(builder):
         print("No themes were sent. Use the GUI to set a theme first.")
         return 1
 
-    print(f"  [{lcd.device_path}] Sent")
+    is_animated = result.get("is_animated", False)
+    if is_animated:
+        print(f"  [{lcd.device_path}] Restored (animated — start GUI for playback)")
+    else:
+        print(f"  [{lcd.device_path}] Sent")
     print("Resumed 1 device.")
     return 0

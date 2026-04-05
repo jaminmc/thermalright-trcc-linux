@@ -253,8 +253,8 @@ class TestUpdateThemeDirectories:
         mock_lcd_device.select.assert_called(), "Should auto-load first theme on first install"
 
     @patch('trcc.gui.lcd_handler.Settings')
-    def test_skips_auto_load_when_saved_theme_exists(self, mock_settings, make_lcd_handler, mock_lcd_device, tmp_path):
-        """With no current image but a saved theme_path, skips auto-load to preserve user selection."""
+    def test_skips_auto_load_when_saved_theme_path_exists(self, mock_settings, make_lcd_handler, mock_lcd_device, tmp_path):
+        """With no current image but a saved theme_path (legacy), skips auto-load."""
         td = self._make_theme_dir(tmp_path)
         svc = mock_lcd_device._display_svc
         svc.lcd_width = 320
@@ -263,7 +263,7 @@ class TestUpdateThemeDirectories:
         svc.web_dir = None
         svc.masks_dir = None
 
-        # User has a saved theme — must not overwrite it
+        # Legacy config key — must still guard against auto-load
         mock_settings.get_device_config.return_value = {'theme_path': '/themes/MyTheme'}
 
         mock_lcd_device.current_image = None
@@ -275,6 +275,32 @@ class TestUpdateThemeDirectories:
 
         mock_lcd_device.select.assert_not_called(), \
             "Must not auto-load theme1 when user already has a saved theme_path"
+
+    @patch('trcc.gui.lcd_handler.Settings')
+    def test_skips_auto_load_when_saved_theme_name_exists(self, mock_settings, make_lcd_handler, mock_lcd_device, tmp_path):
+        """With no current image but a saved theme_name (current format), skips auto-load."""
+        td = self._make_theme_dir(tmp_path)
+        svc = mock_lcd_device._display_svc
+        svc.lcd_width = 320
+        svc.lcd_height = 320
+        svc.theme_dir = td
+        svc.web_dir = None
+        svc.masks_dir = None
+
+        # Current config format — theme_name, not theme_path
+        mock_settings.get_device_config.return_value = {
+            'theme_name': 'MyTheme', 'theme_type': 'local',
+        }
+
+        mock_lcd_device.current_image = None
+
+        h = make_lcd_handler(lcd=mock_lcd_device)
+        h._device_key = 'dev0'
+        mock_lcd_device.select.reset_mock()
+        h._update_theme_directories()
+
+        mock_lcd_device.select.assert_not_called(), \
+            "Must not auto-load theme1 when user already has a saved theme_name"
 
     @patch('trcc.gui.lcd_handler.Settings')
     def test_skips_auto_load_when_image_already_showing(self, mock_settings, make_lcd_handler, mock_lcd_device, tmp_path):
@@ -741,9 +767,15 @@ class TestThemeIO:
         td = MagicMock()
         td.exists.return_value = True
         mock_lcd_device.orientation.landscape_theme_dir = td
+        mock_lcd_device.current_theme_path = Path('/themes/Custom_MyTheme')
+        lcd_handler._device_key = 'dev0'
         lcd_handler.save_theme("MyTheme")
         mock_lcd_device.save.assert_called()
         lcd_handler._w['preview'].set_status.assert_called_with('Saved')
+        mock_settings_cls.save_device_setting.assert_any_call(
+            'dev0', 'theme_name', 'Custom_MyTheme')
+        mock_settings_cls.save_device_setting.assert_any_call(
+            'dev0', 'theme_type', 'local')
 
     def test_export_config(self, lcd_handler, mock_lcd_device):
         lcd_handler.export_config(Path('/out/theme.tr'))

@@ -1780,7 +1780,7 @@ class DebugReport:
                 for dev_key, dev_cfg in devices.items():
                     vid_pid = dev_cfg.get("vid_pid", "?")
                     parts = [f"vid_pid={vid_pid}"]
-                    for field in ("brightness_level", "rotation", "split_mode", "theme_path", "fbl"):
+                    for field in ("brightness_level", "rotation", "split_mode", "theme_name", "theme_type", "fbl"):
                         if field in dev_cfg:
                             parts.append(f"{field}={dev_cfg[field]}")
                     sec.lines.append(f"    [{dev_key}] {', '.join(parts)}")

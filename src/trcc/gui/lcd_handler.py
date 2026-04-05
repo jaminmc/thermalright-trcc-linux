@@ -369,8 +369,10 @@ class LCDHandler(BaseHandler):
             self._w['theme_local'].load_themes()
             if self._device_key and self._lcd.current_theme_path:
                 Settings.save_device_setting(
-                    self._device_key, 'theme_path',
-                    str(self._lcd.current_theme_path))
+                    self._device_key, 'theme_name',
+                    self._lcd.current_theme_path.name)
+                Settings.save_device_setting(
+                    self._device_key, 'theme_type', 'local')
 
     def export_config(self, path: Path) -> None:
         result = self._lcd.export_config(str(path))
@@ -698,7 +700,7 @@ class LCDHandler(BaseHandler):
         # First install: themes just extracted — load first one onto LCD + preview
         if self._lcd.current_image is None and td and td.path.exists():
             saved_cfg = Settings.get_device_config(self._device_key) if self._device_key else {}
-            if not saved_cfg.get('theme_path'):
+            if not saved_cfg.get('theme_name') and not saved_cfg.get('theme_path'):
                 for item in sorted(td.path.iterdir()):
                     if item.is_dir() and (item / '00.png').exists():
                         self.log.info("Data ready: auto-loading first theme: %s", item)

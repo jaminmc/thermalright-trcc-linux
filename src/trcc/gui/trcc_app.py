@@ -418,6 +418,15 @@ class TRCCApp(QMainWindow):
         else:
             log.warning("_rebuild_all_handlers: no device to activate")
 
+        # Restore saved themes on inactive LCD devices so they don't sit blank
+        for path, handler in self._handlers.items():
+            if path != target and isinstance(handler, LCDHandler):
+                lcd = handler.display
+                if lcd.connected and lcd.device_info:
+                    log.info("_rebuild_all_handlers: restoring inactive LCD %s", path)
+                    lcd.restore_device_settings()
+                    lcd.restore_last_theme()
+
     def _add_handler(self, device: Any) -> None:
         """Create handler for one new device."""
         info = device.device_info

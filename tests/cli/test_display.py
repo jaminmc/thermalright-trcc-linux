@@ -760,6 +760,19 @@ class TestCLIResume:
         rc = resume(_mock_builder)
         assert rc == 0
 
+    def test_resume_animated_theme(self, _mock_builder, capsys):
+        from trcc.cli._display import resume
+        from trcc.core.app import TrccApp
+
+        mock_app = TrccApp.get()
+        mock_app.lcd.restore_last_theme.return_value = {
+            "success": True, "is_animated": True, "message": "Restored"}
+        rc = resume(_mock_builder)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "animated" in out
+        assert "Sent" not in out
+
     def test_resume_all_fail(self, _mock_builder, capsys):
         from trcc.cli._display import resume
         from trcc.core.app import TrccApp

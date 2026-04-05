@@ -1506,6 +1506,38 @@ class TestRebuildAllHandlersRestore:
         )
         assert target is None  # Falls back to first LCD logic
 
+    @patch('trcc.gui.trcc_app.Settings')
+    def test_restores_inactive_lcd_themes(self, mock_settings, bare_trcc_app):
+        """Inactive LCD devices get their saved theme sent to hardware on startup."""
+        mock_settings.get_last_device.return_value = 0
+
+        h0 = self._make_lcd_handler(device_index=0, device_key='k0')
+        h1 = self._make_lcd_handler(device_index=1, device_key='k1')
+        handlers = {'path0': h0, 'path1': h1}
+
+        app = bare_trcc_app
+        app._handlers = {}
+        app._active_path = ''
+        app._show_view = MagicMock()
+        app._update_ldd_icon = MagicMock()
+        app._start_handshake = MagicMock()
+        app._refresh_sidebar = MagicMock()
+        # _add_handler repopulates _handlers from the device list
+        app._add_handler = MagicMock(side_effect=lambda d: app._handlers.update(
+            {p: h for p, h in handlers.items()
+             if h.device_info.device_index == d.device_info.device_index}))
+
+        devices = [MagicMock(device_info=h0.device_info), MagicMock(device_info=h1.device_info)]
+        app._rebuild_all_handlers(devices)
+
+        # h1 is inactive — core-layer restore must fire
+        h1.display.restore_device_settings.assert_called_once()
+        h1.display.restore_last_theme.assert_called_once()
+
+        # h0 is the active device — gets normal _activate_device flow, not core-layer restore
+        h0.display.restore_device_settings.assert_not_called()
+        h0.display.restore_last_theme.assert_not_called()
+
 
 class TestHandshakeDoneGuard:
     """_on_handshake_done must not call apply_device_config when device_key is set.
