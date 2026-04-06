@@ -1,6 +1,6 @@
 # Changelog
 
-## v9.3.10
+## v9.3.11
 
 ### Refactors
 - **Unified Device class**: `LCDDevice` + `LEDDevice` merged into one `Device` class with `device_type` boolean (True=LCD, False=LED). One `build_device()` replaces `build_lcd()`/`build_led()`. TrccApp uses `_devices` dict — no separate LCD/LED fields.
