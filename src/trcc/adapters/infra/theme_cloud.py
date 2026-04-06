@@ -107,18 +107,9 @@ class CloudThemeDownloader:
         cache_dir: Optional[str] = None,
         server: str = 'international'
     ):
-        """
-        Initialize cloud theme downloader.
-
-        Args:
-            resolution: LCD resolution (e.g., "320x320", "480x480")
-            cache_dir: Directory to save downloaded themes (default: ~/.trcc/cloud_themes)
-            server: Server to use ('international' or 'china')
-        """
         self.resolution = resolution
         self.server = server
 
-        # Set cache directory (per-resolution, matching Windows Data\USBLCD\Web\{res}\)
         if cache_dir:
             self.cache_dir = Path(cache_dir)
         else:
@@ -126,9 +117,9 @@ class CloudThemeDownloader:
             self.cache_dir = Path.home() / ".trcc" / "cloud_themes" / res_dir
 
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Build base URL
         self._update_base_url()
+        log.info("CloudThemeDownloader: resolution=%s server=%s cache_dir=%s base_url=%s",
+                 resolution, server, self.cache_dir, self.base_url)
 
         # Download state
         self._lock = threading.Lock()
@@ -219,9 +210,11 @@ class CloudThemeDownloader:
 
         dest = self.cache_dir / f"{theme_id}.png"
         if dest.exists():
+            log.debug("download_preview_png: cache hit %s", dest)
             return str(dest)
 
         url = f"{self.base_url}{theme_id}.png"
+        log.info("download_preview_png: %s → %s", url, dest)
         return self._download_file(url, dest)
 
     def download_theme(
@@ -246,16 +239,21 @@ class CloudThemeDownloader:
 
         dest_path = self.cache_dir / f"{theme_id}.mp4"
 
-        # Check cache
         if not force and dest_path.exists():
+            log.debug("download_theme: cache hit %s → %s", theme_id, dest_path)
             return str(dest_path)
 
         url = self.get_theme_url(theme_id)
+        log.info("download_theme: %s → %s (url=%s)", theme_id, dest_path, url)
 
         try:
-            return self._download_file(url, dest_path, on_progress)
+            result = self._download_file(url, dest_path, on_progress)
+            if result:
+                size = dest_path.stat().st_size if dest_path.exists() else 0
+                log.info("download_theme: saved %s (%d bytes)", dest_path, size)
+            return result
         except Exception as e:
-            log.error("Failed to download %s: %s", theme_id, e)
+            log.error("download_theme: failed %s: %s", theme_id, e)
             return None
 
     def download_preview(

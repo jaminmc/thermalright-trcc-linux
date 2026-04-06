@@ -406,6 +406,27 @@ class TestThemeSelection:
         mock_lcd_device.render_and_send.assert_called_once()
         mock_lcd_device.send.assert_not_called()
 
+    @patch('trcc.gui.lcd_handler.Settings')
+    @patch('trcc.gui.lcd_handler.ThemeInfo')
+    def test_background_change_preserves_mask_overlay(self, mock_ti, mock_settings, lcd_handler, mock_lcd_device):
+        """When a mask is active, changing background must not reset overlay."""
+        mock_ti.from_directory.return_value = MagicMock()
+        path = MagicMock(spec=Path)
+        path.exists.return_value = True
+        path.__truediv__ = lambda self, x: MagicMock(exists=lambda: False)
+
+        # Simulate active mask on the display service
+        mock_lcd_device._display_svc.mask_source_dir = Path('/masks/MyMask')
+
+        lcd_handler.select_theme_from_path(path)
+
+        # Overlay must NOT be disabled — mask stays
+        mock_lcd_device.enable_overlay.assert_not_called()
+        # DC must NOT be reloaded from theme dir
+        mock_lcd_device.load_overlay_config_from_dir.assert_not_called()
+        # Background swapped + re-rendered with existing mask
+        mock_lcd_device.render_and_send.assert_called_once()
+
 
 # =========================================================================
 # Mask

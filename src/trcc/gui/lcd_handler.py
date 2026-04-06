@@ -280,14 +280,20 @@ class LCDHandler(BaseHandler):
             self.log.warning("_select_theme_from_path: path does not exist: %s", path)
             return
         self._slideshow_timer.stop()
-        self._lcd.enable_overlay(False)
 
-        # Reset overlay to canvas (landscape) dims — local themes pixel-rotate
+        # When a mask is active, preserve overlay — just swap the background
         svc = self._lcd._display_svc
-        if svc:
-            cw, ch = svc.canvas_size
-            svc.overlay.set_resolution(cw, ch)
-            self.log.debug("_select_theme_from_path: overlay reset to canvas %dx%d", cw, ch)
+        has_active_mask = bool(svc and svc.mask_source_dir)
+
+        if not has_active_mask:
+            self._lcd.enable_overlay(False)
+            # Reset overlay to canvas (landscape) dims — local themes pixel-rotate
+            if svc:
+                cw, ch = svc.canvas_size
+                svc.overlay.set_resolution(cw, ch)
+                self.log.debug("_select_theme_from_path: overlay reset to canvas %dx%d", cw, ch)
+        else:
+            self.log.info("_select_theme_from_path: mask active — preserving overlay")
 
         # Reset mode toggles (C# ReadSystemConfiguration override)
         self._background_active = False
@@ -298,11 +304,15 @@ class LCDHandler(BaseHandler):
         self._w['theme_setting'].video_panel.set_enabled(False)
 
         theme = theme_info_from_directory(path)
-        # Suppress send when overlay config will follow — the overlay load
-        # owns the single send, avoiding a double-send blink.
-        self._select_theme(theme, send_frame=not overlay_config)
-        if overlay_config:
-            self._load_theme_overlay_config(path, persist=persist)
+        if has_active_mask:
+            # Swap background only — keep mask/overlay, re-render
+            self._select_theme(theme, send_frame=False)
+            self._render_and_send()
+        else:
+            # Full theme load — suppress send when overlay config will follow
+            self._select_theme(theme, send_frame=not overlay_config)
+            if overlay_config:
+                self._load_theme_overlay_config(path, persist=persist)
 
         if persist and self._device_key:
             self.log.info("Saving theme_name: %s (key=%s)", path.name, self._device_key)

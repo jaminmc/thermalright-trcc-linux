@@ -249,14 +249,21 @@ class UCThemeWeb(DownloadableThemeBrowser):
     def _download_cloud_theme(self, theme_id: str):
         """Download a cloud theme MP4 (Windows DownLoadFile pattern)."""
         if not self.web_directory:
+            log.warning("_download_cloud_theme: no web_directory — skipping %s", theme_id)
             return
 
         _fn = self._download_fn
         if _fn is None:
+            log.warning("_download_cloud_theme: no download_fn — skipping %s", theme_id)
             return
+
+        log.info("_download_cloud_theme: %s resolution=%s dir=%s",
+                 theme_id, self._resolution, self.web_directory)
 
         def download_fn():
             result = _fn(theme_id, self._resolution, str(self.web_directory))
+            log.info("_download_cloud_theme: %s result=%s", theme_id,
+                     'ok' if result else 'failed')
             if result:
                 self._extract_preview(theme_id)
             return bool(result)
@@ -266,6 +273,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
     def _extract_preview(self, theme_id: str):
         """Extract first frame from MP4 as PNG preview via FFmpeg."""
         if self.web_directory is None:
+            log.debug("_extract_preview: no web_directory — skipping %s", theme_id)
             return
         try:
             mp4_path = self.web_directory / f"{theme_id}.mp4"
