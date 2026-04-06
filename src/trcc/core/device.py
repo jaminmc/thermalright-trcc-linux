@@ -262,8 +262,9 @@ class Device:
                 self._display_svc.overlay.log = logging.getLogger(f'trcc.services.overlay.{label}')
                 if hasattr(self._display_svc.overlay.log, 'dev'):
                     self._display_svc.overlay.log.dev = label  # type: ignore[attr-defined]
-        self.log.info("connected: %s [%04X:%04X] %dx%d",
-                      dev.path, dev.vid, dev.pid, *dev.resolution)
+        self.log.info("connected: %s [%04X:%04X] %dx%d FBL=%s PM=%d SUB=%d",
+                      dev.path, dev.vid, dev.pid, *dev.resolution,
+                      dev.fbl_code, dev.pm_byte, dev.sub_byte)
 
         w, h = dev.resolution
         if w and h and self._display_svc:
@@ -344,6 +345,11 @@ class Device:
             led_config=self._led_config,
         )
         self._init_status = self._led_svc.initialize(self._info)
+        log.info("LED connected: %s [%04X:%04X] PM=%d SUB=%d style=%s",
+                 self._info.path, self._info.vid, self._info.pid,
+                 getattr(self._info, 'pm_byte', 0),
+                 getattr(self._info, 'sub_byte', 0),
+                 self._init_status)
         return {"success": True, "status": self._init_status or ""}
 
     # ══════════════════════════════════════════════════════════════════════
