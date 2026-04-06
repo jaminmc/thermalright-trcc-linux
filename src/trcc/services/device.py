@@ -64,20 +64,7 @@ class DeviceService:
         try:
             raw = self._detect_fn()
             self._devices = [
-                DeviceInfo(
-                    name=f"{d.vendor_name} {d.product_name}",
-                    path=d.scsi_device or f"hid:{d.vid:04x}:{d.pid:04x}",
-                    vendor=d.vendor_name,
-                    product=d.product_name,
-                    model=d.model,
-                    vid=d.vid,
-                    pid=d.pid,
-                    device_index=i,
-                    protocol=d.protocol,
-                    device_type=d.device_type,
-                    implementation=d.implementation,
-                    button_image=d.button_image,
-                )
+                DeviceInfo.from_detected(d, device_index=i)
                 for i, d in enumerate(raw)
             ]
         except ImportError:

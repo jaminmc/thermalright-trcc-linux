@@ -701,6 +701,46 @@ class TestDisplaySettings:
         lcd_handler._w['theme_web'].set_resolution.assert_called()
         lcd_handler._w['theme_mask'].set_resolution.assert_called()
 
+    def test_rotation_reloads_cloud_theme_when_cached(self, lcd_handler, mock_lcd_device, tmp_path):
+        """Non-square device with cloud theme: rotation loads orientation-matched video."""
+        from trcc.core.orientation import Orientation
+        mock_lcd_device.set_rotation.return_value = {'success': True}
+        # Real Orientation so web_dir derives correctly
+        o = Orientation(1280, 480)
+        o.data_root = tmp_path
+        o.rotation = 90
+        mock_lcd_device.orientation = o
+        # Simulate active cloud theme
+        mock_lcd_device.current_theme_path = Path('/web/1280480/a007.mp4')
+        # Portrait video already exists at derived path
+        portrait_dir = tmp_path / 'web' / '4801280'
+        portrait_dir.mkdir(parents=True)
+        (portrait_dir / 'a007.mp4').write_bytes(b'fake')
+
+        mock_lcd_device.select.reset_mock()
+        lcd_handler.set_rotation(90)
+        mock_lcd_device.select.assert_called_once()
+
+    def test_rotation_skips_cloud_reload_for_square(self, lcd_handler, mock_lcd_device):
+        """Square device: rotation never triggers cloud theme reload."""
+        mock_lcd_device.set_rotation.return_value = {'success': True}
+        mock_lcd_device.orientation.native = (320, 320)
+        mock_lcd_device.current_theme_path = Path('/web/320320/a007.mp4')
+
+        mock_lcd_device.select.reset_mock()
+        lcd_handler.set_rotation(90)
+        mock_lcd_device.select.assert_not_called()
+
+    def test_rotation_skips_cloud_reload_for_local_theme(self, lcd_handler, mock_lcd_device):
+        """Local theme (no .mp4): rotation doesn't trigger cloud download."""
+        mock_lcd_device.set_rotation.return_value = {'success': True}
+        mock_lcd_device.orientation.native = (1280, 480)
+        mock_lcd_device.current_theme_path = Path('/themes/Theme1')
+
+        mock_lcd_device.select.reset_mock()
+        lcd_handler.set_rotation(90)
+        mock_lcd_device.select.assert_not_called()
+
     @patch('trcc.gui.lcd_handler.Settings')
     def test_set_split_mode_updates_state(self, mock_settings, lcd_handler):
         lcd_handler._device_key = 'dev0'

@@ -221,9 +221,14 @@ class LEDService:
         self.state.is_week_sunday = is_sunday
 
     def update_metrics(self, metrics: HardwareMetrics) -> None:
-        """Update cached sensor metrics for temp/load-linked modes."""
+        """Update cached sensor metrics and recompute segment mask.
+
+        Segment mask only changes when metrics change — not every tick.
+        """
         self._metrics = metrics
         self._engine.metrics = metrics
+        if self._segment_mode and self._seg_display:
+            self._update_segment_mask()
 
     def configure_for_style(self, style_id: int, style_sub: int = 0) -> None:
         """Configure state for a specific LED device style.
@@ -283,12 +288,10 @@ class LEDService:
         if self.state.test_mode:
             return self._tick_test_mode()
 
-        # Segment display phase = active zone
-        # Circulate ON: cycle through enabled zones on timer (C# GetVal + ValCount)
-        # Circulate OFF: lock to selected zone (C# LunBo1-4 radio select)
+        # Segment display phase = active zone (for circulate animation)
+        # Mask is cached — only recomputed in update_metrics(), not every tick.
         if self._segment_mode and self._seg_display:
             if self.state.zone_sync and self._led_style not in self.SELECT_ALL_STYLES:
-                # Circulate: advance timer, rotate through enabled zones
                 self.state.zone_sync_ticks += 1
                 if self.state.zone_sync_ticks >= self.state.zone_sync_interval:
                     self.state.zone_sync_ticks = 0
@@ -297,7 +300,6 @@ class LEDService:
                 self._seg_phase = self.state.zone_sync_current
             else:
                 self._seg_phase = self.state.selected_zone
-            self._update_segment_mask()
 
         # Multi-zone segment displays
         if self._segment_mode and self.state.zones and self._seg_display:
@@ -305,7 +307,8 @@ class LEDService:
             if zone_map:
                 # Styles 2/7 (PA120/LF10): physical zones with per-zone
                 # color/mode — each zone colors its own mapped LED indices.
-                return self._tick_multi_zone(zone_map)
+                return self._tick_multi_zone(
+                    zone_map, self._seg_display.zone_metric_sources)
             # Non-2/7 styles: C# uses global rgbR1/G1/B1 and myLedMode.
             # Zones only drive segment display data rotation (CPU/GPU),
             # not LED color. Fall through to global tick below.
@@ -424,25 +427,40 @@ class LEDService:
     # ── Device initialization ───────────────────────────────────────
 
     def initialize(self, device_info: Any, led_style: int = 1) -> str:
-        """Initialize for a device. Returns status message."""
-        self._led_style = led_style
+        """Initialize for a device. Handshake determines identity from PM.
+
+        The handshake is authoritative — PM byte resolves the exact device
+        style, same way LCD handshake resolves resolution/FBL. The led_style
+        param is a fallback if handshake fails or returns None.
+        """
         self._device = device_info
         if self._led_config:
             self._device_key = self._led_config.device_key(device_info)
 
-        style_sub = getattr(device_info, 'led_style_sub', 0)
-        self.configure_for_style(led_style, style_sub)
-
+        # Handshake first — PM byte is the source of truth for device identity
         try:
             if self._get_protocol is None:
                 return "LED protocol factory not configured"
             protocol = self._get_protocol(device_info)
-            protocol.handshake()  # Cache handshake result for wire remap
+            hs = protocol.handshake()
             self.set_protocol(protocol)
+
+            if hs and getattr(hs, 'style', None):
+                led_style = hs.style.style_id
+                style_sub = getattr(hs, 'style_sub', 0)
+                device_info.led_style_id = led_style
+                device_info.led_style_sub = style_sub
+                device_info.model = getattr(hs, 'model_name', device_info.model)
+                log.info("LED handshake: PM=%d → style=%d sub=%d model=%s",
+                         getattr(hs, 'pm', 0), led_style, style_sub,
+                         device_info.model)
         except Exception as e:
             log.error("LED protocol error: %s", e)
             return f"LED protocol error: {e}"
 
+        self._led_style = led_style
+        style_sub = getattr(device_info, 'led_style_sub', 0)
+        self.configure_for_style(led_style, style_sub)
         self.load_config()
 
         from ..core.models import LED_STYLES

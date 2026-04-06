@@ -1223,6 +1223,42 @@ class TestLEDServiceProtocolAndConfig:
         result = svc.initialize(dev_info, led_style=1)
         assert 'LED:' in result or 'AX120' in result
 
+    def test_initialize_handshake_sets_identity_from_pm(self):
+        """Handshake PM byte is authoritative — overrides led_style param."""
+        from trcc.core.models import LedHandshakeInfo, PmRegistry
+        # PM=16 → PA120_DIGITAL (style 2)
+        style = PmRegistry.get_style(16, 0)
+        hs = LedHandshakeInfo(
+            pm=16, sub_type=0, style=style,
+            model_name="PA120_DIGITAL", style_sub=0,
+        )
+        proto = MagicMock()
+        proto.handshake.return_value = hs
+        svc = LEDService(get_protocol=lambda _: proto)
+        dev_info = MagicMock()
+        dev_info.device_index = 0
+        dev_info.vid = 0x0416
+        dev_info.pid = 0x8001
+        dev_info.led_style_sub = 0
+        # Pass led_style=1 (AX120) but handshake says PA120 (style 2)
+        result = svc.initialize(dev_info, led_style=1)
+        assert 'PA120' in result
+        assert dev_info.led_style_id == 2
+        assert dev_info.model == "PA120_DIGITAL"
+
+    def test_initialize_handshake_none_falls_back_to_param(self):
+        """When handshake returns None, uses the led_style param."""
+        proto = MagicMock()
+        proto.handshake.return_value = None
+        svc = LEDService(get_protocol=lambda _: proto)
+        dev_info = MagicMock()
+        dev_info.device_index = 0
+        dev_info.vid = 0x1234
+        dev_info.pid = 0x5678
+        dev_info.led_style_sub = 0
+        result = svc.initialize(dev_info, led_style=7)
+        assert 'LF10' in result  # style 7 = LF10
+
     def test_save_config_delegates_to_led_config(self):
         """save_config calls led_config.save_state when device is set."""
         mock_cfg = MagicMock()

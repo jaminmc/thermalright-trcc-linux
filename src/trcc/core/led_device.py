@@ -70,11 +70,11 @@ class LEDDevice(Device):
         return True
 
     def connect(self, detected: Any = None) -> dict:
-        """Detect LED device, probe model, initialize LEDService.
+        """Connect to LED device — same flow as LCD.
 
-        If find_active_fn and proxy_factory_fn are injected and another
-        trcc instance owns the device, delegates all future method calls
-        to the proxy. Otherwise connects to USB directly.
+        When *detected* is provided (scan() path), uses it directly.
+        When None (CLI auto-detect), falls back to DeviceService.
+        Handshake inside initialize() resolves PM → style identity.
 
         Returns: {"success": bool, "status": str}
         """
@@ -88,27 +88,30 @@ class LEDDevice(Device):
             proxy_result["status"] = f"Connected (via {proxy_result['proxy'].value})"
             return proxy_result
 
-        if self._device_svc is None:
-            raise RuntimeError(
-                "LEDDevice requires a DeviceService. "
-                "Use ControllerBuilder.build_led() to wire dependencies.")
+        # Use detected directly (same as LCD) — handshake sets identity
+        if detected is not None and getattr(detected, 'implementation', '') == 'hid_led':
+            from .models import DeviceInfo
+            self._device = DeviceInfo.from_detected(detected)
+            log.info("LED connect: using detected %s", self._device.path)
+        else:
+            # CLI auto-detect: no specific device given
+            if self._device_svc is None:
+                raise RuntimeError(
+                    "LEDDevice requires a DeviceService. "
+                    "Use ControllerBuilder.build_led() to wire dependencies.")
+            self._device_svc.detect()
+            self._device = next(
+                (d for d in self._device_svc.devices
+                 if d.implementation == 'hid_led'), None)
+            if not self._device:
+                log.warning("LED connect: no LED device found")
+                return {"success": False, "error": "No LED device found"}
 
-        self._device_svc.detect()
-        led_dev = next(
-            (d for d in self._device_svc.devices
-             if d.implementation == 'hid_led'), None)
-        if not led_dev:
-            log.warning("LED connect: no LED device found in %d detected devices",
-                        len(self._device_svc.devices))
-            return {"success": False, "error": "No LED device found"}
-
-        self._device = led_dev
         self._svc = self._led_svc_factory(
             get_protocol=self._get_protocol,
             led_config=self._led_config,
         )
-        style_id = led_dev.led_style_id or 1
-        self._init_status = self._svc.initialize(led_dev, style_id)
+        self._init_status = self._svc.initialize(self._device)
         return {"success": True, "status": self._init_status or ""}
 
     @property
@@ -480,7 +483,7 @@ class LEDDevice(Device):
         if self._svc.has_protocol:
             ok = self._svc.send_colors(colors)
             if not ok:
-                log.warning("tick: send_colors failed")
+                log.debug("tick: send_colors skipped (concurrent)")
 
     def tick_with_result(self) -> dict:
         """Advance one animation frame. Returns colors + display_colors (GUI use)."""
@@ -492,5 +495,5 @@ class LEDDevice(Device):
         if self._svc.has_protocol:
             ok = self._svc.send_colors(colors)
             if not ok:
-                log.warning("tick_with_result: send_colors failed")
+                log.debug("tick_with_result: send_colors skipped (concurrent)")
         return {"colors": colors, "display_colors": display_colors}

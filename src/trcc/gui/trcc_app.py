@@ -518,11 +518,13 @@ class TRCCApp(QMainWindow):
             return
         log.info("_activate_device: %s", path)
         # Stop previous device's timers before switching — prevents
-        # stale video frames writing to the shared preview widget.
+        # stale frames writing to the shared panel widgets.
         if self._active_path:
             prev = self._handlers.get(self._active_path)
             if isinstance(prev, LCDHandler):
                 prev.stop_timers()
+            elif isinstance(prev, LEDHandler):
+                prev.stop()
         self._active_path = path
         handler = self._handlers.get(path)
         if handler is None:

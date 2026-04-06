@@ -313,14 +313,15 @@ class TestSegmentDisplayEncoding:
         assert mask[20] is False
         assert mask[21] is False
 
-    def test_encode_2digit_partial_100_sets_bc(self) -> None:
+    def test_encode_2digit_partial_100_sets_bc_and_shows_00(self) -> None:
         digit_leds = (tuple(range(0, 7)), tuple(range(7, 14)))
         partial_bc = (20, 21)
         mask = [False] * 30
         self.d._encode_2digit_partial(100, digit_leds, partial_bc, mask)
         assert mask[20] is True
         assert mask[21] is True
-        # Remainder = 0 → ones shows '0', tens blank
+        # Remainder = 0 → both digits show '0' (no leading-zero suppression)
+        assert _segments_on(mask, digit_leds[0]) == SegmentDisplay.CHAR_7SEG['0']
         assert _segments_on(mask, digit_leds[1]) == SegmentDisplay.CHAR_7SEG['0']
 
     def test_encode_2digit_partial_150_bc_set_shows_50(self) -> None:

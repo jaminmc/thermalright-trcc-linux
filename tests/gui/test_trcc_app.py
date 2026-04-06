@@ -674,7 +674,7 @@ class TestLEDHandler:
         assert handler._active is False
         assert handler._led is None
         assert handler._style_id == 0
-        assert handler._save_counter == 0
+        assert handler._metrics_count == 0
 
     def test_active_property_false_initially(self, handler):
         assert handler.active is False
@@ -697,24 +697,13 @@ class TestLEDHandler:
         handler.stop()
         assert handler.active is False
 
-    def test_stop_saves_config_before_cleanup(self, handler):
-        """stop() saves config then cleans up LED device."""
+    def test_stop_saves_config_and_deactivates(self, handler):
+        """stop() saves config and sets active=False."""
         mock_led = self._wire_led(handler)
         handler._active = True
         handler.stop()
-        # save_config called before cleanup
         mock_led.save_config.assert_called_once()
-        mock_led.cleanup.assert_called_once()
-
-    def test_stop_stops_timer(self, handler):
-        handler._timer.start(100)
-        handler.stop()
-        assert not handler._timer.isActive()
-
-    def test_cleanup_stops_timer(self, handler):
-        handler._timer.start(100)
-        handler.cleanup()
-        assert not handler._timer.isActive()
+        assert not handler._active
 
     def test_cleanup_saves_config_before_cleanup(self, handler):
         mock_led = self._wire_led(handler)
@@ -806,10 +795,10 @@ class TestLEDHandler:
         mock_led.initialize.assert_called_once_with(device, 1)
         handler.stop()
 
-    def test_show_starts_timer(self, handler):
+    def test_show_activates_handler(self, handler):
         device, mock_led, style_info = self._make_device_and_style(handler)
         self._show_with_mock_led(handler, device, mock_led, style_info)
-        assert handler._timer.isActive()
+        assert handler._active
         handler.stop()
 
     def test_show_initializes_led_device(self, handler):
@@ -845,7 +834,7 @@ class TestLEDHandler:
         mock_led = self._wire_led(handler)
         mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
-        handler._save_counter = handler._SAVE_INTERVAL - 1
+        handler._metrics_count = handler._SAVE_INTERVAL - 1
         handler._on_tick()
         mock_led.save_config.assert_called_once()
 
@@ -854,7 +843,7 @@ class TestLEDHandler:
         mock_led = self._wire_led(handler)
         mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
-        handler._save_counter = 0
+        handler._metrics_count = 0
         handler._on_tick()
         mock_led.save_config.assert_not_called()
 
@@ -863,9 +852,9 @@ class TestLEDHandler:
         mock_led = self._wire_led(handler)
         mock_led.tick.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
-        handler._save_counter = handler._SAVE_INTERVAL - 1
+        handler._metrics_count = handler._SAVE_INTERVAL - 1
         handler._on_tick()
-        assert handler._save_counter == 0
+        assert handler._metrics_count == 0
 
     def test_tick_error_does_not_crash(self, handler):
         """LED tick exceptions are caught and logged, timer keeps running."""
@@ -876,8 +865,11 @@ class TestLEDHandler:
 
     # ── Signal handlers: mode ────────────────────────────────────
 
-    def test_on_mode_changed_no_led(self, handler):
-        handler._on_mode_changed(0)  # Should not raise
+    def test_on_mode_changed_no_led_via_guard(self, handler):
+        """Guard prevents crash when _led is None."""
+        guarded = handler._guard(handler._on_mode_changed)
+        handler._active = True  # active but no _led
+        guarded(0)  # Should not raise
 
     def test_on_mode_changed_calls_update_mode(self, handler):
         mock_led = self._wire_led(handler)
@@ -900,14 +892,16 @@ class TestLEDHandler:
     def test_on_mode_changed_forces_save(self, handler):
         """Mode change sets save counter to interval (forces next-tick save)."""
         self._wire_led(handler)
-        handler._save_counter = 0
+        handler._metrics_count = 0
         handler._on_mode_changed(2)
-        assert handler._save_counter == handler._SAVE_INTERVAL
+        assert handler._metrics_count == handler._SAVE_INTERVAL
 
     # ── Signal handlers: color ───────────────────────────────────
 
-    def test_on_color_changed_no_led(self, handler):
-        handler._on_color_changed(255, 0, 0)  # Should not raise
+    def test_on_color_changed_no_led_via_guard(self, handler):
+        guarded = handler._guard(handler._on_color_changed)
+        handler._active = True
+        guarded(255, 0, 0)  # Should not raise
 
     def test_on_color_changed_calls_update_color(self, handler):
         mock_led = self._wire_led(handler)
@@ -936,8 +930,10 @@ class TestLEDHandler:
 
     # ── Signal handlers: brightness ──────────────────────────────
 
-    def test_on_brightness_changed_no_led(self, handler):
-        handler._on_brightness_changed(50)  # Should not raise
+    def test_on_brightness_changed_no_led_via_guard(self, handler):
+        guarded = handler._guard(handler._on_brightness_changed)
+        handler._active = True
+        guarded(50)  # Should not raise
 
     def test_on_brightness_changed_calls_update_brightness(self, handler):
         mock_led = self._wire_led(handler)
@@ -959,8 +955,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: global toggle ───────────────────────────
 
-    def test_on_global_toggled_no_led(self, handler):
-        handler._on_global_toggled(True)  # Should not raise
+    def test_on_global_toggled_no_led_via_guard(self, handler):
+        handler._guard(handler._on_global_toggled)(True)  # Should not raise
 
     def test_on_global_toggled_on(self, handler):
         mock_led = self._wire_led(handler)
@@ -974,8 +970,10 @@ class TestLEDHandler:
 
     # ── Signal handlers: segment click ───────────────────────────
 
-    def test_on_segment_clicked_no_led(self, handler):
-        handler._on_segment_clicked(0)  # Should not raise
+    def test_on_segment_clicked_no_led_via_guard(self, handler):
+        guarded = handler._guard(handler._on_segment_clicked)
+        handler._active = True
+        guarded(0)  # Should not raise
 
     def test_on_segment_clicked_toggles_segment(self, handler):
         """Click toggles segment on→off (reads current, sends inverse)."""
@@ -999,8 +997,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: zone select ─────────────────────────────
 
-    def test_on_zone_selected_no_led(self, handler):
-        handler._on_zone_selected(0)  # Should not raise
+    def test_on_zone_selected_no_led_via_guard(self, handler):
+        handler._guard(handler._on_zone_selected)(0)  # Should not raise
 
     def test_on_zone_selected_loads_zone_state(self, handler):
         z0 = LEDZoneState(mode=LEDMode.COLORFUL, color=(10, 20, 30),
@@ -1021,8 +1019,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: zone toggle ─────────────────────────────
 
-    def test_on_zone_toggled_no_led(self, handler):
-        handler._on_zone_toggled(0, True)  # Should not raise
+    def test_on_zone_toggled_no_led_via_guard(self, handler):
+        handler._guard(handler._on_zone_toggled)(0, True)  # Should not raise
 
     def test_on_zone_toggled_on(self, handler):
         mock_led = self._wire_led(handler)
@@ -1036,8 +1034,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: carousel (zone sync) ────────────────────
 
-    def test_on_carousel_changed_no_led(self, handler):
-        handler._on_carousel_changed(True)  # Should not raise
+    def test_on_carousel_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_carousel_changed)(True)  # Should not raise
 
     def test_on_carousel_changed_enable(self, handler):
         mock_led = self._wire_led(handler)
@@ -1049,16 +1047,16 @@ class TestLEDHandler:
         handler._on_carousel_changed(False)
         mock_led.update_zone_sync.assert_called_once_with(False)
 
-    def test_on_carousel_zone_changed_no_led(self, handler):
-        handler._on_carousel_zone_changed(0, True)  # Should not raise
+    def test_on_carousel_zone_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_carousel_zone_changed)(0, True)  # Should not raise
 
     def test_on_carousel_zone_changed(self, handler):
         mock_led = self._wire_led(handler)
         handler._on_carousel_zone_changed(2, True)
         mock_led.update_zone_sync_zone.assert_called_once_with(2, True)
 
-    def test_on_carousel_interval_changed_no_led(self, handler):
-        handler._on_carousel_interval_changed(5)  # Should not raise
+    def test_on_carousel_interval_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_carousel_interval_changed)(5)  # Should not raise
 
     def test_on_carousel_interval_changed(self, handler):
         mock_led = self._wire_led(handler)
@@ -1067,8 +1065,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: clock format ────────────────────────────
 
-    def test_on_clock_format_changed_no_led(self, handler):
-        handler._on_clock_format_changed(True)  # Should not raise
+    def test_on_clock_format_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_clock_format_changed)(True)  # Should not raise
 
     def test_on_clock_format_changed_24h(self, handler):
         mock_led = self._wire_led(handler)
@@ -1082,8 +1080,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: week start ──────────────────────────────
 
-    def test_on_week_start_changed_no_led(self, handler):
-        handler._on_week_start_changed(True)  # Should not raise
+    def test_on_week_start_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_week_start_changed)(True)  # Should not raise
 
     def test_on_week_start_changed_sunday(self, handler):
         mock_led = self._wire_led(handler)
@@ -1097,8 +1095,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: disk index ──────────────────────────────
 
-    def test_on_disk_index_changed_no_led(self, handler):
-        handler._on_disk_index_changed(0)  # Should not raise
+    def test_on_disk_index_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_disk_index_changed)(0)  # Should not raise
 
     def test_on_disk_index_changed(self, handler):
         mock_led = self._wire_led(handler)
@@ -1107,8 +1105,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: memory ratio ────────────────────────────
 
-    def test_on_memory_ratio_changed_no_led(self, handler):
-        handler._on_memory_ratio_changed(1)  # Should not raise
+    def test_on_memory_ratio_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_memory_ratio_changed)(1)  # Should not raise
 
     def test_on_memory_ratio_changed(self, handler):
         mock_led = self._wire_led(handler)
@@ -1117,8 +1115,8 @@ class TestLEDHandler:
 
     # ── Signal handlers: test mode ───────────────────────────────
 
-    def test_on_test_mode_changed_no_led(self, handler):
-        handler._on_test_mode_changed(True)  # Should not raise
+    def test_on_test_mode_changed_no_led_via_guard(self, handler):
+        handler._guard(handler._on_test_mode_changed)(True)  # Should not raise
 
     def test_on_test_mode_changed_enable(self, handler):
         mock_led = self._wire_led(handler)
@@ -1137,6 +1135,8 @@ class TestLEDHandler:
 
     def test_update_metrics_forwards_to_led_and_panel(self, handler):
         mock_led = self._wire_led(handler)
+        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
+        handler._active = True
         metrics = MagicMock()
         handler.update_metrics(metrics)
         mock_led.update_metrics.assert_called_once_with(metrics)

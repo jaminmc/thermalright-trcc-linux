@@ -333,6 +333,46 @@ class TestMultiZone:
         assert len(colors) == 2
         assert colors == [(255, 0, 0)] * 2
 
+    @patch('trcc.core.color.ColorEngine.color_for_value')
+    def test_per_zone_temp_linked_uses_zone_metric_source(self, mock_cfv):
+        """PA120-style: zone 0 uses CPU temp, zone 2 uses GPU temp."""
+        # Return different colors for different temp values
+        mock_cfv.side_effect = lambda val, _: (val, 0, 0)
+        state = LEDState(
+            led_count=4,
+            zones=[
+                LEDZoneState(mode=LEDMode.TEMP_LINKED, brightness=100, on=True),
+                LEDZoneState(mode=LEDMode.TEMP_LINKED, brightness=100, on=True),
+            ],
+        )
+        metrics = HardwareMetrics(cpu_temp=50.0, gpu_temp=80.0)
+        engine = _make_engine(state, metrics)
+        zone_map = ((0, 1), (2, 3))
+        metric_sources = (("cpu", "temp"), ("gpu", "temp"))
+        colors = engine._tick_multi_zone(zone_map, metric_sources)
+        # Zone 0 reads cpu_temp=50, zone 1 reads gpu_temp=80
+        assert colors[0] == (50, 0, 0)
+        assert colors[2] == (80, 0, 0)
+
+    @patch('trcc.core.color.ColorEngine.color_for_value')
+    def test_per_zone_temp_linked_fallback_to_global(self, mock_cfv):
+        """Without metric_sources, all zones use global temp_source."""
+        mock_cfv.side_effect = lambda val, _: (val, 0, 0)
+        state = LEDState(
+            led_count=4, temp_source="gpu",
+            zones=[
+                LEDZoneState(mode=LEDMode.TEMP_LINKED, brightness=100, on=True),
+                LEDZoneState(mode=LEDMode.TEMP_LINKED, brightness=100, on=True),
+            ],
+        )
+        metrics = HardwareMetrics(cpu_temp=50.0, gpu_temp=80.0)
+        engine = _make_engine(state, metrics)
+        zone_map = ((0, 1), (2, 3))
+        colors = engine._tick_multi_zone(zone_map)  # No metric_sources
+        # Both zones use global gpu temp=80
+        assert colors[0] == (80, 0, 0)
+        assert colors[2] == (80, 0, 0)
+
 
 # =========================================================================
 # _next_sync_zone()

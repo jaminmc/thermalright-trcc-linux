@@ -367,6 +367,24 @@ class DeviceInfo:
             led_style_sub=d.get('led_style_sub', 0),
         )
 
+    @classmethod
+    def from_detected(cls, d: 'DetectedDevice', device_index: int = 0) -> 'DeviceInfo':
+        """Create DeviceInfo from a DetectedDevice."""
+        return cls(
+            name=f"{d.vendor_name} {d.product_name}",
+            path=d.scsi_device or f"hid:{d.vid:04x}:{d.pid:04x}",
+            vendor=d.vendor_name,
+            product=d.product_name,
+            model=d.model,
+            vid=d.vid,
+            pid=d.pid,
+            device_index=device_index,
+            protocol=d.protocol,
+            device_type=d.device_type,
+            implementation=d.implementation,
+            button_image=d.button_image,
+        )
+
     @property
     def resolution_str(self) -> str:
         """Get resolution as string (e.g., '320x320')."""

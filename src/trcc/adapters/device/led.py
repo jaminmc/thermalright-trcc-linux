@@ -14,6 +14,7 @@ The ``UsbTransport`` ABC from hid_device.py is reused for transport.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -200,7 +201,7 @@ class LedHidSender(LedDevice):
 
     def __init__(self, transport: UsbTransport):
         self._transport = transport
-        self._sending = False
+        self._lock = threading.Lock()
 
     def handshake(self) -> LedHandshakeInfo:
         """Perform LED device handshake with retry.
@@ -307,11 +308,10 @@ class LedHidSender(LedDevice):
         Returns:
             True if all chunks were sent successfully.
         """
-        if self._sending:
+        if not self._lock.acquire(blocking=False):
             log.debug("send_led_data: already sending — skipped")
             return False
 
-        self._sending = True
         try:
             remaining = len(packet)
             offset = 0
@@ -334,16 +334,16 @@ class LedHidSender(LedDevice):
             log.warning("send_led_data: failed: %s", e)
             return False
         finally:
-            self._sending = False
+            self._lock.release()
 
     @property
     def is_sending(self) -> bool:
         """Whether a send is currently in progress."""
-        return self._sending
+        return self._lock.locked()
 
     def close(self) -> None:
         """Release resources (transport is managed externally)."""
-        self._sending = False
+        pass
 
 
 # =========================================================================

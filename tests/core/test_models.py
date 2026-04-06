@@ -8,6 +8,7 @@ import pytest
 
 from trcc.core.models import (
     FBL_PROFILES,
+    DetectedDevice,
     DeviceInfo,
     DeviceProfile,
     ThemeInfo,
@@ -116,6 +117,55 @@ class TestDeviceInfo(unittest.TestCase):
         d = DeviceInfo(name='LCD', path='/dev/sg0',
                        button_image='A1FROZEN WARFRAME PRO')
         self.assertEqual(d.button_image, 'A1FROZEN WARFRAME PRO')
+
+
+class TestDeviceInfoFromDetected(unittest.TestCase):
+    """DeviceInfo.from_detected() factory classmethod."""
+
+    def _make_detected(self, **overrides) -> DetectedDevice:
+        defaults = dict(
+            vid=0x0416, pid=0x8001,
+            vendor_name="Winbond", product_name="LED Controller",
+            usb_path="2-1.4", scsi_device=None,
+            implementation="hid_led", model="AX120_DIGITAL",
+            button_image="A1AX120 DIGITAL", protocol="led",
+            device_type=1,
+        )
+        defaults.update(overrides)
+        return DetectedDevice(**defaults)
+
+    def test_all_fields_round_trip(self):
+        d = self._make_detected()
+        info = DeviceInfo.from_detected(d, device_index=3)
+        self.assertEqual(info.name, "Winbond LED Controller")
+        self.assertEqual(info.vid, 0x0416)
+        self.assertEqual(info.pid, 0x8001)
+        self.assertEqual(info.model, "AX120_DIGITAL")
+        self.assertEqual(info.button_image, "A1AX120 DIGITAL")
+        self.assertEqual(info.protocol, "led")
+        self.assertEqual(info.implementation, "hid_led")
+        self.assertEqual(info.device_index, 3)
+
+    def test_scsi_path_used_when_present(self):
+        d = self._make_detected(scsi_device="/dev/sg0")
+        info = DeviceInfo.from_detected(d)
+        self.assertEqual(info.path, "/dev/sg0")
+
+    def test_hid_path_fallback(self):
+        d = self._make_detected(scsi_device=None, vid=0x0416, pid=0x8001)
+        info = DeviceInfo.from_detected(d)
+        self.assertEqual(info.path, "hid:0416:8001")
+
+    def test_device_index_defaults_to_zero(self):
+        d = self._make_detected()
+        info = DeviceInfo.from_detected(d)
+        self.assertEqual(info.device_index, 0)
+
+    def test_led_fields_default_none(self):
+        d = self._make_detected()
+        info = DeviceInfo.from_detected(d)
+        self.assertIsNone(info.led_style_id)
+        self.assertEqual(info.led_style_sub, 0)
 
 
 # =============================================================================

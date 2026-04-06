@@ -569,6 +569,40 @@ class LCDHandler(BaseHandler):
         if image:
             self._w['preview'].set_image(image)
         self._update_theme_directories()
+        self._reload_cloud_theme_for_rotation(o)
+
+    def _reload_cloud_theme_for_rotation(self, o: Any) -> None:
+        """If a cloud video is active on a non-square device, load the
+        orientation-matched version. Downloads it if not already cached."""
+        w, h = o.native
+        if w == h:
+            self.log.debug("_reload_cloud_theme_for_rotation: square device — skipping")
+            return
+        current = self._lcd.current_theme_path
+        if not current or not str(current).endswith('.mp4'):
+            self.log.debug("_reload_cloud_theme_for_rotation: no active cloud theme (current=%s)", current)
+            return
+        new_web = o.web_dir
+        if not new_web:
+            self.log.debug("_reload_cloud_theme_for_rotation: no web_dir for new orientation")
+            return
+
+        theme_id = current.stem
+        rotated_mp4 = new_web / f"{theme_id}.mp4"
+
+        if not rotated_mp4.exists():
+            # Download from the orientation-matched URL
+            self.log.info("_reload_cloud_theme_for_rotation: downloading %s to %s",
+                     theme_id, new_web)
+            self._w['theme_web']._download_cloud_theme(theme_id)
+            return
+
+        # Already exists — load it directly
+        self.log.info("_reload_cloud_theme_for_rotation: loading %s", rotated_mp4)
+        preview = new_web / f"{theme_id}.png"
+        theme = ThemeInfo.from_video(
+            rotated_mp4, preview if preview.exists() else None)
+        self._select_theme(theme)
 
     def set_split_mode(self, mode: int) -> None:
         self.log.debug("set_split_mode: mode=%d", mode)

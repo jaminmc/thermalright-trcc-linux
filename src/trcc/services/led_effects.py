@@ -33,8 +33,11 @@ class LEDEffectEngine:
 
     # ── Main dispatch ────────────────────────────────────────────────
 
-    def _tick_single_mode(self, mode: LEDMode, color: Tuple[int, int, int],
-                          seg_count: int) -> List[Tuple[int, int, int]]:
+    def _tick_single_mode(
+        self, mode: LEDMode, color: Tuple[int, int, int],
+        seg_count: int,
+        metric_source: tuple[str, str] | None = None,
+    ) -> List[Tuple[int, int, int]]:
         """Compute colors for a single mode across seg_count segments.
 
         If the device has a decoration ring (state.ring_count > 0), ring
@@ -52,9 +55,9 @@ class LEDEffectEngine:
             case LEDMode.RAINBOW:
                 colors = self._tick_rainbow_for(seg_count)
             case LEDMode.TEMP_LINKED:
-                colors = self._tick_temp_linked_for(seg_count)
+                colors = self._tick_temp_linked_for(seg_count, metric_source)
             case LEDMode.LOAD_LINKED:
-                colors = self._tick_load_linked_for(seg_count)
+                colors = self._tick_load_linked_for(seg_count, metric_source)
             case _:
                 colors = [(0, 0, 0)] * seg_count
 
@@ -82,11 +85,13 @@ class LEDEffectEngine:
 
     def _tick_multi_zone(
         self, zone_map: tuple[tuple[int, ...], ...],
+        metric_sources: tuple[tuple[str, str], ...] | None = None,
     ) -> List[Tuple[int, int, int]]:
         """Compute per-zone colors using physical LED index mapping.
 
         Each zone's LEDs are placed at their mapped indices.
         Zone map comes from SegmentDisplay.zone_led_map.
+        metric_sources maps zone index → (device, kind) for TEMP/LOAD_LINKED.
         """
         st = self._state
         zones = st.zones
@@ -99,7 +104,8 @@ class LEDEffectEngine:
             if not z.on:
                 continue
             n = len(led_indices)
-            zc = self._tick_single_mode(z.mode, z.color, n)
+            src = metric_sources[zi] if metric_sources and zi < len(metric_sources) else None
+            zc = self._tick_single_mode(z.mode, z.color, n, metric_source=src)
             if z.brightness < 100:
                 scale = z.brightness / 100.0
                 zc = [(int(r * scale), int(g * scale), int(b * scale))
@@ -211,20 +217,26 @@ class LEDEffectEngine:
             colors[ring_count - j - 1] = table[idx]
         return colors
 
-    def _tick_temp_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
+    def _tick_temp_linked_for(
+        self, seg_count: int,
+        metric_source: tuple[str, str] | None = None,
+    ) -> List[Tuple[int, int, int]]:
         """WDLD_Timer: color from temperature thresholds."""
         from ..core.color import ColorEngine
 
-        source = self._state.temp_source
+        source = metric_source[0] if metric_source and metric_source[0] else self._state.temp_source
         temp = getattr(self._metrics, f"{source}_temp", 0)
         color = ColorEngine.color_for_value(temp, ColorEngine.TEMP_GRADIENT)
         return [color] * seg_count
 
-    def _tick_load_linked_for(self, seg_count: int) -> List[Tuple[int, int, int]]:
+    def _tick_load_linked_for(
+        self, seg_count: int,
+        metric_source: tuple[str, str] | None = None,
+    ) -> List[Tuple[int, int, int]]:
         """FZLD_Timer: color from CPU/GPU load thresholds."""
         from ..core.color import ColorEngine
 
-        source = self._state.load_source
+        source = metric_source[0] if metric_source and metric_source[0] else self._state.load_source
         load = self._metrics.cpu_percent if source == "cpu" else self._metrics.gpu_usage
         color = ColorEngine.color_for_value(load, ColorEngine.LOAD_GRADIENT)
         return [color] * seg_count

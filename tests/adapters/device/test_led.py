@@ -1097,34 +1097,35 @@ class TestLedHidSenderSendLedData:
             mock_sleep.assert_not_called()
 
     def test_concurrent_send_guard(self):
-        """Second send while first is in progress should return False."""
+        """Second send while lock held should return False."""
         transport = _make_mock_transport()
         sender = LedHidSender(transport)
 
-        # Simulate send in progress
-        sender._sending = True
+        # Simulate send in progress by acquiring the lock
+        sender._lock.acquire()
         result = sender.send_led_data(b'\xAA' * 20)
 
         assert result is False
         transport.write.assert_not_called()
+        sender._lock.release()
 
-    def test_sending_flag_reset_after_send(self):
-        """_sending should be False after send completes."""
+    def test_lock_released_after_send(self):
+        """Lock should be released after send completes."""
         transport = _make_mock_transport()
         sender = LedHidSender(transport)
 
         sender.send_led_data(b'\xAA' * 20)
-        assert sender._sending is False
+        assert not sender._lock.locked()
 
-    def test_sending_flag_reset_on_error(self):
-        """_sending should be False even if write raises."""
+    def test_lock_released_on_error(self):
+        """Lock should be released even if write raises."""
         transport = _make_mock_transport()
         transport.write.side_effect = OSError("USB error")
         sender = LedHidSender(transport)
 
         result = sender.send_led_data(b'\xAA' * 20)
         assert result is False
-        assert sender._sending is False
+        assert not sender._lock.locked()
 
     def test_write_exception_returns_false(self):
         """Transport write exception should result in False return."""
@@ -1136,13 +1137,14 @@ class TestLedHidSenderSendLedData:
         assert result is False
 
     def test_is_sending_property(self):
-        """is_sending property should reflect _sending state."""
+        """is_sending reflects lock state."""
         transport = _make_mock_transport()
         sender = LedHidSender(transport)
 
         assert sender.is_sending is False
-        sender._sending = True
+        sender._lock.acquire()
         assert sender.is_sending is True
+        sender._lock.release()
 
     def test_realistic_30_led_packet(self):
         """Realistic 30-LED packet: 20 + 90 = 110 bytes → 2 chunks."""

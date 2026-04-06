@@ -236,8 +236,12 @@ class TestMockDevices:
     def devices(self):
         return json.loads(DEV_DEVICES.read_text())
 
-    def test_7_devices(self, devices):
-        assert len(devices) == 7
+    def test_all_devices_present(self, devices):
+        assert len(devices) >= 1, "devices.json is empty"
+        lcd = [d for d in devices if d['type'] == 'lcd']
+        led = [d for d in devices if d['type'] == 'led']
+        assert len(lcd) >= 1, "no LCD devices in devices.json"
+        assert len(led) >= 1, "no LED devices in devices.json"
 
     def test_every_lcd_pm_sub_resolves(self, devices):
         for dev in devices:

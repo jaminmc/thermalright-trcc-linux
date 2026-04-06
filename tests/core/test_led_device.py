@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from trcc.core.instance import InstanceKind
 from trcc.core.led_device import LEDDevice
-from trcc.core.models import LEDMode
+from trcc.core.models import DetectedDevice, LEDMode
 
 
 def _make_led(**overrides) -> LEDDevice:
@@ -51,6 +51,74 @@ class TestLEDDeviceConstruction(unittest.TestCase):
         led = LEDDevice()
         with self.assertRaises(RuntimeError, msg="ControllerBuilder"):
             led.connect()
+
+
+# =============================================================================
+# Connect with detected — device isolation
+# =============================================================================
+
+
+def _make_detected_led(model: str = "AX120_DIGITAL",
+                       vid: int = 0x0416,
+                       pid: int = 0x8001) -> DetectedDevice:
+    return DetectedDevice(
+        vid=vid, pid=pid,
+        vendor_name="Winbond", product_name="LED Controller",
+        usb_path=f"mock:led:{vid:04x}:{pid:04x}",
+        implementation="hid_led", model=model,
+        button_image="", protocol="led", device_type=1,
+    )
+
+
+class TestLEDDeviceConnectIsolation(unittest.TestCase):
+    """connect(detected) uses the detected device directly — no re-detect."""
+
+    def _make_unconnected_led(self) -> LEDDevice:
+        svc = MagicMock()
+        svc.initialize.return_value = "LED: AX120 (30 LEDs)"
+        return LEDDevice(
+            get_protocol=MagicMock(),
+            led_svc_factory=lambda **kw: svc,
+            led_config=MagicMock(),
+        )
+
+    def test_connect_uses_detected_directly(self):
+        """connect(detected) converts to DeviceInfo without re-detecting."""
+        led = self._make_unconnected_led()
+        detected = _make_detected_led("PA120_DIGITAL", pid=0x8002)
+
+        result = led.connect(detected)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(led.device_info.model, "PA120_DIGITAL")
+        self.assertEqual(led.device_info.path, "hid:0416:8002")
+
+    def test_connect_different_models_get_different_identities(self):
+        """Multiple LED devices each get their own identity from detected."""
+        led1 = self._make_unconnected_led()
+        led2 = self._make_unconnected_led()
+
+        led1.connect(_make_detected_led("AX120_DIGITAL", pid=0x8001))
+        led2.connect(_make_detected_led("PA120_DIGITAL", pid=0x8002))
+
+        self.assertEqual(led1.device_info.model, "AX120_DIGITAL")
+        self.assertEqual(led2.device_info.model, "PA120_DIGITAL")
+        self.assertNotEqual(led1.device_info.path, led2.device_info.path)
+
+    def test_connect_no_detected_falls_back_to_device_svc(self):
+        """connect() without detected uses DeviceService.detect()."""
+        dev_svc = MagicMock()
+        dev_svc.devices = []  # No LED devices found
+        led = LEDDevice(
+            device_svc=dev_svc,
+            get_protocol=MagicMock(),
+            led_svc_factory=MagicMock(),
+        )
+
+        result = led.connect()
+
+        self.assertFalse(result["success"])
+        dev_svc.detect.assert_called_once()
 
 
 # =============================================================================

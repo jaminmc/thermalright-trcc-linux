@@ -82,6 +82,10 @@ class SegmentDisplay:
     mask_size: int = 0
     phase_count: int = 0
     zone_led_map: Optional[Tuple[Tuple[int, ...], ...]] = None
+    # Per-zone metric source: (device, kind) per zone index.
+    # e.g. PA120: zone 0=("cpu","temp"), zone 1=("cpu","load"), ...
+    # None = use global temp_source/load_source (single-zone devices).
+    zone_metric_sources: Optional[Tuple[Tuple[str, str], ...]] = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -121,19 +125,20 @@ class SegmentDisplay:
     def _encode_digits(
         self, value: int, max_val: int, digit_count: int,
         digit_leds: Tuple[Tuple[int, ...], ...], mask: List[bool],
+        suppress_leading_zeros: bool = True,
     ) -> None:
-        """Encode N-digit value with leading-zero suppression."""
+        """Encode N-digit value with optional leading-zero suppression."""
         v = max(0, min(max_val, value))
         chars: list[str] = []
         for i in range(digit_count - 1, -1, -1):
             d = (v // (10 ** i)) % 10
             chars.append(str(d))
-        # Suppress leading zeros (keep ones digit)
-        for i in range(digit_count - 1):
-            if chars[i] == '0':
-                chars[i] = ' '
-            else:
-                break
+        if suppress_leading_zeros:
+            for i in range(digit_count - 1):
+                if chars[i] == '0':
+                    chars[i] = ' '
+                else:
+                    break
         for idx, ch in enumerate(chars):
             self._encode_7seg(ch, digit_leds[idx], mask)
 
@@ -171,7 +176,11 @@ class SegmentDisplay:
             mask[partial_bc[0]] = True
             mask[partial_bc[1]] = True
             v -= 100
-        self._encode_2digit(v, digit_leds, mask)
+            # Hundreds present — don't suppress tens zero (100 → "00" not " 0")
+            self._encode_digits(v, 99, 2, digit_leds, mask,
+                                suppress_leading_zeros=False)
+        else:
+            self._encode_2digit(v, digit_leds, mask)
 
     def _encode_unit(
         self, mode: int, digit_leds: Tuple[int, ...], mask: List[bool],
@@ -291,6 +300,9 @@ class PA120Display(SegmentDisplay):
         (BFB1,) + tuple(range(66, 80)) + (82, 83),
     )
     zone_led_map = ZONE_LEDS
+    zone_metric_sources: Tuple[Tuple[str, str], ...] = (
+        ("cpu", "temp"), ("cpu", "load"), ("gpu", "temp"), ("gpu", "load"),
+    )
 
     def compute_mask(self, metrics: HardwareMetrics, phase: int = 0,
                      temp_unit: str = "C", **kw: Any) -> List[bool]:
@@ -499,6 +511,9 @@ class LF10Display(SegmentDisplay):
         tuple(range(104, 116)),
     )
     zone_led_map = ZONE_LEDS
+    zone_metric_sources: Tuple[Tuple[str, str], ...] = (
+        ("cpu", "temp"), ("gpu", "temp"), ("", ""),
+    )
 
     def compute_mask(self, metrics: HardwareMetrics, phase: int = 0,
                      temp_unit: str = "C", **kw: Any) -> List[bool]:
