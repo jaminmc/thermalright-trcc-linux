@@ -249,8 +249,10 @@ class Device:
         dev = svc.selected
         self._info = dev
 
-        # Tag logger with device index
-        label = f'lcd:{dev.device_index}'
+        # Tag logger with full device identity from handshake
+        vid = int(dev.vid) if isinstance(dev.vid, int) else 0
+        pid = int(dev.pid) if isinstance(dev.pid, int) else 0
+        label = f'lcd:{dev.device_index} [{vid:04X}:{pid:04X} FBL={dev.fbl_code} PM={dev.pm_byte} SUB={dev.sub_byte}]'
         self.log = logging.getLogger(f'{__name__}.{label}')
         if hasattr(self.log, 'dev'):
             self.log.dev = label  # type: ignore[attr-defined]
@@ -345,11 +347,15 @@ class Device:
             led_config=self._led_config,
         )
         self._init_status = self._led_svc.initialize(self._info)
-        log.info("LED connected: %s [%04X:%04X] PM=%d SUB=%d style=%s",
-                 self._info.path, self._info.vid, self._info.pid,
-                 getattr(self._info, 'pm_byte', 0),
-                 getattr(self._info, 'sub_byte', 0),
-                 self._init_status)
+        pm = getattr(self._info, 'pm_byte', 0)
+        sub = getattr(self._info, 'sub_byte', 0)
+        vid = int(self._info.vid) if isinstance(self._info.vid, int) else 0
+        pid = int(self._info.pid) if isinstance(self._info.pid, int) else 0
+        label = f'led:{getattr(self._info, "device_index", 0)} [{vid:04X}:{pid:04X} PM={pm} SUB={sub}]'
+        self.log = logging.getLogger(f'{__name__}.{label}')
+        if hasattr(self.log, 'dev'):
+            self.log.dev = label  # type: ignore[attr-defined]
+        self.log.info("LED connected: %s style=%s", self._info.path, self._init_status)
         return {"success": True, "status": self._init_status or ""}
 
     # ══════════════════════════════════════════════════════════════════════
