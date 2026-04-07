@@ -604,7 +604,16 @@ class TRCCApp(QMainWindow):
                 h.stop_timers()
             self._screencast.stop()
         else:
-            log.info("System resuming — TrccApp metrics loop handles device ticking")
+            log.info("System resuming — rescanning devices in 2s")
+            QTimer.singleShot(2000, self._on_resume_rescan)
+
+    def _on_resume_rescan(self) -> None:
+        """Rescan devices after sleep resume — USB may have re-enumerated."""
+        from ..core.app import TrccApp
+        try:
+            TrccApp.get().scan()
+        except Exception:
+            log.exception("Resume rescan failed")
 
     # ── Timers ──────────────────────────────────────────────────────
 
