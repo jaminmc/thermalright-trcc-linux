@@ -155,11 +155,9 @@ def download_web_theme(
             detail="resolution required — no device connected and no resolution specified",
         )
 
-    if send and (not _display_dispatcher or not _display_dispatcher.connected):
-        raise HTTPException(
-            status_code=409,
-            detail="No LCD device selected. POST /devices/{id}/select first.",
-        )
+    if send:
+        from trcc.api.display import _get_display
+        _get_display()
 
     # Download (or use cache)
     web_dir = DataManager.get_web_dir(w, h)
@@ -408,15 +406,11 @@ async def import_theme(file: UploadFile) -> dict:
         tmp_path = tmp.name
 
     try:
-        from trcc.api import _display_dispatcher
+        from trcc.api.display import _get_display
         from trcc.core.paths import resolve_theme_dir
-        if not _display_dispatcher or not _display_dispatcher.connected:
-            raise HTTPException(
-                status_code=409,
-                detail="No device connected. POST /devices/{id}/select first.",
-            )
-        w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
-        td = _display_dispatcher.orientation.theme_dir
+        lcd = _get_display()
+        w, h = lcd.resolution  # type: ignore[union-attr]
+        td = lcd.orientation.theme_dir
         data_dir = td.path if td else Path(resolve_theme_dir(w, h))
         from trcc.adapters.infra.dc_config import DcConfig
         from trcc.adapters.infra.dc_parser import load_config_json

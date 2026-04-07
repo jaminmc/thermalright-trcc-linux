@@ -22,6 +22,24 @@ log = logging.getLogger(__name__)
 _ERR_NOT_FOUND = "USB device {vid:04x}:{pid:04x} not found"
 
 
+def close_usb_device(dev: Any, interface: int = 0) -> None:
+    """Release interface and dispose USB device resources.
+
+    Safe to call on None or already-closed devices.
+    """
+    if dev is None:
+        return
+    import usb.util
+    try:
+        usb.util.release_interface(dev, interface)
+    except Exception:
+        pass
+    try:
+        usb.util.dispose_resources(dev)
+    except Exception:
+        pass
+
+
 def _err_interface_busy() -> str:
     """Platform-aware error for USB interface claim failure after driver detach."""
     from trcc.core.platform import LINUX
@@ -250,12 +268,7 @@ class BulkFrameDevice:
     def close(self) -> None:
         """Release USB device."""
         if self._dev is not None:
-            import usb.util
-            try:
-                usb.util.release_interface(self._dev, self._intf)
-            except Exception:
-                pass
-            usb.util.dispose_resources(self._dev)
+            close_usb_device(self._dev, self._intf)
             self._dev = None
             self._ep_out = None
             self._ep_in = None

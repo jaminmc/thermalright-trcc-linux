@@ -722,14 +722,8 @@ class PyUsbTransport(UsbTransport):
             UsbDevice.Exit();
         """
         if self._device is not None:
-            try:
-                usb.util.release_interface(self._device, USB_INTERFACE)  # type: ignore[union-attr]
-            except Exception:
-                pass
-            try:
-                usb.util.dispose_resources(self._device)  # type: ignore[union-attr]
-            except Exception:
-                pass
+            from ._usb_helpers import close_usb_device
+            close_usb_device(self._device, USB_INTERFACE)
             self._device = None
         self._is_open = False
 
