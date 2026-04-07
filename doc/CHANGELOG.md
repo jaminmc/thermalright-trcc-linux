@@ -1,5 +1,14 @@
 # Changelog
 
+## v9.4.0
+
+### Features
+- **Auto-detect best GPU**: Multi-GPU systems automatically use the GPU with the most VRAM (discrete over integrated). NVIDIA via pynvml, AMD via sysfs. Works for any count, any vendor mix.
+- **`trcc report` works with GUI running**: Routes through running instance via IPC instead of opening devices directly. No more "in use by another process" warnings.
+
+### Fixes
+- **IPC status enriched**: `display.status` and `led.status` now return PM, SUB, FBL, model — full device identity for remote clients and diagnostics.
+
 ## v9.3.13
 
 ### Fixes
