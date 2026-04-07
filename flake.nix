@@ -14,7 +14,7 @@
       in {
         packages.default = python.pkgs.buildPythonApplication {
           pname = "trcc-linux";
-          version = "9.3.11";
+          version = "9.3.12";
           pyproject = true;
 
           src = ./.;

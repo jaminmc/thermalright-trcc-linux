@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.3.12
+
+### Fixes
+- **Display blank after sleep/resume**: Sleep handler stopped timers on suspend but did nothing on resume — USB handles go stale after re-enumeration, leaving the display blank. Now delays 2s for USB to settle, then rescans all devices which rebuilds handlers and restarts timers.
+
 ## v9.3.11
 
 ### Refactors
