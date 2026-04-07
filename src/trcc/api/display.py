@@ -36,12 +36,12 @@ router = APIRouter(prefix="/display", tags=["display"])
 
 
 def _get_display():
-    """Get the active LCDDevice, raise 409 if not connected."""
-    from trcc.api import _display_dispatcher
+    """Get the active device, raise 409 if not connected."""
+    from trcc.api import _device_dispatcher
 
-    if not _display_dispatcher or not _display_dispatcher.connected:
-        raise HTTPException(status_code=409, detail="No LCD device selected. POST /devices/{id}/select first.")
-    return _display_dispatcher
+    if not _device_dispatcher or not _device_dispatcher.connected:
+        raise HTTPException(status_code=409, detail="No device selected. POST /devices/{id}/select first.")
+    return _device_dispatcher
 
 
 
@@ -49,52 +49,39 @@ def _get_display():
 def set_color(body: HexColorRequest) -> dict:
     """Send solid color to LCD."""
     from trcc.api import stop_overlay_loop, stop_video_playback
-    from trcc.core.app import TrccApp
 
     stop_video_playback()
     stop_overlay_loop()
     r, g, b = parse_hex_or_400(body.hex)
-    _get_display()
-    return dispatch_result(TrccApp.get().lcd.send_color(r, g, b))
+    return dispatch_result(_get_display().send_color(r, g, b))
 
 
 @router.post("/brightness")
 def set_brightness(body: BrightnessRequest) -> dict:
     """Set display brightness (1=25%, 2=50%, 3=100%). Persists to config."""
-    from trcc.core.app import TrccApp
-
-    _get_display()
-    return dispatch_result(TrccApp.get().lcd.set_brightness(body.level))
+    return dispatch_result(_get_display().set_brightness(body.level))
 
 
 @router.post("/rotation")
 def set_rotation(body: RotationRequest) -> dict:
     """Set display rotation (0, 90, 180, 270). Persists to config."""
-    from trcc.core.app import TrccApp
-
-    _get_display()
-    return dispatch_result(TrccApp.get().lcd.set_rotation(body.degrees))
+    return dispatch_result(_get_display().set_rotation(body.degrees))
 
 
 @router.post("/split")
 def set_split(body: SplitRequest) -> dict:
     """Set split mode (0=off, 1-3=Dynamic Island). Persists to config."""
-    from trcc.core.app import TrccApp
-
-    _get_display()
-    return dispatch_result(TrccApp.get().lcd.set_split_mode(body.mode))
+    return dispatch_result(_get_display().set_split_mode(body.mode))
 
 
 @router.post("/reset")
 def reset_display() -> dict:
     """Reset device by sending solid red frame."""
     from trcc.api import stop_overlay_loop, stop_video_playback
-    from trcc.core.app import TrccApp
 
     stop_video_playback()
     stop_overlay_loop()
-    _get_display()
-    return dispatch_result(TrccApp.get().lcd.reset())
+    return dispatch_result(_get_display().reset())
 
 
 @router.post("/mask")
@@ -115,8 +102,7 @@ async def load_mask(image: UploadFile) -> dict:
         tmp_path = tmp.name
 
     try:
-        from trcc.core.app import TrccApp
-        result = TrccApp.get().lcd.load_mask_standalone(tmp_path)
+        result = _get_display().load_mask_standalone(tmp_path)
         return dispatch_result(result)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -139,22 +125,21 @@ async def render_overlay(dc_path: str, send: bool = True) -> dict:
     if not safe_path.startswith(allowed_dir + os.sep) and safe_path != allowed_dir:
         raise HTTPException(status_code=400, detail="Invalid overlay path")
 
-    from trcc.core.app import TrccApp
 
     _get_display()
-    result = TrccApp.get().lcd.render_overlay_from_dc(safe_path, send=send)
+    result = _get_display().render_overlay_from_dc(safe_path, send=send)
     return dispatch_result(result)
 
 
 @router.get("/status")
 def display_status() -> dict:
     """Get current display state — resolution, device path, connection."""
-    from trcc.api import _display_dispatcher
+    from trcc.api import _device_dispatcher
 
-    if not _display_dispatcher or not _display_dispatcher.connected:
+    if not _device_dispatcher or not _device_dispatcher.connected:
         return {"connected": False, "resolution": [0, 0], "device_path": None}
 
-    lcd = _display_dispatcher
+    lcd = _device_dispatcher
     return {
         "connected": True,
         "resolution": lcd.resolution,
@@ -237,10 +222,9 @@ def test_display() -> dict:
         (255, 255, 255, "White"),
     ]
 
-    from trcc.core.app import TrccApp
     from trcc.services import ImageService
 
-    lcd = TrccApp.get().lcd
+    lcd = _get_display()
     for r, g, b, _name in colors:
         img = ImageService.solid_color(r, g, b, w, h)
         lcd.send_color(r, g, b)
@@ -393,14 +377,12 @@ async def create_theme(
         raise HTTPException(status_code=400, detail="Failed to open background image")
 
     if mask_path:
-        from trcc.core.app import TrccApp
-        mask_result = TrccApp.get().lcd.load_mask_standalone(str(mask_path))
+        mask_result = _get_display().load_mask_standalone(str(mask_path))
         if not mask_result.get("success"):
             raise HTTPException(status_code=400, detail=mask_result.get("error", "Mask load failed"))
         img = mask_result.get("image", img)
 
-    from trcc.core.app import TrccApp
-    lcd_device = TrccApp.get().lcd
+    lcd_device = _get_display()
 
     # Load background into DisplayService state
     lcd_device.load_image(bg_path)
@@ -506,9 +488,9 @@ def _get_lcd_frame():
 
     Returns the raw frame object (QImage or pre-encoded bytes).
     """
-    from trcc.api import _current_image, _display_dispatcher
+    from trcc.api import _current_image, _device_dispatcher
 
-    if getattr(_display_dispatcher, 'is_ipc', False):
+    if getattr(_device_dispatcher, 'is_ipc', False):
         return _fetch_ipc_frame()
     return _current_image
 
@@ -544,7 +526,7 @@ async def preview_stream(websocket: WebSocket):
     Auth: ``?token=`` query param (checked against configured API token).
     Client control: send JSON ``{"fps": N}``, ``{"quality": N}``, ``{"pause": bool}``.
     """
-    from trcc.api import _api_token, _display_dispatcher
+    from trcc.api import _api_token, _device_dispatcher
 
     # ── Auth ──────────────────────────────────────────────────────────
     if _api_token:
@@ -555,7 +537,7 @@ async def preview_stream(websocket: WebSocket):
 
     await websocket.accept()
 
-    use_ipc = getattr(_display_dispatcher, 'is_ipc', False)
+    use_ipc = getattr(_device_dispatcher, 'is_ipc', False)
     fps = 10
     quality = 85
     paused = False

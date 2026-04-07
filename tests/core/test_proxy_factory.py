@@ -2,36 +2,42 @@
 
 from trcc.core.instance import InstanceKind
 from trcc.ipc import (
-    DisplayProxy,
-    LEDProxy,
-    create_lcd_proxy,
-    create_led_proxy,
+    DeviceProxy,
+    create_device_proxy,
 )
 
 
-class TestCreateLcdProxy:
-    """create_lcd_proxy() returns DisplayProxy with correct transport."""
+class TestCreateDeviceProxy:
+    """create_device_proxy() returns DeviceProxy with correct transport."""
 
     def test_gui_returns_ipc_transport(self):
+        proxy = create_device_proxy(InstanceKind.GUI)
+        assert isinstance(proxy, DeviceProxy)
+        assert proxy.is_ipc
+
+    def test_api_returns_api_transport(self):
+        proxy = create_device_proxy(InstanceKind.API)
+        assert isinstance(proxy, DeviceProxy)
+        assert not proxy.is_ipc
+
+
+class TestBackwardCompatAliases:
+    """Backward-compat aliases still work."""
+
+    def test_create_lcd_proxy_alias(self):
+        from trcc.ipc import create_lcd_proxy
         proxy = create_lcd_proxy(InstanceKind.GUI)
-        assert isinstance(proxy, DisplayProxy)
-        assert proxy.is_ipc
+        assert isinstance(proxy, DeviceProxy)
 
-    def test_api_returns_api_transport(self):
-        proxy = create_lcd_proxy(InstanceKind.API)
-        assert isinstance(proxy, DisplayProxy)
-        assert not proxy.is_ipc
-
-
-class TestCreateLedProxy:
-    """create_led_proxy() returns LEDProxy with correct transport."""
-
-    def test_gui_returns_ipc_transport(self):
+    def test_create_led_proxy_alias(self):
+        from trcc.ipc import create_led_proxy
         proxy = create_led_proxy(InstanceKind.GUI)
-        assert isinstance(proxy, LEDProxy)
-        assert proxy.is_ipc
+        assert isinstance(proxy, DeviceProxy)
 
-    def test_api_returns_api_transport(self):
-        proxy = create_led_proxy(InstanceKind.API)
-        assert isinstance(proxy, LEDProxy)
-        assert not proxy.is_ipc
+    def test_display_proxy_alias(self):
+        from trcc.ipc import DisplayProxy
+        assert DisplayProxy is DeviceProxy
+
+    def test_led_proxy_alias(self):
+        from trcc.ipc import LEDProxy
+        assert LEDProxy is DeviceProxy

@@ -23,6 +23,11 @@ import logging
 import os
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from trcc.core.device import Device
+    from trcc.ipc import DeviceProxy
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -55,9 +60,8 @@ _device_svc = DeviceService(
 # System service — None until configure_app() is called by trcc serve
 _system_svc: SystemService | None = None
 
-# Lazy-initialized devices (set when device is selected)
-_display_dispatcher = None  # Device | DisplayProxy | None
-_led_dispatcher = None      # Device | LEDProxy | None
+# Lazy-initialized device (set when device is selected)
+_device_dispatcher: Device | DeviceProxy | None = None
 
 # Last frame sent to LCD — updated by display/theme endpoints for preview
 _current_image = None  # QImage | None
@@ -129,7 +133,7 @@ def start_video_playback(
     _video_stop_event = threading.Event()
     stop_event = _video_stop_event  # Local ref for closure
 
-    lcd = _display_dispatcher  # capture for closure
+    lcd = _device_dispatcher  # capture for closure
 
     def _pump() -> None:
         interval = media.frame_interval_ms / 1000.0
@@ -201,7 +205,7 @@ def start_overlay_loop(
     _overlay_svc = overlay
     _overlay_stop_event = threading.Event()
     stop_event = _overlay_stop_event
-    lcd = _display_dispatcher  # capture for closure
+    lcd = _device_dispatcher  # capture for closure
 
     def _loop() -> None:
         while not stop_event.is_set():
@@ -249,7 +253,7 @@ def start_keepalive_loop(image, width: int, height: int) -> bool:
 
     _keepalive_stop_event = threading.Event()
     stop_event = _keepalive_stop_event
-    lcd = _display_dispatcher  # capture for closure
+    lcd = _device_dispatcher  # capture for closure
 
     def _loop() -> None:
         while not stop_event.is_set():
@@ -314,10 +318,10 @@ def start_screencast(
     stop_overlay_loop()
     stop_keepalive_loop()
 
-    if not _display_dispatcher or not _display_dispatcher.connected:
-        return {"success": False, "error": "No LCD device connected"}
+    if not _device_dispatcher or not _device_dispatcher.connected:
+        return {"success": False, "error": "No device connected"}
 
-    lcd = _display_dispatcher  # capture for closures
+    lcd = _device_dispatcher  # capture for closures
     lcd_w, lcd_h = lcd.resolution  # type: ignore[union-attr]
     _screencast_stop_event = threading.Event()
     stop_event = _screencast_stop_event
@@ -495,7 +499,7 @@ def mount_static_dirs(width: int, height: int) -> None:
     _mounted_routes.clear()
 
     # Read from device's orientation when available, fallback to resolve
-    o = getattr(_display_dispatcher, 'orientation', None) if _display_dispatcher else None
+    o = getattr(_device_dispatcher, 'orientation', None) if _device_dispatcher else None
     if o is not None and not hasattr(o, 'theme_dir'):
         o = None  # proxy/mock without real Orientation
     td = o.theme_dir if o else None

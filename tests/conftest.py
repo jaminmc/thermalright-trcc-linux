@@ -144,11 +144,17 @@ def _mock_builder(mock_platform):
     mock_app.has_lcd = True
     mock_app.has_led = True
     # lcd_device / led_device — mocks that CLI test_display etc. access
-    mock_app.lcd_device = MagicMock()
-    mock_app.led_device = MagicMock()
+    # spec=False so auto-attrs work, but set is_ipc=False to match real Device
+    mock_app.lcd_device = MagicMock(is_ipc=False)
+    mock_app.led_device = MagicMock(is_ipc=False)
     # lcd/led shorthand — writable so CLI conftest can swap them
     mock_app.lcd = mock_app.lcd_device
     mock_app.led = mock_app.led_device
+    # Unified accessors — device(index) returns lcd by default
+    _default_device = mock_app.lcd_device
+    mock_app.device = lambda index=0: _default_device
+    mock_app.devices = [_default_device]
+    mock_app.has_device = lambda lcd=None: True
     # OS methods — return sensible defaults
     mock_app.setup_platform.return_value = 0
     mock_app.setup_udev.return_value = 0

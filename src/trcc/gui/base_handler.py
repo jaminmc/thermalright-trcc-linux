@@ -35,5 +35,15 @@ class BaseHandler:
         if self._device:
             self._device.cleanup()
 
+    @property
+    def device(self) -> Any:
+        return self._device
+
+    def handle_frame(self, image: Any) -> None:
+        """Receive a rendered frame from the background tick loop.
+
+        Override in subclass — LCD shows preview, LED updates color display.
+        """
+
     def update_metrics(self, metrics: Any) -> None:
         """Override in subclass."""

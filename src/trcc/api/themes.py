@@ -73,11 +73,11 @@ def list_themes(resolution: str) -> list[ThemeResponse]:
 
     from pathlib import Path
 
-    from trcc.api import _display_dispatcher
+    from trcc.api import _device_dispatcher
     from trcc.conf import settings as _settings
     from trcc.core.paths import resolve_theme_dir
 
-    o = _display_dispatcher.orientation if _display_dispatcher else None
+    o = _device_dispatcher.orientation if _device_dispatcher else None
     td = o.theme_dir if o else None
     theme_dir = td.path if td else Path(resolve_theme_dir(w, h))
     ucd = getattr(_settings, 'user_content_dir', None)
@@ -142,13 +142,13 @@ def download_web_theme(
         raise HTTPException(status_code=400, detail="Invalid theme ID")
     from trcc.adapters.infra.data_repository import DataManager
     from trcc.adapters.infra.theme_cloud import CloudThemeDownloader
-    from trcc.api import _display_dispatcher
+    from trcc.api import _device_dispatcher
 
     # Resolve resolution from parameter or connected device
     if resolution:
         w, h = _parse_resolution(resolution)
-    elif _display_dispatcher and _display_dispatcher.connected:
-        w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
+    elif _device_dispatcher and _device_dispatcher.connected:
+        w, h = _device_dispatcher.resolution  # type: ignore[union-attr]
     else:
         raise HTTPException(
             status_code=400,
@@ -235,7 +235,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
     import trcc.api as api
     from trcc.api.models import dispatch_result
 
-    if not api._display_dispatcher or not api._display_dispatcher.connected:
+    if not api._device_dispatcher or not api._device_dispatcher.connected:
         raise HTTPException(status_code=409, detail="No LCD device selected. POST /devices/{id}/select first.")
 
     api.stop_video_playback()
@@ -246,9 +246,8 @@ def load_theme(body: ThemeLoadRequest) -> dict:
     if body.resolution:
         w, h = _parse_resolution(body.resolution)
 
-    from trcc.core.app import TrccApp
 
-    result = TrccApp.get().lcd.load_theme_by_name(body.name, w, h)
+    result = api._device_dispatcher.load_theme_by_name(body.name, w, h)
     if not result.get("success"):
         return dispatch_result(result)
 
@@ -263,7 +262,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
     config_path = result.get("config_path")
 
     if not w or not h:
-        res = getattr(api._display_dispatcher, 'resolution', None)
+        res = getattr(api._device_dispatcher, 'resolution', None)
         if res:
             w, h = res
         else:
@@ -302,16 +301,16 @@ def load_theme(body: ThemeLoadRequest) -> dict:
 @router.post("/save")
 def save_theme(body: ThemeSaveRequest) -> dict:
     """Save current device display as a named theme."""
-    from trcc.core.app import TrccApp
+    import trcc.api as api
 
-    app = TrccApp.get()
-    if not app.has_lcd or not app.lcd.current_image:
+    dev = api._device_dispatcher
+    if not dev or not dev.connected or not dev.current_image:
         raise HTTPException(
             status_code=409,
             detail="No image loaded. Load a theme or send an image first.",
         )
 
-    result = app.lcd.save(body.name)
+    result = dev.save(body.name)
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("message", "Save failed"))
     return {"success": True, "message": result["message"], "name": body.name}
@@ -326,7 +325,7 @@ def export_theme(theme_name: str, resolution: str | None = None) -> Response:
 
     from fastapi.responses import FileResponse
 
-    from trcc.api import _display_dispatcher
+    from trcc.api import _device_dispatcher
 
     # Validate theme_name — no path traversal
     if not re.fullmatch(r'[a-zA-Z0-9_ \-().]+', theme_name):
@@ -335,19 +334,19 @@ def export_theme(theme_name: str, resolution: str | None = None) -> Response:
     # Resolve resolution from query param or connected device
     if resolution:
         w, h = _parse_resolution(resolution)
-    elif _display_dispatcher and _display_dispatcher.connected:
-        w, h = _display_dispatcher.resolution  # type: ignore[union-attr]
+    elif _device_dispatcher and _device_dispatcher.connected:
+        w, h = _device_dispatcher.resolution  # type: ignore[union-attr]
     else:
         raise HTTPException(
             status_code=400,
             detail="resolution required — no device connected and no resolution specified",
         )
 
-    from trcc.api import _display_dispatcher
+    from trcc.api import _device_dispatcher
     from trcc.conf import settings as _settings
     from trcc.core.paths import resolve_theme_dir
 
-    o = _display_dispatcher.orientation if _display_dispatcher else None
+    o = _device_dispatcher.orientation if _device_dispatcher else None
     td = o.theme_dir if o else None
     theme_dir = td.path if td else Path(resolve_theme_dir(w, h))
     ucd = getattr(_settings, 'user_content_dir', None)
@@ -406,9 +405,11 @@ async def import_theme(file: UploadFile) -> dict:
         tmp_path = tmp.name
 
     try:
-        from trcc.api.display import _get_display
+        from trcc.api import _device_dispatcher
         from trcc.core.paths import resolve_theme_dir
-        lcd = _get_display()
+        if not _device_dispatcher or not _device_dispatcher.connected:
+            raise HTTPException(status_code=409, detail="No device connected")
+        lcd = _device_dispatcher
         w, h = lcd.resolution  # type: ignore[union-attr]
         td = lcd.orientation.theme_dir
         data_dir = td.path if td else Path(resolve_theme_dir(w, h))

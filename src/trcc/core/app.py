@@ -65,7 +65,7 @@ class TrccApp:
 
         app = TrccApp.init()
         devices = app.scan()           # list[Device] — LCD or LED, ready to use
-        lcd = app.lcd_device           # LCDDevice or None
+        dev = app.device(0)            # first device by index
     """
 
     _instance: TrccApp | None = None
@@ -301,55 +301,70 @@ class TrccApp:
         IPC handlers (set via set_ipc_handlers) are injected here so that
         devices built by scan() can proxy to a running GUI/API instance.
         """
+        path = getattr(device, 'device_path', '?')
         device.wire_ipc(self._find_active_fn, self._proxy_factory_fn)
-        if device.is_lcd:
-            log.debug("LCD device ready: %s", getattr(device, 'device_path', '?'))
-            if self._settings is not None:
-                device.initialize_pipeline(self._settings)
-            else:
-                log.warning("_wire_device: settings not initialized — skipping pipeline init")
+        if self._settings is not None:
+            device.initialize_pipeline(self._settings)
         else:
-            log.debug("LED device ready: %s", getattr(device, 'device_path', '?'))
+            log.warning("_wire_device: settings not initialized — skipping pipeline init for %s", path)
+        log.debug("device ready: %s (lcd=%s)", path, device.is_lcd)
 
     @property
     def devices(self) -> list[Device]:
         """All currently known devices (snapshot). Call scan() first."""
         return list(self._devices.values())
 
+    def device(self, index: int = 0) -> Device:
+        """Device by position. Raises if out of range."""
+        devs = list(self._devices.values())
+        if index < 0 or index >= len(devs):
+            raise RuntimeError(
+                f"Device index {index} out of range ({len(devs)} connected).")
+        return devs[index]
+
+    def device_by_path(self, path: str) -> Device | None:
+        """Look up device by USB path, or None."""
+        return self._devices.get(path)
+
+    def has_device(self, *, lcd: bool | None = None) -> bool:
+        """True if a matching device is connected.
+
+        lcd=True: any LCD.  lcd=False: any LED.  lcd=None: any device.
+        """
+        if lcd is None:
+            return bool(self._devices)
+        return any(d.is_lcd == lcd for d in self._devices.values())
+
+    # ── Backward-compat aliases (deprecation cycle) ─────────────────────────
+
     @property
     def has_lcd(self) -> bool:
-        """True if an LCD device is connected."""
-        return self.lcd_device is not None
+        return self.has_device(lcd=True)
 
     @property
     def has_led(self) -> bool:
-        """True if an LED device is connected."""
-        return self.led_device is not None
+        return self.has_device(lcd=False)
 
     @property
     def lcd_device(self) -> Device | None:
-        """The first LCD device, or None."""
         return next((d for d in self._devices.values() if d.is_lcd), None)
 
     @property
     def led_device(self) -> Device | None:
-        """The first LED device, or None."""
         return next((d for d in self._devices.values() if d.is_led), None)
 
     @property
     def lcd(self) -> Device:
-        """The first LCD device. Raises if not connected."""
         d = self.lcd_device
         if d is None:
-            raise RuntimeError("No LCD device connected. Call scan() first.")
+            raise RuntimeError("No LCD device connected.")
         return d
 
     @property
     def led(self) -> Device:
-        """The first LED device. Raises if not connected."""
         d = self.led_device
         if d is None:
-            raise RuntimeError("No LED device connected. Call scan() first.")
+            raise RuntimeError("No LED device connected.")
         return d
 
     # ── DI: device construction ──────────────────────────────────────────────

@@ -239,8 +239,8 @@ LoadConfigJsonFn = Callable[[str], Any]
 FindActiveFn = Callable[[], Any]
 
 # Type alias for proxy factory callable.
-# Concrete: ipc.create_lcd_proxy / ipc.create_led_proxy
-# Takes InstanceKind, returns a proxy object (IPCDisplayProxy, APIDisplayProxy, etc.)
+# Concrete: ipc.create_device_proxy
+# Takes InstanceKind, returns a DeviceProxy.
 ProxyFactoryFn = Callable[[Any], Any]
 
 # Type alias for theme export callable.

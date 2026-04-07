@@ -505,6 +505,10 @@ class LCDHandler(BaseHandler):
             self._w['theme_setting'].overlay_grid.overlay_enabled,
             element_data)
 
+    def handle_frame(self, image: Any) -> None:
+        """Receive rendered frame from tick loop — update preview widget."""
+        self._w['preview'].set_image(image)
+
     def update_preview(self, image: Any) -> None:
         """Display a frame that was already rendered and sent to the device."""
         self._w['preview'].set_image(image)

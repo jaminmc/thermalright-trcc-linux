@@ -70,7 +70,7 @@ def select_device(device_id: int) -> dict:
     already_active = (
         _device_svc.selected is not None
         and _device_svc.selected is dev
-        and (api._display_dispatcher or api._led_dispatcher)
+        and api._device_dispatcher
     )
     if already_active:
         return {"selected": dev.name, "resolution": dev.resolution}
@@ -83,16 +83,16 @@ def select_device(device_id: int) -> dict:
 
     # Check if another instance (GUI) already owns the device
     from trcc.core.instance import find_active
-    from trcc.ipc import create_lcd_proxy, create_led_proxy
+    from trcc.ipc import create_device_proxy
 
     active = find_active()
 
     if active is not None:
-        api._display_dispatcher = create_lcd_proxy(active)
-        api._led_dispatcher = create_led_proxy(active)
+        proxy = create_device_proxy(active)
+        api._device_dispatcher = proxy
 
         # Active instance already discovered resolution — sync to DeviceInfo
-        proxy_res = api._display_dispatcher.resolution
+        proxy_res = proxy.resolution
         if proxy_res != (0, 0):
             dev.resolution = proxy_res
 
@@ -105,29 +105,31 @@ def select_device(device_id: int) -> dict:
         app = TrccApp.get()
         app.discover(path=getattr(dev, 'path', None))
 
-        if app.has_led:
-            api._led_dispatcher = app.led_device
-        else:
+        device = None
+        if app.devices:
+            device = app.device(0)
+            api._device_dispatcher = device
+        elif getattr(dev, 'protocol', '') != 'led':
+            # LCD fallback — build from DeviceService when scan missed it
             _device_svc._discover_resolution(dev)
-            # Fallback: wire LCD from existing device service if discover didn't find one
-            if not app.has_lcd:
-                api._display_dispatcher = app.device_from_service(_device_svc)
-            else:
-                api._display_dispatcher = app.lcd_device
+            device = app.device_from_service(_device_svc)
+            if device and device.connected:
+                api._device_dispatcher = device
 
-            lcd = api._display_dispatcher
-            if lcd is None:
-                return {"selected": dev.name, "resolution": dev.resolution}
+        if device is None or not getattr(device, 'connected', False):
+            return {"selected": dev.name, "resolution": dev.resolution}
+
+        if device.is_lcd:
             w_res, h_res = dev.resolution or (0, 0)
 
             # Download/extract theme data for this resolution in background
-            if w_res and h_res and app.has_lcd and app.lcd_device is not None:
-                app._ensure_data_background(app.lcd_device, w_res, h_res)
+            if w_res and h_res:
+                app._ensure_data_background(device, w_res, h_res)
 
             api.set_current_image(ImageService.solid_color(0, 0, 0, w_res, h_res))
 
-            lcd.restore_device_settings()
-            result = lcd.restore_last_theme()
+            device.restore_device_settings()
+            result = device.restore_last_theme()
             if result.get("image"):
                 api.set_current_image(result["image"])
                 log.info("Restored last theme for preview")
@@ -159,14 +161,10 @@ async def send_image(device_id: int, image: UploadFile, rotation: int = 0,
     import tempfile
     from pathlib import Path
 
-    from trcc.core.app import TrccApp
+    from trcc.api.display import _get_display
 
     _get_device_by_id(device_id)  # validate device exists
-
-    app = TrccApp.get()
-    if not app.has_lcd:
-        raise HTTPException(status_code=409, detail="No LCD device connected")
-    lcd = app.lcd
+    lcd = _get_display()
 
     # Read and validate upload
     data = await image.read()

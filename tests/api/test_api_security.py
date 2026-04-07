@@ -105,10 +105,10 @@ class TestThemeImportInfoLeakage(_ApiSecurityBase):
         mock_dispatcher = MagicMock()
         mock_dispatcher.connected = True
         mock_dispatcher.resolution = (320, 320)
-        api_module._display_dispatcher = mock_dispatcher
+        api_module._device_dispatcher = mock_dispatcher
 
     def tearDown(self):
-        api_module._display_dispatcher = None
+        api_module._device_dispatcher = None
         super().tearDown()
 
     def test_service_error_no_internal_details(self):
@@ -188,14 +188,14 @@ class TestMaskUploadSecurity(_ApiSecurityBase):
     def test_oversized_mask_rejected(self):
         mock_lcd = MagicMock()
         mock_lcd.connected = True
-        api_module._display_dispatcher = mock_lcd
+        api_module._device_dispatcher = mock_lcd
         big = io.BytesIO(b"\x00" * (11 * 1024 * 1024))
         resp = self.client.post(
             "/display/mask",
             files={"image": ("big.png", big, "image/png")},
         )
         self.assertEqual(resp.status_code, 413)
-        api_module._display_dispatcher = None
+        api_module._device_dispatcher = None
 
 
 # ===========================================================================

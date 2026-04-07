@@ -24,19 +24,17 @@ router = APIRouter(prefix="/led", tags=["led"])
 
 
 def _get_led():
-    """Get the active LEDDevice, raise 409 if not connected."""
-    from trcc.api import _led_dispatcher
+    """Get the active device, raise 409 if not connected."""
+    from trcc.api import _device_dispatcher
 
-    if not _led_dispatcher or not _led_dispatcher.connected:
-        raise HTTPException(status_code=409, detail="No LED device selected. POST /devices/{id}/select first.")
-    return _led_dispatcher
+    if not _device_dispatcher or not _device_dispatcher.connected:
+        raise HTTPException(status_code=409, detail="No device selected. POST /devices/{id}/select first.")
+    return _device_dispatcher
 
 
 def _led():
-    """Get LED Device from TrccApp. Raises 409 if not connected."""
-    from trcc.core.app import TrccApp
-    _get_led()
-    return TrccApp.get().led
+    """Get Device. Raises 409 if not connected."""
+    return _get_led()
 
 
 # ── Global operations ──────────────────────────────────────────────────
@@ -205,12 +203,12 @@ def test_led(
 @router.get("/status")
 def led_status() -> dict:
     """Get current LED state — connected, init status."""
-    from trcc.api import _led_dispatcher
+    from trcc.api import _device_dispatcher
 
-    if not _led_dispatcher or not _led_dispatcher.connected:
+    if not _device_dispatcher or not _device_dispatcher.connected:
         return {"connected": False, "status": None}
 
-    led = _led_dispatcher
+    led = _device_dispatcher
     return {
         "connected": True,
         "status": led.status,

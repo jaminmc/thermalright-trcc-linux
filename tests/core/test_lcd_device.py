@@ -927,18 +927,16 @@ class TestLoadThemeByName:
 # =============================================================================
 
 
-class TestIPCDisplayRoutes:
-    """IPC _DISPLAY_ROUTES includes theme and mask methods."""
+class TestIPCDeviceMethods:
+    """IPC _DEVICE_METHODS includes theme and mask methods."""
 
-    def test_load_theme_by_name_in_routes(self):
-        from trcc.ipc import _DISPLAY_ROUTES
-        assert "load_theme_by_name" in _DISPLAY_ROUTES
-        assert _DISPLAY_ROUTES["load_theme_by_name"] == ("theme", "load_theme_by_name")
+    def test_load_theme_by_name_in_methods(self):
+        from trcc.ipc import _DEVICE_METHODS
+        assert "load_theme_by_name" in _DEVICE_METHODS
 
-    def test_load_mask_standalone_in_routes(self):
-        from trcc.ipc import _DISPLAY_ROUTES
-        assert "load_mask_standalone" in _DISPLAY_ROUTES
-        assert _DISPLAY_ROUTES["load_mask_standalone"] == ("overlay", "load_mask_standalone")
+    def test_load_mask_standalone_in_methods(self):
+        from trcc.ipc import _DEVICE_METHODS
+        assert "load_mask_standalone" in _DEVICE_METHODS
 
 
 # =============================================================================

@@ -37,6 +37,12 @@ class LEDHandler(BaseHandler):
 
     _SAVE_INTERVAL = 20  # save config every N metrics updates
 
+    def handle_frame(self, image: Any) -> None:
+        """Receive tick result from background loop — update LED color display."""
+        display_colors = image.get('display_colors') if isinstance(image, dict) else None
+        if display_colors is not None:
+            self._panel.set_led_colors(display_colors)
+
     def __init__(
         self,
         led: Device,

@@ -147,6 +147,8 @@ def mock_connect_lcd(lcd):
     mock_app.lcd_device = mock_lcd
     mock_app.lcd = mock_lcd
     mock_app.has_lcd = True
+    mock_app.device = lambda index=0: mock_lcd
+    mock_app.devices = [mock_lcd]
     with patch(PATCH_CONNECT_LCD, return_value=0):
         yield mock_lcd
 
@@ -160,6 +162,8 @@ def mock_connect_led(led):
     mock_app.led_device = mock_led
     mock_app.led = mock_led
     mock_app.has_led = True
+    mock_app.device = lambda index=0: mock_led
+    mock_app.devices = [mock_led]
     with patch(PATCH_CONNECT_LED, return_value=0):
         yield mock_led
 

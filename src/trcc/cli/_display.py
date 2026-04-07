@@ -17,9 +17,9 @@ log = logging.getLogger(__name__)
 # =========================================================================
 
 def _connect_or_fail(device: str | None = None) -> int:
-    """Connect LCD via discover(). Returns exit code (0 = success)."""
+    """Connect device via discover(). Returns exit code (0 = success)."""
     from trcc.cli._connect import connect_device
-    return connect_device('lcd', device)
+    return connect_device(device)
 
 
 def _print_result(result: dict, *, preview: bool = False) -> int:
@@ -45,7 +45,7 @@ def test(device=None, loop=False, preview=False):
         if rc:
             return rc
 
-        lcd = TrccApp.get().lcd_device
+        lcd = TrccApp.get().device(0)
         assert lcd is not None
         if lcd.device_path and 'led' in lcd.device_path:
             print("LED controller with segment display — use 'trcc led' commands.")
@@ -105,7 +105,7 @@ def play_video(builder, video_path, *, device=None, loop=True, duration=0,
         rc = _connect_or_fail(device)
         if rc:
             return rc
-        lcd = TrccApp.get().lcd_device
+        lcd = TrccApp.get().device(0)
         assert lcd is not None
 
         dev_path = lcd.device_path
@@ -198,7 +198,7 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
     if rc:
         return rc
 
-    lcd = TrccApp.get().lcd_device
+    lcd = TrccApp.get().device(0)
     assert lcd is not None
     lcd_w, lcd_h = lcd.lcd_size
 
@@ -278,7 +278,7 @@ def send_image(builder, image_path, device=None, preview=False):
     rc = _connect_or_fail(device)
     if rc:
         return rc
-    result = TrccApp.get().lcd.send_image(image_path)
+    result = TrccApp.get().device(0).send_image(image_path)
     return _print_result(result, preview=preview)
 
 
@@ -295,7 +295,7 @@ def send_color(builder, hex_color, device=None, preview=False):
     if rc:
         return rc
     r, g, b = rgb
-    result = TrccApp.get().lcd.send_color(r, g, b)
+    result = TrccApp.get().device(0).send_color(r, g, b)
     return _print_result(result, preview=preview)
 
 
@@ -307,7 +307,7 @@ def set_brightness(builder, level, *, device=None):
     if rc:
         return rc
     try:
-        result = TrccApp.get().lcd.set_brightness(level)
+        result = TrccApp.get().device(0).set_brightness(level)
     except ValueError:
         result = None
     if not result or not result.get("success"):
@@ -328,7 +328,7 @@ def set_rotation(builder, degrees, *, device=None):
     rc = _connect_or_fail(device)
     if rc:
         return rc
-    result = TrccApp.get().lcd.set_rotation(degrees)
+    result = TrccApp.get().device(0).set_rotation(degrees)
     return _print_result(result)
 
 
@@ -339,7 +339,7 @@ def set_split_mode(builder, mode, *, device=None, preview=False):
     rc = _connect_or_fail(device)
     if rc:
         return rc
-    result = TrccApp.get().lcd.set_split_mode(mode)
+    result = TrccApp.get().device(0).set_split_mode(mode)
     return _print_result(result, preview=preview)
 
 
@@ -350,7 +350,7 @@ def load_mask(builder, mask_path, *, device=None, preview=False):
     rc = _connect_or_fail(device)
     if rc:
         return rc
-    result = TrccApp.get().lcd.load_mask_standalone(mask_path)
+    result = TrccApp.get().device(0).load_mask_standalone(mask_path)
     return _print_result(result, preview=preview)
 
 
@@ -366,7 +366,7 @@ def render_overlay(builder, dc_path, *, device=None, send=False, output=None,
     if rc:
         return rc
     _ensure_system(builder)
-    result = TrccApp.get().lcd.render_overlay_from_dc(
+    result = TrccApp.get().device(0).render_overlay_from_dc(
         dc_path, send=send, output=output or None,
         metrics=get_all_metrics(),
     )
@@ -392,7 +392,7 @@ def reset(builder, device=None, *, preview=False):
     rc = _connect_or_fail(device)
     if rc:
         return rc
-    lcd = TrccApp.get().lcd
+    lcd = TrccApp.get().device(0)
     print(f"  Device: {lcd.device_path}")
     result = lcd.reset()
     return _print_result(result, preview=preview)
@@ -414,23 +414,23 @@ def resume(builder):
 
     from trcc.core.app import TrccApp
     from trcc.core.instance import find_active
-    from trcc.ipc import create_lcd_proxy
+    from trcc.ipc import create_device_proxy
 
     app = TrccApp.get()
-    app.set_ipc_handlers(find_active, create_lcd_proxy)
+    app.set_ipc_handlers(find_active, create_device_proxy)
 
     for attempt in range(10):
         result = app.discover()
-        if result["success"] and app.has_lcd:
+        if result["success"] and app.devices:
             break
         print(f"Waiting for device... ({attempt + 1}/10)")
         time.sleep(2)
 
-    if not app.has_lcd:
+    if not app.devices:
         print("No compatible TRCC device detected.")
         return 1
 
-    lcd = app.lcd
+    lcd = app.device(0)
     result = lcd.restore_last_theme()
     if not result.get("success"):
         print(f"Error: {result.get('error', 'Unknown error')}")

@@ -17,9 +17,9 @@ log = logging.getLogger(__name__)
 # =========================================================================
 
 def _connect_or_fail() -> int:
-    """Connect LED via discover(). Returns exit code (0 = success)."""
+    """Connect device via discover(). Returns exit code (0 = success)."""
     from trcc.cli._connect import connect_device
-    return connect_device('led')
+    return connect_device()
 
 
 def _print_result(result: dict, *, preview: bool = False) -> int:
@@ -35,7 +35,7 @@ def _led_call(method_name: str, preview: bool = False, **kwargs) -> int:
     if rc:
         return rc
     from trcc.core.app import TrccApp
-    led = TrccApp.get().led
+    led = TrccApp.get().device(0)
     result = getattr(led, method_name)(**kwargs)
     return _print_result(result, preview=preview)
 
@@ -57,7 +57,7 @@ def set_color(builder, hex_color, *, preview=False):
     if rc:
         return rc
     r, g, b = rgb
-    result = TrccApp.get().led.set_color(r, g, b)
+    result = TrccApp.get().device(0).set_color(r, g, b)
     return _print_result(result, preview=preview)
 
 
@@ -69,7 +69,7 @@ def set_mode(builder, mode_name, *, preview=False):
     if rc:
         return rc
     from trcc.core.app import TrccApp
-    led = TrccApp.get().led
+    led = TrccApp.get().device(0)
     result = led.set_mode(mode_name)
     if not result["success"]:
         print(f"Error: {result['error']}")
@@ -123,7 +123,7 @@ def set_led_brightness(builder, level, *, preview=False):
     rc = _connect_or_fail()
     if rc:
         return rc
-    result = TrccApp.get().led.set_brightness(level)
+    result = TrccApp.get().device(0).set_brightness(level)
     return _print_result(result, preview=preview)
 
 
@@ -140,7 +140,7 @@ def set_sensor_source(builder, source):
     rc = _connect_or_fail()
     if rc:
         return rc
-    result = TrccApp.get().led.set_sensor_source(source)
+    result = TrccApp.get().device(0).set_sensor_source(source)
     return _print_result(result)
 
 
@@ -156,7 +156,7 @@ def set_zone_color(builder, zone: int, hex_color: str, *, preview: bool = False)
     if rc:
         return rc
     r, g, b = rgb
-    result = TrccApp.get().led.set_zone_color(zone, r, g, b)
+    result = TrccApp.get().device(0).set_zone_color(zone, r, g, b)
     return _print_result(result, preview=preview)
 
 

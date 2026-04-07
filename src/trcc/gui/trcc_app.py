@@ -441,6 +441,8 @@ class TRCCApp(QMainWindow):
             self._handlers[path] = handler
             log.info("LED handler added: %s", path)
             added = True
+            if self._ipc_server:
+                self._ipc_server.device = device
         elif device.is_lcd and path not in self._handlers:
             widgets = {
                 'preview': self.uc_preview,
@@ -458,9 +460,11 @@ class TRCCApp(QMainWindow):
             self._handlers[path] = lcd_handler
             log.info("LCD handler added: %s", path)
             added = True
-            # Wire IPC frame capture if server is already running
-            if self._ipc_server and lcd_handler.display.device_service:
-                lcd_handler.display.device_service.on_frame_sent = self._ipc_server.capture_frame
+            # Wire IPC: set device + frame capture
+            if self._ipc_server:
+                self._ipc_server.device = device
+                if lcd_handler.display.device_service:
+                    lcd_handler.display.device_service.on_frame_sent = self._ipc_server.capture_frame
         if not added and path not in self._handlers:
             log.warning("_add_handler: unhandled device type %s path=%s — skipped",
                         type(device).__name__, path)
@@ -563,15 +567,11 @@ class TRCCApp(QMainWindow):
         """
         path: str = payload['path']
         image: Any = payload['image']
-        handler = self._handlers.get(path)
         if path != self._active_path:
             return
-        if isinstance(handler, LCDHandler):
-            handler.update_preview(image)
-        elif isinstance(handler, LEDHandler):
-            display_colors = image.get('display_colors')
-            if display_colors is not None:
-                self.uc_led_control.set_led_colors(display_colors)
+        handler = self._handlers.get(path)
+        if handler is not None:
+            handler.handle_frame(image)
 
     # ── Sleep monitor ───────────────────────────────────────────────
 
@@ -1185,6 +1185,9 @@ class TRCCApp(QMainWindow):
         log.debug("_on_about_close_requested: returning to form")
         self._show_view('form')
         self.uc_device.restore_device_selection()
+
+    def _active_handler(self) -> BaseHandler | None:
+        return self._handlers.get(self._active_path)
 
     def _active_lcd(self) -> LCDHandler | None:
         h = self._handlers.get(self._active_path)
