@@ -462,17 +462,33 @@ class APITransport(Transport):
 # Unified proxies
 # =========================================================================
 
-class DisplayProxy:
-    """LCD proxy -- routes method calls through a Transport to the owning instance."""
+class DeviceProxy:
+    """Base proxy — routes method calls through a Transport to the owning instance."""
 
     connected = True
 
-    def __init__(self, transport: Transport) -> None:
+    def __init__(self, transport: Transport, prefix: str) -> None:
         self._transport = transport
+        self._prefix = prefix
 
     @property
     def is_ipc(self) -> bool:
         return self._transport.is_ipc
+
+    def __getattr__(self, name: str) -> Any:
+        if name.startswith("_"):
+            raise AttributeError(name)
+
+        def _proxy(*args: Any, **kwargs: Any) -> dict:
+            return self._transport.send(f"{self._prefix}.{name}", list(args), kwargs)
+        return _proxy
+
+
+class DisplayProxy(DeviceProxy):
+    """LCD proxy — adds device_path and resolution properties."""
+
+    def __init__(self, transport: Transport) -> None:
+        super().__init__(transport, "display")
 
     @property
     def device_path(self) -> str | None:
@@ -485,26 +501,12 @@ class DisplayProxy:
         r = result.get("resolution", [0, 0])
         return (r[0], r[1])
 
-    def __getattr__(self, name: str) -> Any:
-        if name.startswith("_"):
-            raise AttributeError(name)
 
-        def _proxy(*args: Any, **kwargs: Any) -> dict:
-            return self._transport.send(f"display.{name}", list(args), kwargs)
-        return _proxy
-
-
-class LEDProxy:
-    """LED proxy -- routes method calls through a Transport to the owning instance."""
-
-    connected = True
+class LEDProxy(DeviceProxy):
+    """LED proxy — adds status property."""
 
     def __init__(self, transport: Transport) -> None:
-        self._transport = transport
-
-    @property
-    def is_ipc(self) -> bool:
-        return self._transport.is_ipc
+        super().__init__(transport, "led")
 
     @property
     def status(self) -> str | None:
@@ -514,40 +516,26 @@ class LEDProxy:
             return f"Connected (via {kind})"
         return None
 
-    def __getattr__(self, name: str) -> Any:
-        if name.startswith("_"):
-            raise AttributeError(name)
-
-        def _proxy(*args: Any, **kwargs: Any) -> dict:
-            return self._transport.send(f"led.{name}", list(args), kwargs)
-        return _proxy
-
 
 # =========================================================================
 # Proxy factories -- injected into core devices via DI
 # =========================================================================
 
-def create_lcd_proxy(kind: Any) -> DisplayProxy:
-    """Create an LCD proxy for the given InstanceKind.
-
-    Injected into LCDDevice as proxy_factory_fn. Core calls this when
-    find_active() detects another running instance.
-    """
+def _create_proxy(kind: Any, proxy_cls: type,
+                  routes: dict) -> DeviceProxy:
+    """Create a device proxy for the given InstanceKind + transport."""
     from trcc.core.instance import InstanceKind
 
     if kind == InstanceKind.GUI:
-        return DisplayProxy(IPCTransport())
-    return DisplayProxy(APITransport(_LCD_ROUTES))
+        return proxy_cls(IPCTransport())
+    return proxy_cls(APITransport(routes))
+
+
+def create_lcd_proxy(kind: Any) -> DisplayProxy:
+    """Create an LCD proxy. Injected into Device as proxy_factory_fn."""
+    return _create_proxy(kind, DisplayProxy, _LCD_ROUTES)  # type: ignore[return-value]
 
 
 def create_led_proxy(kind: Any) -> LEDProxy:
-    """Create an LED proxy for the given InstanceKind.
-
-    Injected into LEDDevice as proxy_factory_fn. Core calls this when
-    find_active() detects another running instance.
-    """
-    from trcc.core.instance import InstanceKind
-
-    if kind == InstanceKind.GUI:
-        return LEDProxy(IPCTransport())
-    return LEDProxy(APITransport(_LED_ROUTES))
+    """Create an LED proxy. Injected into Device as proxy_factory_fn."""
+    return _create_proxy(kind, LEDProxy, _LED_ROUTES)  # type: ignore[return-value]

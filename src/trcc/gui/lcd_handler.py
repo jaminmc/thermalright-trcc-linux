@@ -751,11 +751,11 @@ class LCDHandler(BaseHandler):
 
     def cleanup(self) -> None:
         """Stop timers and release device resources."""
-        self.stop_timers()
+        self.deactivate()
         self._cleanup_device()
 
-    def stop_timers(self) -> None:
-        """Stop all timers (called when switching away from this device)."""
+    def deactivate(self) -> None:
+        """Pause handler — stop timers when switching away from this device."""
         self._animation_timer.stop()
         self._slideshow_timer.stop()
         self._flash_timer.stop()

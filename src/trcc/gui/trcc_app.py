@@ -465,22 +465,9 @@ class TRCCApp(QMainWindow):
             log.warning("_add_handler: unhandled device type %s path=%s — skipped",
                         type(device).__name__, path)
 
-        # Resolve button image from handshake PM+SUB before sidebar builds.
-        # HID devices: pm_byte != fbl_code (e.g. PM=63 → FBL=114).
-        # SCSI devices: pm_byte=0, fall back to fbl_code.
-        if info.fbl_code:
-            from ..core.models import get_button_image
-            effective_pm = info.pm_byte or info.fbl_code
-            sub = info.sub_byte
-            log.debug("button image lookup: pm_byte=%d fbl=%d effective_pm=%d sub=%d",
-                      info.pm_byte, info.fbl_code, effective_pm, sub)
-            btn_img = get_button_image(effective_pm, sub)
-            if btn_img:
-                product = btn_img.replace('A1', '', 1).replace('_', ' ')
-                info.button_image = btn_img
-                log.info("button image resolved at connect: %s -> %s (%s)",
-                          path, btn_img, product)
-
+        # Button image already resolved by DeviceService._enrich_device()
+        # at detection time. HID LCD (async handshake) resolved later in
+        # _on_handshake_done → _resolve_device_identity.
         self._refresh_sidebar()
 
     def _remove_handler(self, path: str) -> None:
@@ -517,9 +504,7 @@ class TRCCApp(QMainWindow):
         # Deactivate previous device before switching
         if self._active_path:
             prev = self._handlers.get(self._active_path)
-            if isinstance(prev, LCDHandler):
-                prev.stop_timers()
-            elif isinstance(prev, LEDHandler):
+            if prev:
                 prev.deactivate()
         self._active_path = path
         handler = self._handlers.get(path)
@@ -572,14 +557,21 @@ class TRCCApp(QMainWindow):
     def _on_frame_main_thread(self, payload: Any) -> None:
         """Receive a rendered frame from the background tick loop and push to preview.
 
-        tick() renders + sends to the LCD device. This handler mirrors that
-        frame to the preview widget on the main thread — no re-render needed.
+        tick() renders + sends to device. This mirrors the result to the
+        preview widget on the main thread — no re-render needed.
+        LCD: QImage for preview widget. LED: colors dict for LED panel.
         """
         path: str = payload['path']
         image: Any = payload['image']
         handler = self._handlers.get(path)
-        if isinstance(handler, LCDHandler) and path == self._active_path:
+        if path != self._active_path:
+            return
+        if isinstance(handler, LCDHandler):
             handler.update_preview(image)
+        elif isinstance(handler, LEDHandler):
+            display_colors = image.get('display_colors')
+            if display_colors is not None:
+                self.uc_led_control.set_led_colors(display_colors)
 
     # ── Sleep monitor ───────────────────────────────────────────────
 
@@ -599,9 +591,9 @@ class TRCCApp(QMainWindow):
 
     def _on_sleep_signal(self, sleeping: bool) -> None:
         if sleeping:
-            log.info("System suspending — stopping timers")
+            log.info("System suspending — deactivating handlers")
             for h in self._handlers.values():
-                h.stop_timers()
+                h.deactivate()
             self._screencast.stop()
         else:
             log.info("System resuming — rescanning devices in 2s")
@@ -1105,7 +1097,7 @@ class TRCCApp(QMainWindow):
     def _show_view(self, view: str) -> None:
         active = getattr(self, '_active_path', None)
         log.debug("view=%s active_path=%s", view, active)
-        if view != 'form':
+        if view not in ('form', 'led'):
             log.debug("clearing active_path (was %s)", active)
             self._active_path = ''  # allow re-selecting same device on return
         self.form_container.setVisible(view == 'form')
@@ -1113,10 +1105,6 @@ class TRCCApp(QMainWindow):
         self.uc_system_info.setVisible(view == 'sysinfo')
         self.uc_led_control.setVisible(view == 'led')
         self.uc_activity_sidebar.setVisible(False)
-
-        show_form1_btns = (view == 'sysinfo')
-        self.form1_close_btn.setVisible(show_form1_btns)
-        self.form1_help_btn.setVisible(show_form1_btns)
 
         if view == 'sysinfo':
             self.uc_system_info.start_updates()
@@ -1247,6 +1235,7 @@ class TRCCApp(QMainWindow):
         log.info("Handshake OK: %s -> %s (FBL=%s, PM=%s, SUB=%s)",
                  device.path, resolution, fbl, pm, sub)
         device.resolution = resolution
+        device.pm_byte = pm
         device.sub_byte = sub
         if fbl:
             device.fbl_code = fbl
@@ -1399,7 +1388,7 @@ class TRCCApp(QMainWindow):
         if not h:
             return
         if enabled:
-            h.stop_timers()
+            h.deactivate()
             h.display.stop_video()
             h.is_background_active = False
             w, hw = h.display.lcd_size

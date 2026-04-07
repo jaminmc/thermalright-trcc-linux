@@ -544,7 +544,7 @@ class TestLEDDeviceTick:
     """tick() — advance one animation frame."""
 
     def test_tick_returns_colors(self, led, mock_led_svc):
-        result = led.tick_with_result()
+        result = led.tick()
         assert "colors" in result
         assert result["colors"] == mock_led_svc.tick.return_value
 
@@ -558,7 +558,7 @@ class TestLEDDeviceTick:
         mock_led_svc.send_colors.assert_called_once_with(colors)
 
     def test_tick_returns_display_colors(self, led, mock_led_svc):
-        result = led.tick_with_result()
+        result = led.tick()
         assert "display_colors" in result
 
 
@@ -778,28 +778,32 @@ class TestCLISetMode:
         assert result.return_value == 1
 
     def test_set_mode_animated_runs_loop(self, mock_connect_led):
-        """Animated mode enters loop; KeyboardInterrupt exits cleanly."""
+        """Animated mode enters observer loop; KeyboardInterrupt exits cleanly."""
         from typer.testing import CliRunner
 
         from trcc.cli import app
-        with patch('time.sleep', side_effect=KeyboardInterrupt), \
-             patch('trcc.services.LEDService.zones_to_ansi', return_value=""):
+        with patch('threading.Event.wait', side_effect=KeyboardInterrupt), \
+             patch('trcc.core.app.TrccApp.start_metrics_loop'), \
+             patch('trcc.core.app.TrccApp.stop_metrics_loop'), \
+             patch('trcc.core.app.TrccApp.register'), \
+             patch('trcc.core.app.TrccApp.unregister'):
             result = CliRunner().invoke(app, ['led-mode', 'breathing'], standalone_mode=False, catch_exceptions=False)
         assert result.return_value == 0
         assert "Stopped" in result.stdout
 
     def test_set_mode_animated_with_preview(self, mock_connect_led, mock_led_svc):
-        """Animated preview calls zones_to_ansi on each tick."""
+        """Animated preview registers observer; KeyboardInterrupt exits cleanly."""
         from typer.testing import CliRunner
 
         from trcc.cli import app
-        mock_led_svc.tick.return_value = [(255, 0, 0)]
-        with patch('time.sleep', side_effect=KeyboardInterrupt), \
-             patch('trcc.services.LEDService.zones_to_ansi',
-                   return_value="[ANSI]") as mock_ansi:
+        with patch('threading.Event.wait', side_effect=KeyboardInterrupt), \
+             patch('trcc.core.app.TrccApp.start_metrics_loop'), \
+             patch('trcc.core.app.TrccApp.stop_metrics_loop'), \
+             patch('trcc.core.app.TrccApp.register'), \
+             patch('trcc.core.app.TrccApp.unregister'):
             result = CliRunner().invoke(app, ['led-mode', 'rainbow', '--preview'], standalone_mode=False, catch_exceptions=False)
         assert result.return_value == 0
-        mock_ansi.assert_called()
+        assert "Stopped" in result.stdout
 
     def test_set_mode_static_with_preview(self, mock_connect_led):
         from typer.testing import CliRunner

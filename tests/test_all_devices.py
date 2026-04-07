@@ -198,10 +198,11 @@ class TestLEDUserSession:
         result = device.set_brightness(50)
         assert result["success"]
 
-    def test_tick_with_result(self, pm, pm_entry, tmp_path, tmp_config):
+    def test_tick_returns_colors(self, pm, pm_entry, tmp_path, tmp_config):
         device, _ = _connect_led(
             _led_spec(pm=pm, model=pm_entry.model_name), tmp_path)
-        result = device.tick_with_result()
+        result = device.tick()
+        assert result is not None
         assert "colors" in result
         assert len(result["colors"]) > 0
 

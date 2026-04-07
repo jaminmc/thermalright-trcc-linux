@@ -524,7 +524,7 @@ class TestTickAndConfig(unittest.TestCase):
         self.led = _make_led()
 
     def test_tick_returns_colors(self):
-        result = self.led.tick_with_result()
+        result = self.led.tick()
         self.assertIn('colors', result)
         self.assertIn('display_colors', result)
 

@@ -10,7 +10,14 @@ import threading
 from collections import deque
 from typing import Any, Optional
 
-from ..core.models import DetectedDevice, DeviceInfo
+from ..core.models import (
+    LCD_DEFAULT_BUTTON,
+    LED_DEFAULT_BUTTON,
+    DetectedDevice,
+    DeviceInfo,
+    PmRegistry,
+    get_button_image,
+)
 from ..core.ports import (
     DetectDevicesFn,
     GetProtocolFn,
@@ -70,10 +77,9 @@ class DeviceService:
         except ImportError:
             self._devices = []
 
-        # Enrich LED devices with probe data (PM → style, model name).
+        # Enrich all devices — LED probe + button image resolution.
         for d, raw_d in zip(self._devices, raw):
-            if d.implementation == 'hid_led':
-                self._enrich_led_device(d, raw_d.usb_path)
+            self._enrich_device(d, raw_d.usb_path)
 
         log.info("DeviceService: found %d device(s)", len(self._devices))
         for d in self._devices:
@@ -82,22 +88,35 @@ class DeviceService:
 
         return self._devices
 
-    def _enrich_led_device(self, device: DeviceInfo, usb_path: str) -> None:
-        """Probe LED device to resolve PM → style and model name.
+    def _enrich_device(self, device: DeviceInfo, usb_path: str) -> None:
+        """Enrich device identity at detection time.
 
-        Without this, all 0416:8001 devices start as generic "LED_DIGITAL"
-        which falls back to style 1 (AX120_DIGITAL, 30 LEDs) — wrong for
-        multi-segment devices like PA120 (84), LF8 (93), etc.
+        LED: HID probe → PM, SUB, style, model, button_image.
+        LCD: no-op here — PM/SUB come from handshake in _discover_resolution(),
+        which calls resolve_button_image() after setting the fields.
         """
+        if device.implementation != 'hid_led':
+            return
+        self._probe_led(device, usb_path)
+        if device.pm_byte:
+            btn_img = PmRegistry.get_button_image(device.pm_byte, device.sub_byte)
+            device.button_image = btn_img or LED_DEFAULT_BUTTON
+            log.info("Button image: %s → %s (pm=%d sub=%d)",
+                     device.path, device.button_image, device.pm_byte, device.sub_byte)
+
+    def _probe_led(self, device: DeviceInfo, usb_path: str) -> None:
+        """HID probe for LED devices — resolve PM → style, model, identity."""
         try:
             info = self._probe_led_fn(device.vid, device.pid, usb_path=usb_path)
             if info and info.style:
+                device.pm_byte = info.pm
+                device.sub_byte = getattr(info, 'sub_type', 0)
                 device.led_style_id = info.style.style_id
                 device.led_style_sub = getattr(info, 'style_sub', 0)
                 device.model = info.style.model_name
-                log.info("LED probe: PM=%d → style=%d sub=%d model=%s",
-                         info.pm, info.style.style_id,
-                         device.led_style_sub, info.style.model_name)
+                log.info("LED probe: PM=%d SUB=%d → style=%d model=%s",
+                         info.pm, device.sub_byte,
+                         info.style.style_id, info.style.model_name)
         except Exception as e:
             log.warning("LED probe failed for %04X:%04X: %s", device.vid, device.pid, e)
 
@@ -149,12 +168,11 @@ class DeviceService:
         return self._selected
 
     def _discover_resolution(self, dev: DeviceInfo) -> None:
-        """Run protocol handshake to discover resolution + FBL.
+        """Run protocol handshake to discover resolution, FBL, PM/SUB, and button image.
 
-        Mutates dev in-place. No-op if resolution already known.
+        Mutates dev in-place. Always runs handshake — even when resolution
+        is already known, we need PM/SUB for button image resolution.
         """
-        if dev.resolution != (0, 0):
-            return
         try:
             protocol = self._get_protocol(dev)
             result = protocol.handshake()
@@ -173,6 +191,13 @@ class DeviceService:
                     dev.sub_byte = sub
                 log.debug("discover_resolution: %s fbl=%s pm=%d sub=%d",
                           dev.path, fbl, pm, sub)
+                # Resolve button image now that PM/SUB are known
+                effective_pm = dev.pm_byte or dev.fbl_code
+                if effective_pm:
+                    btn_img = get_button_image(effective_pm, dev.sub_byte)
+                    dev.button_image = btn_img or LCD_DEFAULT_BUTTON
+                    log.info("Button image: %s → %s (pm=%s sub=%d)",
+                             dev.path, dev.button_image, effective_pm, dev.sub_byte)
         except Exception as e:
             log.warning(
                 "Resolution discovery failed for %s [%04X:%04X]: %s",

@@ -28,8 +28,8 @@ class BaseHandler:
     def device_info(self) -> DeviceInfo | None:
         return self._device.device_info if self._device else None
 
-    def stop_timers(self) -> None:
-        """Override in LCD. No-op for LED."""
+    def deactivate(self) -> None:
+        """Pause this handler — called when switching away from device."""
 
     def cleanup(self) -> None:
         if self._device:

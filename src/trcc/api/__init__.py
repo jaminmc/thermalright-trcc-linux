@@ -460,56 +460,18 @@ def stop_screencast() -> None:
 
 # ── LED keepalive loop (background thread for animated modes) ─────────
 
-_led_thread: threading.Thread | None = None
-_led_stop_event: threading.Event | None = None
+def ensure_metrics_loop() -> None:
+    """Ensure TrccApp metrics loop is running — ticks all devices.
 
-
-def start_led_loop() -> None:
-    """Start background LED tick loop for animated/live-data modes.
-
-    Ticks the LED device at 50ms intervals. Refreshes sensor metrics
-    every second for temp_linked/load_linked modes.
+    Called by API endpoints that need continuous device updates (animated
+    LED, overlay, keepalive). The core loop ticks all devices at 50ms
+    and polls sensors at settings.refresh_interval. No-op if already running.
     """
-    global _led_thread, _led_stop_event  # noqa: PLW0603
-
-    stop_led_loop()
-    if _led_dispatcher is None or not _led_dispatcher.connected:
+    from trcc.core.app import TrccApp
+    app = TrccApp.get()
+    if app._metrics_thread and app._metrics_thread.is_alive():
         return
-
-    _led_stop_event = threading.Event()
-    stop_event = _led_stop_event
-    led = _led_dispatcher
-
-    def _loop() -> None:
-        tick_count = 0
-        while not stop_event.is_set():
-            if tick_count % 20 == 0 and _system_svc is not None:
-                try:
-                    led.update_metrics(_system_svc.all_metrics)
-                except Exception:
-                    pass
-            tick_count += 1
-            try:
-                led.tick()
-            except Exception:
-                break
-            stop_event.wait(0.05)
-
-    _led_thread = threading.Thread(target=_loop, daemon=True, name="api-led")
-    _led_thread.start()
-    log.info("LED keepalive loop started")
-
-
-def stop_led_loop() -> None:
-    """Stop background LED tick loop if running."""
-    global _led_thread, _led_stop_event  # noqa: PLW0603
-
-    if _led_stop_event:
-        _led_stop_event.set()
-    if _led_thread and _led_thread.is_alive():
-        _led_thread.join(timeout=1)
-    _led_thread = None
-    _led_stop_event = None
+    app.start_metrics_loop()
 
 
 # ── Static file mounts (resolution-aware, remounted on device select) ─

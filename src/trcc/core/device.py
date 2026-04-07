@@ -383,28 +383,17 @@ class Device:
     # LED tick
     # ══════════════════════════════════════════════════════════════════════
 
-    def _tick_led(self) -> None:
-        """Advance one LED animation frame and send to hardware."""
+    def _tick_led(self) -> dict | None:
+        """Advance one LED animation frame, send to hardware, return colors."""
         if not self._led_svc:
-            log.debug("tick: no service — skipping")
-            return
-        colors = self._led_svc.tick()
-        if self._led_svc.has_protocol:
-            ok = self._led_svc.send_colors(colors)
-            if not ok:
-                log.debug("tick: send_colors skipped (concurrent)")
-
-    def tick_with_result(self) -> dict:
-        """Advance one animation frame. Returns colors + display_colors (GUI use)."""
-        if not self._led_svc:
-            log.debug("tick_with_result: no service — skipping")
-            return {"colors": [], "display_colors": []}
+            log.debug("tick: no LED service — skipping")
+            return None
         colors = self._led_svc.tick()
         display_colors = self._led_svc.apply_mask(colors)
         if self._led_svc.has_protocol:
             ok = self._led_svc.send_colors(colors)
             if not ok:
-                log.debug("tick_with_result: send_colors skipped (concurrent)")
+                log.debug("tick: send_colors skipped (concurrent)")
         return {"colors": colors, "display_colors": display_colors}
 
     # ══════════════════════════════════════════════════════════════════════

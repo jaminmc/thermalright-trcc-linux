@@ -5,6 +5,7 @@ Presentation-only: builder injected by _cmd_* boundary functions, call method, p
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from trcc.cli import _cli_handler
 from trcc.core.models import parse_hex_color as _parse_hex
@@ -63,8 +64,6 @@ def set_color(builder, hex_color, *, preview=False):
 @_cli_handler
 def set_mode(builder, mode_name, *, preview=False):
     """Set LED effect mode."""
-    import time
-
     log.debug("set_mode mode=%s", mode_name)
     rc = _connect_or_fail()
     if rc:
@@ -79,26 +78,34 @@ def set_mode(builder, mode_name, *, preview=False):
         return 1
 
     if result["animated"]:
+        import threading
+
         from trcc.cli import _ensure_system
-        from trcc.services import LEDService
-        from trcc.services.system import get_all_metrics
+        from trcc.core.app import AppEvent, AppObserver
 
         _ensure_system(builder)
+        app = TrccApp.get()
+        app.start_metrics_loop()
         print(f"LED mode: {mode_name} (running, Ctrl+C to stop)")
-        _metric_ticks = 0
+        done = threading.Event()
+
+        class _CliLedObserver(AppObserver):
+            def on_app_event(self, event: AppEvent, data: Any) -> None:
+                if not preview or event != AppEvent.FRAME_RENDERED:
+                    return
+                colors = data.get('image', {}).get('colors')
+                if colors and data.get('path') == led.device_path:
+                    from trcc.services import LEDService
+                    print(LEDService.zones_to_ansi(colors), end='\r', flush=True)
+
+        observer = _CliLedObserver()
+        app.register(observer)
         try:
-            while True:
-                # Refresh sensor metrics every 20 ticks (~1 s)
-                if _metric_ticks % 20 == 0:
-                    led.update_metrics(get_all_metrics())
-                _metric_ticks += 1
-                tick = led.tick_with_result()
-                if preview and tick.get("colors"):
-                    print(LEDService.zones_to_ansi(tick["colors"]),
-                          end='\r', flush=True)
-                time.sleep(0.05)
+            done.wait()  # blocks until Ctrl+C
         except KeyboardInterrupt:
             pass
+        app.unregister(observer)
+        app.stop_metrics_loop()
         print("\nStopped.")
     else:
         print(result["message"])

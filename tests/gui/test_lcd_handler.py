@@ -848,10 +848,10 @@ class TestRender:
 
 
 class TestLifecycle:
-    """stop_timers, cleanup."""
+    """deactivate, cleanup."""
 
-    def test_stop_timers(self, lcd_handler):
-        lcd_handler.stop_timers()
+    def test_deactivate(self, lcd_handler):
+        lcd_handler.deactivate()
         lcd_handler._animation_timer.stop.assert_called()
         lcd_handler._slideshow_timer.stop.assert_called()
 

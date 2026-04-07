@@ -471,8 +471,18 @@ class TrccApp:
         """Most recently polled metrics (with temp unit applied), or None."""
         return self._current_metrics
 
+    _TICK_INTERVAL = 0.05  # 50ms — animation-grade tick rate
+
     def start_metrics_loop(self, interval: float | None = None) -> None:
-        """Start background loop: poll metrics → push to all devices via tick()."""
+        """Start background loop: tick devices at 50ms, poll metrics at refresh_interval.
+
+        Two cadences in one thread:
+        - **Tick**: every 50ms — advance animation, send frames, emit FRAME_RENDERED.
+        - **Poll**: every `refresh_interval` seconds — read sensors, update devices,
+          emit METRICS_UPDATED. Configurable via settings (GUI about panel).
+
+        All UIs (GUI, CLI, API) observe events — none run their own tick loops.
+        """
         if self._system_svc is None:
             raise RuntimeError(
                 "TrccApp.set_system() must be called before start_metrics_loop().")
@@ -481,34 +491,51 @@ class TrccApp:
 
         def _loop() -> None:
             from .models import HardwareMetrics
+            tick_count = 0
             while not self._metrics_stop.is_set():
                 try:
-                    raw = self._system_svc.all_metrics  # type: ignore[union-attr]
-                    metrics = HardwareMetrics.with_temp_unit(
-                        raw, self._settings.temp_unit)
-                    self._current_metrics = metrics
+                    # Poll sensors at configured interval
+                    poll_interval = interval if interval is not None else max(
+                        1, self._settings.refresh_interval)
+                    metrics_every = max(1, int(poll_interval / self._TICK_INTERVAL))
+                    if tick_count % metrics_every == 0:
+                        try:
+                            raw = self._system_svc.all_metrics  # type: ignore[union-attr]
+                            metrics = HardwareMetrics.with_temp_unit(
+                                raw, self._settings.temp_unit)
+                            self._current_metrics = metrics
+                            for device in list(self._devices.values()):
+                                try:
+                                    device.update_metrics(metrics)
+                                except Exception:
+                                    log.exception("Metrics update error")
+                            self._notify(AppEvent.METRICS_UPDATED, metrics)
+                        except Exception:
+                            log.exception("Metrics poll error")
+
+                    # Tick all devices every iteration
                     for path, device in list(self._devices.items()):
                         try:
-                            device.update_metrics(metrics)
-                            image = device.tick()
-                            if image is not None:
+                            result = device.tick()
+                            if result is not None:
                                 self._notify(AppEvent.FRAME_RENDERED,
-                                             {'path': path, 'image': image})
+                                             {'path': path, 'image': result})
                             elif getattr(device, 'playing', False):
-                                device.update_video_cache_text(metrics)  # type: ignore[union-attr]
+                                device.update_video_cache_text(
+                                    self._current_metrics)  # type: ignore[arg-type]
                         except Exception:
-                            log.exception("Device update error: %s", device)
-                    self._notify(AppEvent.METRICS_UPDATED, metrics)
+                            log.exception("Device tick error: %s", path)
                 except Exception:
-                    log.exception("Metrics poll error")
-                sleep = interval if interval is not None else max(1, self._settings.refresh_interval)
-                self._metrics_wake.wait(sleep)
+                    log.exception("Tick loop error")
+                tick_count += 1
+                self._metrics_wake.wait(self._TICK_INTERVAL)
                 self._metrics_wake.clear()
 
         self._metrics_thread = threading.Thread(
             target=_loop, daemon=True, name="trcc-metrics")
         self._metrics_thread.start()
-        log.debug("Metrics loop started (reads interval from settings)")
+        log.debug("Metrics loop started (tick=%.0fms, poll=settings.refresh_interval)",
+                  self._TICK_INTERVAL * 1000)
 
     def stop_metrics_loop(self) -> None:
         """Stop the background metrics loop."""

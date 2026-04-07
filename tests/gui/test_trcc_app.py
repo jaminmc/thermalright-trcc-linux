@@ -683,19 +683,19 @@ class TestLEDHandler:
 
     def test_stop_when_inactive(self, handler):
         """stop() when never started should not raise."""
-        handler.stop()
+        handler.deactivate()
         assert handler.active is False
 
     def test_stop_sets_active_false(self, handler):
         handler._active = True
-        handler.stop()
+        handler.deactivate()
         assert handler.active is False
 
     def test_stop_saves_config_and_deactivates(self, handler):
         """stop() saves config and sets active=False."""
         mock_led = self._wire_led(handler)
         handler._active = True
-        handler.stop()
+        handler.deactivate()
         mock_led.save_config.assert_called_once()
         assert not handler._active
 
@@ -775,7 +775,7 @@ class TestLEDHandler:
         self._show_with_mock_led(handler, device, mock_led, style_info)
         assert handler._led is mock_led
         assert handler._active is True
-        handler.stop()
+        handler.deactivate()
 
     def test_show_wires_get_protocol(self, handler):
         """show() calls initialize() on the injected LEDDevice (regression: #61).
@@ -787,13 +787,13 @@ class TestLEDHandler:
         device, mock_led, style_info = self._make_device_and_style(handler)
         self._show_with_mock_led(handler, device, mock_led, style_info)
         mock_led.initialize_led.assert_called_once_with(device, 1)
-        handler.stop()
+        handler.deactivate()
 
     def test_show_activates_handler(self, handler):
         device, mock_led, style_info = self._make_device_and_style(handler)
         self._show_with_mock_led(handler, device, mock_led, style_info)
         assert handler._active
-        handler.stop()
+        handler.deactivate()
 
     def test_show_initializes_led_device(self, handler):
         device, mock_led, style_info = self._make_device_and_style(
@@ -801,7 +801,7 @@ class TestLEDHandler:
         self._show_with_mock_led(handler, device, mock_led, style_info,
                                  style_id=2)
         mock_led.initialize_led.assert_called_once_with(device, 2)
-        handler.stop()
+        handler.deactivate()
 
     # ── Metrics-driven updates ────────────────────────────────────
 
@@ -815,20 +815,16 @@ class TestLEDHandler:
         mock_led.update_metrics.assert_not_called()
 
     def test_update_metrics_active_updates_panel(self, handler):
-        mock_led = self._wire_led(handler)
-        display_colors = [(255, 0, 0), (0, 255, 0)]
-        mock_led.tick_with_result.return_value = {'display_colors': display_colors}
+        """update_metrics updates panel text; colors arrive via FRAME_RENDERED."""
+        self._wire_led(handler)
         handler._active = True
         metrics = MagicMock()
         handler.update_metrics(metrics)
-        mock_led.update_metrics.assert_called_once_with(metrics)
-        mock_led.tick_with_result.assert_called_once()
-        handler._panel.set_led_colors.assert_called_once_with(display_colors)
+        handler._panel.update_metrics.assert_called_once_with(metrics)
 
     def test_update_metrics_saves_config_at_interval(self, handler):
         """Config is saved every _SAVE_INTERVAL metrics updates."""
         mock_led = self._wire_led(handler)
-        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
         handler._metrics_count = handler._SAVE_INTERVAL - 1
         handler.update_metrics(MagicMock())
@@ -837,7 +833,6 @@ class TestLEDHandler:
     def test_update_metrics_no_save_before_interval(self, handler):
         """Config is NOT saved before _SAVE_INTERVAL updates."""
         mock_led = self._wire_led(handler)
-        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
         handler._active = True
         handler._metrics_count = 0
         handler.update_metrics(MagicMock())
@@ -845,8 +840,7 @@ class TestLEDHandler:
 
     def test_update_metrics_resets_counter_after_save(self, handler):
         """Save counter resets to 0 after config save."""
-        mock_led = self._wire_led(handler)
-        mock_led.tick_with_result.return_value = {'display_colors': [(255, 0, 0)]}
+        self._wire_led(handler)
         handler._active = True
         handler._metrics_count = handler._SAVE_INTERVAL - 1
         handler.update_metrics(MagicMock())

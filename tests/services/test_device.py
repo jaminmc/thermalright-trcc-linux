@@ -106,12 +106,17 @@ class TestDetect:
         probe_result = MagicMock()
         probe_result.style.style_id = 5
         probe_result.style.model_name = 'LF8'
-        probe_result.pm = 120
+        probe_result.pm = 48
+        probe_result.sub_type = 0
+        probe_result.style_sub = 0
         svc._probe_led_fn.return_value = probe_result
 
         devices = svc.detect()
         assert devices[0].led_style_id == 5
         assert devices[0].model == 'LF8'
+        assert devices[0].pm_byte == 48
+        assert devices[0].sub_byte == 0
+        assert devices[0].button_image == 'A1LF8'
 
     def test_led_enrichment_failure_silent(self):
         raw = [_make_detected('LED', impl='hid_led')]
@@ -219,12 +224,19 @@ class TestDiscoverResolution:
         assert dev.resolution == expected_res
         assert dev.fbl_code == fbl
 
-    def test_no_op_when_resolution_known(self):
+    def test_handshake_runs_even_when_resolution_known(self):
+        """Handshake always runs — we need PM/SUB for button image even if resolution is known."""
         svc = _make_service()
         dev = DeviceInfo(name='t', path='p', vid=1, pid=2, device_index=0)
-        dev.resolution = FBL_PROFILES[100].resolution  # any non-zero resolution
+        dev.resolution = FBL_PROFILES[100].resolution
+        protocol = MagicMock()
+        protocol.handshake.return_value = MagicMock(
+            resolution=(320, 320), model_id=100, pm_byte=32, sub_byte=1)
+        svc._get_protocol.return_value = protocol
         svc._discover_resolution(dev)
-        svc._get_protocol.assert_not_called()
+        protocol.handshake.assert_called_once()
+        assert dev.pm_byte == 32
+        assert dev.sub_byte == 1
 
     def test_handshake_failure_silent(self):
         svc = _make_service()

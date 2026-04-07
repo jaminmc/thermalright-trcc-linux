@@ -61,13 +61,9 @@ class LEDHandler(BaseHandler):
             self._led.cleanup()
 
     def update_metrics(self, metrics: Any) -> None:
+        """Update panel text (segment displays). Colors arrive via FRAME_RENDERED."""
         if not (self._led and self._active):
             return
-        self._led.update_metrics(metrics)
-        result = self._led.tick_with_result()
-        display_colors = result.get('display_colors')
-        if display_colors is not None:
-            self._panel.set_led_colors(display_colors)
         self._panel.update_metrics(metrics)
         self._metrics_count += 1
         if self._metrics_count >= self._SAVE_INTERVAL:
@@ -113,13 +109,11 @@ class LEDHandler(BaseHandler):
         log.info("LED: show model=%s style=%d, active (metrics-driven)", model, led_style)
 
     def deactivate(self) -> None:
-        """Deactivate — stop panel updates, save config. Device keeps running."""
+        """Pause handler — stop panel updates, save config. Device keeps running."""
         log.info("LED: deactivate (was active=%s)", self._active)
         self._active = False
         if self._led:
             self._led.save_config()
-
-    stop = deactivate  # alias — LCD uses stop_timers(), LED uses deactivate()
 
     def set_temp_unit(self, unit: int) -> None:
         if self._led:

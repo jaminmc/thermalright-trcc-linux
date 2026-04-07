@@ -209,6 +209,11 @@ class ThemeInfo:
         )
 
 
+# Default sidebar button images — matches C# fallback for unknown PM.
+LCD_DEFAULT_BUTTON = "A1CZTV"
+LED_DEFAULT_BUTTON = "A1KVMALEDC6"
+
+
 @dataclass
 class DeviceEntry:
     """Registry entry describing a known USB device's capabilities."""
@@ -216,7 +221,7 @@ class DeviceEntry:
     product: str
     implementation: str
     model: str = "CZTV"
-    button_image: str = "A1CZTV"
+    button_image: str = LCD_DEFAULT_BUTTON
     protocol: str = "scsi"
     device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Raw USB Bulk
     fbl: int = 100         # FBL code (resolution identifier) — used by Windows SCSI poll fallback
@@ -233,7 +238,7 @@ class DetectedDevice:
     scsi_device: Optional[str] = None  # e.g., "/dev/sg0"
     implementation: str = "generic"  # Device-specific implementation
     model: str = "CZTV"  # Device model for button image lookup
-    button_image: str = "A1CZTV"  # Button image prefix (without .png)
+    button_image: str = LCD_DEFAULT_BUTTON  # Sidebar image prefix (resolved from detection or handshake PM+SUB)
     protocol: str = "scsi"  # "scsi" or "hid"
     device_type: int = 1  # 1=SCSI, 2=HID Type 2, 3=HID Type 3, 4=Bulk, 5=LY
 
@@ -260,7 +265,7 @@ SCSI_DEVICES: dict[tuple[int, int], DeviceEntry] = {
     # AS120, BA120, etc). Real product resolved after handshake via PM→DEVICE_BUTTON_IMAGE.
     (0x0402, 0x3922): DeviceEntry(
         vendor="Thermalright", product="LCD Display",
-        model="FROZEN_WARFRAME", button_image="A1CZTV",
+        model="FROZEN_WARFRAME", button_image=LCD_DEFAULT_BUTTON,
         implementation="ali_corp_lcd_v1",
     ),
 }
@@ -285,6 +290,7 @@ LED_DEVICES: dict[tuple[int, int], DeviceEntry] = {
         vendor="Winbond", product="LED Controller",
         model="LED_DIGITAL", implementation="hid_led",
         protocol="led", device_type=1,
+        button_image=LED_DEFAULT_BUTTON,
     ),
 }
 
@@ -336,7 +342,7 @@ class DeviceInfo:
     protocol: str = "scsi"  # "scsi" or "hid"
     device_type: int = 1  # 1=SCSI, 2=HID Type 2 ("H"), 3=HID Type 3 ("ALi")
     implementation: str = "generic"  # e.g. "thermalright_lcd_v1", "hid_type2", "hid_led"
-    button_image: str = "A1CZTV"    # Sidebar image prefix (resolved from detection or handshake PM+SUB)
+    button_image: str = LCD_DEFAULT_BUTTON    # Sidebar image prefix (resolved from detection or handshake PM+SUB)
     pm_byte: int = 0                # Raw PM from handshake (for button image lookup)
     sub_byte: int = 0               # Raw SUB from handshake (for encode rotation lookup)
     led_style_id: Optional[int] = None  # LED style from probe (avoids name-based lookup)
