@@ -15,7 +15,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)](https://github.com/Lexonight1/thermalright-trcc-linux)
 
 [![CI](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-5799_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-6096_passed-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-72%25-brightgreen.svg)](https://github.com/Lexonight1/thermalright-trcc-linux/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://python.org)
 [![Code Style](https://img.shields.io/badge/code_style-ruff-D7FF64?logo=ruff&logoColor=black)](https://docs.astral.sh/ruff/)
@@ -318,7 +318,9 @@ src/trcc/
 
 ## Contributors
 
-A big thanks to everyone who has contributed invaluable reports to this project:
+A huge thank you to every single person who filed an issue, pasted a `trcc report`, or just said "it doesn't work." You are the reason this project supports 6 USB protocols, 16 resolutions, and 12 LED styles from a single developer with one device. Every bug report, every test on hardware I don't own, every "hey this is broken" — that's open source at its best. You're not wasting your time. You're building something together.
+
+Special thanks to everyone who has contributed invaluable reports to this project:
 
 **Frozen Warframe** — **[gizbo](https://github.com/gizbo)** · **[knappstar](https://github.com/knappstar)** · **[Scifiguygaming](https://github.com/Scifiguygaming)** · **[apj202-ops](https://github.com/apj202-ops)** · **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** · **[Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS)** · **[edoargo1996](https://github.com/edoargo1996)** · **[stephendesmond1-cmd](https://github.com/stephendesmond1-cmd)** · **[riodevelop](https://github.com/riodevelop)** · **[wobbegongus](https://github.com/wobbegongus)** · **[Pallemz](https://github.com/Pallemz)** · **[pawbtism](https://github.com/pawbtism)**
 
@@ -370,4 +372,6 @@ If this project saved you from keeping a Windows partition around, consider **[b
 
 ## License
 
-GPL-3.0
+[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) — free as in freedom. This project is and always will be free software. You can use it, study it, modify it, and share it. That's the deal.
+
+Built on the shoulders of the [GNU Project](https://www.gnu.org/gnu/thegnuproject.en.html) and the [Free Software Foundation](https://www.fsf.org/). If you care about software freedom, [read why it matters](https://www.gnu.org/philosophy/free-sw.en.html).
