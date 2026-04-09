@@ -1,5 +1,17 @@
 # Changelog
 
+## v9.4.3
+
+### Fixes
+- **macOS sensors completely empty** (#109): `read_all()` returned empty dict on CLI/first call — bootstrap now triggers synchronous poll. Computed I/O rates (disk/net) had no delta tracking. `mem_available` mapped to `psutil:mem_used` instead of `psutil:mem_available`. CPU percent returned 0.0 on cold start.
+- **macOS Apple Silicon GPU metrics**: Parse GPU active residency (%), clock (MHz), power (W) from `powermetrics --samplers smc,gpu_power`. Register fans 0–3 for multi-fan Macs. Per-core CPU freq (max) published via psutil slot.
+- **Idle sensors hidden in CLI/preview**: `trcc info` and ANSI preview hid any metric at 0% (idle CPU, idle GPU, fans off) because the display filter used `!= 0.0`. Now uses `_populated` set on `HardwareMetrics` — shows sensors that have data, hides sensors that don't exist.
+- **Metric values not matching C# app**: Non-rate metrics (temps, percentages, RPM, MHz, watts) now int-truncated at the read boundary, matching C#'s `Substring(0, IndexOf("."))`. Rate/size fields (disk_read, net_up, mem_available) keep float for unit conversion.
+
+### Refactors
+- **SensorEnumeratorBase**: Extracted shared sensor logic into `adapters/system/_base.py` — polling lifecycle, computed I/O, nvidia, psutil, datetime, fan mapping, `_find_first` helper. 4 platform enumerators inherit and override only platform-specific discovery/polling/mapping. 656 lines eliminated (2405 → 1749).
+- **Sensor test DI refactor**: All platform sensor tests rewritten with `MockIO` fixtures through public API (`discover()` → `read_all()` → `map_defaults()`). Mock at I/O boundary only. Internal method renames no longer break tests. 827 lines cut (2341 → 1514).
+
 ## v9.4.2
 
 ### Fixes
