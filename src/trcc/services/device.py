@@ -15,7 +15,6 @@ from ..core.models import (
     LED_DEFAULT_BUTTON,
     DetectedDevice,
     DeviceInfo,
-    PmRegistry,
     get_button_image,
 )
 from ..core.ports import (
@@ -99,7 +98,7 @@ class DeviceService:
             return
         self._probe_led(device, usb_path)
         if device.pm_byte:
-            btn_img = PmRegistry.get_button_image(device.pm_byte, device.sub_byte)
+            btn_img = get_button_image(device.pm_byte, device.sub_byte, is_led=True)
             device.button_image = btn_img or LED_DEFAULT_BUTTON
             log.info("Button image: %s → %s (pm=%d sub=%d)",
                      device.path, device.button_image, device.pm_byte, device.sub_byte)

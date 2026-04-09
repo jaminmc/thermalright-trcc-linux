@@ -822,11 +822,6 @@ class _PmRegistryType:
         """Resolve PM + SUB to a PmEntry, checking overrides first."""
         return self[pm, sub_type]
 
-    def get_button_image(self, pm: int, sub: int = 0) -> str | None:
-        """Resolve LED device button image from PM byte."""
-        entry = self[pm, sub]
-        return entry.button_image if entry else None
-
     def get_model_name(self, pm: int, sub_type: int = 0) -> str:
         """Get human-readable model name for a PM + SUB byte combo."""
         entry = self[pm, sub_type]
@@ -1905,10 +1900,10 @@ def panel_asset_dims(w: int, h: int) -> tuple[int, int]:
 # Device Button Image Map (from UCDevice.cs ADDUserButton)
 # =============================================================================
 
-# Unified device → button image map.
+# LCD button image map (C# UCDevice.cs cases 2 + 3 + 4 + 257).
 # Outer key: HID PM byte (0-255) or SCSI VID (>255).
 # Inner key: HID SUB byte or SCSI PID.  None = default when sub/pid not matched.
-DEVICE_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
+_LCD_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
     # -- HID Vision/RGB devices (case 257, PM + SUB) --
     1:   {0: 'A1GRAND VISION', 1: 'A1GRAND VISION',
           48: 'A1LM22', 49: 'A1LF14', None: 'A1GRAND VISION'},
@@ -1956,17 +1951,49 @@ DEVICE_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
     129: {None: 'A1GRAND VISION'},
 }
 
+# LED button image map (C# UCDevice.cs case 1, PM only — sub never checked).
+_LED_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
+    1:   {None: 'A1FROZEN HORIZON PRO'},
+    2:   {None: 'A1FROZEN MAGIC PRO'},
+    3:   {None: 'A1AX120 DIGITAL'},
+    16:  {None: 'A1PA120 DIGITAL'},
+    23:  {None: 'A1RK120 DIGITAL'},
+    32:  {None: 'A1AK120 Digital'},
+    48:  {None: 'A1LF8'},
+    49:  {None: 'A1LF10'},
+    80:  {None: 'A1LF12'},
+    96:  {None: 'A1LF10'},
+    112: {None: 'A1LC2'},
+    128: {None: 'A1LC1'},
+    129: {None: 'A1LF11'},
+    144: {None: 'A1LF15'},
+    160: {None: 'A1LF13'},
+    176: {None: 'A1LF25'},
+    208: {None: 'A1CZ1'},
+    # PA120 variants (PMs 17-22, 24-31) all map to PA120 button.
+    **{pm: {None: 'A1PA120 DIGITAL'} for pm in range(17, 32) if pm != 23},
+}
 
-
-def get_button_image(key: int, sub: int = 0) -> str | None:
-    """Resolve device button image from PM+SUB (HID) or VID+PID (SCSI)."""
-    match DEVICE_BUTTON_IMAGE.get(key):
+def _resolve_button(table: dict[int, dict[Optional[int], str]],
+                     key: int, sub: int) -> str | None:
+    match table.get(key):
         case None:
             return None
         case sub_map if sub in sub_map:
             return sub_map[sub]
         case sub_map:
             return sub_map.get(None)
+
+
+def get_button_image(key: int, sub: int = 0, *, is_led: bool = False) -> str | None:
+    """Resolve device button image from PM+SUB (HID) or VID+PID (SCSI).
+
+    Args:
+        key: PM byte (HID) or VID (SCSI).
+        sub: SUB byte (HID) or PID (SCSI).
+        is_led: True for LED devices (C# case 1), False for LCD (cases 2-4, 257).
+    """
+    return _resolve_button(_LED_BUTTON_IMAGE if is_led else _LCD_BUTTON_IMAGE, key, sub)
 
 
 # =============================================================================

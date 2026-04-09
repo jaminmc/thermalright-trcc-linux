@@ -701,6 +701,38 @@ class TestGetButtonImage:
         from trcc.core.models import get_button_image
         assert get_button_image(65, 2) == 'A1LF14'
 
+    # -- LED devices (is_led=True) --
+
+    def test_led_pm80_lf12(self):
+        from trcc.core.models import get_button_image
+        assert get_button_image(80, 0, is_led=True) == 'A1LF12'
+
+    def test_led_pm1_frozen_horizon(self):
+        from trcc.core.models import get_button_image
+        assert get_button_image(1, 0, is_led=True) == 'A1FROZEN HORIZON PRO'
+
+    def test_led_pm208_cz1(self):
+        from trcc.core.models import get_button_image
+        assert get_button_image(208, 0, is_led=True) == 'A1CZ1'
+
+    def test_led_unknown_pm_returns_none(self):
+        from trcc.core.models import get_button_image
+        assert get_button_image(255, 0, is_led=True) is None
+
+    # -- PM collision: same PM, different result for LED vs LCD --
+
+    def test_pm1_led_vs_lcd_differ(self):
+        """PM=1: LED → FROZEN_HORIZON_PRO, LCD → GRAND_VISION."""
+        from trcc.core.models import get_button_image
+        assert get_button_image(1, 0, is_led=True) == 'A1FROZEN HORIZON PRO'
+        assert get_button_image(1, 0, is_led=False) == 'A1GRAND VISION'
+
+    def test_pm49_led_vs_lcd_differ(self):
+        """PM=49: LED → LF10, LCD → FROZEN_WARFRAME."""
+        from trcc.core.models import get_button_image
+        assert get_button_image(49, 0, is_led=True) == 'A1LF10'
+        assert get_button_image(49, 0, is_led=False) == 'A1FROZEN WARFRAME'
+
 
 # =============================================================================
 # Overlay config builders (parse_metric_spec, build_overlay_config)

@@ -28,7 +28,6 @@ import usb.core
 import usb.util
 
 from trcc.core.models import (
-    DEVICE_BUTTON_IMAGE,  # noqa: F401 — re-export
     HandshakeResult,  # noqa: F401 — re-export
     HidHandshakeInfo,
     fbl_to_resolution,
@@ -122,7 +121,7 @@ USB_INTERFACE = 0
 
 
 # Domain data re-exported from core.models (canonical location):
-# DEVICE_BUTTON_IMAGE, PM_TO_BUTTON_IMAGE, get_button_image, HidHandshakeInfo
+# get_button_image, HidHandshakeInfo
 
 # =========================================================================
 # Abstract USB transport

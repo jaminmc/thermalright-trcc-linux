@@ -122,12 +122,13 @@ def find_lcd_devices(detect_fn=None) -> List[Dict]:
 
             if dev.implementation == 'hid_led':
                 try:
-                    from trcc.adapters.device.led import PmRegistry, probe_led_model
+                    from trcc.adapters.device.led import probe_led_model
+                    from trcc.core.models import get_button_image
                     info = probe_led_model(dev.vid, dev.pid, usb_path=dev.usb_path)
                     if info and info.model_name:
                         model = info.model_name
                         led_style_id = info.style.style_id if info.style else None
-                        btn = PmRegistry.get_button_image(info.pm, info.sub_type)
+                        btn = get_button_image(info.pm, info.sub_type, is_led=True)
                         if btn:
                             button_image = btn
                 except Exception:

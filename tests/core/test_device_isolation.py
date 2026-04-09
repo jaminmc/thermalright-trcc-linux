@@ -15,9 +15,9 @@ from pathlib import Path
 import pytest
 
 from trcc.core.models import (
+    _LCD_BUTTON_IMAGE,
     _PM_SUB_TO_FBL,
     _PM_TO_FBL_OVERRIDES,
-    DEVICE_BUTTON_IMAGE,
     FBL_PROFILES,
     fbl_to_resolution,
     get_button_image,
@@ -63,17 +63,17 @@ _HAS_DEV_DATA = {
     (1280, 480), (1600, 720), (1920, 462),
 }
 
-# ── Button combos from DEVICE_BUTTON_IMAGE ──────────────────────────────
+# ── Button combos from _LCD_BUTTON_IMAGE ──────────────────────────────
 
 _BUTTON_COMBOS: list[tuple[int, int, str]] = []
 
-for pm_key, sub_map in sorted(DEVICE_BUTTON_IMAGE.items()):
+for pm_key, sub_map in sorted(_LCD_BUTTON_IMAGE.items()):
     for sub_key, image in sorted(sub_map.items(), key=lambda x: (x[0] is None, x[0])):
         if sub_key is None:
             continue
         _BUTTON_COMBOS.append((pm_key, sub_key, image))
 
-for pm_key, sub_map in sorted(DEVICE_BUTTON_IMAGE.items()):
+for pm_key, sub_map in sorted(_LCD_BUTTON_IMAGE.items()):
     if list(sub_map.keys()) == [None]:
         _BUTTON_COMBOS.append((pm_key, 0, sub_map[None]))
 
