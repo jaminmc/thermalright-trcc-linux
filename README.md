@@ -79,6 +79,15 @@ Pre-built packages are available for every major distro. No pip, no venv, no PEP
 
 Each guide has a one-liner copy-paste command and step-by-step instructions. After installing, unplug and replug the USB cable, then run `trcc gui`.
 
+### macOS: install `iSMC` (sensor readings)
+
+On macOS, TRCC uses [`iSMC`](https://github.com/dkorunic/iSMC) to read Apple Silicon / SMC temperature, power, voltage, current, and fan sensors.
+
+```bash
+brew tap dkorunic/tap
+brew install ismc
+```
+
 ### Verify your download
 
 Every release includes a `SHA256SUMS.txt` file. Download it from the same release page, then:

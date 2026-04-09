@@ -118,7 +118,10 @@ def show_info(builder=None, *, preview: bool = False, metric: str | None = None)
             print(f"\n{label}:")
             for key in keys:
                 val = getattr(metrics, key, None)
-                if val is not None and (val != 0.0 or key in ('date', 'time', 'weekday')):
+                if val is not None and (
+                    val != 0.0
+                    or key in ('date', 'time', 'weekday', 'cpu_percent', 'gpu_usage')
+                ):
                     print(f"  {key}: {format_metric(key, val)}")
 
         return 0

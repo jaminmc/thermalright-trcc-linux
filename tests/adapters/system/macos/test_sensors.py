@@ -135,7 +135,31 @@ class TestPollPsutil:
         mock_psutil.cpu_percent.return_value = 42.0
         mock_psutil.cpu_freq.return_value = MagicMock(current=3200.0)
         mock_psutil.virtual_memory.return_value = MagicMock(
-            used=8 * 1024 ** 2, total=16 * 1024 ** 2, percent=50.0,
+            used=8 * 1024 ** 2, available=7 * 1024 ** 2,
+            total=16 * 1024 ** 2, percent=50.0,
+        )
+        from datetime import datetime
+        mock_dt.datetime.now.return_value = datetime(2026, 3, 13, 14, 0, 0)
+
+        enum = _make_enum()
+        with patch.object(enum, '_poll_apfs_disk_percent', return_value=45.0), \
+             patch.object(enum, '_poll_computed_io'), \
+             patch.object(enum, '_poll_smc'), \
+             patch.object(enum, '_poll_apple_silicon'):
+            enum._poll_once()
+        readings = enum.read_all()
+        assert readings['psutil:cpu_percent'] == 42.0
+        assert readings['psutil:cpu_freq'] == 3200.0
+        assert readings['computed:disk_percent'] == 45.0
+        assert readings['psutil:mem_available'] == 7.0
+
+    @patch(f'{MODULE}.psutil')
+    @patch(f'{MODULE}.datetime')
+    def test_cpu_percent_bootstraps_with_short_interval_once(self, mock_dt, mock_psutil):
+        mock_psutil.cpu_percent.return_value = 7.0
+        mock_psutil.cpu_freq.return_value = MagicMock(current=3200.0)
+        mock_psutil.virtual_memory.return_value = MagicMock(
+            used=1 * 1024 ** 2, total=2 * 1024 ** 2, percent=50.0,
         )
         from datetime import datetime
         mock_dt.datetime.now.return_value = datetime(2026, 3, 13, 14, 0, 0)
@@ -145,10 +169,9 @@ class TestPollPsutil:
              patch.object(enum, '_poll_smc'), \
              patch.object(enum, '_poll_apple_silicon'):
             enum._poll_once()
-        readings = enum.read_all()
-        assert readings['psutil:cpu_percent'] == 42.0
-        assert readings['psutil:cpu_freq'] == 3200.0
-        assert readings['computed:disk_percent'] == 45.0
+
+        mock_psutil.cpu_percent.assert_called_once_with(interval=0.08)
+        assert enum.read_all()['psutil:cpu_percent'] == 7.0
 
 
 class TestPollApfsDiskPercent:
@@ -190,17 +213,39 @@ class TestPollApfsDiskPercent:
 
 class TestPollAppleSilicon:
 
+    @patch(f'{MODULE}._ismc_json_cmd', lambda: ['ismc', '-o', 'json'])
     @patch(f'{MODULE}.subprocess')
     def test_parses_powermetrics(self, mock_sub):
-        mock_sub.run.return_value = MagicMock(
-            stdout='CPU die temperature: 45.23 C\nGPU die temperature: 52.1 C\nFan: 1200 rpm\n',
-        )
+        # First call: ismc json. Second call: powermetrics -A.
+        mock_sub.run.side_effect = [
+            MagicMock(
+                returncode=0,
+                stdout=(
+                    '{"Fans":{"Fan 1 Current Speed":{"quantity":1333,"unit":"rpm"}},'
+                    '"Temperature":{"CPU Performance Core 1":{"quantity":44.0,"unit":"°C"},'
+                    '"GPU 1":{"quantity":40.0,"unit":"°C"},'
+                    '"PMU tcal":{"quantity":35.0,"unit":"°C"}}}'
+                ),
+            ),
+            MagicMock(
+                stdout=(
+                    "CPU die temperature: 45.23 C\n"
+                    "GPU die temperature: 52.1 C\n"
+                    "Fan: 1200 rpm\n"
+                    "CPU 0 frequency: 1690 MHz\n"
+                    "CPU 4 frequency: 2937 MHz\n"
+                    "GPU active residency: 31%\n"
+                ),
+            ),
+        ]
         enum = _make_enum(arm=True)
         readings: dict[str, float] = {}
         enum._poll_apple_silicon(readings)
         assert readings['iokit:cpu_die'] == 45.23
         assert readings['iokit:gpu_die'] == 52.1
         assert readings['iokit:fan0'] == 1200.0
+        assert readings['psutil:cpu_freq'] == 2937.0
+        assert readings['iokit:gpu_busy'] == 31.0
 
     @patch(f'{MODULE}.subprocess')
     def test_handles_failure(self, mock_sub):
