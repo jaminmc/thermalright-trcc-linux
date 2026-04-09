@@ -513,9 +513,9 @@ en (English)
 Set the application language by ISO 639-1 code.
 
 ```bash
-trcc lang-set de        # German
-trcc lang-set ja        # Japanese
-trcc lang-set zh        # Chinese
+trcc lang-set de        # Deutsch
+trcc lang-set ja        # 日本語
+trcc lang-set zh        # 简体中文
 ```
 
 Persists to config. Affects GUI labels and localized assets.
@@ -533,12 +533,12 @@ trcc lang-list
 **Example output:**
 ```
 Available languages (38):
-  de     German
+  de     Deutsch
   en     English
-  es     Spanish
-  fr     French
-  ja     Japanese
-  ko     Korean
+  es     Español
+  fr     Français
+  ja     日本語
+  ko     한국어
   ...
 ```
 

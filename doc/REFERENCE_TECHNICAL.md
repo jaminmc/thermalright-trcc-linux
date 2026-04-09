@@ -431,8 +431,8 @@ From `UCSystemInfoOptionsOne.cs`:
 
 670 embedded bitmap resources with localization suffixes:
 - (none) = Chinese
-- `d` = German, `e` = Spanish, `en` = English, `f` = French
-- `p` = Portuguese, `r` = Russian, `tc` = Traditional Chinese, `x` = Japanese
+- `d` = Deutsch, `e` = Español, `en` = English, `f` = Français
+- `p` = Português, `r` = Русский, `tc` = 繁體中文, `x` = 日本語
 
 Prefixes: `A0` (startup), `A1` (device images), `A2` (dropdowns), `D0` (device panels), `P` (UI buttons/panels)
 

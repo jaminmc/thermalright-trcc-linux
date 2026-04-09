@@ -286,9 +286,9 @@ rm -rf ~/.trcc
 
 To change language:
 ```bash
-trcc lang-set de    # German
-trcc lang-set ja    # Japanese
-trcc lang-set zh    # Chinese
+trcc lang-set de    # Deutsch
+trcc lang-set ja    # 日本語
+trcc lang-set zh    # 简体中文
 trcc lang-list      # show all available languages
 ```
 

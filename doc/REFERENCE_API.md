@@ -774,8 +774,8 @@ List all available languages with ISO codes and native names.
 ```json
 [
   {"code": "en", "name": "English"},
-  {"code": "de", "name": "German"},
-  {"code": "ja", "name": "Japanese"}
+  {"code": "de", "name": "Deutsch"},
+  {"code": "ja", "name": "日本語"}
 ]
 ```
 
@@ -794,7 +794,7 @@ Set the application language by ISO 639-1 code. Persists to config.
 
 **Response:**
 ```json
-{"code": "de", "name": "German"}
+{"code": "de", "name": "Deutsch"}
 ```
 
 **Errors:** `400` if language code is not supported.
