@@ -762,6 +762,60 @@ class TestLoadLastTheme(unittest.TestCase):
             svc.send_frame_async.assert_not_called()
             svc.send_frame.assert_not_called()
 
+    def test_restore_uses_mask_dc_for_overlay(self):
+        """When mask_id is set, overlay config comes from mask's config1.dc."""
+        import tempfile
+
+        dev = MagicMock(device_index=0, vid=0x0402, pid=0x3922)
+        svc = MagicMock(selected=dev)
+        fake_image = MagicMock()
+        rendered_image = MagicMock()
+        mask_overlay = {'elements': [{'type': 'time', 'x': 10, 'y': 20}]}
+        saved_overlay = {'elements': [{'type': 'cpu_temp', 'x': 100, 'y': 200}]}
+        disp = MagicMock(
+            lcd_width=320, lcd_height=320, auto_send=True,
+            mask_source_dir=None,
+            canvas_size=(320, 320),
+            output_resolution=(320, 320),
+            load_local_theme=MagicMock(return_value={
+                'image': fake_image, 'is_animated': False,
+            }),
+            render_overlay=MagicMock(return_value=rendered_image),
+        )
+        with tempfile.TemporaryDirectory() as td:
+            theme_base = Path(td) / 'theme320320'
+            theme_base.mkdir()
+            theme_dir = theme_base / "Theme1"
+            theme_dir.mkdir()
+            (theme_dir / "00.png").write_bytes(b"fake")
+            # Mask dir with config1.dc
+            masks_base = Path(td) / 'web' / 'zt320320'
+            masks_base.mkdir(parents=True)
+            mask_dir = masks_base / "Mask1"
+            mask_dir.mkdir()
+            (mask_dir / "01.png").write_bytes(b"fake_mask")
+            (mask_dir / "config1.dc").write_bytes(b"fake_dc")
+
+            dc_cls = MagicMock()
+            dc_cls.return_value.to_overlay_config.return_value = mask_overlay
+
+            lcd = _make_lcd(
+                device_svc=svc, display_svc=disp,
+                dc_config_cls=dc_cls,
+                lcd_config=MagicMock(**{'get_config.return_value': {
+                    'theme_name': 'Theme1', 'theme_type': 'local',
+                    'mask_id': 'Mask1',
+                    'overlay': {'enabled': True, 'config': saved_overlay},
+                }}),
+            )
+            lcd.orientation.data_root = Path(td)
+            lcd.orientation.native = (320, 320)
+            result = lcd.restore_last_theme()
+            self.assertTrue(result['success'], result.get('error'))
+            # Mask DC overlay should be used, not the saved overlay
+            self.assertEqual(result['overlay_config'], mask_overlay)
+            self.assertTrue(result['overlay_enabled'])
+
 
 # =============================================================================
 # load_theme_by_name — routes through discover + select

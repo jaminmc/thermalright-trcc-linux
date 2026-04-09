@@ -805,6 +805,8 @@ class Device:
             old_path = cfg.get("mask_path")
             if old_path:
                 mask_id = Path(old_path).name
+        overlay_enabled = False
+        overlay_config = None
         if mask_id:
             is_custom = cfg.get("mask_custom", False)
             o = self.orientation
@@ -815,17 +817,24 @@ class Device:
                 already_loaded = (svc and svc.mask_source_dir == mask_dir)
                 if not already_loaded:
                     self.load_mask_standalone(str(mask_dir))
+                # Mask's config1.dc defines overlay element positions —
+                # use it instead of the saved overlay config.
+                mask_overlay = self.load_overlay_config_from_dir(str(mask_dir))
+                if mask_overlay:
+                    overlay_config = mask_overlay
+                    overlay_enabled = True
+                    self.set_config(overlay_config)
+                    self.enable(True)
 
-        # Overlay
-        overlay_cfg = cfg.get("overlay", {})
-        overlay_enabled = False
-        overlay_config = None
-        if overlay_cfg:
-            overlay_enabled = overlay_cfg.get("enabled", False)
-            overlay_config = overlay_cfg.get("config") or None
-            if overlay_config:
-                self.set_config(overlay_config)
-            self.enable(overlay_enabled)
+        # Overlay — saved config is fallback when no mask DC was loaded
+        if not overlay_config:
+            overlay_cfg = cfg.get("overlay", {})
+            if overlay_cfg:
+                overlay_enabled = overlay_cfg.get("enabled", False)
+                overlay_config = overlay_cfg.get("config") or None
+                if overlay_config:
+                    self.set_config(overlay_config)
+                self.enable(overlay_enabled)
 
         # Send
         image = result.get("image")
