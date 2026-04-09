@@ -131,8 +131,7 @@ class SetupWizard(QWidget):
         self.resize(720, 620)
 
         # Center on screen
-        screen = QApplication.primaryScreen()
-        if screen:
+        if (screen := QApplication.primaryScreen()):
             geo = screen.availableGeometry()
             self.move(
                 geo.x() + (geo.width() - self.width()) // 2,
@@ -208,12 +207,10 @@ class SetupWizard(QWidget):
             item = self._checks_lay.takeAt(0)
             if item is None:
                 continue
-            w = item.widget()
-            if w is not None:
+            if (w := item.widget()) is not None:
                 w.deleteLater()
 
-        ver = _trcc_version()
-        if not ver:
+        if not (ver := _trcc_version()):
             self._prompt_install()
             return
 
@@ -262,8 +259,7 @@ class SetupWizard(QWidget):
 
         # Step 3 — GPU
         self._section('Step 3: GPU Detection')
-        gpus = check_gpu()
-        if not gpus:
+        if not (gpus := check_gpu()):
             lbl = QLabel('    No discrete GPU detected')
             lbl.setStyleSheet(f'color:{_C_GREY};')
             self._checks_lay.addWidget(lbl)

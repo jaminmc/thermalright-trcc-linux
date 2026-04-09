@@ -117,8 +117,7 @@ def get_disk_info() -> list[dict[str, str]]:
                     'type': disk_type,
                 }
                 # Try SMART health (uses pkexec if polkit policy installed)
-                health = _get_smart_health(dev['name'])
-                if health:
+                if (health := _get_smart_health(dev['name'])):
                     disk['health'] = health
                 disks.append(disk)
     except Exception:

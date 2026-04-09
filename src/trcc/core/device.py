@@ -743,8 +743,7 @@ class Device:
         theme_type = cfg.get("theme_type", "local")
 
         if not theme_name:
-            old_path = cfg.get("theme_path")
-            if not old_path:
+            if not (old_path := cfg.get("theme_path")):
                 return {"success": False, "error": "No saved theme"}
             self.log.info("restore_last_theme: migrating old config theme_path=%s", old_path)
             video_exts = {'.mp4', '.avi', '.mkv', '.webm'}
@@ -800,10 +799,8 @@ class Device:
                     "overlay_enabled": False, "is_animated": False}
 
         # Mask
-        mask_id = cfg.get("mask_id") or ""
-        if not mask_id:
-            old_path = cfg.get("mask_path")
-            if old_path:
+        if not (mask_id := cfg.get("mask_id") or ""):
+            if (old_path := cfg.get("mask_path")):
                 mask_id = Path(old_path).name
         overlay_enabled = False
         overlay_config = None
@@ -814,8 +811,7 @@ class Device:
             mask_dir = Path(base) / mask_id if base else None
             if mask_dir and mask_dir.exists():
                 svc = self._display_svc
-                already_loaded = (svc and svc.mask_source_dir == mask_dir)
-                if not already_loaded:
+                if not (svc and svc.mask_source_dir == mask_dir):
                     self.load_mask_standalone(str(mask_dir))
                 # Mask's config1.dc defines overlay element positions —
                 # use it instead of the saved overlay config.
@@ -828,8 +824,7 @@ class Device:
 
         # Overlay — saved config is fallback when no mask DC was loaded
         if not overlay_config:
-            overlay_cfg = cfg.get("overlay", {})
-            if overlay_cfg:
+            if (overlay_cfg := cfg.get("overlay", {})):
                 overlay_enabled = overlay_cfg.get("enabled", False)
                 overlay_config = overlay_cfg.get("config") or None
                 if overlay_config:
@@ -1109,8 +1104,7 @@ class Device:
         try:
             dc = self._dc_config_cls(dc_path)
             if dc.mask_enabled:
-                center_pos = dc.mask_settings.get('mask_position')
-                if center_pos:
+                if (center_pos := dc.mask_settings.get('mask_position')):
                     return (
                         center_pos[0] - mask_w // 2,
                         center_pos[1] - mask_h // 2,

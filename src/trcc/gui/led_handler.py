@@ -19,7 +19,7 @@ from typing import Any
 import trcc.conf as _conf
 
 from ..core.device import Device
-from ..core.models import LED_STYLES, DeviceInfo, resolve_led_style_id
+from ..core.models import LED_STYLES, DeviceInfo
 from .base_handler import BaseHandler
 from .uc_led_control import UCLedControl
 
@@ -93,18 +93,15 @@ class LEDHandler(BaseHandler):
     def show(self, device: DeviceInfo) -> None:
         """Activate handler — initialize device, sync panel from device state."""
         model = device.model or ''
-        led_style = device.led_style_id or resolve_led_style_id(model)
+        led_style = device.led_style_id or LED_STYLES.by_name(model)
 
         self._led.initialize_led(device, led_style)
         self._style_id = led_style
 
-        style_info = LED_STYLES.get(led_style)
-        if not style_info:
-            log.warning("LED show: unknown style %d — panel init skipped", led_style)
-        if style_info:
-            self._panel.initialize(
-                led_style, style_info.segment_count, style_info.zone_count,
-                model=model,
+        style_info = LED_STYLES[led_style]
+        self._panel.initialize(
+            led_style, style_info.segment_count, style_info.zone_count,
+            model=model,
             )
         self._panel.set_memory_ratio(self._led.state.memory_ratio)
         self._sync_ui_from_state()

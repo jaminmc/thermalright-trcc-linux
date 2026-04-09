@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from trcc.core.models import SensorInfo
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class RawFrame:
     """Raw decoded video frame — pure bytes, no framework deps.
 
@@ -261,7 +261,7 @@ GetMemoryInfoFn = Callable[[], list[dict[str, str]]]
 GetDiskInfoFn = Callable[[], list[dict[str, str]]]
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DoctorPlatformConfig:
     """Platform-specific constants for the doctor health check.
 
@@ -281,7 +281,7 @@ class DoctorPlatformConfig:
     enable_ansi: bool
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ReportPlatformConfig:
     """Platform-specific constants for the diagnostic report.
 

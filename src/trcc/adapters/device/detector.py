@@ -148,8 +148,7 @@ class DeviceDetector:
 
     @staticmethod
     def get_default() -> Optional[DetectedDevice]:
-        devices = DeviceDetector.detect()
-        if not devices:
+        if not (devices := DeviceDetector.detect()):
             return None
         for device in devices:
             if device.vid == 0x87CD:

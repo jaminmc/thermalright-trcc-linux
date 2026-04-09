@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.i18n import tr
-from ..core.models import OverlayMode
+from ..core.models import ACTION_ICON_IMAGES, DATE_FORMAT_IMAGES, OverlayMode
 from .assets import Assets
 from .base import set_background_pixmap
 from .constants import Colors, Layout, Sizes, Styles
@@ -31,10 +31,10 @@ class DataTablePanel(QFrame):
     """Data selection table (matches UCXiTongXianShiTable 230x54).
 
     Windows shows different controls depending on the selected element mode:
-    - Hardware (mode 0): button0 — C/F unit toggle (P单位开关.png / P单位开关a.png)
-    - Time    (mode 1): button1 — 12H/24H toggle (P12H.png / P24H.png)
+    - Hardware (mode 0): button0 — C/F unit toggle
+    - Time    (mode 1): button1 — 12H/24H toggle
     - Weekday (mode 2): no controls
-    - Date    (mode 3): button3 — date format cycle (PYMD→PDMY→PMD→PDM)
+    - Date    (mode 3): button3 — date format cycle (YMD→DMY→MD→DM)
     - Custom  (mode 4): textBox1 — custom text input
     """
 
@@ -42,13 +42,13 @@ class DataTablePanel(QFrame):
     text_changed = Signal(str)
 
     # Date format images in cycle order (mode_sub 1→2→3→4→1)
-    _DATE_IMAGES = {1: 'PYMD.png', 2: 'PDMY.png', 3: 'PMD.png', 4: 'PDM.png'}
+    _DATE_IMAGES = DATE_FORMAT_IMAGES
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(Sizes.DATA_TABLE_W, Sizes.DATA_TABLE_H)
 
-        set_background_pixmap(self, 'ucXiTongXianShiTable1.BackgroundImage.png',
+        set_background_pixmap(self, 'settings_overlay_table_bg.png',
             Sizes.DATA_TABLE_W, Sizes.DATA_TABLE_H,
             fallback_style=f"background-color: {Colors.PANEL_FALLBACK}; border-radius: 5px;")
 
@@ -59,8 +59,8 @@ class DataTablePanel(QFrame):
         self.unit_btn.setFlat(True)
         self.unit_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.unit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._unit_off = Assets.load_pixmap('P单位开关.png', 70, 24)   # °C
-        self._unit_on = Assets.load_pixmap('P单位开关a.png', 70, 24)   # °F
+        self._unit_off = Assets.load_pixmap('display_mode_unit_c.png', 70, 24)   # °C
+        self._unit_on = Assets.load_pixmap('display_mode_unit_f.png', 70, 24)   # °F
         self.unit_btn.setToolTip("Temperature unit (C/F)")
         self.unit_btn.clicked.connect(self._on_unit_clicked)
         self.unit_btn.setVisible(False)
@@ -72,8 +72,8 @@ class DataTablePanel(QFrame):
         self.time_btn.setFlat(True)
         self.time_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.time_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._time_12h = Assets.load_pixmap('P12H.png', 54, 22)
-        self._time_24h = Assets.load_pixmap('P24H.png', 54, 22)
+        self._time_12h = Assets.load_pixmap('display_mode_12h.png', 54, 22)
+        self._time_24h = Assets.load_pixmap('display_mode_24h.png', 54, 22)
         self.time_btn.setToolTip("Time format (12h/24h)")
         self.time_btn.clicked.connect(self._on_time_clicked)
         self.time_btn.setVisible(False)
@@ -149,7 +149,7 @@ class DataTablePanel(QFrame):
                 pass  # No controls
             case OverlayMode.DATE:
                 if self._mode_sub == 0:
-                    self._mode_sub = 1  # Default to PYMD
+                    self._mode_sub = 1  # Default to YMD
                 self._update_date_image()
                 self.date_btn.setVisible(True)
             case OverlayMode.CUSTOM:
@@ -163,14 +163,14 @@ class DataTablePanel(QFrame):
         self.format_changed.emit(self._current_mode, self._mode_sub)
 
     def _on_time_clicked(self):
-        """Toggle 12H/24H: mode_sub 1↔2 (Windows: 1=12H shows P12H, else P24H)."""
+        """Toggle 12H/24H: mode_sub 1↔2."""
         log.debug("_on_time_clicked: mode_sub=%s→%s", self._mode_sub, 2 if self._mode_sub == 1 else 1)
         self._mode_sub = 2 if self._mode_sub == 1 else 1
         self._update_time_image()
         self.format_changed.emit(self._current_mode, self._mode_sub)
 
     def _on_date_clicked(self):
-        """Cycle date format: 1→2→3→4→1 (PYMD→PDMY→PMD→PDM)."""
+        """Cycle date format: 1→2→3→4→1 (YMD→DMY→MD→DM)."""
         log.debug("_on_date_clicked: mode_sub=%s→%s", self._mode_sub, (self._mode_sub % 4) + 1)
         self._mode_sub = (self._mode_sub % 4) + 1
         self._update_date_image()
@@ -230,8 +230,8 @@ class DisplayModePanel(QFrame):
         # Toggle button — small slider for all panels
         self.toggle_btn = QPushButton(self)
         self.toggle_btn.setGeometry(*Layout.TOGGLE_MASK)
-        on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
-        off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
+        on_px = Assets.load_pixmap(Assets.TOGGLE_ON, 36, 18)
+        off_px = Assets.load_pixmap(Assets.TOGGLE_OFF, 36, 18)
 
         self.toggle_btn.setCheckable(True)
         if not on_px.isNull() and not off_px.isNull():
@@ -251,12 +251,7 @@ class DisplayModePanel(QFrame):
         self._title_lbl.setStyleSheet(self._TITLE_STYLE)
 
         # Action buttons with icon images
-        _ICON_MAP = {
-            "Image": "P图片.png", "Video": "P视频.png",
-            "Load": "P蒙板.png", "Upload": "P图片.png",
-            "VideoLoad": "P直播视频载入.png",
-            "GIF": "P动画.png", "Network": "P网络.png",
-        }
+        _ICON_MAP = ACTION_ICON_IMAGES
         self._action_buttons: list[QPushButton] = []
         action_positions = [Layout.ACTION_BTN_1, Layout.ACTION_BTN_2]
         for i, action_name in enumerate(self.actions):
@@ -264,8 +259,7 @@ class DisplayModePanel(QFrame):
                 break
             btn = QPushButton(self)
             btn.setGeometry(*action_positions[i])
-            icon_name = _ICON_MAP.get(action_name)
-            if icon_name:
+            if (icon_name := _ICON_MAP.get(action_name)):
                 px = Assets.load_pixmap(icon_name, 40, 40)
                 if not px.isNull():
                     btn.setIcon(QIcon(px))
@@ -405,7 +399,7 @@ class MaskPanel(DisplayModePanel):
         btn.setGeometry(x, y, w, h)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        img_name = 'P加.png' if delta > 0 else 'P减.png'
+        img_name = Assets.PLUS if delta > 0 else Assets.MINUS
         pix = Assets.load_pixmap(img_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
@@ -445,7 +439,7 @@ class MaskPanel(DisplayModePanel):
         self.mask_visibility_toggled.emit(self._mask_visible)
 
     def _update_eye_icon(self):
-        img = 'P显示边框A.png' if self._mask_visible else 'P显示边框.png'
+        img = 'display_mode_border_active.png' if self._mask_visible else 'display_mode_border.png'
         pix = Assets.load_pixmap(img, 24, 16)
         if not pix.isNull():
             self.eye_btn.setIcon(QIcon(pix))
@@ -588,7 +582,7 @@ class ScreenCastPanel(DisplayModePanel):
         btn.setGeometry(x, y, w, h)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        img_name = 'P加.png' if delta > 0 else 'P减.png'
+        img_name = Assets.PLUS if delta > 0 else Assets.MINUS
         pix = Assets.load_pixmap(img_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
@@ -653,7 +647,7 @@ class ScreenCastPanel(DisplayModePanel):
         self.border_toggled.emit(self._show_border)
 
     def _update_border_icon(self):
-        img = 'P显示边框A.png' if self._show_border else 'P显示边框.png'
+        img = 'display_mode_border_active.png' if self._show_border else 'display_mode_border.png'
         pix = Assets.load_pixmap(img, 24, 16)
         if not pix.isNull():
             self.border_btn.setIcon(QIcon(pix))

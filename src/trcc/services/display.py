@@ -481,8 +481,7 @@ class DisplayService:
             return image
 
         key = (self.split_mode, self.rotation)
-        asset_name = SPLIT_OVERLAY_MAP.get(key)
-        if not asset_name:
+        if not (asset_name := SPLIT_OVERLAY_MAP.get(key)):
             return image
 
         overlay = self._split_overlay_cache.get(key)

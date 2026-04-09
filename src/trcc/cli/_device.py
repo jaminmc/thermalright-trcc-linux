@@ -84,8 +84,7 @@ def _format(dev, probe=False):
     if not probe:
         return line
 
-    info = _probe(dev)
-    if not info:
+    if not (info := _probe(dev)):
         return line
 
     details = []
@@ -120,8 +119,7 @@ def detect(show_all=False, detect_fn=None, platform_setup=None):
 
     if not devices:
         print("No compatible TRCC LCD device detected.")
-        hint = platform_setup.no_devices_hint()
-        if hint:
+        if (hint := platform_setup.no_devices_hint()):
             print(hint)
         return 1
 
@@ -150,8 +148,7 @@ def select(number, detect_fn=None):
     log.debug("select device number=%d", number)
     if detect_fn is None:
         detect_fn = ControllerBuilder.for_current_os().build_detect_fn()
-    devices = detect_fn()
-    if not devices:
+    if not (devices := detect_fn()):
         print("No devices found.")
         return 1
 

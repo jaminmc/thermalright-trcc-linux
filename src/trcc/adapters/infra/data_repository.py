@@ -322,8 +322,7 @@ class DataManager:
             return False
 
         os.makedirs(user_dir, exist_ok=True)
-        ok = DataManager.extract_7z(archive, user_dir)
-        if ok:
+        if (ok := DataManager.extract_7z(archive, user_dir)):
             # Some archives wrap contents in a single subdirectory that matches
             # the target dir name (e.g. 1600720.7z contains 1600720/a001.png).
             # This creates double nesting: user_dir/1600720/a001.png instead of
@@ -430,8 +429,7 @@ class DataManager:
         def _run(label: str, fn: callable, *args: Any) -> None:  # type: ignore[type-arg]
             _report(f"Downloading {label}...")
             try:
-                ok = fn(*args)
-                if not ok:
+                if not fn(*args):
                     log.warning("ensure_all: %s returned False", label)
             except Exception:
                 log.exception("ensure_all: %s failed", label)

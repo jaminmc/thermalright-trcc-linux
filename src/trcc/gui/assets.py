@@ -37,7 +37,7 @@ def set_assets_dir(path: Path) -> None:
 def _resolve(name: str) -> Path:
     """Resolve asset name to filesystem path, auto-appending .png if needed.
 
-    Data layer stores base names without extension (e.g. "DAX120_DIGITAL").
+    Data layer stores base names without extension (e.g. "led_preview_ax120").
     All GUI assets are .png — this bridges that gap in one place.
     """
     path = _ASSETS_DIR / name
@@ -58,80 +58,84 @@ class Assets:
     """
 
     # Form1 background (full window with sidebar + gold bar + sensor grid)
-    FORM1_BG = 'App_main.png'
+    FORM1_BG = 'app_main_bg.png'
 
     # Main form backgrounds
-    FORM_CZTV_BG = 'App_form.png'
+    FORM_CZTV_BG = 'app_form_bg.png'
 
     # Theme panel backgrounds (732x652)
-    THEME_LOCAL_BG = 'App_theme_base.png'
-    THEME_WEB_BG = 'App_theme_gallery.png'
-    THEME_MASK_BG = 'App_theme_gallery.png'
-    THEME_SETTING_BG = 'P0主题设置.png'
+    THEME_LOCAL_BG = 'app_theme_base_bg.png'
+    THEME_WEB_BG = 'app_theme_gallery_bg.png'
+    THEME_MASK_BG = 'app_theme_gallery_bg.png'
+    THEME_SETTING_BG = 'app_theme_settings_bg.png'
 
     # Preview frame backgrounds (500x500)
-    PREVIEW_320X320 = 'P预览320X320.png'
-    PREVIEW_320X240 = 'P预览320X240.png'
-    PREVIEW_240X320 = 'P预览240X320.png'
-    PREVIEW_240X240 = 'P预览240X240.png'
-    PREVIEW_360X360 = 'P预览360360圆.png'
-    PREVIEW_480X480 = 'P预览480X480.png'
+    PREVIEW_320X320 = 'preview_320x320.png'
+    PREVIEW_320X240 = 'preview_320x240.png'
+    PREVIEW_240X320 = 'preview_240x320.png'
+    PREVIEW_240X240 = 'preview_240x240.png'
+    PREVIEW_360X360 = 'preview_360x360_round.png'
+    PREVIEW_480X480 = 'preview_480x480.png'
 
     # Tab buttons (normal/selected)
-    TAB_LOCAL = 'P本地主题.png'
-    TAB_LOCAL_ACTIVE = 'P本地主题a.png'
-    TAB_CLOUD = 'P云端背景.png'
-    TAB_CLOUD_ACTIVE = 'P云端背景a.png'
-    TAB_MASK = 'P云端主题.png'
-    TAB_MASK_ACTIVE = 'P云端主题a.png'
-    TAB_SETTINGS = 'P主题设置.png'
-    TAB_SETTINGS_ACTIVE = 'P主题设置a.png'
+    TAB_LOCAL = 'app_tab_local.png'
+    TAB_LOCAL_ACTIVE = 'app_tab_local_active.png'
+    TAB_CLOUD = 'app_tab_cloud.png'
+    TAB_CLOUD_ACTIVE = 'app_tab_cloud_active.png'
+    TAB_MASK = 'app_tab_mask.png'
+    TAB_MASK_ACTIVE = 'app_tab_mask_active.png'
+    TAB_SETTINGS = 'app_tab_settings.png'
+    TAB_SETTINGS_ACTIVE = 'app_tab_settings_active.png'
 
     # Bottom control buttons
-    BTN_SAVE = 'P保存主题.png'
-    BTN_EXPORT = 'P导出.png'
-    BTN_IMPORT = 'P导入.png'
+    BTN_SAVE = 'app_save.png'
+    BTN_EXPORT = 'app_export.png'
+    BTN_IMPORT = 'app_import.png'
 
     # Title bar buttons
-    BTN_HELP = 'P帮助.png'
-    BTN_POWER = 'Alogout默认.png'
-    BTN_POWER_HOVER = 'Alogout选中.png'
+    BTN_HELP = 'app_help.png'
+    BTN_POWER = 'app_power.png'
+    BTN_POWER_HOVER = 'app_power_hover.png'
 
     # Video controls background
-    VIDEO_CONTROLS_BG = 'ucBoFangQiKongZhi1.BackgroundImage.png'
+    VIDEO_CONTROLS_BG = 'preview_video_controls_bg.png'
 
     # Settings panel sub-backgrounds (from UCThemeSetting.resx)
-    SETTINGS_CONTENT = 'Panel_overlay.png'
-    SETTINGS_PARAMS = 'Panel_params.png'
+    SETTINGS_CONTENT = 'settings_overlay.png'
+    SETTINGS_PARAMS = 'settings_params.png'
 
     # UCThemeSetting sub-component backgrounds (from .resx)
-    OVERLAY_GRID_BG = 'ucXiTongXianShi1.BackgroundImage.png'        # 472x430
-    OVERLAY_ADD_BG = 'ucXiTongXianShiAdd1.BackgroundImage.png'      # 230x430
-    OVERLAY_COLOR_BG = 'ucXiTongXianShiColor1.BackgroundImage.png'  # 230x374
-    OVERLAY_TABLE_BG = 'ucXiTongXianShiTable1.BackgroundImage.png'  # 230x54
+    OVERLAY_GRID_BG = 'settings_overlay_grid_bg.png'        # 472x430
+    OVERLAY_ADD_BG = 'settings_overlay_add_bg.png'      # 230x430
+    OVERLAY_COLOR_BG = 'settings_overlay_color_bg.png'  # 230x374
+    OVERLAY_TABLE_BG = 'settings_overlay_table_bg.png'  # 230x54
 
     # Video cut background (from FormCZTV.resx)
-    VIDEO_CUT_BG = 'ucVideoCut1.BackgroundImage.png'                # 500x702
+    VIDEO_CUT_BG = 'video_cut_bg.png'                # 500x702
 
     # Play/Pause icons
-    ICON_PLAY = 'P0播放.png'
-    ICON_PAUSE = 'P0暂停.png'
+    ICON_PLAY = 'preview_play.png'
+    ICON_PAUSE = 'preview_pause.png'
 
     # Sidebar (UCDevice)
-    SIDEBAR_BG = 'A0硬件列表.png'
-    SENSOR_BTN = 'A1传感器.png'
-    SENSOR_BTN_ACTIVE = 'A1传感器a.png'
-    ABOUT_BTN = 'A1关于.png'
-    ABOUT_BTN_ACTIVE = 'A1关于a.png'
+    SIDEBAR_BG = 'sidebar_bg.png'
+    SENSOR_BTN = 'sidebar_sensor.png'
+    SENSOR_BTN_ACTIVE = 'sidebar_sensor_active.png'
+    ABOUT_BTN = 'sidebar_about.png'
+    ABOUT_BTN_ACTIVE = 'sidebar_about_active.png'
 
     # About / Control Center panel (UCAbout)
-    ABOUT_BG = 'App_about.png'
-    ABOUT_LOGOUT = 'Alogout默认.png'
-    ABOUT_LOGOUT_HOVER = 'Alogout选中.png'
-    CHECKBOX_OFF = 'P点选框.png'
-    CHECKBOX_ON = 'P点选框A.png'
-    UPDATE_BTN = 'A2立即更新.png'
-    SYSINFO_BG = 'A0数据列表.png'
+    ABOUT_BG = 'app_about_bg.png'
+    ABOUT_LOGOUT = 'app_power.png'
+    ABOUT_LOGOUT_HOVER = 'app_power_hover.png'
+    CHECKBOX_OFF = 'shared_checkbox_off.png'
+    CHECKBOX_ON = 'shared_checkbox_on.png'
+    TOGGLE_ON = 'shared_toggle_on.png'
+    TOGGLE_OFF = 'shared_toggle_off.png'
+    PLUS = 'display_mode_plus.png'
+    MINUS = 'display_mode_minus.png'
+    UPDATE_BTN = 'about_update.png'
+    SYSINFO_BG = 'sidebar_sysinfo_bg.png'
 
     @classmethod
     def path(cls, name: str) -> Path:
@@ -187,10 +191,10 @@ class Assets:
     @classmethod
     def get_preview_for_resolution(cls, width: int, height: int) -> str:
         """Get preview frame asset name for a resolution."""
-        name = f'P预览{width}X{height}.png'
+        name = f'preview_{width}x{height}.png'
         if cls.exists(name):
             return name
-        name_alt = f'P预览{width}x{height}.png'
+        name_alt = f'preview_{width}X{height}.png'
         if cls.exists(name_alt):
             return name_alt
         return cls.PREVIEW_320X320

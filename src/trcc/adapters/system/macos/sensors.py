@@ -312,8 +312,7 @@ class MacOSSensorEnumerator(SensorEnumeratorBase):
                 ['powermetrics', '--samplers', 'smc', '-n', '1', '-i', '100'],
                 capture_output=True, text=True, timeout=5,
             )
-            key_info = _SMC_KEYS.get(key)
-            if not key_info:
+            if not (key_info := _SMC_KEYS.get(key)):
                 return None
             name = key_info[0]
             for line in result.stdout.splitlines():

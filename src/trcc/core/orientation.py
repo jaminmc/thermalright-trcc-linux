@@ -149,11 +149,9 @@ class Orientation:
         """Restore from stored config. Returns None if malformed."""
         if not isinstance(dirs, dict):
             return None
-        data_root = dirs.get('data_root')
-        if not data_root:
+        if not (data_root := dirs.get('data_root')):
             # Legacy format — extract data_root from theme dir path
-            theme = dirs.get('theme')
-            if not theme:
+            if not (theme := dirs.get('theme')):
                 return None
             data_root = str(Path(theme).parent)
         o = cls(width, height)

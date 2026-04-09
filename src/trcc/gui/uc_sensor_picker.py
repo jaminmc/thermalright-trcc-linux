@@ -65,8 +65,8 @@ class SensorRow(QWidget):
         self.setFixedHeight(ROW_H)
 
         # Load checkbox images
-        self._cb_off = Assets.load_pixmap('P点选框.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
-        self._cb_on = Assets.load_pixmap('P点选框A.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_off = Assets.load_pixmap(Assets.CHECKBOX_OFF, CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_on = Assets.load_pixmap(Assets.CHECKBOX_ON, CHECKBOX_SIZE, CHECKBOX_SIZE)
 
         # Checkbox button
         self._cb = QPushButton(self)
@@ -140,7 +140,7 @@ class SensorPickerDialog(QDialog):
         self.setModal(True)
 
         # Background image (no tiling — matches Windows ImageLayout.None)
-        bg_name = 'App_sysinfo.png'
+        bg_name = 'app_sysinfo_bg.png'
         self._bg_ref = set_background_pixmap(
             self, bg_name, width=DIALOG_W, height=DIALOG_H,
             fallback_style="background-color: #1A1A2E;"
@@ -215,8 +215,7 @@ class SensorPickerDialog(QDialog):
         }
 
         for source in ('hwmon', 'nvidia', 'drm', 'psutil', 'rapl', 'computed'):
-            group = groups.get(source, [])
-            if not group:
+            if not (group := groups.get(source, [])):
                 continue
 
             # Section header

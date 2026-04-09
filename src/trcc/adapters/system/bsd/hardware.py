@@ -34,8 +34,7 @@ def get_memory_info() -> list[dict[str, str]]:
     """
     slots: list[dict[str, str]] = []
 
-    physmem = _sysctl('hw.physmem')
-    if physmem:
+    if (physmem := _sysctl('hw.physmem')):
         try:
             total_bytes = int(physmem)
             total_gb = total_bytes / (1024 ** 3)

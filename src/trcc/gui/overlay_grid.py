@@ -44,7 +44,7 @@ class OverlayGridPanel(QFrame):
         super().__init__(parent)
         self.setFixedSize(Sizes.OVERLAY_GRID_W, Sizes.OVERLAY_GRID_H)
 
-        set_background_pixmap(self, 'ucXiTongXianShi1.BackgroundImage.png',
+        set_background_pixmap(self, 'settings_overlay_grid_bg.png',
             Sizes.OVERLAY_GRID_W, Sizes.OVERLAY_GRID_H,
             fallback_style=f"background-color: {Colors.BASE_BG}; border-radius: 5px;")
 
@@ -64,8 +64,8 @@ class OverlayGridPanel(QFrame):
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.setChecked(True)
 
-        on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
-        off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
+        on_px = Assets.load_pixmap(Assets.TOGGLE_ON, 36, 18)
+        off_px = Assets.load_pixmap(Assets.TOGGLE_OFF, 36, 18)
         if not on_px.isNull() and not off_px.isNull():
             icon = QIcon()
             icon.addPixmap(on_px, QIcon.Mode.Normal, QIcon.State.On)

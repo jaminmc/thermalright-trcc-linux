@@ -174,8 +174,7 @@ class DeviceService:
         """
         try:
             protocol = self._get_protocol(dev)
-            result = protocol.handshake()
-            if result:
+            if (result := protocol.handshake()):
                 res = getattr(result, 'resolution', None)
                 if isinstance(res, tuple) and len(res) == 2 and res != (0, 0):
                     dev.resolution = res
@@ -191,8 +190,7 @@ class DeviceService:
                 log.debug("discover_resolution: %s fbl=%s pm=%d sub=%d",
                           dev.path, fbl, pm, sub)
                 # Resolve button image now that PM/SUB are known
-                effective_pm = dev.pm_byte or dev.fbl_code
-                if effective_pm:
+                if (effective_pm := dev.pm_byte or dev.fbl_code):
                     btn_img = get_button_image(effective_pm, dev.sub_byte)
                     dev.button_image = btn_img or LCD_DEFAULT_BUTTON
                     log.info("Button image: %s → %s (pm=%s sub=%d)",

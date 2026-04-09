@@ -157,8 +157,7 @@ class IPCServer:
 
         try:
             client.settimeout(5.0)
-            data = client.recv(65536)
-            if not data:
+            if not (data := client.recv(65536)):
                 return
 
             request = json.loads(data.decode().strip())
@@ -353,8 +352,7 @@ class IPCTransport(Transport):
                     break
 
             s.close()
-            data = b"".join(chunks).decode().strip()
-            if not data:
+            if not (data := b"".join(chunks).decode().strip()):
                 return {"success": False, "error": "Empty response from daemon"}
             return json.loads(data)
         except socket.timeout:
@@ -439,8 +437,7 @@ class APITransport(Transport):
              kwargs: dict | None = None) -> dict:
         # Strip domain prefix: "device.send_color" -> "send_color"
         _, _, method = cmd.rpartition(".")
-        route = _DEVICE_API_ROUTES.get(method)
-        if route:
+        if (route := _DEVICE_API_ROUTES.get(method)):
             http_method, path, body_fn = route
             body = body_fn(*(args or []), **(kwargs or {})) if body_fn else None
             return self._client._request(http_method, path, body)

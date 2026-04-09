@@ -233,8 +233,7 @@ _INSTALL_CMD: dict[str, str] = {
 
 def _read_os_release() -> dict[str, str]:
     """Read /etc/os-release into a dict."""
-    _os_release = getattr(platform, 'freedesktop_os_release', None)
-    if _os_release is not None:
+    if (_os_release := getattr(platform, 'freedesktop_os_release', None)) is not None:
         try:
             return _os_release()
         except OSError:
@@ -326,8 +325,7 @@ def _install_hint(dep: str, pm: str | None) -> str:
         cmd = _INSTALL_CMD.get(pm, f'sudo {pm} install')
         return f"{cmd} {_INSTALL_MAP[dep][pm]}"
     if pm:
-        pkg = _provides_search(dep, pm)
-        if pkg:
+        if (pkg := _provides_search(dep, pm)):
             cmd = _INSTALL_CMD.get(pm, f'sudo {pm} install')
             return f"{cmd} {pkg}"
     if dep in _INSTALL_MAP:
@@ -358,8 +356,7 @@ _OPT = "\033[33m[--]\033[0m"
 def _check_python_module(
     label: str, import_name: str, required: bool, pm: str | None,
 ) -> bool:
-    ver = get_module_version(import_name)
-    if ver is not None:
+    if (ver := get_module_version(import_name)) is not None:
         ver_str = f" {ver}" if ver else ""
         print(f"  {_OK}  {label}{ver_str}")
         return True
@@ -401,8 +398,7 @@ def _check_library(
 
 
 def _check_gpu_packages() -> None:
-    results = check_gpu()
-    if not results:
+    if not (results := check_gpu()):
         print(f"  {_OPT}  No discrete GPU detected")
         return
     for g in results:
@@ -953,8 +949,7 @@ def _send_test_frame(protocol: Any, resolution: tuple[int, int], fbl: int) -> No
         from trcc.services.image import ImageService
 
         img = ImageService.solid_color(255, 0, 0, w, h)
-        is_jpeg = fbl in JPEG_MODE_FBLS
-        if is_jpeg:
+        if fbl in JPEG_MODE_FBLS:
             data = ImageService.to_jpeg(img)
             print(f"    Encoding: JPEG ({len(data):,} bytes)")
         else:
@@ -1026,8 +1021,7 @@ def _debug_hid_lcd_interactive(dev: Any, test_frame: bool = False) -> None:
     print(f"  Resolution = {resolution[0]}x{resolution[1]}")
     print(f"  Encoding   = {'JPEG' if fbl in JPEG_MODE_FBLS else 'RGB565'}")
 
-    button = get_button_image(pm, sub)
-    if button:
+    if (button := get_button_image(pm, sub)):
         print(f"  Button image = {button}")
     else:
         print(f"  Button image = unknown PM={pm} SUB={sub} (defaulting to CZTV)")
@@ -1066,8 +1060,7 @@ def _debug_hid_led_interactive(dev: Any) -> None:
     print(f"  Sub-type   = {info.sub_type} (0x{info.sub_type:02x})")
     print(f"  Model      = {info.model_name}")
 
-    style = info.style
-    if style:
+    if (style := info.style):
         print(f"  Style ID   = {style.style_id}")
         print(f"  LED count  = {style.led_count}")
         print(f"  Segments   = {style.segment_count}")
@@ -1166,8 +1159,7 @@ def device_debug(
         print("Device Debug — Handshake Diagnostic")
         print("=" * _WIDTH)
 
-        devices = detect_fn()
-        if not devices:
+        if not (devices := detect_fn()):
             print("\nNo devices found.")
             print("Make sure the device is plugged in and try:")
             print("  trcc setup-udev   (then unplug/replug USB cable)")
@@ -1454,8 +1446,7 @@ class DebugReport:
             ("usb.core", "pyusb"),
             ("hid", "hidapi"),
         ]:
-            ver = get_module_version(import_name)
-            if ver is not None:
+            if (ver := get_module_version(import_name)) is not None:
                 sec.lines.append(f"  {pkg_name}: {ver or '?'}")
             else:
                 sec.lines.append(f"  {pkg_name}: not installed")
@@ -1573,8 +1564,7 @@ class DebugReport:
         """Query running instance for device info via IPC. Returns True if handled."""
         try:
             from trcc.core.instance import find_active
-            active = find_active()
-            if not active:
+            if not (active := find_active()):
                 return False
 
             from trcc.ipc import IPCTransport
@@ -1909,8 +1899,7 @@ class DebugReport:
                 # Temperature sensors (Linux hwmon / macOS IOKit)
                 if hasattr(psutil, 'sensors_temperatures'):
                     try:
-                        temps = psutil.sensors_temperatures()
-                        if temps:
+                        if (temps := psutil.sensors_temperatures()):
                             sensors = list(temps.keys())[:4]
                             sec.lines.append(f"  psutil temps: {sensors}")
                         else:

@@ -14,6 +14,8 @@ from PySide6.QtWidgets import QMenu, QWidget
 from ..core.models import (
     CATEGORY_NAMES,
     HARDWARE_METRICS,
+    OVERLAY_MODE_IMAGES,
+    OVERLAY_SELECT_IMAGE,
     SUB_METRICS,
     OverlayElementConfig,
     OverlayMode,
@@ -40,16 +42,9 @@ CATEGORY_COLORS = {
 TIME_FORMATS = {0: 'HH:mm', 1: 'hh:mm'}
 DATE_FORMATS = {1: 'yyyy/MM/dd', 2: 'dd/MM/yyyy', 3: 'MM/dd', 4: 'dd/MM'}
 
-# Background images per mode (60x60 icons)
-MODE_IMAGES = {
-    OverlayMode.HARDWARE: 'P数据.png',
-    OverlayMode.TIME: 'P时间.png',
-    OverlayMode.WEEKDAY: 'P星期.png',
-    OverlayMode.DATE: 'P日期.png',
-    OverlayMode.CUSTOM: 'P文本.png',
-}
-
-SELECT_IMAGE = 'P选中.png'
+# Re-export from models for backward compat (uc_theme_setting imports these)
+MODE_IMAGES = OVERLAY_MODE_IMAGES
+SELECT_IMAGE = OVERLAY_SELECT_IMAGE
 
 
 class OverlayElementWidget(QWidget):

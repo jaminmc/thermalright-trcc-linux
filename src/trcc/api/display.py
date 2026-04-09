@@ -580,8 +580,7 @@ async def preview_stream(websocket: WebSocket):
                 continue
 
             # ── Encode and send ───────────────────────────────────────
-            data = _encode_frame(frame, fmt='JPEG', quality=quality)
-            if data:
+            if (data := _encode_frame(frame, fmt='JPEG', quality=quality)):
                 await websocket.send_bytes(data)
 
     except WebSocketDisconnect:

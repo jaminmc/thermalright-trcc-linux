@@ -116,12 +116,12 @@ class TestLedDeviceStyle:
     @pytest.mark.parametrize("style_id", range(1, 13))
     def test_style_has_preview_image(self, style_id):
         style = LED_STYLES[style_id]
-        assert style.preview_image.startswith("D")
+        assert style.preview_image.startswith("led_preview_")
 
     @pytest.mark.parametrize("style_id", range(1, 13))
     def test_style_has_background_base(self, style_id):
         style = LED_STYLES[style_id]
-        assert style.background_base.startswith("D0")
+        assert style.background_base.startswith("led_bg_")
 
     @pytest.mark.parametrize("style_id", range(1, 13))
     def test_style_id_field_matches_key(self, style_id):
@@ -163,7 +163,7 @@ class TestLedDeviceStyle:
     def test_dataclass_default_background_base(self):
         """LedDeviceStyle defaults background_base."""
         style = LedDeviceStyle(style_id=99, led_count=10, segment_count=5)
-        assert style.background_base == "D0\u6570\u7801\u5c4f"
+        assert style.background_base == "led_bg_segment"
 
     def test_max_led_count(self):
         """LF12 (style 6) has the highest LED count at 124."""

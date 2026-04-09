@@ -76,7 +76,7 @@ LANGUAGE_NAMES: dict[str, str] = {
 # Coordinate tuples — (x, y, w, h, font_pt)
 # ---------------------------------------------------------------------------
 
-# Gold title bar (P0CZTV / App_main) — spans full width
+# Gold title bar (P0CZTV / app_main_bg) — spans full width
 TITLE_BAR_POS = (30, 29, 250, 40, 28)
 TITLE_BAR_TEXT = 'TRCC-Linux'
 
@@ -123,10 +123,10 @@ DISPLAY_ANGLE_POS = (50, 664, 120, 16, 9)
 SAVE_AS_POS = (286, 664, 70, 16, 9)
 EXPORT_IMPORT_POS = (407, 664, 100, 16, 9)
 
-# Shortcuts panel (P01快捷方式) — 230x430
+# Shortcuts panel (shortcuts_panel) — 230x430
 SHORTCUTS_COORDINATE_POS = (8, 5, 110, 16, 10)
 
-# About panel (A0关于) — 1274x800
+# About panel (sidebar_about_bg) — 1274x800
 ABOUT_AUTOSTART_POS = (56, 174, 240, 22, 14)
 ABOUT_UNIT_POS = (56, 214, 60, 22, 14)
 ABOUT_HDD_POS = (56, 254, 240, 22, 14)

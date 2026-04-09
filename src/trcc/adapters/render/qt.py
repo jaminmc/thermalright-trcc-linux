@@ -148,8 +148,7 @@ class QtRenderer(Renderer):
             if path:
                 font_id = QFontDatabase.addApplicationFont(path)
                 if font_id >= 0:
-                    families = QFontDatabase.applicationFontFamilies(font_id)
-                    if families:
+                    if (families := QFontDatabase.applicationFontFamilies(font_id)):
                         return _apply(QFont(families[0]))
 
         # Search bundled + system fonts
@@ -170,8 +169,7 @@ class QtRenderer(Renderer):
                 if os.path.exists(path):
                     font_id = QFontDatabase.addApplicationFont(path)
                     if font_id >= 0:
-                        families = QFontDatabase.applicationFontFamilies(font_id)
-                        if families:
+                        if (families := QFontDatabase.applicationFontFamilies(font_id)):
                             return _apply(QFont(families[0]))
 
         # Fallback: Qt default sans-serif

@@ -57,8 +57,7 @@ def _check_latest_release() -> tuple[str, dict[str, str]] | None:
         with urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
             tag = data.get('tag_name', '')
-            ver = tag.lstrip('v') if tag else None
-            if not ver:
+            if not (ver := tag.lstrip('v') if tag else None):
                 return None
             # Map file extensions to download URLs
             assets: dict[str, str] = {}
@@ -119,8 +118,7 @@ def _detect_install_method() -> str:
 def _get_install_info() -> tuple[str, str]:
     """Get install method and distro. Detects and saves on first call."""
     from ..conf import Settings
-    info = Settings.get_install_info()
-    if info:
+    if (info := Settings.get_install_info()):
         return info['method'], info['distro']
     method = _detect_install_method()
     distro = _detect_distro()
@@ -134,7 +132,7 @@ class UCAbout(BasePanel):
     Control Center panel matching Windows UCAbout.
 
     Size: 1274x800 (same as FormCZTV content area).
-    Background image is localized (A0关于{lang}.png).
+    Background image is localized (sidebar_about_bg{lang}.png).
     Interactive elements are invisible overlays on the background image text.
     """
 
@@ -398,8 +396,7 @@ class UCAbout(BasePanel):
 
     def _check_for_update(self):
         """Background thread: query GitHub releases and emit result via signal."""
-        result = _check_latest_release()
-        if result:
+        if (result := _check_latest_release()):
             ver, assets = result
             self._update_available.emit(ver, assets)
 
@@ -440,8 +437,7 @@ class UCAbout(BasePanel):
                    '--upgrade', 'trcc-linux']
         elif method in self._PKG_INSTALL:
             # Download package from GitHub release, install via pkexec
-            url = getattr(self, '_pkg_assets', {}).get(method)
-            if not url:
+            if not (url := getattr(self, '_pkg_assets', {}).get(method)):
                 log.error("No %s package in release assets", method)
                 self._upgrade_finished.emit(False)
                 return

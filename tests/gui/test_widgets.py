@@ -88,8 +88,8 @@ class TestAssets(unittest.TestCase):
     def test_led_mode_button_assets_exist(self):
         """All 6 LED mode button images (normal + active) must exist."""
         for i in range(1, 7):
-            normal = f"D2\u706f\u5149{i}"
-            active = f"D2\u706f\u5149{i}a"
+            normal = f"led_mode_{i}"
+            active = f"led_mode_{i}_active"
             self.assertTrue(Assets.exists(normal), f"Missing {normal}")
             self.assertTrue(Assets.exists(active), f"Missing {active}")
 

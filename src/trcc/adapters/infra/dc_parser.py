@@ -555,8 +555,7 @@ class DcParser:
             }
 
             if our_key == 'custom_text':
-                custom_text = dc_config.get('custom_text', '')
-                if custom_text:
+                if (custom_text := dc_config.get('custom_text', '')):
                     config_entry['text'] = custom_text
                 else:
                     continue
@@ -619,8 +618,7 @@ class DcParser:
         if animation and animation.get('file'):
             display_options['animation_file'] = animation['file']
 
-        mask = data.get('mask', {})
-        if mask:
+        if (mask := data.get('mask', {})):
             display_options['mask_enabled'] = mask.get('enabled', False)
             if 'center_x' in mask and 'center_y' in mask:
                 display_options['mask_position'] = (mask['center_x'], mask['center_y'])

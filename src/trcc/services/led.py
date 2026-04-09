@@ -16,7 +16,6 @@ from ..core.models import (
     LEDMode,
     LEDState,
     LEDZoneState,
-    resolve_led_style_id,
 )
 from .led_effects import LEDEffectEngine
 
@@ -77,11 +76,11 @@ class LEDService:
     @staticmethod
     def resolve_style_id(model_name: str) -> int:
         """Resolve LED style_id from device model name."""
-        return resolve_led_style_id(model_name)
+        return LED_STYLES.by_name(model_name)
 
     @staticmethod
     def get_style_info(style_id: int) -> Any:
-        """Get LedDeviceStyle for a style_id."""
+        """Get LedDeviceStyle for a style_id, or None if unknown."""
         return LED_STYLES.get(style_id)
 
     # ── State mutators ──────────────────────────────────────────────
@@ -242,30 +241,29 @@ class LEDService:
         from ..core.models import LED_REMAP_SUB_TABLES, LED_STYLES
 
         self._led_style = style_id
-        style = LED_STYLES.get(style_id)
-        if style:
-            self.state.style = style.style_id
-            self.state.sub_style = style_sub
-            self.state.led_count = style.led_count
-            self.state.segment_count = style.segment_count
-            self.state.zone_count = style.zone_count
-            self.state.segment_on = [True] * style.segment_count
+        style = LED_STYLES[style_id]
+        self.state.style = style.style_id
+        self.state.sub_style = style_sub
+        self.state.led_count = style.led_count
+        self.state.segment_count = style.segment_count
+        self.state.zone_count = style.zone_count
+        self.state.segment_on = [True] * style.segment_count
 
-            # Decoration ring: sub-variant remap tables may be longer than
-            # the base led_count — extra entries are ring LEDs.
-            sub_table = LED_REMAP_SUB_TABLES.get((style_id, style_sub))
-            self.state.ring_count = (
-                len(sub_table) - style.led_count if sub_table else 0)
-            if style.zone_count > 1:
-                self.state.zones = [LEDZoneState() for _ in range(style.zone_count)]
-                # Must also size zone_sync_zones — __post_init__ ran with
-                # default zone_count=1 which leaves it empty.
-                if len(self.state.zone_sync_zones) != style.zone_count:
-                    self.state.zone_sync_zones = (
-                        [True] + [False] * (style.zone_count - 1))
-            else:
-                self.state.zones = []
-                self.state.zone_sync_zones = []
+        # Decoration ring: sub-variant remap tables may be longer than
+        # the base led_count — extra entries are ring LEDs.
+        sub_table = LED_REMAP_SUB_TABLES.get((style_id, style_sub))
+        self.state.ring_count = (
+            len(sub_table) - style.led_count if sub_table else 0)
+        if style.zone_count > 1:
+            self.state.zones = [LEDZoneState() for _ in range(style.zone_count)]
+            # Must also size zone_sync_zones — __post_init__ ran with
+            # default zone_count=1 which leaves it empty.
+            if len(self.state.zone_sync_zones) != style.zone_count:
+                self.state.zone_sync_zones = (
+                    [True] + [False] * (style.zone_count - 1))
+        else:
+            self.state.zones = []
+            self.state.zone_sync_zones = []
 
         self._seg_display = get_display(style_id)
         self._segment_mode = self._seg_display is not None
@@ -464,10 +462,8 @@ class LEDService:
         self.load_config()
 
         from ..core.models import LED_STYLES
-        style = LED_STYLES.get(led_style)
-        name = style.model_name if style else f"Style {led_style}"
-        led_count = style.led_count if style else 0
-        return f"LED: {name} ({led_count} LEDs)"
+        style = LED_STYLES[led_style]
+        return f"LED: {style.model_name} ({style.led_count} LEDs)"
 
     # ── Config persistence (delegates to led_config.py) ────────────
 

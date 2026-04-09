@@ -41,8 +41,7 @@ def test(device=None, loop=False, preview=False):
         from trcc.services import ImageService
 
         log.debug("test display device=%s loop=%s", device, loop)
-        rc = _connect_or_fail(device)
-        if rc:
+        if (rc := _connect_or_fail(device)):
             return rc
 
         lcd = TrccApp.get().device(0)
@@ -102,8 +101,7 @@ def play_video(builder, video_path, *, device=None, loop=True, duration=0,
         from trcc.core.app import TrccApp
         from trcc.core.models import build_overlay_config
 
-        rc = _connect_or_fail(device)
-        if rc:
+        if (rc := _connect_or_fail(device)):
             return rc
         lcd = TrccApp.get().device(0)
         assert lcd is not None
@@ -194,8 +192,7 @@ def screencast(builder, *, device=None, x=0, y=0, w=0, h=0, fps=10, preview=Fals
     from trcc.services import ImageService
 
     log.debug("screencast device=%s region=(%d,%d,%d,%d) fps=%d", device, x, y, w, h, fps)
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
 
     lcd = TrccApp.get().device(0)
@@ -275,8 +272,7 @@ def send_image(builder, image_path, device=None, preview=False):
     """Send image to LCD."""
     from trcc.core.app import TrccApp
     log.debug("send_image path=%s device=%s", image_path, device)
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     result = TrccApp.get().device(0).send_image(image_path)
     return _print_result(result, preview=preview)
@@ -287,12 +283,10 @@ def send_color(builder, hex_color, device=None, preview=False):
     """Send solid color to LCD."""
     from trcc.core.app import TrccApp
     log.debug("send_color hex=%s device=%s", hex_color, device)
-    rgb = _parse_hex(hex_color)
-    if not rgb:
+    if not (rgb := _parse_hex(hex_color)):
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     r, g, b = rgb
     result = TrccApp.get().device(0).send_color(r, g, b)
@@ -303,8 +297,7 @@ def send_color(builder, hex_color, device=None, preview=False):
 def set_brightness(builder, level, *, device=None):
     """Set display brightness level (1=25%, 2=50%, 3=100%)."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     try:
         result = TrccApp.get().device(0).set_brightness(level)
@@ -325,8 +318,7 @@ def set_brightness(builder, level, *, device=None):
 def set_rotation(builder, degrees, *, device=None):
     """Set display rotation (0, 90, 180, 270)."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     result = TrccApp.get().device(0).set_rotation(degrees)
     return _print_result(result)
@@ -336,8 +328,7 @@ def set_rotation(builder, degrees, *, device=None):
 def set_split_mode(builder, mode, *, device=None, preview=False):
     """Set split mode (Dynamic Island) for widescreen displays."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     result = TrccApp.get().device(0).set_split_mode(mode)
     return _print_result(result, preview=preview)
@@ -347,8 +338,7 @@ def set_split_mode(builder, mode, *, device=None, preview=False):
 def load_mask(builder, mask_path, *, device=None, preview=False):
     """Load mask overlay from file/directory and send composited image."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     result = TrccApp.get().device(0).load_mask_standalone(mask_path)
     return _print_result(result, preview=preview)
@@ -362,8 +352,7 @@ def render_overlay(builder, dc_path, *, device=None, send=False, output=None,
     from trcc.core.app import TrccApp
     from trcc.services.system import get_all_metrics
 
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     _ensure_system(builder)
     result = TrccApp.get().device(0).render_overlay_from_dc(
@@ -389,8 +378,7 @@ def render_overlay(builder, dc_path, *, device=None, send=False, output=None,
 def reset(builder, device=None, *, preview=False):
     """Reset/reinitialize the LCD device."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
     lcd = TrccApp.get().device(0)
     print(f"  Device: {lcd.device_path}")

@@ -487,7 +487,7 @@ class TestScreenLEDDecorations:
     def test_deco_style_12_single_image(self):
         deco = _DECO[12]
         assert len(deco.images) == 1
-        assert deco.images[0][0] == "D0rgblf13"
+        assert deco.images[0][0] == "led_bg_rgb_lf13"
 
 
 # =========================================================================

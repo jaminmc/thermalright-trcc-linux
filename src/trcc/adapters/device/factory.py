@@ -195,8 +195,7 @@ class DeviceProtocol(ABC):
     def _guarded_send(self, label: str, fn: Callable[[], bool]) -> bool:
         """Execute a send operation with error handling and observer notification."""
         try:
-            success = fn()
-            if success:
+            if (success := fn()):
                 log.debug("Frame sent: %s", label)
             else:
                 log.debug("Frame send returned False: %s", label)
@@ -369,8 +368,7 @@ class HidProtocol(UsbProtocol):
             log.warning("Unknown HID device type: %d", self._device_type)
             return None
 
-        result = handler.handshake()
-        if result:
+        if (result := handler.handshake()):
             log.info("HID handshake OK: PM=%s, FBL=%s, resolution=%s",
                      result.mode_byte_1, result.fbl, result.resolution)
         else:
@@ -717,8 +715,7 @@ class DeviceProtocolFactory:
     def remove_protocol(cls, device_info) -> None:
         """Remove and close a cached protocol."""
         key = cls._device_key(device_info)
-        proto = cls._protocols.pop(key, None)
-        if proto is not None:
+        if (proto := cls._protocols.pop(key, None)) is not None:
             proto.close()
 
     @classmethod
@@ -811,8 +808,7 @@ class DeviceProtocolFactory:
 
         # If there's a cached protocol, ask it directly
         key = cls._device_key(device_info)
-        proto = cls._protocols.get(key)
-        if proto is not None:
+        if (proto := cls._protocols.get(key)) is not None:
             return proto.get_info()
 
         # No cached protocol — build info from scratch

@@ -640,8 +640,7 @@ class ThemeService:
         try:
             dc = self._dc_config_cls(dc_path)
             if dc.mask_enabled:
-                center_pos = dc.mask_settings.get('mask_position')
-                if center_pos:
+                if (center_pos := dc.mask_settings.get('mask_position')):
                     return (
                         center_pos[0] - mask_w // 2,
                         center_pos[1] - mask_h // 2,

@@ -84,8 +84,7 @@ class SensorItem(QFrame):
 
     def update_value(self, metrics):
         """Update displayed value from HardwareMetrics DTO."""
-        value = getattr(metrics, self.metric_key, None)
-        if value is not None:
+        if (value := getattr(metrics, self.metric_key, None)) is not None:
             if isinstance(value, float):
                 if value >= 1000:
                     self.value_label.setText(f"{int(value)}{self.unit}")

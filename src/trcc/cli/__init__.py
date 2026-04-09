@@ -890,8 +890,7 @@ def _cmd_perf(
         from trcc.core.instance import InstanceKind, find_active
         from trcc.services.perf import run_device_benchmarks
 
-        gui_running = find_active() == InstanceKind.GUI
-        if gui_running:
+        if (gui_running := find_active() == InstanceKind.GUI):
             print("GUI daemon detected — pausing display refresh...")
         print("Running device I/O benchmarks (this takes ~10s)...")
         report = run_device_benchmarks(
@@ -1094,8 +1093,7 @@ def _cmd_serve(
     if cert and key:
         ssl_kwargs = {"ssl_certfile": cert, "ssl_keyfile": key}
     elif tls:
-        certs = _ensure_self_signed_cert()
-        if not certs:
+        if not (certs := _ensure_self_signed_cert()):
             return 1
         ssl_kwargs = {"ssl_certfile": certs[0], "ssl_keyfile": certs[1]}
 

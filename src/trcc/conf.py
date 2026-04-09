@@ -434,8 +434,7 @@ class Settings:
         Theme DC defines element layout; user prefs override format fields.
         Each element cherry-picks the relevant pref for its metric type.
         """
-        prefs = Settings.get_format_prefs()
-        if not prefs:
+        if not (prefs := Settings.get_format_prefs()):
             return overlay_config
         for entry in overlay_config.values():
             if not isinstance(entry, dict):
@@ -467,8 +466,7 @@ class Settings:
         import string
 
         config = load_config()
-        token = config.get('api_token')
-        if not token:
+        if not (token := config.get('api_token')):
             alphabet = string.ascii_letters + string.digits
             token = ''.join(secrets.choice(alphabet) for _ in range(16))
             config['api_token'] = token

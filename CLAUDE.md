@@ -99,6 +99,7 @@ Every piece of data has exactly ONE owner. Violations = bugs.
 
 ### Code Style
 - **OOP** — classes with clear SRP. `dataclass` for data, `Enum` for categories.
+- **Pure Python** — use the language to its fullest. Dunders (`__getitem__`, `__contains__`, `__iter__`, `__len__`) for registry classes so data describes itself. `@property` for derived attributes. `match/case` for pattern dispatch. Generators for lazy iteration. Context managers for resource lifecycle. Data should be self-describing — behavior derived from structure, not plumbing code.
 - **DRY** — 3+ duplicates = centralize. Two = smell. One-off = inline.
 - **Type hints** on all public APIs
 - **Logging**: `log = logging.getLogger(__name__)` — never `print()`

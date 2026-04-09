@@ -395,8 +395,7 @@ class OverlayService:
                 case 'date' | 'weekday':
                     has_date = True
                 case _:
-                    val = getattr(metrics, metric_name, None)
-                    if val is not None:
+                    if (val := getattr(metrics, metric_name, None)) is not None:
                         time_fmt = cfg.get('time_format', self.time_format)
                         date_fmt = cfg.get('date_format', self.date_format)
                         vals.append(SystemService.format_metric(
@@ -458,8 +457,7 @@ class OverlayService:
 
         # Check overlay layer cache
         cache_key = self._build_cache_key(metrics)
-        overlay_changed = cache_key != self._cache_key or self._overlay_cache is None
-        if overlay_changed:
+        if (overlay_changed := cache_key != self._cache_key or self._overlay_cache is None):
             self._overlay_cache = self._render_overlay_layer(metrics, r)
             self._cache_key = cache_key
             self._composite_result = None  # Invalidate composite
@@ -561,8 +559,7 @@ class OverlayService:
                 text = str(cfg['text'])
             elif 'metric' in cfg:
                 metric_name = cfg['metric']
-                value = getattr(metrics, metric_name, None)
-                if value is not None:
+                if (value := getattr(metrics, metric_name, None)) is not None:
                     time_fmt = cfg.get('time_format', self.time_format)
                     date_fmt = cfg.get('date_format', self.date_format)
                     text = SystemService.format_metric(

@@ -29,7 +29,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core.models import LED_SELECT_ALL_STYLES, HardwareMetrics
+from ..core.models import (
+    LED_MODE_LABELS,
+    LED_PRESET_ASSETS,
+    LED_SELECT_ALL_STYLES,
+    PRESET_COLORS,
+    HardwareMetrics,
+)
 from .assets import Assets
 from .base import set_background_pixmap
 from .uc_color_wheel import UCColorWheel
@@ -59,7 +65,7 @@ MODE_W, MODE_H = 93, 62
 MODE_SPACING = 10
 
 # Color wheel — C#: ucColorA1 at (617, 335) 216x216, shown for ALL styles
-# Background image: D3旋钮 (216x216 rainbow ring)
+# Background image: color_wheel_knob (216x216 rainbow ring)
 WHEEL_X, WHEEL_Y = 617, 335
 WHEEL_W, WHEEL_H = 216, 216
 
@@ -78,8 +84,8 @@ RGB_SPINBOX_W = 47
 PRESET_X_POSITIONS = [901, 935, 970, 1004, 1039, 1073, 1108, 1142]
 PRESET_Y = 444
 PRESET_SIZE = 24
-# C# image assets: D3红/橙/黄/绿/湖/蓝/紫/白
-PRESET_ASSETS = ['D3红', 'D3橙', 'D3黄', 'D3绿', 'D3湖', 'D3蓝', 'D3紫', 'D3白']
+# Preset asset names from core/models.py
+PRESET_ASSETS = LED_PRESET_ASSETS
 
 # Brightness slider — C#: ucScrollA at (976, 537) 190x20
 BRIGHT_X = 976
@@ -105,49 +111,13 @@ ZONE_Y = 707
 ZONE_X_POSITIONS = [590, 748, 902, 1058]
 ZONE_W, ZONE_H = 140, 50
 
-# Zone button C# image assets — 3 variants depending on style.
-# button1-4 (D4模式1-4): styles 1, 2
-# button5-6 (D4模式5-6): styles 3, 5, 6, 11
-# buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
-ZONE_ASSETS_BTN14 = [('D4模式1', 'D4模式1a'), ('D4模式2', 'D4模式2a'),
-                     ('D4模式3', 'D4模式3a'), ('D4模式4', 'D4模式4a')]
-ZONE_ASSETS_BTN56 = [('D4模式5', 'D4模式5a'), ('D4模式6', 'D4模式6a')]
-ZONE_ASSETS_BTNN = [('D4按钮1', 'D4按钮1a'), ('D4按钮2', 'D4按钮2a'),
-                    ('D4按钮3', 'D4按钮3a'), ('D4按钮4', 'D4按钮4a')]
-_ZONE_STYLE_TO_ASSETS: dict = {
-    1: ZONE_ASSETS_BTN14, 2: ZONE_ASSETS_BTN14,
-    3: ZONE_ASSETS_BTN56, 5: ZONE_ASSETS_BTN56,
-    6: ZONE_ASSETS_BTN56, 11: ZONE_ASSETS_BTN56,
-    4: ZONE_ASSETS_BTNN, 7: ZONE_ASSETS_BTNN,
-    8: ZONE_ASSETS_BTNN, 10: ZONE_ASSETS_BTNN,
-}
-
 # Status label
 STATUS_X = 590
 STATUS_Y = 770
 STATUS_W = 600
 
-# Mode button labels (English)
-MODE_LABELS = [
-    "Static",
-    "Breathing",
-    "Colorful",
-    "Rainbow",
-    "Temp Link",
-    "Load Link",
-]
-
-# Preset colors (from FormLED.cs buttonC1-C8)
-PRESET_COLORS = [
-    (255, 0, 42),     # Red-pink
-    (255, 110, 0),    # Orange
-    (255, 255, 0),    # Yellow
-    (0, 255, 0),      # Green
-    (0, 255, 255),    # Cyan
-    (0, 91, 255),     # Blue
-    (214, 0, 255),    # Purple
-    (255, 255, 255),  # White
-]
+# Mode button labels from core/models.py
+MODE_LABELS = LED_MODE_LABELS
 
 # Shared stylesheet fragments (used by multiple widgets in this module)
 _STYLE_MUTED_LABEL = "color: #aaa; font-size: 12px;"
@@ -173,9 +143,9 @@ _STYLE_CHECKABLE_BTN = (
 
 
 def _checkbox_image_style() -> str:
-    """Build stylesheet for P点选框/P点选框A radio-style buttons (°C/°F, 24H/12H, etc.)."""
-    normal = Assets.get('P点选框')
-    active = Assets.get('P点选框A')
+    """Build stylesheet for checkbox radio-style buttons (°C/°F, 24H/12H, etc.)."""
+    normal = Assets.get(Assets.CHECKBOX_OFF)
+    active = Assets.get(Assets.CHECKBOX_ON)
     if normal and active:
         return (
             f"QPushButton {{ border: none; "
@@ -190,8 +160,8 @@ def _checkbox_image_style() -> str:
 class UCInfoImage(QWidget):
     """Sensor gauge widget matching Windows UCInfoImage.cs.
 
-    Shows a background label image (P0M{n}.png), a progress bar fill
-    (P环H{n}.png) drawn at variable width, and a numeric value overlay.
+    Shows a background label image (led_meter_bg_{n}.png), a progress bar fill
+    (led_meter_bar_{n}.png) drawn at variable width, and a numeric value overlay.
     Each widget is 240x30 pixels.
 
     From FormLED.cs: ucInfoImage1-6 display CPU/GPU temp/clock/usage.
@@ -208,8 +178,8 @@ class UCInfoImage(QWidget):
         self._mode = 1  # 1=temp/percent, 2=MHz/RPM
 
         # Load assets
-        self._bg_pixmap = Assets.load_pixmap(f"P0M{index}.png")
-        self._bar_pixmap = Assets.load_pixmap(f"P环H{index}.png")
+        self._bg_pixmap = Assets.load_pixmap(f"led_meter_bg_{index}.png")
+        self._bar_pixmap = Assets.load_pixmap(f"led_meter_bar_{index}.png")
 
     def set_value(self, value: float, text: str, unit: str = "") -> None:
         """Update displayed value.
@@ -338,7 +308,7 @@ class UCLedControl(QWidget):
         palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
         self.setPalette(palette)
 
-        # Shared P点选框 checkbox style (used by °C/°F, 24H/12H, Sun/Mon buttons)
+        # Shared checkbox style (used by °C/°F, 24H/12H, Sun/Mon buttons)
         _cb_style = _checkbox_image_style()
 
         # -- LED Preview (standard: circles) --
@@ -366,8 +336,8 @@ class UCLedControl(QWidget):
             btn.clicked.connect(lambda checked, idx=i: self._on_mode_clicked(idx))
 
             # Try to load mode button image
-            normal_name = f"D2\u706f\u5149{i + 1}"
-            active_name = f"D2\u706f\u5149{i + 1}a"
+            normal_name = f"led_mode_{i + 1}"
+            active_name = f"led_mode_{i + 1}_active"
             normal_path = Assets.get(normal_name)
             active_path = Assets.get(active_name)
             if normal_path and active_path:
@@ -445,8 +415,7 @@ class UCLedControl(QWidget):
             btn = QPushButton(self)
             x = PRESET_X_POSITIONS[i]
             btn.setGeometry(x, PRESET_Y, PRESET_SIZE, PRESET_SIZE)
-            asset_path = Assets.get(PRESET_ASSETS[i])
-            if asset_path:
+            if (asset_path := Assets.get(PRESET_ASSETS[i])):
                 btn.setStyleSheet(
                     f"QPushButton {{ border: none; "
                     f"background-image: url({asset_path}); "
@@ -558,8 +527,8 @@ class UCLedControl(QWidget):
         self._carousel_btn.setGeometry(739, 680, 14, 14)
         self._carousel_btn.setCheckable(True)
         self._carousel_btn.setFlat(True)
-        _cb_normal = Assets.get('P点选框')
-        _cb_active = Assets.get('P点选框A')
+        _cb_normal = Assets.get(Assets.CHECKBOX_OFF)
+        _cb_active = Assets.get(Assets.CHECKBOX_ON)
         if _cb_normal and _cb_active:
             self._carousel_btn.setStyleSheet(
                 f"QPushButton {{ border: none; "
@@ -591,7 +560,7 @@ class UCLedControl(QWidget):
         # LC2 clock widgets (style 9 — hidden by default)
         # ============================================================
 
-        # LC2 clock buttons — C#: 14x14 P点选框 checkboxes at exact positions.
+        # LC2 clock buttons — C#: 14x14 checkboxes at exact positions.
         # Background PNG has "24H"/"12H"/"Sun"/"Mon" labels baked in.
         self._lc2_label = QLabel(self)  # hidden — bg has labels
         self._lc2_label.setVisible(False)
@@ -665,7 +634,7 @@ class UCLedControl(QWidget):
             self._info_images[key] = widget
 
         # °C/°F toggle buttons — C#: buttonC at (699, 144) 14x14, buttonF at (759, 144)
-        # Uses P点选框 (unchecked) / P点选框A (checked) images like C#.
+        # Uses checkbox images (unchecked/checked) like C#.
         self._btn_celsius = QPushButton(self)
         self._btn_celsius.setGeometry(
             TEMP_BTN_C_X, TEMP_BTN_Y, TEMP_BTN_SIZE, TEMP_BTN_SIZE)
@@ -815,27 +784,26 @@ class UCLedControl(QWidget):
 
         # Load device preview background (PM-specific or style default)
         from ..core.models import LED_STYLES, PmRegistry
-        style = LED_STYLES.get(style_id)
-        if style:
-            # Resolve preview: check PmRegistry for model-specific image,
-            # fall back to style default (Windows: FormLEDInit per-NO)
-            preview_name = style.preview_image
-            if model:
-                for pm, entry in PmRegistry._REGISTRY.items():
-                    if entry.model_name == model and entry.preview_image:
-                        preview_name = entry.preview_image
-                        break
-            preview_pixmap = Assets.get(preview_name)
-            if preview_pixmap:
-                self._preview.set_overlay(QPixmap(preview_pixmap))
+        style = LED_STYLES[style_id]
 
-            # Set panel background (localized with fallback)
-            from ..conf import settings
-            bg_name = Assets.get_localized(style.background_base, settings.lang)
-            if Assets.get(bg_name):
-                set_background_pixmap(self, bg_name)
+        # Resolve preview: check PmRegistry for model-specific image,
+        # fall back to style default (Windows: FormLEDInit per-NO)
+        preview_name = style.preview_image
+        if model:
+            for pm, entry in PmRegistry._REGISTRY.items():
+                if entry.model_name == model and entry.preview_image:
+                    preview_name = entry.preview_image
+                    break
+        if (preview_pixmap := Assets.get(preview_name)):
+            self._preview.set_overlay(QPixmap(preview_pixmap))
 
-            self._title.setText(f"RGB LED Control \u2014 {style.model_name}")
+        # Set panel background (localized with fallback)
+        from ..conf import settings
+        bg_name = Assets.get_localized(style.background_base, settings.lang)
+        if Assets.get(bg_name):
+            set_background_pixmap(self, bg_name)
+
+        self._title.setText(f"RGB LED Control \u2014 {style.model_name}")
 
         self._apply_layout()
 
@@ -886,11 +854,10 @@ class UCLedControl(QWidget):
         """Re-apply localized background for current settings.lang."""
         from ..conf import settings
         from ..core.models import LED_STYLES
-        style = LED_STYLES.get(self._style_id)
-        if style:
-            bg_name = Assets.get_localized(style.background_base, settings.lang)
-            if Assets.get(bg_name):
-                set_background_pixmap(self, bg_name)
+        style = LED_STYLES[self._style_id]
+        bg_name = Assets.get_localized(style.background_base, settings.lang)
+        if Assets.get(bg_name):
+            set_background_pixmap(self, bg_name)
 
     def set_temp_unit(self, unit_int: int) -> None:
         """Set temperature unit from app settings.
@@ -911,12 +878,12 @@ class UCLedControl(QWidget):
         """Swap zone button images to match the C# button variant for this style.
 
         C# has 3 separate sets of zone buttons with different images:
-        - button1-4 (D4模式1-4): styles 1, 2
-        - button5-6 (D4模式5-6): styles 3, 5, 6, 11
-        - buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
+        - button1-4 (led_zone_mode_1-4): styles 1, 2
+        - button5-6 (led_zone_mode_5-6): styles 3, 5, 6, 11
+        - buttonN1-4 (led_zone_btn_1-4): styles 4, 7, 8, 10
         """
-        assets = _ZONE_STYLE_TO_ASSETS.get(style_id)
-        if not assets:
+        from ..core.models import LED_STYLES
+        if not (assets := LED_STYLES[style_id].zone_assets):
             return
         for i, btn in enumerate(self._zone_buttons):
             if i < len(assets):
@@ -1034,8 +1001,7 @@ class UCLedControl(QWidget):
             # Multi-select: toggle zone in/out of rotation (C# button1-4_Click).
             # Guard: can't disable the last remaining zone.
             btn = self._zone_buttons[zone_index]
-            is_now_checked = btn.isChecked()
-            if is_now_checked:
+            if btn.isChecked():
                 self.carousel_zone_changed.emit(zone_index, True)
             else:
                 others = sum(1 for i in range(self._zone_count)
@@ -1382,7 +1348,7 @@ class UCLedControl(QWidget):
 
     @staticmethod
     def _mode_button_style(active: bool) -> str:
-        # Fallback when mode button images (D2灯光) don't load.
+        # Fallback when mode button images (led_mode_*) don't load.
         # Transparent background — the background PNG has button visuals.
         if active:
             return (

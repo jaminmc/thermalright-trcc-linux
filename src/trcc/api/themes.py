@@ -166,8 +166,7 @@ def download_web_theme(
     )
 
     already_cached = downloader.is_cached(theme_id)
-    result_path = downloader.download_theme(theme_id)
-    if not result_path:
+    if not (result_path := downloader.download_theme(theme_id)):
         raise HTTPException(status_code=404, detail=f"Cloud theme '{theme_id}' not found on server")
 
     # Optionally start video playback on device
@@ -262,8 +261,7 @@ def load_theme(body: ThemeLoadRequest) -> dict:
     config_path = result.get("config_path")
 
     if not w or not h:
-        res = getattr(api._device_dispatcher, 'resolution', None)
-        if res:
+        if (res := getattr(api._device_dispatcher, 'resolution', None)):
             w, h = res
         else:
             raise HTTPException(

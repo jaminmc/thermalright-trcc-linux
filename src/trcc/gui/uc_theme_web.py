@@ -79,8 +79,7 @@ class CloudThemeThumbnail(BaseThumbnail):
         """
         video = self.item_info.video
         if video and Path(video).exists():
-            gif_path = _ensure_thumb_gif(video)
-            if gif_path:
+            if (gif_path := _ensure_thumb_gif(video)):
                 self._movie = QMovie(gif_path)
                 self._movie.setScaledSize(
                     QSize(Sizes.THUMB_IMAGE, Sizes.THUMB_IMAGE))
@@ -125,8 +124,7 @@ class UCThemeWeb(DownloadableThemeBrowser):
     def _set_movies_running(self, running: bool) -> None:
         """Start or stop all QMovie animations on cloud thumbnails."""
         for widget in self.item_widgets:
-            movie = getattr(widget, '_movie', None)
-            if movie:
+            if (movie := getattr(widget, '_movie', None)):
                 movie.start() if running else movie.stop()
 
     def _create_filter_buttons(self):

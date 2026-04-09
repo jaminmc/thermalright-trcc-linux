@@ -22,8 +22,7 @@ Usage:
     )
 
     # Download single theme
-    result = downloader.download_theme("a001")
-    if result:
+    if (result := downloader.download_theme("a001")):
         print(f"Downloaded to: {result}")
 
     # Download preview only

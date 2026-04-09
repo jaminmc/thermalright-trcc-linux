@@ -400,8 +400,7 @@ def start_screencast(
                 return
             interval = 1.0 / fps
             while not stop_event.is_set():
-                frame = cast.grab_frame()
-                if frame is not None:
+                if (frame := cast.grab_frame()) is not None:
                     fw, fh, rgb_bytes = frame
                     qimg = QImage(
                         rgb_bytes, fw, fh, fw * 3,

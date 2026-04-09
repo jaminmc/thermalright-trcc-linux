@@ -78,14 +78,12 @@ class ThemeLoader:
         mask_source_dir: Path | None = None
 
         # Load mask by reference
-        mask_ref = display_opts.get('mask_path')
-        if mask_ref:
+        if (mask_ref := display_opts.get('mask_path')):
             mask_td = ThemeDir(mask_ref)
             if mask_td.mask.exists():
                 mask_source_dir = mask_td.path
                 self._load_mask(mask_td.mask, None, lcd_size)
-                mask_pos = display_opts.get('mask_position')
-                if mask_pos:
+                if (mask_pos := display_opts.get('mask_position')):
                     mask_img, _ = self._overlay.get_mask()
                     self._overlay.set_mask(mask_img, mask_pos)
 
@@ -96,8 +94,7 @@ class ThemeLoader:
             'mask_source_dir': mask_source_dir,
             'theme_path': theme.path,
         }
-        bg_ref = display_opts.get('background_path')
-        if bg_ref:
+        if (bg_ref := display_opts.get('background_path')):
             bg_path = Path(bg_ref)
             if not bg_path.exists() and td.bg.exists():
                 bg_path = td.bg

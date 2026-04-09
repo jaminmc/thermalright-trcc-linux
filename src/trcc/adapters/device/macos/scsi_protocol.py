@@ -63,8 +63,7 @@ class MacOSScsiProtocol(DeviceProtocol):
             # SCSI poll responses (send_cdb returns bool, not data).
             # Resolve FBL from the SCSI device registry instead.
             from trcc.core.models import SCSI_DEVICES
-            entry = SCSI_DEVICES.get((self._vid, self._pid))
-            if entry is not None:
+            if (entry := SCSI_DEVICES.get((self._vid, self._pid))) is not None:
                 fbl = entry.fbl
                 log.info(
                     "macOS SCSI using registry FBL %d for VID=%04X PID=%04X",

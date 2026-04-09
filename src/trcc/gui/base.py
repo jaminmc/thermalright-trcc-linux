@@ -650,8 +650,8 @@ class BaseThemeBrowser(BasePanel):
     def _load_filter_assets(self):
         """Load shared filter button pixmaps (normal + active)."""
         from .assets import Assets
-        normal = Assets.load_pixmap('P主题分类选择.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
-        active = Assets.load_pixmap('P主题分类选择0.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
+        normal = Assets.load_pixmap('theme_browser_filter.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
+        active = Assets.load_pixmap('theme_browser_filter_active.png', Sizes.FILTER_BTN_W, Sizes.FILTER_BTN_H)
         return normal, active
 
     def _make_filter_button(self, x, y, w, h, normal_pix, active_pix, callback):

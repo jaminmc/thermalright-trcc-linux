@@ -31,8 +31,7 @@ def _print_result(result: dict, *, preview: bool = False) -> int:
 def _led_call(method_name: str, preview: bool = False, **kwargs) -> int:
     """Connect LED, call a method on the device, print result."""
     log.debug("LED call method=%s kwargs=%s", method_name, kwargs)
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     from trcc.core.app import TrccApp
     led = TrccApp.get().device(0)
@@ -49,12 +48,10 @@ def set_color(builder, hex_color, *, preview=False):
     """Set LED static color."""
     from trcc.core.app import TrccApp
     log.debug("set_color hex=%s", hex_color)
-    rgb = _parse_hex(hex_color)
-    if not rgb:
+    if not (rgb := _parse_hex(hex_color)):
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     r, g, b = rgb
     result = TrccApp.get().device(0).set_color(r, g, b)
@@ -65,8 +62,7 @@ def set_color(builder, hex_color, *, preview=False):
 def set_mode(builder, mode_name, *, preview=False):
     """Set LED effect mode."""
     log.debug("set_mode mode=%s", mode_name)
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     from trcc.core.app import TrccApp
     led = TrccApp.get().device(0)
@@ -120,8 +116,7 @@ def set_mode(builder, mode_name, *, preview=False):
 def set_led_brightness(builder, level, *, preview=False):
     """Set LED brightness (0-100)."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     result = TrccApp.get().device(0).set_brightness(level)
     return _print_result(result, preview=preview)
@@ -137,8 +132,7 @@ def led_off(builder):
 def set_sensor_source(builder, source):
     """Set CPU/GPU sensor source for temp/load linked LED modes."""
     from trcc.core.app import TrccApp
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     result = TrccApp.get().device(0).set_sensor_source(source)
     return _print_result(result)
@@ -148,12 +142,10 @@ def set_sensor_source(builder, source):
 def set_zone_color(builder, zone: int, hex_color: str, *, preview: bool = False):
     """Set color for a specific LED zone."""
     from trcc.core.app import TrccApp
-    rgb = _parse_hex(hex_color)
-    if not rgb:
+    if not (rgb := _parse_hex(hex_color)):
         print("Error: Invalid hex color. Use format: ff0000")
         return 1
-    rc = _connect_or_fail()
-    if rc:
+    if (rc := _connect_or_fail()):
         return rc
     r, g, b = rgb
     result = TrccApp.get().device(0).set_zone_color(zone, r, g, b)

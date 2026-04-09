@@ -73,8 +73,7 @@ def sudo_reexec(subcommand: str) -> int:
     # sudoers env_reset which strips environment variables on Ubuntu.
     path_inject = f"import sys; sys.path[:0] = {paths!r}; "
 
-    snippet = _SUDO_DISPATCH.get(subcommand)
-    if snippet:
+    if (snippet := _SUDO_DISPATCH.get(subcommand)):
         cmd = [
             "sudo", sys.executable, "-c", path_inject + snippet,
         ]
@@ -477,8 +476,7 @@ class LinuxSetup(PlatformSetup):
     def archive_tool_install_help(self) -> str:
         from trcc.adapters.infra.doctor import _install_hint
         pm = self.get_pkg_manager()
-        hint = _install_hint('7z', pm)
-        if hint:
+        if (hint := _install_hint('7z', pm)):
             return f"7z not found. Install:\n  {hint}"
         return (
             "7z not found. Install p7zip for your distro:\n"
@@ -662,8 +660,7 @@ class LinuxSetup(PlatformSetup):
 
         # Step 2/6: GPU detection
         print("  Step 2/6: GPU detection")
-        gpus = check_gpu()
-        if not gpus:
+        if not (gpus := check_gpu()):
             print("    [--]  No discrete GPU detected")
         for gpu in gpus:
             if gpu.package_installed:

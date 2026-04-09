@@ -36,7 +36,7 @@ class ColorPickerPanel(QFrame):
         super().__init__(parent)
         self.setFixedSize(Sizes.COLOR_PANEL_W, Sizes.COLOR_PANEL_H)
 
-        set_background_pixmap(self, 'ucXiTongXianShiColor1.BackgroundImage.png',
+        set_background_pixmap(self, 'settings_overlay_color_bg.png',
             Sizes.COLOR_PANEL_W, Sizes.COLOR_PANEL_H,
             fallback_style=f"background-color: {Colors.PANEL_FALLBACK}; border-radius: 5px;")
 
@@ -147,7 +147,7 @@ class ColorPickerPanel(QFrame):
         # Eyedropper button (matches Windows buttonGetColor at (12, 276, 48, 48))
         self.eyedropper_btn = QPushButton(self)
         self.eyedropper_btn.setGeometry(*Layout.COLOR_EYEDROPPER)
-        eyedrop_pixmap = Assets.load_pixmap('P吸管.png', 48, 48)
+        eyedrop_pixmap = Assets.load_pixmap('color_panel_eyedropper.png', 48, 48)
         if not eyedrop_pixmap.isNull():
             self.eyedropper_btn.setIcon(QIcon(eyedrop_pixmap))
             self.eyedropper_btn.setIconSize(self.eyedropper_btn.size())
@@ -257,7 +257,7 @@ class AddElementPanel(QFrame):
         super().__init__(parent)
         self.setFixedSize(Sizes.ADD_PANEL_W, Sizes.ADD_PANEL_H)
 
-        set_background_pixmap(self, 'ucXiTongXianShiAdd1.BackgroundImage.png',
+        set_background_pixmap(self, 'settings_overlay_add_bg.png',
             Sizes.ADD_PANEL_W, Sizes.ADD_PANEL_H,
             fallback_style=f"background-color: {Colors.PANEL_FALLBACK}; border-radius: 5px;")
 

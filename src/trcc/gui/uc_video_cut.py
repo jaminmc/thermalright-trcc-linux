@@ -290,21 +290,21 @@ class UCVideoCut(QWidget):
 
         # Fit mode buttons
         self._btn_height_fit = make_icon_button(
-            self, BTN_HEIGHT_FIT, 'P高度适应.png', "H", self._on_height_fit)
+            self, BTN_HEIGHT_FIT, 'display_mode_fit_height.png', "H", self._on_height_fit)
         self._btn_width_fit = make_icon_button(
-            self, BTN_WIDTH_FIT, 'P宽度适应.png', "W", self._on_width_fit)
+            self, BTN_WIDTH_FIT, 'display_mode_fit_width.png', "W", self._on_width_fit)
         self._btn_rotate = make_icon_button(
-            self, BTN_ROTATE, 'P旋转.png', "R", self._on_rotate)
+            self, BTN_ROTATE, 'display_mode_rotate.png', "R", self._on_rotate)
         self._btn_export = make_icon_button(
-            self, BTN_EXPORT, 'P裁减.png', "OK", self._on_export)
+            self, BTN_EXPORT, 'display_mode_crop.png', "OK", self._on_export)
 
         # Preview button
         self._btn_preview = make_icon_button(
-            self, BTN_PREVIEW, 'P0预览.png', "\u25b6", self._on_preview_toggle)
+            self, BTN_PREVIEW, 'preview_btn.png', "\u25b6", self._on_preview_toggle)
 
         # Close button
         self._btn_close = make_icon_button(
-            self, BTN_CLOSE, 'P关闭按钮.png', "\u2715", self._on_close)
+            self, BTN_CLOSE, 'shared_close.png', "\u2715", self._on_close)
 
     # =========================================================================
     # Painting
@@ -507,7 +507,7 @@ class UCVideoCut(QWidget):
 
         # Load resolution-specific background (C# scaled dims, not raw LCD dims)
         pw, ph = panel_asset_dims(w, h)
-        bg_name = f'P0裁减{pw}{ph}.png'
+        bg_name = f'video_cut_{pw}x{ph}.png'
         log.debug("set_resolution: %dx%d → panel %dx%d asset=%s", w, h, pw, ph, bg_name)
         bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)
         if not bg_pix.isNull():

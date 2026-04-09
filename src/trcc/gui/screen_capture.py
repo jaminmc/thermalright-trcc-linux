@@ -45,8 +45,7 @@ def grab_full_screen() -> QPixmap:
         QPixmap of the full screen, or null pixmap on failure.
     """
     # Try Qt native capture first (works on X11, may be blank on Wayland)
-    screen = QApplication.primaryScreen()
-    if screen:
+    if (screen := QApplication.primaryScreen()):
         pixmap = screen.grabWindow(0)  # type: ignore[arg-type]
         if not pixmap.isNull() and pixmap.width() > 1:
             return pixmap
@@ -98,8 +97,7 @@ def grab_screen_region(x: int, y: int, w: int, h: int) -> QPixmap:
         QPixmap of the region, or null pixmap on failure.
     """
     # Try Qt native capture with region (works on X11)
-    screen = QApplication.primaryScreen()
-    if screen:
+    if (screen := QApplication.primaryScreen()):
         pixmap = screen.grabWindow(0, x, y, w, h)  # type: ignore[arg-type]
         if not pixmap.isNull() and pixmap.width() > 1:
             return pixmap
@@ -167,8 +165,7 @@ class BaseScreenOverlay(QWidget):
             self._emit_cancel()
             return
 
-        screen = QApplication.primaryScreen()
-        if screen:
+        if (screen := QApplication.primaryScreen()):
             self.setGeometry(screen.geometry())
 
         self.showFullScreen()

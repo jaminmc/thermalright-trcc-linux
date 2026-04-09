@@ -35,8 +35,7 @@ def _real_user_home():
 def setup_udev(dry_run: bool = False) -> int:
     """Install udev rules for LCD device access (Linux only)."""
     log.debug("setup_udev dry_run=%s", dry_run)
-    err = _require_linux("setup-udev")
-    if err is not None:
+    if (err := _require_linux("setup-udev")) is not None:
         return err
     from trcc.core.app import TrccApp
     return TrccApp.get().setup_udev(dry_run=dry_run)
@@ -44,8 +43,7 @@ def setup_udev(dry_run: bool = False) -> int:
 
 def setup_selinux() -> int:
     """Install SELinux policy module (Linux only)."""
-    err = _require_linux("setup-selinux")
-    if err is not None:
+    if (err := _require_linux("setup-selinux")) is not None:
         return err
     from trcc.core.app import TrccApp
     return TrccApp.get().setup_selinux()
@@ -53,8 +51,7 @@ def setup_selinux() -> int:
 
 def setup_polkit() -> int:
     """Install polkit policy for passwordless dmidecode/smartctl (Linux only)."""
-    err = _require_linux("setup-polkit")
-    if err is not None:
+    if (err := _require_linux("setup-polkit")) is not None:
         return err
     from trcc.core.app import TrccApp
     return TrccApp.get().setup_polkit()
@@ -62,8 +59,7 @@ def setup_polkit() -> int:
 
 def install_desktop() -> int:
     """Install .desktop menu entry and icon (Linux only)."""
-    err = _require_linux("install-desktop")
-    if err is not None:
+    if (err := _require_linux("install-desktop")) is not None:
         return err
     from trcc.core.app import TrccApp
     return TrccApp.get().install_desktop()

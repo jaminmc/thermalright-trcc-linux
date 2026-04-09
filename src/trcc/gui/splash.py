@@ -114,8 +114,7 @@ class TrccSplash(QWidget):
         self._center()
 
     def _center(self) -> None:
-        screen = QApplication.primaryScreen()
-        if screen is not None:
+        if (screen := QApplication.primaryScreen()) is not None:
             geo = screen.availableGeometry()
             self.move(
                 geo.center().x() - _SPLASH_W // 2,

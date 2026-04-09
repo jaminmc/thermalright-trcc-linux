@@ -40,14 +40,14 @@ def parse_hex_color(hex_color: str) -> Optional[Tuple[int, int, int]]:
 # =============================================================================
 
 
-@dataclass
+@dataclass(slots=True)
 class ThemeItem:
     """Base for all theme browser items."""
     name: str
     is_local: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class LocalThemeItem(ThemeItem):
     """Item in the local themes browser (UCThemeLocal)."""
     path: str = ""
@@ -56,7 +56,7 @@ class LocalThemeItem(ThemeItem):
     index: int = 0  # position in unfiltered list
 
 
-@dataclass
+@dataclass(slots=True)
 class CloudThemeItem(ThemeItem):
     """Item in the cloud themes browser (UCThemeWeb)."""
     id: str = ""
@@ -64,7 +64,7 @@ class CloudThemeItem(ThemeItem):
     preview: Optional[str] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MaskItem(ThemeItem):
     """Item in the masks browser (UCThemeMask)."""
     path: Optional[str] = None
@@ -72,7 +72,7 @@ class MaskItem(ThemeItem):
     is_custom: bool = False  # User-uploaded mask (enables delete in context menu)
 
 
-@dataclass
+@dataclass(slots=True)
 class MaskInfo:
     """Mask overlay info returned by ThemeService.discover_masks().
 
@@ -88,7 +88,7 @@ class MaskInfo:
 # Theme Model
 # =============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class ThemeData:
     """Bundle returned after loading a theme — everything needed to display it."""
     background: Any = None               # native surface (QImage)
@@ -164,7 +164,7 @@ class ThemeType(Enum):
     USER = auto()       # User-created theme
 
 
-@dataclass
+@dataclass(slots=True)
 class ThemeInfo:
     """
     Information about a single theme.
@@ -214,7 +214,7 @@ LCD_DEFAULT_BUTTON = "A1CZTV"
 LED_DEFAULT_BUTTON = "A1KVMALEDC6"
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DeviceEntry:
     """Registry entry describing a known USB device's capabilities."""
     vendor: str
@@ -227,7 +227,7 @@ class DeviceEntry:
     fbl: int = 100         # FBL code (resolution identifier) — used by Windows SCSI poll fallback
 
 
-@dataclass
+@dataclass(slots=True)
 class DetectedDevice:
     """Detected USB/SCSI device."""
     vid: int  # Vendor ID
@@ -425,7 +425,7 @@ class DeviceInfo:
         return (self.protocol, res, fbl, self.use_jpeg)
 
 
-@dataclass
+@dataclass(slots=True)
 class HandshakeResult:
     """Common output from any device handshake.
 
@@ -441,7 +441,7 @@ class HandshakeResult:
     raw_response: bytes = field(default=b"", repr=False)
 
 
-@dataclass
+@dataclass(slots=True)
 class HidHandshakeInfo(HandshakeResult):
     """HID-specific handshake info (extends HandshakeResult)."""
     device_type: int = 0      # 2 or 3
@@ -458,7 +458,7 @@ IMPL_NAMES: dict[str, str] = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class LCDDeviceConfig:
     """SCSI LCD device config — resolution, pixel format, protocol constants.
 
@@ -500,7 +500,7 @@ class PlaybackState(Enum):
     PAUSED = auto()
 
 
-@dataclass
+@dataclass(slots=True)
 class VideoState:
     """
     State of video/animation playback.
@@ -556,7 +556,7 @@ class OverlayElementType(Enum):
     TEXT = 4        # Custom text
 
 
-@dataclass
+@dataclass(slots=True)
 class OverlayElement:
     """
     Single overlay element configuration.
@@ -593,7 +593,7 @@ class LEDMode(Enum):
     LOAD_LINKED = 5  # FZLD_Timer: color from CPU/GPU load %
 
 
-@dataclass
+@dataclass(slots=True)
 class LEDZoneState:
     """Per-zone state for multi-zone LED devices.
 
@@ -680,7 +680,7 @@ class LEDState:
 # LED Device Styles (from FormLED.cs FormLEDInit, lines 1598-1750)
 # =============================================================================
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class LedDeviceStyle:
     """LED device configuration derived from FormLEDInit pm→nowLedStyle.
 
@@ -690,8 +690,8 @@ class LedDeviceStyle:
         segment_count: Logical segments (LedCountValNs).
         zone_count: Number of independent zones (1=single, 2-4=multi).
         model_name: Human-readable model name.
-        preview_image: Device background asset name (D{Name}.png).
-        background_base: Localized background base (D0{Name}).
+        preview_image: Device background asset name.
+        background_base: Localized background base.
     """
     style_id: int
     led_count: int
@@ -699,39 +699,84 @@ class LedDeviceStyle:
     zone_count: int = 1
     model_name: str = ""
     preview_image: str = ""
-    background_base: str = "D0数码屏"
+    background_base: str = "led_bg_segment"
+
+    @property
+    def zone_assets(self) -> list[tuple[str, str]]:
+        """Zone button asset pairs for this style."""
+        return _ZONE_STYLE_ASSETS.get(self.style_id, [])
 
 
-# All LED styles from FormLED.cs FormLEDInit and UCScreenLED.cs constants
-LED_STYLES: dict[int, LedDeviceStyle] = {
-    1: LedDeviceStyle(1, 30, 10, 4, "AX120_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
-    2: LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "DPA120_DIGITAL", "D0数码屏4区域"),
-    3: LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "DAK120_DIGITAL", "D0数码屏"),
-    4: LedDeviceStyle(4, 31, 14, 3, "LC1", "DLC1", "D0LC1"),
-    5: LedDeviceStyle(5, 93, 23, 2, "LF8", "DLF8", "D0LF8"),
-    6: LedDeviceStyle(6, 124, 72, 2, "LF12", "DLF12", "D0LF12"),
-    7: LedDeviceStyle(7, 116, 12, 3, "LF10", "DLF10", "D0LF10"),
-    8: LedDeviceStyle(8, 18, 13, 4, "CZ1", "DCZ1", "D0CZ1"),
-    9: LedDeviceStyle(9, 61, 31, 0, "LC2", "DLC2", "D0LC2"),
-    10: LedDeviceStyle(10, 38, 17, 4, "LF11", "DLF11", "D0LF11"),
-    11: LedDeviceStyle(11, 93, 72, 2, "LF15", "DLF15", "D0LF15"),
-    12: LedDeviceStyle(12, 62, 62, 0, "LF13", "DLF13", "D0LF13"),
-}
+class _LedStylesRegistry:
+    """LED style registry with Pythonic access — never returns None.
+
+    Usage::
+
+        style = LED_STYLES[6]           # __getitem__, defaults to style 1
+        if 6 in LED_STYLES: ...         # __contains__
+        for sid, style in LED_STYLES:   # __iter__
+            ...
+        sid = LED_STYLES.by_name("LF12")  # reverse lookup
+    """
+
+    _DEFAULT = 1
+
+    _REGISTRY: dict[int, LedDeviceStyle] = {
+        1:  LedDeviceStyle(1, 30, 10, 4, "AX120_DIGITAL", "led_preview_ax120", "led_bg_segment"),
+        2:  LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "led_preview_pa120", "led_bg_segment_4zone"),
+        3:  LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "led_preview_ak120", "led_bg_segment"),
+        4:  LedDeviceStyle(4, 31, 14, 3, "LC1", "led_preview_lc1", "led_bg_lc1"),
+        5:  LedDeviceStyle(5, 93, 23, 2, "LF8", "led_preview_lf8", "led_bg_lf8"),
+        6:  LedDeviceStyle(6, 124, 72, 2, "LF12", "led_preview_lf12", "led_bg_lf12"),
+        7:  LedDeviceStyle(7, 116, 12, 3, "LF10", "led_preview_lf10", "led_bg_lf10"),
+        8:  LedDeviceStyle(8, 18, 13, 4, "CZ1", "led_preview_cz1", "led_bg_cz1"),
+        9:  LedDeviceStyle(9, 61, 31, 0, "LC2", "led_preview_lc2", "led_bg_lc2"),
+        10: LedDeviceStyle(10, 38, 17, 4, "LF11", "led_preview_lf11", "led_bg_lf11"),
+        11: LedDeviceStyle(11, 93, 72, 2, "LF15", "led_preview_lf15", "led_bg_lf15"),
+        12: LedDeviceStyle(12, 62, 62, 0, "LF13", "led_preview_lf13", "led_bg_lf13"),
+    }
+
+    def __getitem__(self, style_id: int) -> LedDeviceStyle:
+        return self._REGISTRY.get(style_id, self._REGISTRY[self._DEFAULT])
+
+    def __len__(self) -> int:
+        return len(self._REGISTRY)
+
+    def __contains__(self, style_id: object) -> bool:
+        return style_id in self._REGISTRY
+
+    def __iter__(self):
+        return iter(self._REGISTRY.items())
+
+    def items(self):
+        return self._REGISTRY.items()
+
+    def keys(self):
+        return self._REGISTRY.keys()
+
+    def values(self):
+        return self._REGISTRY.values()
+
+    def get(self, style_id: int) -> LedDeviceStyle | None:
+        """Explicit get for callers that need to distinguish unknown styles."""
+        return self._REGISTRY.get(style_id)
+
+    def by_name(self, model_name: str) -> int:
+        """Resolve style_id from model name. Returns default (AX120) if unknown."""
+        for sid, s in self._REGISTRY.items():
+            if s.model_name == model_name:
+                return sid
+        return self._DEFAULT
+
+
+LED_STYLES = _LedStylesRegistry()
 
 # Style IDs that support "select all zones" — sync every zone to same
 # mode/color/brightness in one operation (PA120=2, LF10=7).
 LED_SELECT_ALL_STYLES: frozenset[int] = frozenset({2, 7})
 
 
-def resolve_led_style_id(model_name: str) -> int:
-    """Resolve LED style_id from device model name. Returns 1 (AX120) if unknown."""
-    for style_id, style in LED_STYLES.items():
-        if style.model_name == model_name:
-            return style_id
-    return 1
-
-
-@dataclass
+@dataclass(slots=True)
 class LedHandshakeInfo(HandshakeResult):
     """LED-specific handshake info (extends HandshakeResult)."""
     pm: int = 0
@@ -777,8 +822,8 @@ class _PmRegistryType:
 
     # PM → PmEntry base registry (built once at class load time).
     _REGISTRY: dict[int, PmEntry] = {
-        1:   PmEntry(1, "FROZEN_HORIZON_PRO", "A1FROZEN HORIZON PRO", "DFROZEN_HORIZON_PRO"),
-        2:   PmEntry(1, "FROZEN_MAGIC_PRO", "A1FROZEN MAGIC PRO", "DFROZEN_MAGIC_PRO"),
+        1:   PmEntry(1, "FROZEN_HORIZON_PRO", "A1FROZEN HORIZON PRO", "led_preview_frozen_horizon_pro"),
+        2:   PmEntry(1, "FROZEN_MAGIC_PRO", "A1FROZEN MAGIC PRO", "led_preview_frozen_magic_pro"),
         3:   PmEntry(1, "AX120_DIGITAL", "A1AX120 DIGITAL"),
         16:  PmEntry(2, "PA120_DIGITAL", "A1PA120 DIGITAL"),
         23:  PmEntry(2, "RK120_DIGITAL", "A1RK120 DIGITAL"),
@@ -1152,7 +1197,7 @@ def remap_led_colors(
 # DC File Format DTOs (config1.dc overlay configuration)
 # =============================================================================
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class FontConfig:
     """Font configuration from .dc file."""
     name: str
@@ -1163,7 +1208,7 @@ class FontConfig:
     color_argb: tuple  # (alpha, red, green, blue)
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ElementConfig:
     """Element position and font config."""
     x: int
@@ -1172,7 +1217,7 @@ class ElementConfig:
     enabled: bool = True
 
 
-@dataclass
+@dataclass(slots=True)
 class DisplayElement:
     """
     Display element from UCXiTongXianShiSub (time, date, weekday, hardware info, custom text).
@@ -1240,7 +1285,7 @@ class OverlayMode(IntEnum):
     CUSTOM = 4
 
 
-@dataclass
+@dataclass(slots=True)
 class OverlayElementConfig:
     """Overlay grid element config — UI-level representation.
 
@@ -1267,7 +1312,7 @@ class OverlayElementConfig:
 # Pyright catches typos at lint time. Fields default to 0.0.
 # =============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class HardwareMetrics:
     """Typed DTO for all system sensor readings. Updated once/second by polling."""
     # CPU
@@ -1515,7 +1560,7 @@ def build_overlay_config(
 # Theme Config DTOs (dc_writer save/export format)
 # =============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class ThemeConfig:
     """Complete theme configuration for saving."""
     # Display elements (UCXiTongXianShiSubArray)
@@ -1544,7 +1589,7 @@ class ThemeConfig:
     mask_y: int = 0                    # YvalMB
 
 
-@dataclass
+@dataclass(slots=True)
 class CarouselConfig:
     """Carousel/slideshow configuration."""
     current_theme: int = 0             # myTheme - index of current theme
@@ -1559,7 +1604,7 @@ class CarouselConfig:
 # Sensor DTOs
 # =============================================================================
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SensorInfo:
     """Describes a single hardware sensor."""
     id: str             # Unique ID: "hwmon:coretemp:temp1"
@@ -1646,7 +1691,7 @@ LOCALE_TO_LANG: dict[str, str] = {
 # =============================================================================
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DeviceProfile:
     """Everything needed to talk to a device, derived from its FBL code.
 
@@ -1835,20 +1880,20 @@ def pm_to_fbl(pm: int, sub: int = 0) -> int:
 # (style, directionB). Key: (myLddVal, rotation_degrees) → asset filename.
 SPLIT_OVERLAY_MAP: dict[tuple[int, int], str] = {
     # Style A (myLddVal=1)
-    (1, 0):   'P灵动岛.png',
-    (1, 90):  'P灵动岛90.png',
-    (1, 180): 'P灵动岛180.png',
-    (1, 270): 'P灵动岛270.png',
+    (1, 0):   'split_overlay_a.png',
+    (1, 90):  'split_overlay_a_90.png',
+    (1, 180): 'split_overlay_a_180.png',
+    (1, 270): 'split_overlay_a_270.png',
     # Style B (myLddVal=2, default)
-    (2, 0):   'P灵动岛a.png',
-    (2, 90):  'P灵动岛a90.png',
-    (2, 180): 'P灵动岛a180.png',
-    (2, 270): 'P灵动岛a270.png',
+    (2, 0):   'split_overlay_b.png',
+    (2, 90):  'split_overlay_b_90.png',
+    (2, 180): 'split_overlay_b_180.png',
+    (2, 270): 'split_overlay_b_270.png',
     # Style C (myLddVal=3)
-    (3, 0):   'P灵动岛b.png',
-    (3, 90):  'P灵动岛b90.png',
-    (3, 180): 'P灵动岛b180.png',
-    (3, 270): 'P灵动岛b270.png',
+    (3, 0):   'split_overlay_c.png',
+    (3, 90):  'split_overlay_c_90.png',
+    (3, 180): 'split_overlay_c_180.png',
+    (3, 270): 'split_overlay_c_270.png',
 }
 
 # Widescreen resolutions that support split mode (灵动岛).
@@ -1860,7 +1905,7 @@ SPLIT_MODE_RESOLUTIONS: set[tuple[int, int]] = {(1600, 720)}
 # Panel Asset Dims — scaled dimensions for crop/video panel backgrounds
 # =============================================================================
 # C# buttonSelectBackgroundImage() maps each device resolution to scaled dims
-# that fit the fixed-size panel. Assets: P0裁减{pw}{ph}, P0图片裁减{pw}{ph}.
+# that fit the fixed-size panel. Assets: video_cut_{pw}x{ph}, image_cut_{pw}x{ph}.
 # Both landscape and portrait entries included.
 PANEL_ASSET_DIMS: dict[tuple[int, int], tuple[int, int]] = {
     # Square
@@ -1892,8 +1937,7 @@ def panel_asset_dims(w: int, h: int) -> tuple[int, int]:
     Falls back to (320, 240) landscape or (240, 320) portrait,
     matching the C# else branch in buttonSelectBackgroundImage().
     """
-    dims = PANEL_ASSET_DIMS.get((w, h))
-    if dims:
+    if (dims := PANEL_ASSET_DIMS.get((w, h))):
         return dims
     return (240, 320) if h > w else (320, 240)
 
@@ -1913,7 +1957,7 @@ _LCD_BUTTON_IMAGE: dict[int, dict[Optional[int], str]] = {
     4:   {1: 'A1HYPER VISION', 2: 'A1RP130 VISION', 3: 'A1LM16SE',
           4: 'A1LF10V', 5: 'A1LM19SE'},
     5:   {None: 'A1Mjolnir VISION'},
-    6:   {1: 'FROZEN_WARFRAME_Ultra', 2: 'A1FROZEN VISION V2'},
+    6:   {1: 'frozen_warframe_ultra', 2: 'A1FROZEN VISION V2'},
     7:   {1: 'A1Stream Vision', 2: 'A1Mjolnir VISION PRO'},
     9:   {0: 'A1LC2JD', 1: 'A1LC2JD', 2: 'A1LC2JD', 3: 'A1LC2JD',
           4: 'A1LC2JD', None: 'A1LF19'},
@@ -2026,7 +2070,7 @@ LED_DEVICE_TYPE_NAME: str = "RGB LED Controller"
 # =============================================================================
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProtocolTraits:
     """Per-protocol behavioral data — eliminates scattered string checks.
 
@@ -2072,13 +2116,13 @@ PROTOCOL_TRAITS: Dict[str, ProtocolTraits] = {
 
 # Category ID → background image name
 CATEGORY_IMAGES: dict[int, str] = {
-    0: 'A自定义.png',
-    1: 'Acpu.png',
-    2: 'Agpu.png',
-    3: 'Adram.png',
-    4: 'Ahdd.png',
-    5: 'Anet.png',
-    6: 'Afan.png',
+    0: 'sysinfo_custom.png',
+    1: 'sysinfo_cpu.png',
+    2: 'sysinfo_gpu.png',
+    3: 'sysinfo_dram.png',
+    4: 'sysinfo_hdd.png',
+    5: 'sysinfo_net.png',
+    6: 'sysinfo_fan.png',
 }
 
 # Category ID → value text color
@@ -2111,6 +2155,76 @@ SUB_METRICS: dict[int, dict[int, str]] = {
     3: {1: 'Read', 2: 'Write', 3: 'Activity', 4: 'Temp'},
     4: {1: 'Down', 2: 'Up',    3: 'Total',    4: 'Ping'},
     5: {1: 'RPM',  2: 'PWM%',  3: 'Temp',     4: 'Speed'},
+}
+
+
+# Overlay element mode → background icon asset
+OVERLAY_MODE_IMAGES: dict[OverlayMode, str] = {
+    OverlayMode.HARDWARE: 'overlay_mode_hardware.png',
+    OverlayMode.TIME: 'overlay_mode_time.png',
+    OverlayMode.WEEKDAY: 'overlay_mode_weekday.png',
+    OverlayMode.DATE: 'overlay_mode_date.png',
+    OverlayMode.CUSTOM: 'overlay_mode_text.png',
+}
+
+# Overlay element selection highlight asset
+OVERLAY_SELECT_IMAGE = 'overlay_select.png'
+
+# Date format mode_sub → button icon asset
+DATE_FORMAT_IMAGES: dict[int, str] = {
+    1: 'display_mode_date_ymd.png',
+    2: 'display_mode_date_dmy.png',
+    3: 'display_mode_date_md.png',
+    4: 'display_mode_date_dm.png',
+}
+
+# Display mode action → icon asset
+ACTION_ICON_IMAGES: dict[str, str] = {
+    "Image": "display_mode_icon_image.png",
+    "Video": "display_mode_icon_video.png",
+    "Load": "display_mode_icon_mask.png",
+    "Upload": "display_mode_icon_image.png",
+    "VideoLoad": "display_mode_icon_livestream.png",
+    "GIF": "display_mode_icon_gif.png",
+    "Network": "display_mode_icon_network.png",
+}
+
+# LED preset color → asset name (matches PRESET_COLORS order)
+LED_PRESET_ASSETS: list[str] = [
+    'led_preset_red', 'led_preset_orange', 'led_preset_yellow',
+    'led_preset_green', 'led_preset_cyan', 'led_preset_blue',
+    'led_preset_purple', 'led_preset_white',
+]
+
+# LED mode button labels (English)
+LED_MODE_LABELS: list[str] = [
+    "Static", "Breathing", "Colorful", "Rainbow", "Temp Link", "Load Link",
+]
+
+# LED zone button assets — 3 variants depending on style.
+# Accessed via LedDeviceStyle.zone_assets property.
+_ZONE_ASSETS_BTN14 = [
+    ('led_zone_mode_1', 'led_zone_mode_1_active'),
+    ('led_zone_mode_2', 'led_zone_mode_2_active'),
+    ('led_zone_mode_3', 'led_zone_mode_3_active'),
+    ('led_zone_mode_4', 'led_zone_mode_4_active'),
+]
+_ZONE_ASSETS_BTN56 = [
+    ('led_zone_mode_5', 'led_zone_mode_5_active'),
+    ('led_zone_mode_6', 'led_zone_mode_6_active'),
+]
+_ZONE_ASSETS_BTNN = [
+    ('led_zone_btn_1', 'led_zone_btn_1_active'),
+    ('led_zone_btn_2', 'led_zone_btn_2_active'),
+    ('led_zone_btn_3', 'led_zone_btn_3_active'),
+    ('led_zone_btn_4', 'led_zone_btn_4_active'),
+]
+_ZONE_STYLE_ASSETS: dict[int, list[tuple[str, str]]] = {
+    1: _ZONE_ASSETS_BTN14, 2: _ZONE_ASSETS_BTN14,
+    3: _ZONE_ASSETS_BTN56, 5: _ZONE_ASSETS_BTN56,
+    6: _ZONE_ASSETS_BTN56, 11: _ZONE_ASSETS_BTN56,
+    4: _ZONE_ASSETS_BTNN, 7: _ZONE_ASSETS_BTNN,
+    8: _ZONE_ASSETS_BTNN, 10: _ZONE_ASSETS_BTNN,
 }
 
 
@@ -2157,7 +2271,7 @@ SENSOR_TO_OVERLAY: dict[str, tuple[int, int]] = {
 # Sensor Dashboard Panel Configuration — pure domain dataclasses
 # =============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class SensorBinding:
     """Maps a single dashboard panel row to a sensor."""
     label: str        # Row label displayed on panel ("TEMP", "Usage", etc.)
@@ -2165,7 +2279,7 @@ class SensorBinding:
     unit: str         # Display unit suffix ("°C", "%", "MHz", etc.)
 
 
-@dataclass
+@dataclass(slots=True)
 class PanelConfig:
     """Configuration for a single sensor dashboard panel."""
     category_id: int                          # 0=Custom,1=CPU,2=GPU,3=Memory,4=HDD,5=Network,6=Fan
@@ -2316,7 +2430,7 @@ CLOUD_SERVERS: dict[str, str] = {
 # API Server DTOs
 # =============================================================================
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ServerInfo:
     """Connection details for a running TRCC API server."""
     host: str

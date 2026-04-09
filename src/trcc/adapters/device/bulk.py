@@ -113,8 +113,7 @@ class BulkDevice(BulkFrameDevice, FrameDevice):
         # Derive resolution from PM+SUB (from FormCZTVInit in FormCZTV.cs).
         # Bulk devices (87AD:70DB) get FBL=72 hardcoded by USBLCDNEW.exe,
         # then PM overrides FBL for certain device models.
-        resolution = _bulk_resolution(self.pm, self.sub_type)
-        if resolution:
+        if (resolution := _bulk_resolution(self.pm, self.sub_type)):
             self.width, self.height = resolution
 
         # FBL must match actual resolution — unknown PMs default to FBL=72 (480x480)

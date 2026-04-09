@@ -531,8 +531,7 @@ class TrccApp:
                     # Tick all devices every iteration
                     for path, device in list(self._devices.items()):
                         try:
-                            result = device.tick()
-                            if result is not None:
+                            if (result := device.tick()) is not None:
                                 self._notify(AppEvent.FRAME_RENDERED,
                                              {'path': path, 'image': result})
                             elif getattr(device, 'playing', False):

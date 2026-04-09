@@ -26,8 +26,7 @@ def list_themes():
     from trcc.conf import settings
     from trcc.services import ThemeService
 
-    cfg = _get_device_cfg()
-    if not cfg:
+    if not (cfg := _get_device_cfg()):
         print("No device configured. Connect your device first.")
         return 1
 
@@ -55,8 +54,7 @@ def list_backgrounds(category=None):
     from trcc.services import ThemeService
 
     log.debug("list_backgrounds category=%s", category)
-    cfg = _get_device_cfg()
-    if not cfg:
+    if not (cfg := _get_device_cfg()):
         print("No device configured. Connect your device first.")
         return 1
 
@@ -82,8 +80,7 @@ def list_masks():
     from trcc.conf import settings
     from trcc.services import ThemeService
 
-    cfg = _get_device_cfg()
-    if not cfg:
+    if not (cfg := _get_device_cfg()):
         print("No device configured. Connect your device first.")
         return 1
 
@@ -113,8 +110,7 @@ def load_theme(builder, name, *, device=None, preview=False):
     from trcc.services import ImageService
 
     log.debug("load_theme name=%s device=%s", name, device)
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
 
     lcd = TrccApp.get().device(0)
@@ -227,15 +223,13 @@ def save_theme(name, *, device=None, video=None, background=None,
     from trcc.core.app import TrccApp
 
     log.debug("save_theme name=%s device=%s background=%s", name, device, background)
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
 
     lcd = TrccApp.get().device(0)
 
     # --background / --video → load into DisplayService state
-    bg_source = background or video
-    if bg_source:
+    if (bg_source := background or video):
         p = Path(bg_source)
         if not p.exists():
             print(f"Error: File not found: {bg_source}")
@@ -296,8 +290,7 @@ def export_theme(theme_name, output_path):
     from trcc.services import ThemeService
 
     log.debug("export_theme name=%s output=%s", theme_name, output_path)
-    cfg = _get_device_cfg()
-    if not cfg:
+    if not (cfg := _get_device_cfg()):
         print("No device configured. Connect your device first.")
         return 1
 
@@ -346,8 +339,7 @@ def import_theme(file_path, *, device=None):
     from trcc.services import ThemeService
 
     log.debug("import_theme path=%s device=%s", file_path, device)
-    rc = _connect_or_fail(device)
-    if rc:
+    if (rc := _connect_or_fail(device)):
         return rc
 
     lcd = TrccApp.get().device(0)

@@ -5,9 +5,9 @@ LED segment visualization widget (UCScreenLED equivalent).
 Matches Windows UCScreenLED.cs rendering exactly:
 - 460x460 widget with exact ledPosition rectangle coordinates per style
 - Paint order: dark fill → decorations → LED colored rectangles → device overlay LAST
-- The device image (e.g. DAX120_DIGITAL.png) is a foreground mask drawn on top;
+- The device image (e.g. led_preview_ax120.png) is a foreground mask drawn on top;
   LED colors show through its transparent areas.
-- Style-specific decoration images (Dch1-4, Dchcz1, D0rgblf13) for styles 6/7/8/12.
+- Style-specific decoration images (screen_led_deco_1-4, screen_led_deco_cz1, led_bg_rgb_lf13) for styles 6/7/8/12.
 """
 
 from __future__ import annotations
@@ -412,27 +412,27 @@ class _DecoConfig:
 _DECO: dict[int, _DecoConfig] = {
     # Style 6 (LF12): 3 corner decorations
     6: _DecoConfig(
-        images=[("Dch2", 26, 17), ("Dch3", 23, 221), ("Dch4", 293, 274)],
+        images=[("screen_led_deco_2", 26, 17), ("screen_led_deco_3", 23, 221), ("screen_led_deco_4", 293, 274)],
         color_fills=[
-            (26, 17, 408, 46),       # Dch2 area
-            (23, 221, 414, 28),      # Dch3 area
-            (293, 407, 155, 40),     # Dch4 bottom strip (274+173-40=407)
-            (408, 274, 40, 173),     # Dch4 right strip  (293+155-40=408)
+            (26, 17, 408, 46),       # screen_led_deco_2 area
+            (23, 221, 414, 28),      # screen_led_deco_3 area
+            (293, 407, 155, 40),     # screen_led_deco_4 bottom strip (274+173-40=407)
+            (408, 274, 40, 173),     # screen_led_deco_4 right strip  (293+155-40=408)
         ],
     ),
     # Style 7 (LF10): conditional top decoration
     7: _DecoConfig(
-        images=[("Dch1", 30, 217)],
+        images=[("screen_led_deco_1", 30, 217)],
         color_fills=[(30, 217, 400, 70), (195, 268, 70, 170)],
     ),
     # Style 8 (CZ1): full background decoration
     8: _DecoConfig(
-        images=[("Dchcz1", 0, 0)],
+        images=[("screen_led_deco_cz1", 0, 0)],
         color_fills=[],
     ),
     # Style 12 (LF13): full screen decoration
     12: _DecoConfig(
-        images=[("D0rgblf13", 0, 0)],
+        images=[("led_bg_rgb_lf13", 0, 0)],
         color_fills=[],
     ),
 }
@@ -533,8 +533,7 @@ class UCScreenLED(QWidget):
 
     def _paint_decorations(self, painter: QPainter) -> None:
         """Draw style-specific decoration images or color fills."""
-        deco = _DECO.get(self._style_id)
-        if not deco:
+        if not (deco := _DECO.get(self._style_id)):
             return
 
         if self._style_id == 8:
@@ -562,7 +561,7 @@ class UCScreenLED(QWidget):
     def _paint_deco_cz1(self, painter: QPainter, deco: _DecoConfig) -> None:
         """Style 8 (CZ1) decoration: full background, black for off LEDs."""
         if self._led_mode == 4:
-            pm = self._deco_pixmaps.get("Dchcz1")
+            pm = self._deco_pixmaps.get("screen_led_deco_cz1")
             if pm:
                 painter.drawPixmap(0, 0, pm)
             # Fill black for disabled LEDs (inverted logic)
@@ -575,13 +574,13 @@ class UCScreenLED(QWidget):
     def _paint_deco_lf13(self, painter: QPainter, deco: _DecoConfig) -> None:
         """Style 12 (LF13) decoration: full-screen color or image.
 
-        C# myLedMode==4 (CHMS/Rainbow, our mode 3) shows D0rgblf13 image;
+        C# myLedMode==4 (CHMS/Rainbow, our mode 3) shows led_bg_rgb_lf13 image;
         all other modes show solid color fill at (0,0,460,460).
         """
         if not self._is_on or not self._is_on[0]:
             return
         if self._led_mode == 3:
-            pm = self._deco_pixmaps.get("D0rgblf13")
+            pm = self._deco_pixmaps.get("led_bg_rgb_lf13")
             if pm:
                 painter.drawPixmap(0, 0, pm)
         elif self._colors:
@@ -626,8 +625,7 @@ class UCScreenLED(QWidget):
     def _load_decorations(self, style_id: int) -> None:
         """Pre-load decoration pixmaps for the current style."""
         self._deco_pixmaps.clear()
-        deco = _DECO.get(style_id)
-        if not deco:
+        if not (deco := _DECO.get(style_id)):
             return
         for asset_name, _x, _y in deco.images:
             pm = Assets.load_pixmap(asset_name)

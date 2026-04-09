@@ -129,8 +129,7 @@ class SystemService:
     def _read_metric(self, legacy_key: str) -> Optional[float]:
         """Read a single metric by legacy key via the enumerator."""
         defaults = self._ensure_defaults()
-        sensor_id = defaults.get(legacy_key)
-        if sensor_id:
+        if (sensor_id := defaults.get(legacy_key)):
             return self._enumerator.read_one(sensor_id)
         return None
 
@@ -301,8 +300,7 @@ class SystemService:
         for key, fallback in fallbacks:
             if key not in existing_keys:
                 try:
-                    v = fallback()
-                    if v is not None:
+                    if (v := fallback()) is not None:
                         cache[key] = v
                     else:
                         log.debug("Fallback for %s returned no value", key)
@@ -358,8 +356,7 @@ class SystemService:
     def _fallback_cpu_usage() -> Optional[float]:
         """CPU usage via /proc/loadavg."""
         try:
-            loadavg = _read_sysfs('/proc/loadavg')
-            if loadavg:
+            if (loadavg := _read_sysfs('/proc/loadavg')):
                 load = float(loadavg.split()[0])
                 return min(100.0, load * 10)
         except Exception as e:
@@ -459,8 +456,7 @@ class SystemService:
         if os.path.exists(mc_path):
             try:
                 for mc in os.listdir(mc_path):
-                    content = _read_sysfs(f"{mc_path}/{mc}/dimm_info")
-                    if content:
+                    if (content := _read_sysfs(f"{mc_path}/{mc}/dimm_info")):
                         match = re.search(r'(\d+)\s*MHz', content)
                         if match:
                             return float(match.group(1))

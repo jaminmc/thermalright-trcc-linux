@@ -234,8 +234,7 @@ class ThemeDownloader:
 
         print(f"Downloading {info.name} ({info.resolution})...")
 
-        ok = DataManager.ensure_themes(w, h)
-        if not ok:
+        if not DataManager.ensure_themes(w, h):
             print(f"Failed to download/extract {info.archive}")
             return 1
 

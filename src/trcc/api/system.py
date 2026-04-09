@@ -45,8 +45,7 @@ def get_metrics_by_category(category: str) -> dict:
         "fan": "fan_",
     }
 
-    prefix = prefix_map.get(category.lower())
-    if not prefix:
+    if not (prefix := prefix_map.get(category.lower())):
         raise HTTPException(
             status_code=400,
             detail=f"Unknown category '{category}'. Use: {', '.join(sorted(prefix_map.keys()))}",

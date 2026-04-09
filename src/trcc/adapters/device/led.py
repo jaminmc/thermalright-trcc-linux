@@ -472,8 +472,7 @@ def probe_led_model(vid: int = LED_VID, pid: int = LED_PID,
         or None if the probe fails and no cached result exists.
     """
     # Cache-first: avoid consuming the one-shot handshake unnecessarily.
-    cached = _LedProbeCache.load(vid, pid, usb_path)
-    if cached is not None:
+    if (cached := _LedProbeCache.load(vid, pid, usb_path)) is not None:
         return cached
 
     transport = None

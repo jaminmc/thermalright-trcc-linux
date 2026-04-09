@@ -139,8 +139,7 @@ class WindowsSensorEnumerator(SensorEnumeratorBase):
         for sensor in hw.Sensors:
             s_type = str(sensor.SensorType)
             s_name = str(sensor.Name)
-            mapping = _LHM_TYPE_MAP.get(s_type)
-            if not mapping:
+            if not (mapping := _LHM_TYPE_MAP.get(s_type)):
                 continue
             category, unit = mapping
             sid = f'lhm:{hw_key}:{s_name.lower().replace(" ", "_")}'

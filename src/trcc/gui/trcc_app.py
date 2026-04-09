@@ -357,17 +357,17 @@ class TRCCApp(QMainWindow):
     def on_app_event(self, event: AppEvent, data: Any) -> None:
         """Receive events from TrccApp (called from any thread)."""
         log.debug("on_app_event: %s", event)
-        if event == AppEvent.DEVICES_CHANGED:
-            # data = list[Device] — full rescan result
-            self._device_added_signal.emit(('changed', data))
-        elif event == AppEvent.DEVICE_CONNECTED:
-            self._device_added_signal.emit(('connected', data))
-        elif event == AppEvent.DEVICE_LOST:
-            self._device_removed_signal.emit(data)
-        elif event == AppEvent.FRAME_RENDERED:
-            self._frame_signal.emit(data)
-        elif event == AppEvent.METRICS_UPDATED:
-            self._metrics_signal.emit(data)
+        match event:
+            case AppEvent.DEVICES_CHANGED:
+                self._device_added_signal.emit(('changed', data))
+            case AppEvent.DEVICE_CONNECTED:
+                self._device_added_signal.emit(('connected', data))
+            case AppEvent.DEVICE_LOST:
+                self._device_removed_signal.emit(data)
+            case AppEvent.FRAME_RENDERED:
+                self._frame_signal.emit(data)
+            case AppEvent.METRICS_UPDATED:
+                self._metrics_signal.emit(data)
 
     # ── Device event handlers (main thread) ─────────────────────────
 
@@ -495,8 +495,7 @@ class TRCCApp(QMainWindow):
         import dataclasses
         devices: list[dict] = []
         for handler in self._handlers.values():
-            info = handler.device_info
-            if info:
+            if (info := handler.device_info):
                 devices.append(dataclasses.asdict(info))
         self.uc_device.update_devices(devices)
 
@@ -523,8 +522,7 @@ class TRCCApp(QMainWindow):
 
         if isinstance(handler, LCDHandler):
             if handler.display.connected:
-                info = handler.display.device_info
-                if info:
+                if (info := handler.display.device_info):
                     w, h = info.resolution
                     if (w, h) == (0, 0):
                         log.debug("_activate_device: LCD %s resolution (0,0) — starting handshake", path)
@@ -639,12 +637,10 @@ class TRCCApp(QMainWindow):
         self._tray.setToolTip("TRCC Linux")
 
         menu = QMenu()
-        show_action = menu.addAction("Show/Hide")
-        if show_action:
+        if (show_action := menu.addAction("Show/Hide")):
             show_action.triggered.connect(self._toggle_visibility)
         menu.addSeparator()
-        exit_action = menu.addAction("Exit")
-        if exit_action:
+        if (exit_action := menu.addAction("Exit")):
             exit_action.triggered.connect(self._quit_app)
         self._tray.setContextMenu(menu)
         self._tray.activated.connect(self._on_tray_activated)
@@ -825,7 +821,7 @@ class TRCCApp(QMainWindow):
         from ..core.models import BRIGHTNESS_STEPS
         self._ldd_pixmaps: dict = {}
         for i, percent in enumerate(BRIGHTNESS_STEPS, start=1):
-            pix = Assets.load_pixmap(f'PL{i}.png')
+            pix = Assets.load_pixmap(f'app_brightness_{i}.png')
             if not pix.isNull():
                 self._ldd_pixmaps[i] = pix        # split mode key (1-3)
                 self._ldd_pixmaps[percent] = pix  # brightness key (25/50/100)
@@ -890,12 +886,12 @@ class TRCCApp(QMainWindow):
     def _apply_settings_backgrounds(self) -> None:
         s = self.uc_theme_setting
         for panel, bg_name in [
-            (s.mask_panel, 'Panel_background.png'),
-            (s.background_panel, 'Panel_background.png'),
-            (s.screencast_panel, 'Panel_background.png'),
-            (s.video_panel, 'Panel_background.png'),
-            (s.overlay_grid, 'Panel_overlay.png'),
-            (s.color_panel, 'Panel_params.png'),
+            (s.mask_panel, 'settings_background.png'),
+            (s.background_panel, 'settings_background.png'),
+            (s.screencast_panel, 'settings_background.png'),
+            (s.video_panel, 'settings_background.png'),
+            (s.overlay_grid, 'settings_overlay.png'),
+            (s.color_panel, 'settings_params.png'),
         ]:
             self._set_panel_bg(panel, bg_name)
 
@@ -1211,8 +1207,7 @@ class TRCCApp(QMainWindow):
             try:
                 from ..adapters.device.factory import DeviceProtocolFactory
                 protocol = DeviceProtocolFactory.get_protocol(device)
-                result = protocol.handshake()
-                if result:
+                if (result := protocol.handshake()):
                     resolution = getattr(result, 'resolution', None)
                     fbl = getattr(result, 'fbl', None) or getattr(result, 'model_id', None)
                     pm = getattr(result, 'pm_byte', 0)
@@ -1330,49 +1325,44 @@ class TRCCApp(QMainWindow):
     def _on_settings_delegate(self, cmd: Any, info: Any, data: Any) -> None:
         log.debug("_on_settings_delegate: cmd=%s info=%s", cmd, info)
         h = self._active_lcd()
-        if cmd == UCThemeSetting.CMD_BACKGROUND_LOAD_IMAGE:
-            self._on_load_image_clicked()
-        elif cmd == UCThemeSetting.CMD_BACKGROUND_LOAD_VIDEO:
-            self._on_load_video_clicked()
-        elif cmd == UCThemeSetting.CMD_MASK_TOGGLE:
-            if h:
-                h.display.set_overlay_mask_visible(info)
-                h._render_and_send()
-        elif cmd == UCThemeSetting.CMD_MASK_UPLOAD:
-            self._on_mask_upload_clicked()
-        elif cmd == UCThemeSetting.CMD_MASK_POSITION:
-            if h and info:
-                h.update_mask_position(info[0], info[1])
-        elif cmd == UCThemeSetting.CMD_MASK_VISIBILITY:
-            if h:
-                h.display.set_overlay_mask_visible(info)
-                h._render_and_send()
-        elif cmd == UCThemeSetting.CMD_MASK_LOAD:
-            self._show_panel(3)
-        elif cmd == UCThemeSetting.CMD_MASK_CLOUD:
-            self._show_panel(3)
-        elif cmd == UCThemeSetting.CMD_VIDEO_LOAD:
-            self._on_media_player_load_clicked()
-        elif cmd == 51:
-            self._show_panel(1)
-        elif cmd == UCThemeSetting.CMD_VIDEO_TOGGLE:
-            self._on_video_display_toggle(info)
-        elif cmd == UCThemeSetting.CMD_OVERLAY_CHANGED:
-            if h:
-                h.on_overlay_changed(info if isinstance(info, dict) else {})
+        match cmd:
+            case UCThemeSetting.CMD_BACKGROUND_LOAD_IMAGE:
+                self._on_load_image_clicked()
+            case UCThemeSetting.CMD_BACKGROUND_LOAD_VIDEO:
+                self._on_load_video_clicked()
+            case UCThemeSetting.CMD_MASK_TOGGLE | UCThemeSetting.CMD_MASK_VISIBILITY:
+                if h:
+                    h.display.set_overlay_mask_visible(info)
+                    h._render_and_send()
+            case UCThemeSetting.CMD_MASK_UPLOAD:
+                self._on_mask_upload_clicked()
+            case UCThemeSetting.CMD_MASK_POSITION:
+                if h and info:
+                    h.update_mask_position(info[0], info[1])
+            case UCThemeSetting.CMD_MASK_LOAD | UCThemeSetting.CMD_MASK_CLOUD:
+                self._show_panel(3)
+            case UCThemeSetting.CMD_VIDEO_LOAD:
+                self._on_media_player_load_clicked()
+            case 51:
+                self._show_panel(1)
+            case UCThemeSetting.CMD_VIDEO_TOGGLE:
+                self._on_video_display_toggle(info)
+            case UCThemeSetting.CMD_OVERLAY_CHANGED:
+                if h:
+                    h.on_overlay_changed(info if isinstance(info, dict) else {})
 
     def _on_preview_delegate(self, cmd: Any, info: Any, data: Any) -> None:
-        h = self._active_lcd()
-        if not h:
+        if not (h := self._active_lcd()):
             return
-        if cmd == UCPreview.CMD_VIDEO_PLAY_PAUSE:
-            h.play_pause()
-        elif cmd == UCPreview.CMD_VIDEO_SEEK:
-            h.seek(info)
-        elif cmd == UCPreview.CMD_VIDEO_FIT_WIDTH:
-            h.set_video_fit_mode('width')
-        elif cmd == UCPreview.CMD_VIDEO_FIT_HEIGHT:
-            h.set_video_fit_mode('height')
+        match cmd:
+            case UCPreview.CMD_VIDEO_PLAY_PAUSE:
+                h.play_pause()
+            case UCPreview.CMD_VIDEO_SEEK:
+                h.seek(info)
+            case UCPreview.CMD_VIDEO_FIT_WIDTH:
+                h.set_video_fit_mode('width')
+            case UCPreview.CMD_VIDEO_FIT_HEIGHT:
+                h.set_video_fit_mode('height')
 
     # ── Background / Screencast / Video Toggles ─────────────────────
 
@@ -1410,8 +1400,7 @@ class TRCCApp(QMainWindow):
                 h.display.stop_video()
                 self.uc_preview.set_playing(False)
                 self.uc_preview.show_video_controls(False)
-            last_path = h.display.current_theme_path
-            if last_path:
+            if (last_path := h.display.current_theme_path):
                 h.select_theme_from_path(Path(last_path))
 
     def _on_screencast_frame(self, image: Any) -> None:
@@ -1884,6 +1873,5 @@ class TRCCApp(QMainWindow):
         DeviceProtocolFactory.close_all()
         TRCCApp._instance = None
         event.accept()
-        app = QApplication.instance()
-        if app:
+        if (app := QApplication.instance()):
             app.quit()

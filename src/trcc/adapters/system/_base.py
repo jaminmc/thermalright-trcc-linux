@@ -243,8 +243,7 @@ class SensorEnumeratorBase(SensorEnumeratorABC):
             self._cpu_pct_bootstrapped = True
         else:
             readings['psutil:cpu_percent'] = psutil.cpu_percent(interval=None)
-        freq = psutil.cpu_freq()
-        if freq:
+        if (freq := psutil.cpu_freq()):
             readings['psutil:cpu_freq'] = freq.current
         mem = psutil.virtual_memory()
         readings['psutil:mem_used'] = mem.used / (1024 * 1024)
@@ -317,8 +316,7 @@ class SensorEnumeratorBase(SensorEnumeratorABC):
 
         # Network I/O totals + rates
         try:
-            net = psutil.net_io_counters()
-            if net:
+            if (net := psutil.net_io_counters()):
                 readings['computed:net_total_up'] = net.bytes_sent / (1024 * 1024)
                 readings['computed:net_total_down'] = net.bytes_recv / (1024 * 1024)
                 if self._net_prev:

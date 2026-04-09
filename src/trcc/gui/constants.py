@@ -236,8 +236,8 @@ class Layout:
 
     # Video controls
     PLAY_BTN = (10, 26, 34, 26)
-    HEIGHT_FIT_BTN = (64, 26, 34, 26)   # C# buttonTPJCH (P高度适应)
-    WIDTH_FIT_BTN = (108, 26, 34, 26)   # C# buttonTPJCW (P宽度适应)
+    HEIGHT_FIT_BTN = (64, 26, 34, 26)   # C# buttonTPJCH
+    WIDTH_FIT_BTN = (108, 26, 34, 26)   # C# buttonTPJCW
     TIME_LABEL = (274, 26, 220, 20)
     PROGRESS_SLIDER = (10, 5, 479, 16)
 

@@ -195,8 +195,7 @@ class SensorEnumerator(SensorEnumeratorBase):
 
                 category, unit = _HWMON_TYPES[prefix]
                 label_path = hwmon_dir / f'{input_name}_label'
-                label = SysUtils.read_sysfs(str(label_path))
-                if label:
+                if (label := SysUtils.read_sysfs(str(label_path))):
                     name = f'{driver_key} / {label}'
                 else:
                     name = f'{driver_key} / {input_name}'
@@ -282,8 +281,7 @@ class SensorEnumerator(SensorEnumeratorBase):
 
         # hwmon sensors
         for sid, path in self._hwmon_paths.items():
-            val = SysUtils.read_sysfs(path)
-            if val is not None:
+            if (val := SysUtils.read_sysfs(path)) is not None:
                 try:
                     raw = float(val)
                     prefix = sid.split(':')[-1]
@@ -307,8 +305,7 @@ class SensorEnumerator(SensorEnumeratorBase):
 
         # DRM sensors (AMD/Intel GPU)
         for sid, path in self._drm_paths.items():
-            val = SysUtils.read_sysfs(path)
-            if val is not None:
+            if (val := SysUtils.read_sysfs(path)) is not None:
                 try:
                     readings[sid] = float(val)
                 except ValueError:
@@ -336,8 +333,7 @@ class SensorEnumerator(SensorEnumeratorBase):
         try:
             now = time.monotonic()
             if now - self._cpu_freq_time >= self._CPU_FREQ_TTL:
-                freq = psutil.cpu_freq()
-                if freq:
+                if (freq := psutil.cpu_freq()):
                     self._cpu_freq_cache = freq.current
                 else:
                     self._cpu_freq_cache = 0.0
@@ -418,8 +414,7 @@ class SensorEnumerator(SensorEnumeratorBase):
     def read_one(self, sensor_id: str) -> Optional[float]:
         """Read a single sensor by ID (Linux: direct sysfs for hwmon/drm)."""
         if sensor_id in self._hwmon_paths:
-            val = SysUtils.read_sysfs(self._hwmon_paths[sensor_id])
-            if val is not None:
+            if (val := SysUtils.read_sysfs(self._hwmon_paths[sensor_id])) is not None:
                 try:
                     raw = float(val)
                     prefix = sensor_id.split(':')[-1]
@@ -431,8 +426,7 @@ class SensorEnumerator(SensorEnumeratorBase):
                     return None
 
         if sensor_id in self._drm_paths:
-            val = SysUtils.read_sysfs(self._drm_paths[sensor_id])
-            if val is not None:
+            if (val := SysUtils.read_sysfs(self._drm_paths[sensor_id])) is not None:
                 try:
                     return float(val)
                 except ValueError:
@@ -540,8 +534,7 @@ class SensorEnumerator(SensorEnumeratorBase):
                 mem_path = card_dir / 'device' / 'mem_info_vram_total'
                 vram = 0
                 if mem_path.exists():
-                    val = SysUtils.read_sysfs(str(mem_path))
-                    if val:
+                    if (val := SysUtils.read_sysfs(str(mem_path))):
                         try:
                             vram = int(val)
                         except ValueError:
@@ -553,8 +546,7 @@ class SensorEnumerator(SensorEnumeratorBase):
                     hwmon_path = card_dir / 'device' / 'hwmon'
                     if hwmon_path.exists():
                         for hdir in hwmon_path.iterdir():
-                            name = SysUtils.read_sysfs(str(hdir / 'name'))
-                            if name:
+                            if (name := SysUtils.read_sysfs(str(hdir / 'name'))):
                                 hwmon_driver = name
                                 break
                     vendor_name = 'amd' if vendor == _GPU_VENDOR_AMD else 'intel'
