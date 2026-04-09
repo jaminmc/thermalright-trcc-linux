@@ -151,8 +151,8 @@ class UCThemeLocal(BaseThemeBrowser):
         self._filter_buttons[0].setChecked(True)
 
         # Slideshow toggle — Windows: buttonLunbo (531, 28) 40x17
-        self._lunbo_off = Assets.load_pixmap('P主题轮播.png', 40, 17)
-        self._lunbo_on = Assets.load_pixmap('P主题轮播a.png', 40, 17)
+        self._lunbo_off = Assets.load_pixmap('P_theme_carousel.png', 40, 17)
+        self._lunbo_on = Assets.load_pixmap('P_theme_carousel_a.png', 40, 17)
         self.slideshow_btn = QPushButton(self)
         self.slideshow_btn.setGeometry(531, 28, 40, 17)
         self.slideshow_btn.setFlat(True)
@@ -178,7 +178,7 @@ class UCThemeLocal(BaseThemeBrowser):
         self.timer_input.editingFinished.connect(self._on_timer_changed)
 
         # Export button — Windows: buttonThemeOut (651, 27) 60x18 (empty handler)
-        export_px = Assets.load_pixmap('P导出所有主题.png', 60, 18)
+        export_px = Assets.load_pixmap('P_export_all_themes.png', 60, 18)
         self.export_btn = QPushButton(self)
         self.export_btn.setGeometry(651, 27, 60, 18)
         self.export_btn.setFlat(True)

@@ -583,7 +583,7 @@ class TestResolutionOffsets:
             assert res in UCPreview.RESOLUTION_OFFSETS, f"{res} not in RESOLUTION_OFFSETS"
 
     def test_default_offset_is_320x320(self, qapp: object) -> None:
-        assert UCPreview.DEFAULT_OFFSET == (90, 90, 320, 320, 'P预览320X320.png')
+        assert UCPreview.DEFAULT_OFFSET == (90, 90, 320, 320, 'P_preview_320_x_320.png')
 
 
 # ============================================================================

@@ -42,14 +42,14 @@ DATE_FORMATS = {1: 'yyyy/MM/dd', 2: 'dd/MM/yyyy', 3: 'MM/dd', 4: 'dd/MM'}
 
 # Background images per mode (60x60 icons)
 MODE_IMAGES = {
-    OverlayMode.HARDWARE: 'P数据.png',
-    OverlayMode.TIME: 'P时间.png',
-    OverlayMode.WEEKDAY: 'P星期.png',
-    OverlayMode.DATE: 'P日期.png',
-    OverlayMode.CUSTOM: 'P文本.png',
+    OverlayMode.HARDWARE: 'P_data.png',
+    OverlayMode.TIME: 'P_time.png',
+    OverlayMode.WEEKDAY: 'P_weekday.png',
+    OverlayMode.DATE: 'P_date.png',
+    OverlayMode.CUSTOM: 'P_text.png',
 }
 
-SELECT_IMAGE = 'P选中.png'
+SELECT_IMAGE = 'P_selected.png'
 
 
 class OverlayElementWidget(QWidget):
@@ -127,7 +127,7 @@ class OverlayElementWidget(QWidget):
             self._live_unit = ''
         self.update()
 
-    # Card UI font matching Windows 微软雅黑 10.5pt
+    # Card UI font matching Windows Microsoft YaHei 10.5pt
     _CARD_FONT = QFont('Microsoft YaHei', 10)
 
     def paintEvent(self, event):

@@ -133,7 +133,7 @@ def _get_device_images(device_info: dict) -> tuple[str | None, str | None]:
 class UCDevice(BasePanel):
     """Device sidebar panel.
 
-    Windows: 180x800, background image A0硬件列表.png.
+    Windows: 180x800, background image A0_hardware_list.png.
     All sidebar buttons (sensor, device, about) use create_image_button
     with checkable=True — setChecked() toggles QIcon State.On/Off.
     """

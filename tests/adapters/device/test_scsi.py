@@ -174,8 +174,9 @@ class TestScsiRead(unittest.TestCase):
         import trcc.adapters.device.scsi as scsi_mod
         scsi_mod._sg_io_available = None  # reset for subsequent tests
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_success_returns_stdout(self, mock_run):
+    def test_success_returns_stdout(self, mock_run, _mock_require):
         mock_run.return_value = MagicMock(returncode=0, stdout=b'\xAA\xBB')
         result = ScsiDevice._scsi_read('/dev/sg0', b'\x01\x02\x03', 256)
         self.assertEqual(result, b'\xAA\xBB')
@@ -184,14 +185,16 @@ class TestScsiRead(unittest.TestCase):
         self.assertEqual(args[0], 'sg_raw')
         self.assertIn('/dev/sg0', args)
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_failure_returns_empty(self, mock_run):
+    def test_failure_returns_empty(self, mock_run, _mock_require):
         mock_run.return_value = MagicMock(returncode=1, stdout=b'')
         result = ScsiDevice._scsi_read('/dev/sg0', b'\x01', 128)
         self.assertEqual(result, b'')
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_cdb_hex_encoding(self, mock_run):
+    def test_cdb_hex_encoding(self, mock_run, _mock_require):
         mock_run.return_value = MagicMock(returncode=0, stdout=b'')
         ScsiDevice._scsi_read('/dev/sg0', b'\xFF\x00\xAB', 100)
         args = mock_run.call_args[0][0]
@@ -212,22 +215,25 @@ class TestScsiWrite(unittest.TestCase):
         import trcc.adapters.device.scsi as scsi_mod
         scsi_mod._sg_io_available = None
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_success_returns_true(self, mock_run):
+    def test_success_returns_true(self, mock_run, _mock_require):
         mock_run.return_value = MagicMock(returncode=0)
         header = ScsiDevice._build_header(0x101F5, 0x10000)
         result = ScsiDevice._scsi_write('/dev/sg0', header, b'\x00' * 100)
         self.assertTrue(result)
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_failure_returns_false(self, mock_run):
+    def test_failure_returns_false(self, mock_run, _mock_require):
         mock_run.return_value = MagicMock(returncode=1)
         header = ScsiDevice._build_header(0x101F5, 0x10000)
         result = ScsiDevice._scsi_write('/dev/sg0', header, b'\x00' * 10)
         self.assertFalse(result)
 
+    @patch('trcc.adapters.device.scsi.SysUtils.require_sg_raw')
     @patch('trcc.adapters.device.scsi.subprocess.run')
-    def test_temp_file_auto_cleaned(self, mock_run):
+    def test_temp_file_auto_cleaned(self, mock_run, _mock_require):
         """Temp file is auto-deleted by NamedTemporaryFile(delete=True)."""
         mock_run.return_value = MagicMock(returncode=0)
         header = ScsiDevice._build_header(0x101F5, 100)

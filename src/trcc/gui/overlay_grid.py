@@ -64,8 +64,8 @@ class OverlayGridPanel(QFrame):
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.setChecked(True)
 
-        on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
-        off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
+        on_px = Assets.load_pixmap('P_slide_on.png', 36, 18)
+        off_px = Assets.load_pixmap('P_slide_off.png', 36, 18)
         if not on_px.isNull() and not off_px.isNull():
             icon = QIcon()
             icon.addPixmap(on_px, QIcon.Mode.Normal, QIcon.State.On)

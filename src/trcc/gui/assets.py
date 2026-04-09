@@ -30,7 +30,22 @@ def set_assets_dir(path: Path) -> None:
     global _ASSETS_DIR  # noqa: PLW0603
     _ASSETS_DIR = path
     _resolve.cache_clear()
+    _asset_index.cache_clear()
     log.debug("Assets dir set to %s", path)
+
+
+@lru_cache(maxsize=4)
+def _asset_index() -> dict[str, str]:
+    """Build a case-insensitive index of asset filenames in the current assets dir.
+
+    This avoids hard failures when code references differ in case, and supports
+    case-insensitive filesystems where path casing is not preserved.
+    """
+    try:
+        names = [p.name for p in _ASSETS_DIR.iterdir() if p.is_file()]
+    except OSError:
+        return {}
+    return {n.casefold(): n for n in names}
 
 
 @lru_cache(maxsize=256)
@@ -47,6 +62,18 @@ def _resolve(name: str) -> Path:
         png = _ASSETS_DIR / f"{name}.png"
         if png.exists():
             return png
+
+    # Case-insensitive fallback (supports case-insensitive filesystems and typos)
+    idx = _asset_index()
+    key = name.casefold()
+    hit = idx.get(key)
+    if hit:
+        return _ASSETS_DIR / hit
+    if '.' not in name:
+        hit = idx.get(f"{name}.png".casefold())
+        if hit:
+            return _ASSETS_DIR / hit
+
     return path  # return original (non-existent) for consistent error handling
 
 
@@ -67,35 +94,35 @@ class Assets:
     THEME_LOCAL_BG = 'App_theme_base.png'
     THEME_WEB_BG = 'App_theme_gallery.png'
     THEME_MASK_BG = 'App_theme_gallery.png'
-    THEME_SETTING_BG = 'P0主题设置.png'
+    THEME_SETTING_BG = 'P0_theme_settings.png'
 
     # Preview frame backgrounds (500x500)
-    PREVIEW_320X320 = 'P预览320X320.png'
-    PREVIEW_320X240 = 'P预览320X240.png'
-    PREVIEW_240X320 = 'P预览240X320.png'
-    PREVIEW_240X240 = 'P预览240X240.png'
-    PREVIEW_360X360 = 'P预览360360圆.png'
-    PREVIEW_480X480 = 'P预览480X480.png'
+    PREVIEW_320X320 = 'P_preview_320_x_320.png'
+    PREVIEW_320X240 = 'P_preview_320_x_240.png'
+    PREVIEW_240X320 = 'P_preview_240_x_320.png'
+    PREVIEW_240X240 = 'P_preview_240_x_240.png'
+    PREVIEW_360X360 = 'P_preview_360360_circle.png'
+    PREVIEW_480X480 = 'P_preview_480_x_480.png'
 
     # Tab buttons (normal/selected)
-    TAB_LOCAL = 'P本地主题.png'
-    TAB_LOCAL_ACTIVE = 'P本地主题a.png'
-    TAB_CLOUD = 'P云端背景.png'
-    TAB_CLOUD_ACTIVE = 'P云端背景a.png'
-    TAB_MASK = 'P云端主题.png'
-    TAB_MASK_ACTIVE = 'P云端主题a.png'
-    TAB_SETTINGS = 'P主题设置.png'
-    TAB_SETTINGS_ACTIVE = 'P主题设置a.png'
+    TAB_LOCAL = 'P_local_theme.png'
+    TAB_LOCAL_ACTIVE = 'P_local_theme_a.png'
+    TAB_CLOUD = 'P_cloud_background.png'
+    TAB_CLOUD_ACTIVE = 'P_cloud_background_a.png'
+    TAB_MASK = 'P_cloud_theme.png'
+    TAB_MASK_ACTIVE = 'P_cloud_theme_a.png'
+    TAB_SETTINGS = 'P_theme_settings.png'
+    TAB_SETTINGS_ACTIVE = 'P_theme_settings_a.png'
 
     # Bottom control buttons
-    BTN_SAVE = 'P保存主题.png'
-    BTN_EXPORT = 'P导出.png'
-    BTN_IMPORT = 'P导入.png'
+    BTN_SAVE = 'P_save_theme.png'
+    BTN_EXPORT = 'P_export.png'
+    BTN_IMPORT = 'P_import.png'
 
     # Title bar buttons
-    BTN_HELP = 'P帮助.png'
-    BTN_POWER = 'Alogout默认.png'
-    BTN_POWER_HOVER = 'Alogout选中.png'
+    BTN_HELP = 'P_help.png'
+    BTN_POWER = 'A_logout_default.png'
+    BTN_POWER_HOVER = 'A_logout_selected.png'
 
     # Video controls background
     VIDEO_CONTROLS_BG = 'ucBoFangQiKongZhi1.BackgroundImage.png'
@@ -114,24 +141,24 @@ class Assets:
     VIDEO_CUT_BG = 'ucVideoCut1.BackgroundImage.png'                # 500x702
 
     # Play/Pause icons
-    ICON_PLAY = 'P0播放.png'
-    ICON_PAUSE = 'P0暂停.png'
+    ICON_PLAY = 'P0_play.png'
+    ICON_PAUSE = 'P0_pause.png'
 
     # Sidebar (UCDevice)
-    SIDEBAR_BG = 'A0硬件列表.png'
-    SENSOR_BTN = 'A1传感器.png'
-    SENSOR_BTN_ACTIVE = 'A1传感器a.png'
-    ABOUT_BTN = 'A1关于.png'
-    ABOUT_BTN_ACTIVE = 'A1关于a.png'
+    SIDEBAR_BG = 'A0_hardware_list.png'
+    SENSOR_BTN = 'A1_sensor.png'
+    SENSOR_BTN_ACTIVE = 'A1_sensor_a.png'
+    ABOUT_BTN = 'A1_about.png'
+    ABOUT_BTN_ACTIVE = 'A1_about_a.png'
 
     # About / Control Center panel (UCAbout)
     ABOUT_BG = 'App_about.png'
-    ABOUT_LOGOUT = 'Alogout默认.png'
-    ABOUT_LOGOUT_HOVER = 'Alogout选中.png'
-    CHECKBOX_OFF = 'P点选框.png'
-    CHECKBOX_ON = 'P点选框A.png'
-    UPDATE_BTN = 'A2立即更新.png'
-    SYSINFO_BG = 'A0数据列表.png'
+    ABOUT_LOGOUT = 'A_logout_default.png'
+    ABOUT_LOGOUT_HOVER = 'A_logout_selected.png'
+    CHECKBOX_OFF = 'P_checkbox.png'
+    CHECKBOX_ON = 'P_checkbox_a.png'
+    UPDATE_BTN = 'A2_update_now.png'
+    SYSINFO_BG = 'A0_data_list.png'
 
     @classmethod
     def path(cls, name: str) -> Path:
@@ -187,12 +214,9 @@ class Assets:
     @classmethod
     def get_preview_for_resolution(cls, width: int, height: int) -> str:
         """Get preview frame asset name for a resolution."""
-        name = f'P预览{width}X{height}.png'
+        name = f'P_preview_{width}_x_{height}.png'
         if cls.exists(name):
             return name
-        name_alt = f'P预览{width}x{height}.png'
-        if cls.exists(name_alt):
-            return name_alt
         return cls.PREVIEW_320X320
 
     @classmethod

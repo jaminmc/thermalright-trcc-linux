@@ -134,7 +134,7 @@ class UCAbout(BasePanel):
     Control Center panel matching Windows UCAbout.
 
     Size: 1274x800 (same as FormCZTV content area).
-    Background image is localized (A0关于{lang}.png).
+    Background image is localized (A0_about{lang}.png).
     Interactive elements are invisible overlays on the background image text.
     """
 

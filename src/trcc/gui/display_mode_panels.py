@@ -31,7 +31,7 @@ class DataTablePanel(QFrame):
     """Data selection table (matches UCXiTongXianShiTable 230x54).
 
     Windows shows different controls depending on the selected element mode:
-    - Hardware (mode 0): button0 — C/F unit toggle (P单位开关.png / P单位开关a.png)
+    - Hardware (mode 0): button0 — C/F unit toggle (P_unit_toggle.png / P_unit_toggle_a.png)
     - Time    (mode 1): button1 — 12H/24H toggle (P12H.png / P24H.png)
     - Weekday (mode 2): no controls
     - Date    (mode 3): button3 — date format cycle (PYMD→PDMY→PMD→PDM)
@@ -59,8 +59,8 @@ class DataTablePanel(QFrame):
         self.unit_btn.setFlat(True)
         self.unit_btn.setStyleSheet(Styles.FLAT_BUTTON)
         self.unit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._unit_off = Assets.load_pixmap('P单位开关.png', 70, 24)   # °C
-        self._unit_on = Assets.load_pixmap('P单位开关a.png', 70, 24)   # °F
+        self._unit_off = Assets.load_pixmap('P_unit_toggle.png', 70, 24)   # °C
+        self._unit_on = Assets.load_pixmap('P_unit_toggle_a.png', 70, 24)  # °F
         self.unit_btn.setToolTip("Temperature unit (C/F)")
         self.unit_btn.clicked.connect(self._on_unit_clicked)
         self.unit_btn.setVisible(False)
@@ -230,8 +230,8 @@ class DisplayModePanel(QFrame):
         # Toggle button — small slider for all panels
         self.toggle_btn = QPushButton(self)
         self.toggle_btn.setGeometry(*Layout.TOGGLE_MASK)
-        on_px = Assets.load_pixmap('P滑动开.png', 36, 18)
-        off_px = Assets.load_pixmap('P滑动关.png', 36, 18)
+        on_px = Assets.load_pixmap('P_slide_on.png', 36, 18)
+        off_px = Assets.load_pixmap('P_slide_off.png', 36, 18)
 
         self.toggle_btn.setCheckable(True)
         if not on_px.isNull() and not off_px.isNull():
@@ -252,10 +252,10 @@ class DisplayModePanel(QFrame):
 
         # Action buttons with icon images
         _ICON_MAP = {
-            "Image": "P图片.png", "Video": "P视频.png",
-            "Load": "P蒙板.png", "Upload": "P图片.png",
-            "VideoLoad": "P直播视频载入.png",
-            "GIF": "P动画.png", "Network": "P网络.png",
+            "Image": "P_image.png", "Video": "P_video.png",
+            "Load": "P_mask.png", "Upload": "P_image.png",
+            "VideoLoad": "P_live_video_loading.png",
+            "GIF": "P_animation.png", "Network": "P_network.png",
         }
         self._action_buttons: list[QPushButton] = []
         action_positions = [Layout.ACTION_BTN_1, Layout.ACTION_BTN_2]
@@ -405,7 +405,7 @@ class MaskPanel(DisplayModePanel):
         btn.setGeometry(x, y, w, h)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        img_name = 'P加.png' if delta > 0 else 'P减.png'
+        img_name = 'P_plus.png' if delta > 0 else 'P_minus.png'
         pix = Assets.load_pixmap(img_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
@@ -445,7 +445,7 @@ class MaskPanel(DisplayModePanel):
         self.mask_visibility_toggled.emit(self._mask_visible)
 
     def _update_eye_icon(self):
-        img = 'P显示边框A.png' if self._mask_visible else 'P显示边框.png'
+        img = 'P_show_border_a.png' if self._mask_visible else 'P_show_border.png'
         pix = Assets.load_pixmap(img, 24, 16)
         if not pix.isNull():
             self.eye_btn.setIcon(QIcon(pix))
@@ -588,7 +588,7 @@ class ScreenCastPanel(DisplayModePanel):
         btn.setGeometry(x, y, w, h)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        img_name = 'P加.png' if delta > 0 else 'P减.png'
+        img_name = 'P_plus.png' if delta > 0 else 'P_minus.png'
         pix = Assets.load_pixmap(img_name, w, h)
         if not pix.isNull():
             btn.setIcon(QIcon(pix))
@@ -653,7 +653,7 @@ class ScreenCastPanel(DisplayModePanel):
         self.border_toggled.emit(self._show_border)
 
     def _update_border_icon(self):
-        img = 'P显示边框A.png' if self._show_border else 'P显示边框.png'
+        img = 'P_show_border_a.png' if self._show_border else 'P_show_border.png'
         pix = Assets.load_pixmap(img, 24, 16)
         if not pix.isNull():
             self.border_btn.setIcon(QIcon(pix))

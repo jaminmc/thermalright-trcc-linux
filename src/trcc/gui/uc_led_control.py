@@ -59,7 +59,7 @@ MODE_W, MODE_H = 93, 62
 MODE_SPACING = 10
 
 # Color wheel — C#: ucColorA1 at (617, 335) 216x216, shown for ALL styles
-# Background image: D3旋钮 (216x216 rainbow ring)
+# Background image: D3_knob (216x216 rainbow ring)
 WHEEL_X, WHEEL_Y = 617, 335
 WHEEL_W, WHEEL_H = 216, 216
 
@@ -78,8 +78,9 @@ RGB_SPINBOX_W = 47
 PRESET_X_POSITIONS = [901, 935, 970, 1004, 1039, 1073, 1108, 1142]
 PRESET_Y = 444
 PRESET_SIZE = 24
-# C# image assets: D3红/橙/黄/绿/湖/蓝/紫/白
-PRESET_ASSETS = ['D3红', 'D3橙', 'D3黄', 'D3绿', 'D3湖', 'D3蓝', 'D3紫', 'D3白']
+# C# image assets: D3_red/orange/yellow/green/teal/blue/purple/white
+PRESET_ASSETS = ['D3_red', 'D3_orange', 'D3_yellow', 'D3_green',
+                 'D3_teal', 'D3_blue', 'D3_purple', 'D3_white']
 
 # Brightness slider — C#: ucScrollA at (976, 537) 190x20
 BRIGHT_X = 976
@@ -106,14 +107,14 @@ ZONE_X_POSITIONS = [590, 748, 902, 1058]
 ZONE_W, ZONE_H = 140, 50
 
 # Zone button C# image assets — 3 variants depending on style.
-# button1-4 (D4模式1-4): styles 1, 2
-# button5-6 (D4模式5-6): styles 3, 5, 6, 11
-# buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
-ZONE_ASSETS_BTN14 = [('D4模式1', 'D4模式1a'), ('D4模式2', 'D4模式2a'),
-                     ('D4模式3', 'D4模式3a'), ('D4模式4', 'D4模式4a')]
-ZONE_ASSETS_BTN56 = [('D4模式5', 'D4模式5a'), ('D4模式6', 'D4模式6a')]
-ZONE_ASSETS_BTNN = [('D4按钮1', 'D4按钮1a'), ('D4按钮2', 'D4按钮2a'),
-                    ('D4按钮3', 'D4按钮3a'), ('D4按钮4', 'D4按钮4a')]
+# button1-4 (D4_mode_1-4): styles 1, 2
+# button5-6 (D4_mode_5-6): styles 3, 5, 6, 11
+# buttonN1-4 (D4_button_1-4): styles 4, 7, 8, 10
+ZONE_ASSETS_BTN14 = [('D4_mode_1', 'D4_mode_1_a'), ('D4_mode_2', 'D4_mode_2_a'),
+                     ('D4_mode_3', 'D4_mode_3_a'), ('D4_mode_4', 'D4_mode_4_a')]
+ZONE_ASSETS_BTN56 = [('D4_mode_5', 'D4_mode_5_a'), ('D4_mode_6', 'D4_mode_6_a')]
+ZONE_ASSETS_BTNN = [('D4_button_1', 'D4_button_1_a'), ('D4_button_2', 'D4_button_2_a'),
+                    ('D4_button_3', 'D4_button_3_a'), ('D4_button_4', 'D4_button_4_a')]
 _ZONE_STYLE_TO_ASSETS: dict = {
     1: ZONE_ASSETS_BTN14, 2: ZONE_ASSETS_BTN14,
     3: ZONE_ASSETS_BTN56, 5: ZONE_ASSETS_BTN56,
@@ -173,9 +174,9 @@ _STYLE_CHECKABLE_BTN = (
 
 
 def _checkbox_image_style() -> str:
-    """Build stylesheet for P点选框/P点选框A radio-style buttons (°C/°F, 24H/12H, etc.)."""
-    normal = Assets.get('P点选框')
-    active = Assets.get('P点选框A')
+    """Build stylesheet for P_checkbox/P_checkbox_a radio-style buttons (°C/°F, 24H/12H, etc.)."""
+    normal = Assets.get('P_checkbox')
+    active = Assets.get('P_checkbox_a')
     if normal and active:
         return (
             f"QPushButton {{ border: none; "
@@ -191,7 +192,7 @@ class UCInfoImage(QWidget):
     """Sensor gauge widget matching Windows UCInfoImage.cs.
 
     Shows a background label image (P0M{n}.png), a progress bar fill
-    (P环H{n}.png) drawn at variable width, and a numeric value overlay.
+    (P_ring_h_{n}.png) drawn at variable width, and a numeric value overlay.
     Each widget is 240x30 pixels.
 
     From FormLED.cs: ucInfoImage1-6 display CPU/GPU temp/clock/usage.
@@ -209,7 +210,7 @@ class UCInfoImage(QWidget):
 
         # Load assets
         self._bg_pixmap = Assets.load_pixmap(f"P0M{index}.png")
-        self._bar_pixmap = Assets.load_pixmap(f"P环H{index}.png")
+        self._bar_pixmap = Assets.load_pixmap(f"P_ring_h_{index}.png")
 
     def set_value(self, value: float, text: str, unit: str = "") -> None:
         """Update displayed value.
@@ -338,7 +339,7 @@ class UCLedControl(QWidget):
         palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
         self.setPalette(palette)
 
-        # Shared P点选框 checkbox style (used by °C/°F, 24H/12H, Sun/Mon buttons)
+        # Shared P_checkbox checkbox style (used by °C/°F, 24H/12H, Sun/Mon buttons)
         _cb_style = _checkbox_image_style()
 
         # -- LED Preview (standard: circles) --
@@ -558,8 +559,8 @@ class UCLedControl(QWidget):
         self._carousel_btn.setGeometry(739, 680, 14, 14)
         self._carousel_btn.setCheckable(True)
         self._carousel_btn.setFlat(True)
-        _cb_normal = Assets.get('P点选框')
-        _cb_active = Assets.get('P点选框A')
+        _cb_normal = Assets.get('P_checkbox')
+        _cb_active = Assets.get('P_checkbox_a')
         if _cb_normal and _cb_active:
             self._carousel_btn.setStyleSheet(
                 f"QPushButton {{ border: none; "
@@ -591,7 +592,7 @@ class UCLedControl(QWidget):
         # LC2 clock widgets (style 9 — hidden by default)
         # ============================================================
 
-        # LC2 clock buttons — C#: 14x14 P点选框 checkboxes at exact positions.
+        # LC2 clock buttons — C#: 14x14 P_checkbox checkboxes at exact positions.
         # Background PNG has "24H"/"12H"/"Sun"/"Mon" labels baked in.
         self._lc2_label = QLabel(self)  # hidden — bg has labels
         self._lc2_label.setVisible(False)
@@ -665,7 +666,7 @@ class UCLedControl(QWidget):
             self._info_images[key] = widget
 
         # °C/°F toggle buttons — C#: buttonC at (699, 144) 14x14, buttonF at (759, 144)
-        # Uses P点选框 (unchecked) / P点选框A (checked) images like C#.
+        # Uses P_checkbox (unchecked) / P_checkbox_a (checked) images like C#.
         self._btn_celsius = QPushButton(self)
         self._btn_celsius.setGeometry(
             TEMP_BTN_C_X, TEMP_BTN_Y, TEMP_BTN_SIZE, TEMP_BTN_SIZE)
@@ -911,9 +912,9 @@ class UCLedControl(QWidget):
         """Swap zone button images to match the C# button variant for this style.
 
         C# has 3 separate sets of zone buttons with different images:
-        - button1-4 (D4模式1-4): styles 1, 2
-        - button5-6 (D4模式5-6): styles 3, 5, 6, 11
-        - buttonN1-4 (D4按钮1-4): styles 4, 7, 8, 10
+        - button1-4 (D4_mode_1-4): styles 1, 2
+        - button5-6 (D4_mode_5-6): styles 3, 5, 6, 11
+        - buttonN1-4 (D4_button_1-4): styles 4, 7, 8, 10
         """
         assets = _ZONE_STYLE_TO_ASSETS.get(style_id)
         if not assets:
@@ -1382,7 +1383,7 @@ class UCLedControl(QWidget):
 
     @staticmethod
     def _mode_button_style(active: bool) -> str:
-        # Fallback when mode button images (D2灯光) don't load.
+        # Fallback when mode button images (D2_lighting) don't load.
         # Transparent background — the background PNG has button visuals.
         if active:
             return (

@@ -236,8 +236,8 @@ class Layout:
 
     # Video controls
     PLAY_BTN = (10, 26, 34, 26)
-    HEIGHT_FIT_BTN = (64, 26, 34, 26)   # C# buttonTPJCH (P高度适应)
-    WIDTH_FIT_BTN = (108, 26, 34, 26)   # C# buttonTPJCW (P宽度适应)
+    HEIGHT_FIT_BTN = (64, 26, 34, 26)   # C# buttonTPJCH (P_fit_height)
+    WIDTH_FIT_BTN = (108, 26, 34, 26)   # C# buttonTPJCW (P_fit_width)
     TIME_LABEL = (274, 26, 220, 20)
     PROGRESS_SLIDER = (10, 5, 479, 16)
 
@@ -303,15 +303,15 @@ class Layout:
     ABOUT_LANG_BUTTONS = [
         # (x, y, lang_code)
         (297, 413, 'en'),      # English
-        (387, 413, 'de'),      # Deutsch
-        (477, 413, 'ru'),      # Русский
-        (567, 413, 'fr'),      # Français
-        (657, 413, 'pt'),      # Português
-        (297, 443, 'ja'),      # 日本語
-        (387, 443, 'es'),      # Español
-        (477, 443, 'zh'),      # 中文简体
-        (567, 443, 'zh_TW'),   # 中文繁體
-        (657, 443, 'ko'),      # 한국어
+        (387, 413, 'de'),      # German
+        (477, 413, 'ru'),      # Russian
+        (567, 413, 'fr'),      # French
+        (657, 413, 'pt'),      # Portuguese
+        (297, 443, 'ja'),      # Japanese
+        (387, 443, 'es'),      # Spanish
+        (477, 443, 'zh'),      # Simplified Chinese
+        (567, 443, 'zh_TW'),   # Traditional Chinese
+        (657, 443, 'ko'),      # Korean
     ]
     ABOUT_CHECKBOX_SIZE = 14
 

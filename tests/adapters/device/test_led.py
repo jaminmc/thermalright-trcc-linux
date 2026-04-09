@@ -163,7 +163,7 @@ class TestLedDeviceStyle:
     def test_dataclass_default_background_base(self):
         """LedDeviceStyle defaults background_base."""
         style = LedDeviceStyle(style_id=99, led_count=10, segment_count=5)
-        assert style.background_base == "D0\u6570\u7801\u5c4f"
+        assert style.background_base == "D0_digital_display"
 
     def test_max_led_count(self):
         """LF12 (style 6) has the highest LED count at 124."""
@@ -1399,7 +1399,7 @@ class TestRemapLedColors:
     def test_style_2_uniform_color_unchanged_count(self):
         """Uniform color (all same) remaps to same colors in different order."""
         color = (255, 0, 0)
-        colors = [color] * 84
+        colors: list[tuple[int, int, int]] = [color] * 84
         remapped = remap_led_colors(colors, style_id=2)
         assert len(remapped) == 84
         assert all(c == color for c in remapped)

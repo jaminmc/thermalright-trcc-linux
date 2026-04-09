@@ -27,6 +27,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -120,14 +121,26 @@ class StandardLoggingConfigurator(TrccLoggingConfigurator):
         root.handlers.clear()
         root.setLevel(logging.DEBUG)
 
-        self._log_file.parent.mkdir(parents=True, exist_ok=True)
         dev_filter = _DeviceDefaultFilter()
 
-        fh = logging.FileHandler(self._log_file, mode='w')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter(self.FORMAT, datefmt=self.DATE_FMT))
-        fh.addFilter(dev_filter)
-        root.addHandler(fh)
+        log_file = self._log_file
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            fh = logging.FileHandler(log_file, mode='w')
+        except OSError:
+            # Fall back to a temp location when the user home is not writable
+            # (e.g. restricted CI/sandbox/test environments).
+            log_file = Path(tempfile.gettempdir()) / 'trcc.log'
+            try:
+                fh = logging.FileHandler(log_file, mode='w')
+            except OSError:
+                fh = None
+
+        if fh is not None:
+            fh.setLevel(logging.DEBUG)
+            fh.setFormatter(logging.Formatter(self.FORMAT, datefmt=self.DATE_FMT))
+            fh.addFilter(dev_filter)
+            root.addHandler(fh)
 
         console_level = (
             logging.DEBUG if verbosity >= 2

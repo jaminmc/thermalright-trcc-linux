@@ -699,14 +699,14 @@ class LedDeviceStyle:
     zone_count: int = 1
     model_name: str = ""
     preview_image: str = ""
-    background_base: str = "D0数码屏"
+    background_base: str = "D0_digital_display"
 
 
 # All LED styles from FormLED.cs FormLEDInit and UCScreenLED.cs constants
 LED_STYLES: dict[int, LedDeviceStyle] = {
-    1: LedDeviceStyle(1, 30, 10, 4, "AX120_DIGITAL", "DAX120_DIGITAL", "D0数码屏"),
-    2: LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "DPA120_DIGITAL", "D0数码屏4区域"),
-    3: LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "DAK120_DIGITAL", "D0数码屏"),
+    1: LedDeviceStyle(1, 30, 10, 4, "AX120_DIGITAL", "DAX120_DIGITAL", "D0_digital_display"),
+    2: LedDeviceStyle(2, 84, 18, 4, "PA120_DIGITAL", "DPA120_DIGITAL", "D0_digital_display_4_region"),
+    3: LedDeviceStyle(3, 64, 10, 2, "AK120_DIGITAL", "DAK120_DIGITAL", "D0_digital_display"),
     4: LedDeviceStyle(4, 31, 14, 3, "LC1", "DLC1", "D0LC1"),
     5: LedDeviceStyle(5, 93, 23, 2, "LF8", "DLF8", "D0LF8"),
     6: LedDeviceStyle(6, 124, 72, 2, "LF12", "DLF12", "D0LF12"),
@@ -1206,7 +1206,7 @@ class DisplayElement:
     font_size: float = 24.0
     font_style: int = 0  # 0=Regular, 1=Bold, 2=Italic
     font_unit: int = 3   # GraphicsUnit.Point
-    font_charset: int = 134  # GB2312 (Windows default: new Font("微软雅黑", 36f, 0, 3, 134))
+    font_charset: int = 134  # GB2312 (Windows default: new Font("Microsoft YaHei", 36f, 0, 3, 134))
     color_argb: tuple = (255, 255, 255, 255)  # ARGB
     text: str = ""      # Custom text content
 
@@ -1828,28 +1828,28 @@ def pm_to_fbl(pm: int, sub: int = 0) -> int:
     return _PM_TO_FBL_OVERRIDES.get(pm, pm)
 
 
-# Split mode overlay (灵动岛 / Dynamic Island) for 1600x720 widescreen devices.
+# Split mode overlay (Dynamic Island) for 1600x720 widescreen devices.
 # C# UCScreenImage.cs: buttonLDD cycles myLddVal 1→2→3→1, overlay selected by
 # (style, directionB). Key: (myLddVal, rotation_degrees) → asset filename.
 SPLIT_OVERLAY_MAP: dict[tuple[int, int], str] = {
     # Style A (myLddVal=1)
-    (1, 0):   'P灵动岛.png',
-    (1, 90):  'P灵动岛90.png',
-    (1, 180): 'P灵动岛180.png',
-    (1, 270): 'P灵动岛270.png',
+    (1, 0):   'P_dynamic_island.png',
+    (1, 90):  'P_dynamic_island_90.png',
+    (1, 180): 'P_dynamic_island_180.png',
+    (1, 270): 'P_dynamic_island_270.png',
     # Style B (myLddVal=2, default)
-    (2, 0):   'P灵动岛a.png',
-    (2, 90):  'P灵动岛a90.png',
-    (2, 180): 'P灵动岛a180.png',
-    (2, 270): 'P灵动岛a270.png',
+    (2, 0):   'P_dynamic_island_a.png',
+    (2, 90):  'P_dynamic_island_a_90.png',
+    (2, 180): 'P_dynamic_island_a_180.png',
+    (2, 270): 'P_dynamic_island_a_270.png',
     # Style C (myLddVal=3)
-    (3, 0):   'P灵动岛b.png',
-    (3, 90):  'P灵动岛b90.png',
-    (3, 180): 'P灵动岛b180.png',
-    (3, 270): 'P灵动岛b270.png',
+    (3, 0):   'P_dynamic_island_b.png',
+    (3, 90):  'P_dynamic_island_b_90.png',
+    (3, 180): 'P_dynamic_island_b_180.png',
+    (3, 270): 'P_dynamic_island_b_270.png',
 }
 
-# Widescreen resolutions that support split mode (灵动岛).
+# Widescreen resolutions that support split mode (Dynamic Island).
 # C#: myDeviceMode==2 && (pm==64 || (pm==1 && pmSub==48))
 SPLIT_MODE_RESOLUTIONS: set[tuple[int, int]] = {(1600, 720)}
 
@@ -1858,7 +1858,7 @@ SPLIT_MODE_RESOLUTIONS: set[tuple[int, int]] = {(1600, 720)}
 # Panel Asset Dims — scaled dimensions for crop/video panel backgrounds
 # =============================================================================
 # C# buttonSelectBackgroundImage() maps each device resolution to scaled dims
-# that fit the fixed-size panel. Assets: P0裁减{pw}{ph}, P0图片裁减{pw}{ph}.
+# that fit the fixed-size panel. Assets: P0_crop_{pw}{ph}, P0_image_crop_{pw}{ph}.
 # Both landscape and portrait entries included.
 PANEL_ASSET_DIMS: dict[tuple[int, int], tuple[int, int]] = {
     # Square
@@ -2070,7 +2070,7 @@ PROTOCOL_TRAITS: Dict[str, ProtocolTraits] = {
 
 # Category ID → background image name
 CATEGORY_IMAGES: dict[int, str] = {
-    0: 'A自定义.png',
+    0: 'A_custom.png',
     1: 'Acpu.png',
     2: 'Agpu.png',
     3: 'Adram.png',

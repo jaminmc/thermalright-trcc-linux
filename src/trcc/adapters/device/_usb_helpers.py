@@ -51,6 +51,9 @@ def _err_interface_busy() -> str:
         )
     return (
         "USB interface busy — the kernel driver could not be detached. "
+        "If you're on Linux, SELinux may be blocking USB device access. "
+        "Run 'sudo trcc setup-selinux' to install the policy module, "
+        "then unplug and replug the device. "
         "Ensure no other application is using the device and try again."
     )
 _ERR_EBUSY = (

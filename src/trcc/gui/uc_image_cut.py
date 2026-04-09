@@ -108,15 +108,15 @@ class UCImageCut(QWidget):
 
     def _setup_ui(self):
         self._btn_height_fit = make_icon_button(
-            self, BTN_HEIGHT_FIT, 'P高度适应.png', "H", self._on_height_fit)
+            self, BTN_HEIGHT_FIT, 'P_fit_height.png', "H", self._on_height_fit)
         self._btn_width_fit = make_icon_button(
-            self, BTN_WIDTH_FIT, 'P宽度适应.png', "W", self._on_width_fit)
+            self, BTN_WIDTH_FIT, 'P_fit_width.png', "W", self._on_width_fit)
         self._btn_rotate = make_icon_button(
-            self, BTN_ROTATE, 'P旋转.png', "R", self._on_rotate)
+            self, BTN_ROTATE, 'P_rotate.png', "R", self._on_rotate)
         self._btn_ok = make_icon_button(
-            self, BTN_OK, 'P裁减.png', "OK", self._on_ok)
+            self, BTN_OK, 'P_crop.png', "OK", self._on_ok)
         self._btn_close = make_icon_button(
-            self, BTN_CLOSE, 'P关闭按钮.png', "\u2715", self._on_close)
+            self, BTN_CLOSE, 'P_close_button.png', "\u2715", self._on_close)
 
     # =========================================================================
     # Public API
@@ -160,7 +160,7 @@ class UCImageCut(QWidget):
     def _load_panel_background(self, w: int, h: int) -> None:
         """Load the scaled panel background asset for a device resolution."""
         pw, ph = panel_asset_dims(w, h)
-        bg_name = f'P0图片裁减{pw}{ph}.png'
+        bg_name = f'P0_image_crop_{pw}{ph}.png'
         log.debug("_load_panel_background: %dx%d → panel %dx%d asset=%s",
                   w, h, pw, ph, bg_name)
         bg_pix = Assets.load_pixmap(bg_name, PANEL_W, PANEL_H)

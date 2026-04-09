@@ -94,13 +94,13 @@ class SystemInfoPanel(QWidget):
         self._selector_btns: list[QPushButton] = []
 
         # Load background image (no tiling — matches Windows ImageLayout.None)
-        img_name = CATEGORY_IMAGES.get(config.category_id, 'A自定义.png')
+        img_name = CATEGORY_IMAGES.get(config.category_id, 'A_custom.png')
         self._bg_pixmap = Assets.load_pixmap(img_name, PANEL_W, PANEL_H)
         if not self._bg_pixmap.isNull():
             set_background_pixmap(self, self._bg_pixmap)
 
         # Load selector button image
-        self._sel_pixmap = Assets.load_pixmap('A数据选择.png', 16, 30)
+        self._sel_pixmap = Assets.load_pixmap('A_data_select.png', 16, 30)
 
         # Value labels and selector buttons (row labels are baked into the PNG)
         value_font = QFont('Arial', 10)
@@ -263,7 +263,7 @@ class UCSystemInfo(QWidget):
 
     def _setup_ui(self):
         """Build from config, auto-map empty bindings."""
-        # Background image (A0数据列表.png — Windows UCSystemInfoOptions)
+        # Background image (A0_data_list.png — Windows UCSystemInfoOptions)
         # ImageLayout.None in Windows — draw once, no tiling
         _, _, w, h = Layout.SYSINFO_PANEL
         set_background_pixmap(self, Assets.SYSINFO_BG, width=w, height=h)
@@ -328,7 +328,7 @@ class UCSystemInfo(QWidget):
             add_x = START_X + add_col * SPACING_X
             add_y = START_Y + add_row * SPACING_Y
 
-            add_pixmap = Assets.load_pixmap('A增加数组.png', PANEL_W, PANEL_H)
+            add_pixmap = Assets.load_pixmap('A_add_array.png', PANEL_W, PANEL_H)
             self._add_btn = QLabel(self)
             if not add_pixmap.isNull():
                 self._add_btn.setPixmap(add_pixmap)
@@ -385,7 +385,7 @@ class UCSystemInfo(QWidget):
             return
 
         # Previous page button
-        prev_px = Assets.load_pixmap('A上一页a.png', 64, 24)
+        prev_px = Assets.load_pixmap('A_prev_page_a.png', 64, 24)
         self._page_prev = QPushButton(self)
         px, py, pw, ph = PAGE_PREV_POS
         self._page_prev.setGeometry(px, py, pw, ph)
@@ -407,7 +407,7 @@ class UCSystemInfo(QWidget):
         self._page_prev.show()
 
         # Next page button
-        next_px = Assets.load_pixmap('A下一页a.png', 64, 24)
+        next_px = Assets.load_pixmap('A_next_page_a.png', 64, 24)
         self._page_next = QPushButton(self)
         nx, ny, nw, nh = PAGE_NEXT_POS
         self._page_next.setGeometry(nx, ny, nw, nh)

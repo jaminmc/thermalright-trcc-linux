@@ -2,10 +2,10 @@
 """
 Interactive HSV color wheel widget for LED control panels.
 
-Matches C# UCColorA: rainbow ring image (D3旋钮), click/drag hue
-selection, and center on/off toggle button (D3开关/D3开关a).
+Matches C# UCColorA: rainbow ring image (D3_knob), click/drag hue
+selection, and center on/off toggle button (D3_toggle/D3_toggle_a).
 
-The D3旋钮 image has colors going clockwise from Red at top:
+The D3_knob image has colors going clockwise from Red at top:
   Red → Magenta → Blue → Cyan → Green → Yellow → Red
 This is the reverse of standard HSV hue order.
 
@@ -40,9 +40,9 @@ log = logging.getLogger(__name__)
 class UCColorWheel(QWidget):
     """Circular hue ring with click/drag selection and center on/off toggle.
 
-    Uses C# D3旋钮 image as the ring visual (falls back to QPainter
+    Uses C# D3_knob image as the ring visual (falls back to QPainter
     conical gradient if asset is missing).  Center button toggles LED
-    on/off (C# UCColorA.buttonDSHX with D3开关/D3开关a images).
+    on/off (C# UCColorA.buttonDSHX with D3_toggle/D3_toggle_a images).
 
     Attributes:
         hue_changed: Emitted when the user selects a hue (0-360).
@@ -52,7 +52,7 @@ class UCColorWheel(QWidget):
     hue_changed = Signal(int)
     onoff_changed = Signal(int)
 
-    # Ring geometry (relative to widget center) — matches D3旋钮 (216x216)
+    # Ring geometry (relative to widget center) — matches D3_knob (216x216)
     OUTER_RADIUS = 105
     INNER_RADIUS = 78
     SELECTOR_RADIUS = 8
@@ -69,16 +69,16 @@ class UCColorWheel(QWidget):
         self._onoff = 1  # 1=ON, 0=OFF (C# default: ON)
 
         # Load C# color wheel asset
-        path = Assets.get('D3旋钮')
+        path = Assets.get('D3_knob')
         self._ring_pixmap: Optional[QPixmap] = QPixmap(path) if path else None
 
-        # Center on/off button (C# UCColorA.buttonDSHX — D3开关/D3开关a)
+        # Center on/off button (C# UCColorA.buttonDSHX — D3_toggle/D3_toggle_a)
         self._onoff_btn = QPushButton(self)
         btn_size = 50
         self._onoff_btn.setFixedSize(btn_size, btn_size)
         self._onoff_btn.setFlat(True)
-        off_path = Assets.get('D3开关')
-        on_path = Assets.get('D3开关a')
+        off_path = Assets.get('D3_toggle')
+        on_path = Assets.get('D3_toggle_a')
         if off_path and on_path:
             self._onoff_btn.setStyleSheet(
                 f"QPushButton {{ border: none; "
@@ -140,7 +140,7 @@ class UCColorWheel(QWidget):
         cy = self.height() / 2.0
 
         if self._ring_pixmap and not self._ring_pixmap.isNull():
-            # Draw C# D3旋钮 image scaled to widget
+            # Draw C# D3_knob image scaled to widget
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             painter.drawPixmap(
                 QRectF(0, 0, self.width(), self.height()),
@@ -167,7 +167,7 @@ class UCColorWheel(QWidget):
 
         # --- Selector indicator on the ring midpoint ---
         # Convert HSV hue back to math angle for position on the ring.
-        # D3旋钮 goes CW from Red: Red→Magenta→Blue→Cyan→Green→Yellow.
+        # D3_knob goes CW from Red: Red→Magenta→Blue→Cyan→Green→Yellow.
         # Inverse of hue=(math_angle+270)%360 → math_angle=(hue-270)%360
         mid_r = (self.OUTER_RADIUS + self.INNER_RADIUS) / 2.0
         math_angle = (self._hue - 270) % 360
@@ -208,9 +208,9 @@ class UCColorWheel(QWidget):
         return self._MIN_RING_R <= dist <= self._MAX_RING_R
 
     def _update_hue_from_pos(self, pos):
-        """Convert mouse position to HSV hue matching the D3旋钮 image.
+        """Convert mouse position to HSV hue matching the D3_knob image.
 
-        The D3旋钮 image has colors going CW from Red at top:
+        The D3_knob image has colors going CW from Red at top:
         Red → Magenta → Blue → Cyan → Green → Yellow → Red
         (reverse of standard HSV order).
         Standard math atan2 gives 0°=right, CCW positive.

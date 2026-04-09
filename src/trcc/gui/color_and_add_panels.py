@@ -147,7 +147,7 @@ class ColorPickerPanel(QFrame):
         # Eyedropper button (matches Windows buttonGetColor at (12, 276, 48, 48))
         self.eyedropper_btn = QPushButton(self)
         self.eyedropper_btn.setGeometry(*Layout.COLOR_EYEDROPPER)
-        eyedrop_pixmap = Assets.load_pixmap('P吸管.png', 48, 48)
+        eyedrop_pixmap = Assets.load_pixmap('P_eyedropper.png', 48, 48)
         if not eyedrop_pixmap.isNull():
             self.eyedropper_btn.setIcon(QIcon(eyedrop_pixmap))
             self.eyedropper_btn.setIconSize(self.eyedropper_btn.size())

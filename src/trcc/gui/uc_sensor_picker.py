@@ -65,8 +65,8 @@ class SensorRow(QWidget):
         self.setFixedHeight(ROW_H)
 
         # Load checkbox images
-        self._cb_off = Assets.load_pixmap('P点选框.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
-        self._cb_on = Assets.load_pixmap('P点选框A.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_off = Assets.load_pixmap('P_checkbox.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
+        self._cb_on = Assets.load_pixmap('P_checkbox_a.png', CHECKBOX_SIZE, CHECKBOX_SIZE)
 
         # Checkbox button
         self._cb = QPushButton(self)

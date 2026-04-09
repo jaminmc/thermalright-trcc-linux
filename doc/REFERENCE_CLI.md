@@ -533,12 +533,12 @@ trcc lang-list
 **Example output:**
 ```
 Available languages (38):
-  de     Deutsch
+  de     German
   en     English
-  es     Español
-  fr     Français
-  ja     日本語
-  ko     한국어
+  es     Spanish
+  fr     French
+  ja     Japanese
+  ko     Korean
   ...
 ```
 
