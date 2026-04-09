@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.4.2
+
+### Fixes
+- **Mask overlay config not restored on reopen**: Applying a mask without saving as a custom theme, then closing and reopening, used the saved theme's overlay coordinates instead of the mask's `config1.dc`. Now `restore_last_theme()` loads the mask dir's DC when a mask is present.
+
 ## v9.4.1
 
 ### Fixes
