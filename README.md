@@ -354,6 +354,8 @@ Special thanks to everyone who has contributed invaluable reports to this projec
 
 **HR10 2280 PRO Digital** — **[Lcstyle](https://github.com/Lcstyle)**
 
+**macOS** — **[jaminmc](https://github.com/jaminmc)** (Apple Silicon sensor research, PR #114 feedback)
+
 **General** — **[wrightbyname](https://github.com/wrightbyname)** · **[mog199](https://github.com/mog199)** · **[jezzaw007](https://github.com/jezzaw007)** · **[sleeper14200](https://github.com/sleeper14200)** · **[kabi02](https://github.com/kabi02)** · **[david43](https://github.com/david43)** · **[Deltawolf](https://github.com/Deltawolf)** · **[JoshWrites](https://github.com/JoshWrites)** · **[jun3010me](https://github.com/jun3010me)** · **[Litsas](https://github.com/Litsas)** · **[MoltenMonster](https://github.com/MoltenMonster)** · **[ProfessorJoed](https://github.com/ProfessorJoed)** · **[qwerty22121998](https://github.com/qwerty22121998)** · **[unfirthman](https://github.com/unfirthman)** · **[ux370](https://github.com/ux370)** · **[vlad1](https://github.com/vlad1)**
 
 ## Stars
