@@ -1,5 +1,12 @@
 # Changelog
 
+## v9.4.4
+
+### Features
+- **GPU selection in control center**: Users with multiple GPUs can now choose which one drives all `gpu_*` metrics (temp, usage, clock, power) across LCD overlays and LED segments. 1 GPU shows plain text, 2+ GPUs shows a dropdown sorted by VRAM. Saved to `config.json` as `gpu_device`. Cross-platform: Linux (NVIDIA/AMD/Intel via sysfs+pynvml), Windows (LHM), macOS (system_profiler), BSD (pynvml). i18n label "Graphics card" in all 38 languages.
+- **GPU CLI commands**: `trcc gpu-list` shows all detected GPUs (`*` marks current), `trcc gpu-set <key>` sets the active GPU for metrics.
+- **GPU API endpoints**: `GET /system/gpu` lists GPUs + current selection, `PUT /system/gpu?gpu_key=...` sets the active GPU.
+
 ## v9.4.3
 
 ### Fixes
