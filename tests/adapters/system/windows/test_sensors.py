@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from tests.adapters.system.conftest import BASE
 from trcc.core.models import SensorInfo
 
 MODULE = 'trcc.adapters.system.windows.sensors'
@@ -14,7 +15,7 @@ MODULE = 'trcc.adapters.system.windows.sensors'
 def _make_enum(**flags):
     """Create WindowsSensorEnumerator with optional feature flags."""
     with patch(f'{MODULE}.LHM_AVAILABLE', flags.get('lhm', False)), \
-         patch(f'{MODULE}.NVML_AVAILABLE', flags.get('nvml', False)):
+         patch(f'{BASE}.NVML_AVAILABLE', flags.get('nvml', False)):
         from trcc.adapters.system.windows.sensors import WindowsSensorEnumerator
         return WindowsSensorEnumerator()
 
@@ -41,27 +42,8 @@ def _mock_lhm_hardware(name: str, hw_type: str, sensors: list, sub: list | None 
 # ── Discovery Tests ───────────────────────────────────────────────────
 
 
-class TestDiscoverPsutil:
-    """psutil-based sensor discovery."""
-
-    def test_discovers_cpu_and_memory(self):
-        enum = _make_enum()
-        enum._discover_psutil()
-        ids = [s.id for s in enum._sensors]
-        assert 'psutil:cpu_percent' in ids
-        assert 'psutil:cpu_freq' in ids
-        assert 'psutil:mem_used' in ids
-        assert 'psutil:mem_total' in ids
-        assert 'psutil:mem_percent' in ids
-
-    def test_discovers_disk_and_network(self):
-        enum = _make_enum()
-        enum._discover_psutil()
-        ids = [s.id for s in enum._sensors]
-        assert 'computed:disk_read' in ids
-        assert 'computed:disk_write' in ids
-        assert 'computed:net_up' in ids
-        assert 'computed:net_down' in ids
+class TestDiscoverPsutilWindows:
+    """Windows-specific psutil discovery (CPU temps via sensors_temperatures)."""
 
     @patch(f'{MODULE}.psutil')
     def test_discovers_cpu_temps(self, mock_psutil):
@@ -69,7 +51,7 @@ class TestDiscoverPsutil:
             'coretemp': [MagicMock(label='Package', current=65.0)],
         }
         enum = _make_enum()
-        enum._discover_psutil()
+        enum._discover_psutil_windows()
         temp_sensors = [s for s in enum._sensors if s.id == 'psutil:temp:coretemp:0']
         assert len(temp_sensors) == 1
         assert temp_sensors[0].name == 'Package'
@@ -81,15 +63,9 @@ class TestDiscoverPsutil:
             'k10temp': [MagicMock(label='', current=55.0)],
         }
         enum = _make_enum()
-        enum._discover_psutil()
+        enum._discover_psutil_windows()
         temp_sensors = [s for s in enum._sensors if 'k10temp' in s.id]
         assert temp_sensors[0].name == 'k10temp temp0'
-
-    def test_all_sensors_have_source(self):
-        enum = _make_enum()
-        enum._discover_psutil()
-        for s in enum._sensors:
-            assert s.source in ('psutil', 'computed')
 
 
 class TestDiscoverLhm:
@@ -201,14 +177,14 @@ class TestDiscoverLhm:
 class TestDiscoverNvidia:
     """pynvml-based GPU discovery (fallback)."""
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', False)
+    @patch(f'{BASE}.NVML_AVAILABLE', False)
     def test_noop_without_nvml(self):
         enum = _make_enum()
         enum._discover_nvidia()
         assert enum._sensors == []
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_discovers_gpu_sensors(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.return_value = 1
         mock_nvml.nvmlDeviceGetHandleByIndex.return_value = 'handle0'
@@ -228,8 +204,8 @@ class TestDiscoverNvidia:
         assert 'nvidia:0:mem_total' in ids
         assert all(s.source == 'nvidia' for s in enum._sensors)
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_gpu_name_bytes(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.return_value = 1
         mock_nvml.nvmlDeviceGetHandleByIndex.return_value = 'h'
@@ -239,8 +215,8 @@ class TestDiscoverNvidia:
         enum._discover_nvidia()
         assert any('RTX 3080' in s.name for s in enum._sensors)
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_multi_gpu(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.return_value = 2
         mock_nvml.nvmlDeviceGetHandleByIndex.side_effect = ['h0', 'h1']
@@ -252,8 +228,8 @@ class TestDiscoverNvidia:
         assert any('nvidia:0:temp' in s.id for s in enum._sensors)
         assert any('nvidia:1:temp' in s.id for s in enum._sensors)
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_nvml_exception_handled(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.side_effect = RuntimeError("driver")
         enum = _make_enum()
@@ -289,7 +265,7 @@ class TestDiscoverEndToEnd:
     """Full discover() orchestration."""
 
     @patch(f'{MODULE}.LHM_AVAILABLE', False)
-    @patch(f'{MODULE}.NVML_AVAILABLE', False)
+    @patch(f'{BASE}.NVML_AVAILABLE', False)
     def test_discover_psutil_only(self):
         enum = _make_enum()
         sensors = enum.discover()
@@ -302,8 +278,8 @@ class TestDiscoverEndToEnd:
 
     @patch(f'{MODULE}.LHM_AVAILABLE', True)
     @patch(f'{MODULE}.Computer', create=True)
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_lhm_gpu_skips_nvml(self, mock_nvml, mock_computer_cls):
         """When LHM finds GPU, pynvml discovery is skipped."""
         gpu_sensor = _mock_lhm_sensor('GPU Core', 'Temperature', 72.0)
@@ -322,8 +298,8 @@ class TestDiscoverEndToEnd:
 
     @patch(f'{MODULE}.LHM_AVAILABLE', True)
     @patch(f'{MODULE}.Computer', create=True)
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_no_lhm_gpu_falls_back_to_nvml(self, mock_nvml, mock_computer_cls):
         """When LHM finds no GPU hardware, pynvml is used."""
         cpu_sensor = _mock_lhm_sensor('CPU Package', 'Temperature', 55.0)
@@ -356,12 +332,13 @@ class TestDiscoverEndToEnd:
 class TestPollPsutil:
     """psutil reading in _poll_once."""
 
-    @patch(f'{MODULE}.psutil')
+    @patch(f'{BASE}.psutil')
     def test_reads_cpu_and_memory(self, mock_psutil):
         mock_psutil.cpu_percent.return_value = 42.0
         mock_psutil.cpu_freq.return_value = MagicMock(current=3600.0)
         mock_psutil.virtual_memory.return_value = MagicMock(
-            used=8 * 1024 ** 2, total=16 * 1024 ** 2, percent=50.0,
+            used=8 * 1024 ** 2, available=8 * 1024 ** 2,
+            total=16 * 1024 ** 2, percent=50.0,
         )
 
         enum = _make_enum()
@@ -372,12 +349,12 @@ class TestPollPsutil:
         assert readings['psutil:cpu_freq'] == 3600.0
         assert readings['psutil:mem_percent'] == 50.0
 
-    @patch(f'{MODULE}.psutil')
+    @patch(f'{BASE}.psutil')
     def test_no_cpu_freq(self, mock_psutil):
         mock_psutil.cpu_percent.return_value = 10.0
         mock_psutil.cpu_freq.return_value = None
         mock_psutil.virtual_memory.return_value = MagicMock(
-            used=0, total=0, percent=0,
+            used=0, available=0, total=0, percent=0,
         )
 
         enum = _make_enum()
@@ -462,7 +439,7 @@ class TestPollLhm:
 class TestPollNvidia:
     """pynvml reading (fallback)."""
 
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.pynvml')
     def test_reads_all_gpu_metrics(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.return_value = 1
         mock_nvml.nvmlDeviceGetHandleByIndex.return_value = 'h'
@@ -478,6 +455,7 @@ class TestPollNvidia:
         )
 
         enum = _make_enum()
+        enum._nvidia_handles = {0: 'h'}
         readings: dict[str, float] = {}
         enum._poll_nvidia(readings)
 
@@ -489,11 +467,10 @@ class TestPollNvidia:
         assert readings['nvidia:0:mem_used'] == 8.0
         assert readings['nvidia:0:mem_total'] == 24.0
 
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
     def test_individual_metric_failure_isolated(self, mock_nvml):
         """One metric failing doesn't block others."""
-        mock_nvml.nvmlDeviceGetCount.return_value = 1
-        mock_nvml.nvmlDeviceGetHandleByIndex.return_value = 'h'
         mock_nvml.NVML_TEMPERATURE_GPU = 0
         mock_nvml.NVML_CLOCK_GRAPHICS = 0
         mock_nvml.nvmlDeviceGetTemperature.side_effect = RuntimeError("no temp")
@@ -504,17 +481,18 @@ class TestPollNvidia:
         mock_nvml.nvmlDeviceGetMemoryInfo.side_effect = RuntimeError("no mem")
 
         enum = _make_enum()
+        enum._nvidia_handles = {0: 'h'}
         readings: dict[str, float] = {}
         enum._poll_nvidia(readings)
 
         assert 'nvidia:0:temp' not in readings
-        assert readings['nvidia:0:gpu_busy'] == 50.0  # This one succeeded
+        assert readings['nvidia:0:gpu_busy'] == 50.0
         assert 'nvidia:0:clock' not in readings
 
     def test_poll_nvidia_noop_when_none(self):
         enum = _make_enum()
         readings: dict[str, float] = {}
-        with patch(f'{MODULE}.pynvml', None):
+        with patch(f'{BASE}.pynvml', None):
             enum._poll_nvidia(readings)
         assert len(readings) == 0
 
@@ -522,13 +500,13 @@ class TestPollNvidia:
 class TestPollDatetime:
     """Datetime computed readings."""
 
-    @patch(f'{MODULE}.psutil')
-    @patch(f'{MODULE}.datetime')
+    @patch(f'{BASE}.psutil')
+    @patch(f'{BASE}.datetime')
     def test_reads_datetime(self, mock_dt, mock_psutil):
         mock_psutil.cpu_percent.return_value = 0
         mock_psutil.cpu_freq.return_value = None
         mock_psutil.virtual_memory.return_value = MagicMock(
-            used=0, total=0, percent=0,
+            used=0, available=0, total=0, percent=0,
         )
 
         from datetime import datetime
@@ -559,7 +537,7 @@ class TestPolling:
             assert enum._poll_thread is not None
             assert enum._poll_thread.is_alive()
             enum.stop_polling()
-            assert not enum._poll_thread.is_alive()
+            assert enum._poll_thread is None
 
     def test_double_start_noop(self):
         enum = _make_enum()
@@ -675,7 +653,7 @@ class TestSetPollInterval:
 class TestReadComputed:
     """Disk and network I/O delta computation."""
 
-    @patch(f'{MODULE}.psutil')
+    @patch(f'{BASE}.psutil')
     def test_disk_io_second_call(self, mock_psutil):
         """Disk read/write rates computed from delta between polls."""
         disk1 = MagicMock(read_bytes=100_000_000, write_bytes=50_000_000)
@@ -684,19 +662,19 @@ class TestReadComputed:
 
         enum = _make_enum()
         r1: dict[str, float] = {}
-        enum._read_computed(r1)
+        enum._poll_computed_io(r1)
         # First call: no prev, no rates
         assert 'computed:disk_read' not in r1
 
         r2: dict[str, float] = {}
-        enum._read_computed(r2)
+        enum._poll_computed_io(r2)
         # Second call: should have rates
         assert 'computed:disk_read' in r2
         assert 'computed:disk_write' in r2
         assert r2['computed:disk_read'] > 0
         assert r2['computed:disk_write'] > 0
 
-    @patch(f'{MODULE}.psutil')
+    @patch(f'{BASE}.psutil')
     def test_network_io_second_call(self, mock_psutil):
         mock_psutil.disk_io_counters.return_value = None
         net1 = MagicMock(bytes_sent=1_000_000, bytes_recv=5_000_000)
@@ -705,11 +683,11 @@ class TestReadComputed:
 
         enum = _make_enum()
         r1: dict[str, float] = {}
-        enum._read_computed(r1)
+        enum._poll_computed_io(r1)
         assert 'computed:net_total_up' in r1  # totals available immediately
 
         r2: dict[str, float] = {}
-        enum._read_computed(r2)
+        enum._poll_computed_io(r2)
         assert 'computed:net_up' in r2
         assert 'computed:net_down' in r2
         assert r2['computed:net_up'] > 0
@@ -740,8 +718,8 @@ class TestMapDefaults:
         d2 = enum.map_defaults()
         assert d1 is d2  # Same object, cached
 
-    @patch(f'{MODULE}.NVML_AVAILABLE', True)
-    @patch(f'{MODULE}.pynvml')
+    @patch(f'{BASE}.NVML_AVAILABLE', True)
+    @patch(f'{BASE}.pynvml')
     def test_nvidia_gpu_mapping(self, mock_nvml):
         mock_nvml.nvmlDeviceGetCount.return_value = 1
         mock_nvml.nvmlDeviceGetHandleByIndex.return_value = 'h'

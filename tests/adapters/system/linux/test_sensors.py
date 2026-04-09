@@ -108,9 +108,8 @@ class TestSensorEnumeratorDiscover(unittest.TestCase):
         enum = self._make_enumerator()
         enum._discover_computed()
         ids = [s.id for s in enum.get_sensors()]
-        self.assertIn('computed:disk_read', ids)
-        self.assertIn('computed:net_up', ids)
-        self.assertIn('computed:net_down', ids)
+        self.assertIn('computed:date_year', ids)
+        self.assertIn('computed:day_of_week', ids)
 
 
 class TestSensorEnumeratorGetters(unittest.TestCase):
@@ -193,14 +192,14 @@ class TestSensorEnumeratorReadRapl(unittest.TestCase):
         mock_time.monotonic.return_value = 1000.0
         mock_read.return_value = '10000000'  # 10 J in µJ
         readings1 = {}
-        enum._read_rapl(readings1)
+        enum._poll_rapl(readings1)
         self.assertNotIn('rapl:package-0', readings1)  # No delta yet
 
         # Second call: 1 second later, 15 J
         mock_time.monotonic.return_value = 1001.0
         mock_read.return_value = '15000000'  # 15 J in µJ
         readings2 = {}
-        enum._read_rapl(readings2)
+        enum._poll_rapl(readings2)
         # Delta = 5J / 1s = 5W
         self.assertAlmostEqual(readings2['rapl:package-0'], 5.0)
 
@@ -219,7 +218,7 @@ class TestSensorEnumeratorReadPsutil(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_psutil(readings)
+        enum._poll_psutil_linux(readings)
 
         self.assertAlmostEqual(readings['psutil:cpu_percent'], 42.0)
         self.assertAlmostEqual(readings['psutil:cpu_freq'], 3600.0)
@@ -426,8 +425,8 @@ class TestReadOneEdgeCases(unittest.TestCase):
 
 class TestReadComputed(unittest.TestCase):
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_disk_delta(self, mock_time, mock_psutil):
         mock_time.monotonic.return_value = 101.0
         mock_psutil.disk_io_counters.return_value = MagicMock(
@@ -443,13 +442,13 @@ class TestReadComputed(unittest.TestCase):
             read_bytes=0, write_bytes=0, busy_time=0), 100.0)
 
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
         self.assertIn('computed:disk_read', readings)
         self.assertAlmostEqual(readings['computed:disk_read'], 10.0, delta=0.1)
         self.assertIn('computed:disk_activity', readings)
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_network_delta(self, mock_time, mock_psutil):
         mock_time.monotonic.return_value = 101.0
         mock_psutil.disk_io_counters.return_value = None
@@ -461,7 +460,7 @@ class TestReadComputed(unittest.TestCase):
             bytes_sent=0, bytes_recv=0), 100.0)
 
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
         self.assertIn('computed:net_up', readings)
         self.assertAlmostEqual(readings['computed:net_up'], 100.0, delta=1.0)
 
@@ -578,7 +577,7 @@ class TestReadNvidia(unittest.TestCase):
     def test_noop_without_nvml(self):
         enum = SensorEnumerator()
         readings = {}
-        enum._read_nvidia(readings)
+        enum._poll_nvidia_linux(readings)
         self.assertEqual(readings, {})
 
     @patch('trcc.adapters.system.linux.sensors.NVML_AVAILABLE', True)
@@ -600,7 +599,7 @@ class TestReadNvidia(unittest.TestCase):
         enum = SensorEnumerator()
         enum._nvidia_handles = {0: handle}
         readings = {}
-        enum._read_nvidia(readings)
+        enum._poll_nvidia_linux(readings)
 
         self.assertAlmostEqual(readings['nvidia:0:temp'], 65.0)
         self.assertAlmostEqual(readings['nvidia:0:gpu_util'], 80.0)
@@ -630,7 +629,7 @@ class TestReadNvidia(unittest.TestCase):
         enum = SensorEnumerator()
         enum._nvidia_handles = {0: handle}
         readings = {}
-        enum._read_nvidia(readings)
+        enum._poll_nvidia_linux(readings)
 
         # Only fan succeeded
         self.assertEqual(len(readings), 1)
@@ -648,7 +647,7 @@ class TestReadRaplEdge(unittest.TestCase):
         enum = SensorEnumerator()
         enum._rapl_paths = {'rapl:pkg': '/fake'}
         readings = {}
-        enum._read_rapl(readings)
+        enum._poll_rapl(readings)
         self.assertEqual(readings, {})
 
     @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='not-a-number')
@@ -658,7 +657,7 @@ class TestReadRaplEdge(unittest.TestCase):
         enum = SensorEnumerator()
         enum._rapl_paths = {'rapl:pkg': '/fake'}
         readings = {}
-        enum._read_rapl(readings)
+        enum._poll_rapl(readings)
         self.assertEqual(readings, {})
 
     @patch('trcc.adapters.infra.data_repository.SysUtils.read_sysfs', return_value='20000000')
@@ -671,7 +670,7 @@ class TestReadRaplEdge(unittest.TestCase):
         # Previous had higher energy (counter wrapped)
         enum._rapl_prev = {'rapl:pkg': (30000000, 100.0)}
         readings = {}
-        enum._read_rapl(readings)
+        enum._poll_rapl(readings)
         self.assertNotIn('rapl:pkg', readings)
 
 
@@ -688,7 +687,7 @@ class TestReadPsutilEdge(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_psutil(readings)
+        enum._poll_psutil_linux(readings)
         self.assertNotIn('psutil:cpu_percent', readings)
         self.assertIn('psutil:cpu_freq', readings)
 
@@ -701,7 +700,7 @@ class TestReadPsutilEdge(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_psutil(readings)
+        enum._poll_psutil_linux(readings)
         self.assertNotIn('psutil:cpu_freq', readings)
         self.assertIn('psutil:cpu_percent', readings)
 
@@ -713,7 +712,7 @@ class TestReadPsutilEdge(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_psutil(readings)
+        enum._poll_psutil_linux(readings)
         self.assertNotIn('psutil:mem_percent', readings)
         self.assertIn('psutil:cpu_percent', readings)
 
@@ -722,8 +721,8 @@ class TestReadPsutilEdge(unittest.TestCase):
 
 class TestReadComputedEdge(unittest.TestCase):
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_disk_without_busy_time(self, mock_time, mock_psutil):
         """Disk counters without busy_time attr — skip activity."""
         mock_time.monotonic.return_value = 101.0
@@ -738,13 +737,13 @@ class TestReadComputedEdge(unittest.TestCase):
             read_bytes=0, write_bytes=0, spec=['read_bytes', 'write_bytes'])
         enum._disk_prev = (prev_disk, 100.0)
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
 
         self.assertIn('computed:disk_read', readings)
         self.assertNotIn('computed:disk_activity', readings)
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_disk_no_prev(self, mock_time, mock_psutil):
         """First disk read — seeds prev but no delta."""
         mock_time.monotonic.return_value = 100.0
@@ -754,13 +753,13 @@ class TestReadComputedEdge(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
 
         self.assertNotIn('computed:disk_read', readings)
         self.assertIsNotNone(enum._disk_prev)
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_net_no_prev(self, mock_time, mock_psutil):
         """First net read — has totals but no rates."""
         mock_time.monotonic.return_value = 100.0
@@ -770,32 +769,32 @@ class TestReadComputedEdge(unittest.TestCase):
 
         enum = SensorEnumerator()
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
 
         self.assertIn('computed:net_total_up', readings)
         self.assertNotIn('computed:net_up', readings)
         self.assertIsNotNone(enum._net_prev)
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_disk_exception(self, mock_time, mock_psutil):
         mock_time.monotonic.return_value = 100.0
         mock_psutil.disk_io_counters.side_effect = RuntimeError
         mock_psutil.net_io_counters.return_value = None
         enum = SensorEnumerator()
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
         self.assertNotIn('computed:disk_read', readings)
 
-    @patch('trcc.adapters.system.linux.sensors.psutil')
-    @patch('trcc.adapters.system.linux.sensors.time')
+    @patch('trcc.adapters.system._base.psutil')
+    @patch('trcc.adapters.system._base.time')
     def test_net_exception(self, mock_time, mock_psutil):
         mock_time.monotonic.return_value = 100.0
         mock_psutil.disk_io_counters.return_value = None
         mock_psutil.net_io_counters.side_effect = RuntimeError
         enum = SensorEnumerator()
         readings = {}
-        enum._read_computed(readings)
+        enum._poll_computed_io(readings)
         self.assertEqual(readings, {})
 
 

@@ -1,14 +1,14 @@
 """macOS hardware sensor discovery and reading.
 
-Replaces Linux hwmon/RAPL with macOS-native sensor sources:
+Platform-specific sources:
 - IOKit SMC: CPU/GPU temp, fan speed (Intel Macs)
-- IOHIDEventSystemClient: thermal sensors (Apple Silicon M1/M2/M3/M4)
+- powermetrics: thermal sensors, GPU usage/power (Apple Silicon)
 - psutil: CPU usage/frequency, memory, disk I/O, network I/O
 - pynvml: NVIDIA GPU (rare on Mac, eGPU only)
 
 Sensor IDs follow the same format as Linux for compatibility:
     smc:{key}              e.g., smc:TC0P (CPU temp)
-    iokit:{sensor}         e.g., iokit:cpu_die_0 (Apple Silicon)
+    iokit:{sensor}         e.g., iokit:cpu_die (Apple Silicon)
     psutil:{metric}        e.g., psutil:cpu_percent
     nvidia:{gpu}:{metric}  e.g., nvidia:0:temp
     computed:{metric}      e.g., computed:disk_read
@@ -17,28 +17,17 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
-import datetime
 import logging
 import platform
 import re
 import struct
 import subprocess
-import threading
-import time
-from typing import Any, Optional
+from typing import Any
 
 import psutil
 
+from trcc.adapters.system._base import SensorEnumeratorBase
 from trcc.core.models import SensorInfo
-from trcc.core.ports import SensorEnumerator as SensorEnumeratorABC
-
-try:
-    import pynvml  # pyright: ignore[reportMissingImports]
-    pynvml.nvmlInit()
-    NVML_AVAILABLE = True
-except Exception:
-    pynvml = None  # type: ignore[assignment]
-    NVML_AVAILABLE = False
 
 log = logging.getLogger(__name__)
 
@@ -122,125 +111,37 @@ def _smc_key_to_int(key: str) -> int:
     return struct.unpack('>I', key.encode('ascii'))[0]
 
 
-class MacOSSensorEnumerator(SensorEnumeratorABC):
+class MacOSSensorEnumerator(SensorEnumeratorBase):
     """Discovers and reads hardware sensors on macOS.
 
     Intel Macs: reads SMC via IOKit for CPU/GPU temp and fan speed.
-    Apple Silicon: reads IOHIDEventSystemClient for thermal sensors.
+    Apple Silicon: reads powermetrics for thermal/GPU sensors.
     """
 
     def __init__(self) -> None:
-        self._sensors: list[SensorInfo] = []
-        self._readings: dict[str, float] = {}
-        self._lock = threading.Lock()
-        self._poll_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._poll_interval: float = 2.0
-        self._smc_conn: Any = None  # IOKit SMC connection (Intel)
-        self._default_map: Optional[dict[str, str]] = None
-        self._cpu_pct_bootstrapped: bool = False
-        self._net_prev: Optional[tuple[Any, float]] = None
-        self._disk_prev: Optional[tuple[Any, float]] = None
+        super().__init__()
+        self._smc_conn: Any = None
 
     def discover(self) -> list[SensorInfo]:
-        """Scan system for all available sensors."""
         self._sensors.clear()
-        self._discover_psutil()
+        self._discover_psutil_base()
         if IS_APPLE_SILICON:
             self._discover_apple_silicon()
         else:
             self._discover_smc()
-        if NVML_AVAILABLE:
-            self._discover_nvidia()
+        self._discover_nvidia()
         self._discover_computed()
         log.info("macOS sensor discovery: %d sensors", len(self._sensors))
         return self._sensors
 
-    def get_sensors(self) -> list[SensorInfo]:
-        """Return previously discovered sensors."""
-        return self._sensors
-
-    def get_by_category(self, category: str) -> list[SensorInfo]:
-        """Filter sensors by category."""
-        return [s for s in self._sensors if s.category == category]
-
-    def read_all(self) -> dict[str, float]:
-        """Return current readings.
-
-        If the poll thread hasn't ticked yet (CLI / short-lived use),
-        run one synchronous poll so the caller doesn't get an empty dict.
-        """
-        with self._lock:
-            empty = not self._readings
-        if empty:
-            self._poll_once()
-        with self._lock:
-            return dict(self._readings)
-
-    def read_one(self, sensor_id: str) -> Optional[float]:
-        """Read a single sensor by ID from cached readings."""
-        with self._lock:
-            return self._readings.get(sensor_id)
-
-    def set_poll_interval(self, seconds: float) -> None:
-        """Set background poll interval (user's data refresh setting)."""
-        self._poll_interval = max(0.5, seconds)
-
-    def start_polling(self, interval: float = 2.0) -> None:
-        """Start background polling thread."""
-        if self._poll_thread and self._poll_thread.is_alive():
-            return
-        self._stop_event.clear()
-
-        def _poll() -> None:
-            while not self._stop_event.is_set():
-                self._poll_once()
-                self._stop_event.wait(self._poll_interval)
-
-        self._poll_thread = threading.Thread(
-            target=_poll, daemon=True, name="mac-sensors",
-        )
-        self._poll_thread.start()
-
-    def stop_polling(self) -> None:
-        """Stop background polling."""
-        self._stop_event.set()
-        if self._poll_thread:
-            self._poll_thread.join(timeout=3)
-
-    # ── Discovery methods ──────────────────────────────────────────
-
-    def _discover_psutil(self) -> None:
-        """Add CPU, memory, disk, network sensors via psutil."""
-        self._sensors.extend([
-            SensorInfo('psutil:cpu_percent', 'CPU Usage', 'cpu_percent', '%', 'psutil'),
-            SensorInfo('psutil:cpu_freq', 'CPU Frequency', 'clock', 'MHz', 'psutil'),
-            SensorInfo('psutil:mem_used', 'Memory Used', 'memory', 'MB', 'psutil'),
-            SensorInfo('psutil:mem_available', 'Memory Available', 'memory', 'MB', 'psutil'),
-            SensorInfo('psutil:mem_total', 'Memory Total', 'memory', 'MB', 'psutil'),
-            SensorInfo('psutil:mem_percent', 'Memory Usage', 'memory', '%', 'psutil'),
-            SensorInfo('computed:disk_percent', 'Disk Usage', 'disk_io', '%', 'computed'),
-            SensorInfo('computed:disk_read', 'Disk Read', 'disk_io', 'MB/s', 'computed'),
-            SensorInfo('computed:disk_write', 'Disk Write', 'disk_io', 'MB/s', 'computed'),
-            SensorInfo('computed:disk_activity', 'Disk Activity', 'disk_io', '%', 'computed'),
-            SensorInfo('computed:net_up', 'Network Upload', 'network_io', 'KB/s', 'computed'),
-            SensorInfo('computed:net_down', 'Network Download', 'network_io', 'KB/s', 'computed'),
-            SensorInfo('computed:net_total_up', 'Network Total Upload', 'network_io', 'MB', 'computed'),
-            SensorInfo('computed:net_total_down', 'Network Total Download', 'network_io', 'MB', 'computed'),
-        ])
+    # ── macOS-specific discovery ──────────────────────────────────────
 
     def _discover_smc(self) -> None:
-        """Discover Intel Mac sensors via SMC.
-
-        Probes known SMC keys and registers sensors for keys that
-        return valid readings.
-        """
+        """Discover Intel Mac sensors via SMC."""
         if _iokit is None:
             log.debug("IOKit not available")
             return
-
         for key, (name, category, unit) in _SMC_KEYS.items():
-            # Try reading to verify key exists on this hardware
             val = self._read_smc_key(key)
             if val is not None and val > 0:
                 self._sensors.append(
@@ -248,15 +149,7 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                 )
 
     def _discover_apple_silicon(self) -> None:
-        """Discover Apple Silicon thermal sensors.
-
-        Uses IOHIDEventSystemClient to enumerate thermal sensors.
-        Sensor keys vary by M-chip generation — we discover dynamically.
-        """
-        # Apple Silicon thermal sensors via powermetrics (requires root)
-        # or IOHIDEventSystemClient (private API via ctypes).
-        # For the scaffold, register common sensor slots that powermetrics
-        # reports on all M-series chips.
+        """Discover Apple Silicon thermal + GPU sensors."""
         common_sensors = [
             ('iokit:cpu_die', 'CPU Die', 'temperature', '°C'),
             ('iokit:gpu_die', 'GPU Die', 'temperature', '°C'),
@@ -274,146 +167,38 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                 SensorInfo(sid, name, category, unit, 'iokit'),
             )
 
-    def _discover_nvidia(self) -> None:
-        """Probe NVIDIA GPU via pynvml (eGPU only on Mac)."""
-        if pynvml is None:
-            return
-        try:
-            count = pynvml.nvmlDeviceGetCount()
-            for i in range(count):
-                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-                name = pynvml.nvmlDeviceGetName(handle)
-                if isinstance(name, bytes):
-                    name = name.decode()
-                name = str(name)
-                prefix = f'nvidia:{i}'
-                self._sensors.extend([
-                    SensorInfo(f'{prefix}:temp', f'{name} Temp', 'temperature', '°C', 'nvidia'),
-                    SensorInfo(f'{prefix}:gpu_busy', f'{name} Usage', 'gpu_busy', '%', 'nvidia'),
-                    SensorInfo(f'{prefix}:power', f'{name} Power', 'power', 'W', 'nvidia'),
-                    SensorInfo(f'{prefix}:fan', f'{name} Fan', 'fan', '%', 'nvidia'),
-                ])
-        except Exception:
-            log.debug("NVIDIA GPU probe failed")
-
-    def _discover_computed(self) -> None:
-        """Add computed/derived metrics."""
-        for metric in ('date_year', 'date_month', 'date_day',
-                       'time_hour', 'time_minute', 'time_second',
-                       'day_of_week'):
-            self._sensors.append(
-                SensorInfo(f'computed:{metric}', metric, 'datetime', '', 'computed'),
-            )
-
-    # ── Reading methods ────────────────────────────────────────────
+    # ── macOS-specific polling ────────────────────────────────────────
 
     def _poll_once(self) -> None:
-        """Read all sensors once and update cached readings."""
+        """macOS poll: base psutil + platform-specific + shared I/O."""
         readings: dict[str, float] = {}
-
-        # psutil — bootstrap cpu_percent with a short interval on first call
-        # so the caller doesn't get 0.0 from a cold start.
-        if not self._cpu_pct_bootstrapped:
-            readings['psutil:cpu_percent'] = psutil.cpu_percent(interval=0.08)
-            self._cpu_pct_bootstrapped = True
-        else:
-            readings['psutil:cpu_percent'] = psutil.cpu_percent(interval=None)
-        freq = psutil.cpu_freq()
-        if freq:
-            readings['psutil:cpu_freq'] = freq.current
-        mem = psutil.virtual_memory()
-        readings['psutil:mem_used'] = mem.used / (1024 * 1024)
-        readings['psutil:mem_available'] = mem.available / (1024 * 1024)
-        readings['psutil:mem_total'] = mem.total / (1024 * 1024)
-        readings['psutil:mem_percent'] = mem.percent
+        self._poll_psutil_base(readings)
         readings['computed:disk_percent'] = self._poll_apfs_disk_percent()
         self._poll_computed_io(readings)
 
-        # SMC (Intel) or IOKit (Apple Silicon)
         if IS_APPLE_SILICON:
             self._poll_apple_silicon(readings)
         else:
             self._poll_smc(readings)
 
-        # NVIDIA (rare — eGPU)
-        if NVML_AVAILABLE and pynvml is not None:
-            self._poll_nvidia(readings)
-
-        # Date/time
-        now = datetime.datetime.now()
-        readings['computed:date_year'] = float(now.year)
-        readings['computed:date_month'] = float(now.month)
-        readings['computed:date_day'] = float(now.day)
-        readings['computed:time_hour'] = float(now.hour)
-        readings['computed:time_minute'] = float(now.minute)
-        readings['computed:time_second'] = float(now.second)
-        readings['computed:day_of_week'] = float(now.weekday())
+        self._poll_nvidia(readings)
+        self._poll_datetime(readings)
 
         with self._lock:
             self._readings = readings
-
-    def _poll_computed_io(self, readings: dict[str, float]) -> None:
-        """Compute disk/network rates + totals from psutil counter deltas."""
-        now = time.monotonic()
-
-        # Disk I/O rates
-        try:
-            disk = psutil.disk_io_counters()
-            if disk and self._disk_prev:
-                prev_disk, prev_time = self._disk_prev
-                dt = now - prev_time
-                if dt > 0:
-                    readings['computed:disk_read'] = (
-                        (disk.read_bytes - prev_disk.read_bytes) / (dt * 1024 * 1024))
-                    readings['computed:disk_write'] = (
-                        (disk.write_bytes - prev_disk.write_bytes) / (dt * 1024 * 1024))
-                    if hasattr(disk, 'busy_time') and hasattr(prev_disk, 'busy_time'):
-                        busy_ms = disk.busy_time - prev_disk.busy_time
-                        readings['computed:disk_activity'] = min(100.0, busy_ms / (dt * 10))
-            if disk:
-                self._disk_prev = (disk, now)
-        except Exception:
-            log.debug("computed disk I/O failed", exc_info=True)
-
-        # Network I/O totals + rates
-        try:
-            net = psutil.net_io_counters()
-            if net:
-                readings['computed:net_total_up'] = net.bytes_sent / (1024 * 1024)
-                readings['computed:net_total_down'] = net.bytes_recv / (1024 * 1024)
-                if self._net_prev:
-                    prev_net, prev_time = self._net_prev
-                    dt = now - prev_time
-                    if dt > 0:
-                        readings['computed:net_up'] = (
-                            (net.bytes_sent - prev_net.bytes_sent) / (dt * 1024))
-                        readings['computed:net_down'] = (
-                            (net.bytes_recv - prev_net.bytes_recv) / (dt * 1024))
-                self._net_prev = (net, now)
-        except Exception:
-            log.debug("computed network I/O failed", exc_info=True)
 
     def _poll_smc(self, readings: dict[str, float]) -> None:
         """Read SMC sensors on Intel Mac."""
         for sensor in self._sensors:
             if sensor.source != 'smc':
                 continue
-            key = sensor.id.split(':', 1)[1]  # "smc:TC0P" → "TC0P"
+            key = sensor.id.split(':', 1)[1]
             val = self._read_smc_key(key)
             if val is not None:
                 readings[sensor.id] = val
 
     def _poll_apple_silicon(self, readings: dict[str, float]) -> None:
-        """Read thermal sensors on Apple Silicon.
-
-        Uses `powermetrics` subprocess as a reliable cross-generation approach.
-        Private IOHIDEventSystemClient API changes between M-chip generations,
-        but powermetrics output format is stable.
-
-        Samplers:
-        - smc: CPU/GPU/SoC temps, fan RPM
-        - gpu_power: GPU active residency (%), frequency, power draw
-        """
+        """Read thermal/GPU sensors on Apple Silicon via powermetrics."""
         try:
             result = subprocess.run(
                 ['powermetrics', '--samplers', 'smc,gpu_power',
@@ -426,7 +211,7 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                 line = line.strip()
                 lo = line.lower()
 
-                # Temperatures — flexible matching across M-chip generations
+                # Temperatures
                 if re.search(r'\bcpu\s+(?:die\s+)?(?:temperature|temp)\b', lo):
                     readings['iokit:cpu_die'] = _parse_metric(line)
                 elif re.search(r'\bgpu\s+die\s+(?:temperature|temp)\b', lo):
@@ -436,12 +221,12 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                 ):
                     readings['iokit:soc'] = _parse_metric(line)
 
-                # Fans — assign sequentially (Fan: 1200 rpm)
+                # Fans
                 elif 'fan' in lo and 'rpm' in lo:
                     readings[f'iokit:fan{fan_index}'] = _parse_metric(line)
                     fan_index += 1
 
-                # GPU usage (active residency %)
+                # GPU usage
                 elif (
                     'iokit:gpu_busy' not in readings
                     and 'gpu' in lo
@@ -478,7 +263,7 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                     if m and 100.0 <= float(m.group(1)) <= 4000.0:
                         readings['iokit:gpu_clock'] = float(m.group(1))
 
-                # Per-core CPU frequency (max across cores)
+                # Per-core CPU frequency
                 else:
                     m = re.match(
                         r'cpu\s+\d+\s+frequency:\s*([\d.]+)\s*mhz', lo,
@@ -488,53 +273,14 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
                         if 1.0 <= v <= 8000.0:
                             cpu_core_freqs.append(v)
 
-            # powermetrics gives per-core MHz — publish max via psutil slot
             if cpu_core_freqs:
                 readings['psutil:cpu_freq'] = max(cpu_core_freqs)
 
         except Exception:
             log.debug("powermetrics failed (needs root)", exc_info=True)
 
-    def _poll_nvidia(self, readings: dict[str, float]) -> None:
-        """Read NVIDIA GPU sensors via pynvml."""
-        if pynvml is None:
-            return
-        try:
-            count = pynvml.nvmlDeviceGetCount()
-            for i in range(count):
-                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-                prefix = f'nvidia:{i}'
-                try:
-                    readings[f'{prefix}:temp'] = float(
-                        pynvml.nvmlDeviceGetTemperature(
-                            handle, pynvml.NVML_TEMPERATURE_GPU))
-                except Exception:
-                    pass
-                try:
-                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                    readings[f'{prefix}:gpu_busy'] = float(util.gpu)
-                except Exception:
-                    pass
-                try:
-                    readings[f'{prefix}:power'] = (
-                        float(pynvml.nvmlDeviceGetPowerUsage(handle)) / 1000.0)
-                except Exception:
-                    pass
-                try:
-                    readings[f'{prefix}:fan'] = float(
-                        pynvml.nvmlDeviceGetFanSpeed(handle))
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
     def _poll_apfs_disk_percent(self) -> float:
-        """Read APFS container disk usage via diskutil.
-
-        psutil.disk_usage('/') only reports the root snapshot volume (~3%),
-        not the actual APFS container usage. `diskutil apfs list` gives real
-        container-level numbers.
-        """
+        """Read APFS container disk usage via diskutil."""
         try:
             result = subprocess.run(
                 ['diskutil', 'apfs', 'list'],
@@ -558,23 +304,14 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
         return psutil.disk_usage('/').percent
 
     def _read_smc_key(self, key: str) -> float | None:
-        """Read a single SMC key value (Intel Macs only).
-
-        Opens IOKit connection to AppleSMC service and reads the key.
-        Returns temperature in °C or fan speed in RPM, or None on failure.
-        """
+        """Read a single SMC key value (Intel Macs only)."""
         if _iokit is None:
             return None
         try:
-            # This is a simplified SMC read — full implementation needs
-            # IOServiceOpen + IOConnectCallStructMethod with SMC structs.
-            # For now, fall back to parsing `sysctl` or `powermetrics`.
-            import subprocess
             result = subprocess.run(
                 ['powermetrics', '--samplers', 'smc', '-n', '1', '-i', '100'],
                 capture_output=True, text=True, timeout=5,
             )
-            # Parse output for the specific key's sensor name
             key_info = _SMC_KEYS.get(key)
             if not key_info:
                 return None
@@ -586,93 +323,50 @@ class MacOSSensorEnumerator(SensorEnumeratorABC):
             pass
         return None
 
-    # ── Default sensor mapping (legacy compat) ────────────────────
+    # ── macOS-specific mapping ────────────────────────────────────────
 
-    def map_defaults(self) -> dict[str, str]:
-        """Map legacy metric keys to macOS sensor IDs."""
-        if self._default_map is not None:
-            return self._default_map
-
-        sensors = self.get_sensors()
+    def _build_mapping(self) -> dict[str, str]:
+        sensors = self._sensors
+        _ff = self._find_first
         mapping: dict[str, str] = {}
-
-        def _find_first(source: str = '', name_contains: str = '',
-                        category: str = '') -> Optional[str]:
-            for s in sensors:
-                if source and s.source != source:
-                    continue
-                if category and s.category != category:
-                    continue
-                if name_contains and name_contains.lower() not in s.name.lower():
-                    continue
-                return s.id
-            return None
+        self._map_common(mapping)
 
         # CPU
         mapping['cpu_temp'] = (
-            _find_first(source='smc', name_contains='CPU', category='temperature')
-            or _find_first(source='iokit', name_contains='cpu', category='temperature')
-            or ''
+            _ff(sensors, source='smc', name_contains='CPU', category='temperature')
+            or _ff(sensors, source='iokit', name_contains='cpu', category='temperature')
         )
-        mapping['cpu_percent'] = 'psutil:cpu_percent'
-        mapping['cpu_freq'] = 'psutil:cpu_freq'
 
         # GPU
-        gpu_temp = (
-            _find_first(source='smc', name_contains='GPU', category='temperature')
-            or _find_first(source='iokit', name_contains='gpu', category='temperature')
-            or _find_first(source='nvidia', category='temperature')
+        mapping['gpu_temp'] = (
+            _ff(sensors, source='smc', name_contains='GPU', category='temperature')
+            or _ff(sensors, source='iokit', name_contains='gpu', category='temperature')
+            or _ff(sensors, source='nvidia', category='temperature')
         )
-        mapping['gpu_temp'] = gpu_temp or ''
         mapping['gpu_usage'] = (
-            _find_first(source='nvidia', category='gpu_busy')
-            or _find_first(source='iokit', category='gpu_busy')
-            or ''
+            _ff(sensors, source='nvidia', category='gpu_busy')
+            or _ff(sensors, source='iokit', category='gpu_busy')
         )
-        mapping['gpu_clock'] = _find_first(source='iokit', category='clock') or ''
+        mapping['gpu_clock'] = _ff(sensors, source='iokit', category='clock')
         mapping['gpu_power'] = (
-            _find_first(source='nvidia', category='power')
-            or _find_first(source='iokit', category='power')
-            or ''
+            _ff(sensors, source='nvidia', category='power')
+            or _ff(sensors, source='iokit', category='power')
         )
 
         # Memory
         mapping['mem_temp'] = (
-            _find_first(source='smc', name_contains='Memory', category='temperature')
-            or _find_first(source='iokit', name_contains='SoC', category='temperature')
-            or ''
+            _ff(sensors, source='smc', name_contains='Memory', category='temperature')
+            or _ff(sensors, source='iokit', name_contains='SoC', category='temperature')
         )
-        mapping['mem_percent'] = 'psutil:mem_percent'
-        mapping['mem_available'] = 'psutil:mem_available'
-
-        # Disk / Network
-        mapping['disk_percent'] = 'computed:disk_percent'
-        mapping['disk_read'] = 'computed:disk_read'
-        mapping['disk_write'] = 'computed:disk_write'
-        mapping['disk_activity'] = 'computed:disk_activity'
-        mapping['net_up'] = 'computed:net_up'
-        mapping['net_down'] = 'computed:net_down'
-        mapping['net_total_up'] = 'computed:net_total_up'
-        mapping['net_total_down'] = 'computed:net_total_down'
 
         # Fans
-        fan_sensors = [s for s in sensors if s.category == 'fan']
-        if fan_sensors:
-            mapping['fan_cpu'] = fan_sensors[0].id
-            if len(fan_sensors) > 1:
-                mapping['fan_gpu'] = fan_sensors[1].id
+        self._map_fans(mapping, fan_sources=('smc', 'iokit', 'nvidia'))
 
-        self._default_map = {k: v for k, v in mapping.items() if v}
-        return self._default_map
+        return mapping
 
 
 def _parse_metric(line: str) -> float:
-    """Extract numeric value from powermetrics output line.
-
-    Examples:
-        "CPU die temperature: 45.23 C" → 45.23
-        "Fan: 1200 rpm" → 1200.0
-    """
+    """Extract numeric value from powermetrics output line."""
     match = re.search(r'([\d.]+)', line.split(':')[-1])
     if match:
         return float(match.group(1))
