@@ -117,8 +117,8 @@ def show_info(builder=None, *, preview: bool = False, metric: str | None = None)
         for label, keys in groups:
             print(f"\n{label}:")
             for key in keys:
-                val = getattr(metrics, key, None)
-                if val is not None and (val != 0.0 or key in ('date', 'time', 'weekday')):
+                if key in metrics._populated:
+                    val = getattr(metrics, key, 0.0)
                     print(f"  {key}: {format_metric(key, val)}")
 
         return 0

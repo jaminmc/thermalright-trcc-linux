@@ -195,8 +195,7 @@ class ImageService:
         for _, (_, fields, _) in items.items():
             total_lines += 1
             for f in fields:
-                v = getattr(metrics, f, 0.0)
-                if v != 0.0 or f in ('date', 'time', 'weekday'):
+                if f in metrics._populated:
                     total_lines += 1
         h = max(40, padding + total_lines * line_h + padding)
         w = int(cols * 2.5)
@@ -212,9 +211,9 @@ class ImageService:
             rnd.draw_text(surf, 8, y, label, color_str, font_label, anchor='lt')
             y += line_h
             for f in fields:
-                v = getattr(metrics, f, 0.0)
-                if v == 0.0 and f not in ('date', 'time', 'weekday'):
+                if f not in metrics._populated:
                     continue
+                v = getattr(metrics, f, 0.0)
                 formatted = SystemService.format_metric(f, v)
                 name = f.replace('_', ' ').title()
                 rnd.draw_text(surf, 16, y, f'{name}:', '#8c8ca0', font_value, anchor='lt')

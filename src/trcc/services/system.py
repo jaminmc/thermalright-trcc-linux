@@ -20,6 +20,14 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from ..core.models import HardwareMetrics
 from ..core.models import format_metric as _format_metric
 
+# Fields that keep float precision (need decimals for unit conversion in
+# format_metric: MB→GB, KB/s→MB/s, etc.). All other metrics are truncated
+# to int at the read boundary, matching the C# app's behavior.
+_FLOAT_FIELDS: frozenset[str] = frozenset({
+    'mem_available', 'disk_read', 'disk_write',
+    'net_up', 'net_down', 'net_total_up', 'net_total_down',
+})
+
 if TYPE_CHECKING:
     from ..core.models import SensorInfo
     from ..core.ports import SensorEnumerator
@@ -234,24 +242,36 @@ class SystemService:
         m.time_minute = now.minute
         m.time_second = now.second
         m.day_of_week = now.weekday()
+        m._populated.update((
+            'date_year', 'date_month', 'date_day',
+            'time_hour', 'time_minute', 'time_second',
+            'day_of_week', 'date', 'time', 'weekday',
+        ))
 
-        # Batch read ALL sensors from cache (instant)
+        # Batch read ALL sensors from cache (instant).
+        # Truncate to int at the read boundary (matches C# app) except for
+        # rate/size fields that need float precision for unit conversion.
         defaults = self._ensure_defaults()
         readings = self._enumerator.read_all()
-        populated: set[str] = set()
         for attr_name, sensor_id in defaults.items():
             if sensor_id in readings and hasattr(m, attr_name):
-                setattr(m, attr_name, readings[sensor_id])
-                populated.add(attr_name)
+                value = readings[sensor_id]
+                if attr_name not in _FLOAT_FIELDS:
+                    value = int(value)
+                setattr(m, attr_name, value)
+                m._populated.add(attr_name)
 
         # Fallback values for metrics the enumerator couldn't provide.
         # Computed once (may call subprocess), then cached for future calls.
-        self._ensure_fallbacks(populated)
+        self._ensure_fallbacks(m._populated)
         with self._fallback_lock:
             if self._fallback_cache:
                 for attr_name, value in self._fallback_cache.items():
-                    if attr_name not in populated and hasattr(m, attr_name):
+                    if attr_name not in m._populated and hasattr(m, attr_name):
+                        if attr_name not in _FLOAT_FIELDS:
+                            value = int(value)
                         setattr(m, attr_name, value)
+                        m._populated.add(attr_name)
 
         # Zero out disk metrics when HDD info is disabled (C# isHDD toggle)
         from ..conf import settings

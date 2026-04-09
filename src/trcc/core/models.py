@@ -1312,6 +1312,8 @@ class HardwareMetrics:
     time: float = 0.0
     weekday: float = 0.0
 
+    _populated: set[str] = field(default_factory=set, repr=False, compare=False)
+
     _TEMP_FIELDS = ('cpu_temp', 'gpu_temp', 'mem_temp', 'disk_temp')
 
     @staticmethod

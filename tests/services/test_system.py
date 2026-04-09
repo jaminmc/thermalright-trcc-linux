@@ -275,7 +275,48 @@ class TestAllMetrics:
 
         m = svc.all_metrics
         assert isinstance(m, HardwareMetrics)
-        assert m.cpu_temp == 72.0
+        assert m.cpu_temp == 72  # int-truncated at read boundary
+
+    @patch('trcc.conf.settings')
+    def test_int_truncation_at_read_boundary(self, mock_settings):
+        """Non-rate metrics are truncated to int (matches C# app)."""
+        mock_settings.hdd_enabled = True
+        enum = MagicMock()
+        enum.discover.return_value = []
+        enum.map_defaults.return_value = {
+            'cpu_temp': 's:temp', 'cpu_percent': 's:pct',
+            'disk_read': 's:dr', 'mem_available': 's:ma',
+        }
+        enum.read_all.return_value = {
+            's:temp': 45.7, 's:pct': 42.9,
+            's:dr': 0.5, 's:ma': 18534.4,
+        }
+        svc = SystemService(enumerator=enum)
+        svc._fallback_cache = {}
+
+        m = svc.all_metrics
+        assert m.cpu_temp == 45        # int-truncated (floor)
+        assert m.cpu_percent == 42     # int-truncated (floor)
+        assert m.disk_read == 0.5      # float preserved (rate)
+        assert m.mem_available == 18534.4  # float preserved (size)
+
+    @patch('trcc.conf.settings')
+    def test_populated_tracks_set_fields(self, mock_settings):
+        """_populated contains only fields that got sensor data."""
+        mock_settings.hdd_enabled = True
+        enum = MagicMock()
+        enum.discover.return_value = []
+        enum.map_defaults.return_value = {'cpu_temp': 's:temp'}
+        enum.read_all.return_value = {'s:temp': 55.0}
+        svc = SystemService(enumerator=enum)
+        svc._fallback_cache = {}
+
+        m = svc.all_metrics
+        assert 'cpu_temp' in m._populated
+        assert 'gpu_temp' not in m._populated
+        # Date/time always populated
+        assert 'date' in m._populated
+        assert 'time' in m._populated
 
     @patch('trcc.conf.settings')
     def test_hdd_disabled_zeros_disk(self, mock_settings):
@@ -305,7 +346,8 @@ class TestAllMetrics:
         svc._fallback_cache = {'cpu_temp': 55.0}
 
         m = svc.all_metrics
-        assert m.cpu_temp == 55.0
+        assert m.cpu_temp == 55  # int-truncated fallback
+        assert 'cpu_temp' in m._populated
 
 
 # =========================================================================
