@@ -688,12 +688,10 @@ class TestDisplaySettings:
         lcd_handler.set_brightness(2)
         mock_lcd_device.send.assert_not_called()
 
-    @patch('trcc.gui.lcd_handler.Settings')
-    def test_set_rotation_persists(self, mock_settings, lcd_handler):
-        lcd_handler._device_key = 'dev0'
+    def test_set_rotation_delegates_to_device(self, lcd_handler):
         lcd_handler._lcd.set_rotation.return_value = {'success': True, 'image': MagicMock()}
         lcd_handler.set_rotation(90)
-        mock_settings.save_device_setting.assert_called_with('dev0', 'rotation', 90)
+        lcd_handler._lcd.set_rotation.assert_called_with(90)
 
     def test_set_rotation_updates_cloud_widgets(self, lcd_handler):
         lcd_handler._lcd.set_rotation.return_value = {'success': True}
@@ -741,13 +739,11 @@ class TestDisplaySettings:
         lcd_handler.set_rotation(90)
         mock_lcd_device.select.assert_not_called()
 
-    @patch('trcc.gui.lcd_handler.Settings')
-    def test_set_split_mode_updates_state(self, mock_settings, lcd_handler):
-        lcd_handler._device_key = 'dev0'
+    def test_set_split_mode_updates_state(self, lcd_handler):
         lcd_handler._lcd.set_split_mode.return_value = {'success': True, 'image': MagicMock()}
         lcd_handler.set_split_mode(2)
         assert lcd_handler.split_mode == 2
-        mock_settings.save_device_setting.assert_called_with('dev0', 'split_mode', 2)
+        lcd_handler._lcd.set_split_mode.assert_called_with(2)
 
 
 # =========================================================================

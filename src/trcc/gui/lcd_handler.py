@@ -546,8 +546,6 @@ class LCDHandler(BaseHandler):
         self.log.debug("set_rotation: degrees=%d", degrees)
         result = self._lcd.set_rotation(degrees)  # Handles dir switch + theme reload
         image = result.get('image')
-        if self._device_key:
-            Settings.save_device_setting(self._device_key, 'rotation', degrees)
         o = self._lcd.orientation
         ow, oh = o.output_resolution
         self.log.info("set_rotation: orientation.rotation=%d output=%dx%d "
@@ -602,8 +600,6 @@ class LCDHandler(BaseHandler):
             self._w['preview'].set_image(image)
             if self._lcd.auto_send:
                 self._lcd.send(image)
-        if self._device_key:
-            Settings.save_device_setting(self._device_key, 'split_mode', mode)
 
     # ── Background / Screencast Toggles ────────────────────────────
 
