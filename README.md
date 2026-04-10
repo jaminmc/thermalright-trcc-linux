@@ -326,7 +326,7 @@ Special thanks to everyone who has contributed invaluable reports to this projec
 
 **Frozen Warframe** — **[gizbo](https://github.com/gizbo)** · **[knappstar](https://github.com/knappstar)** · **[Scifiguygaming](https://github.com/Scifiguygaming)** · **[apj202-ops](https://github.com/apj202-ops)** · **[loosethoughts19-hash](https://github.com/loosethoughts19-hash)** · **[Edoardo-Rossi-EOS](https://github.com/Edoardo-Rossi-EOS)** · **[edoargo1996](https://github.com/edoargo1996)** · **[stephendesmond1-cmd](https://github.com/stephendesmond1-cmd)** · **[riodevelop](https://github.com/riodevelop)** · **[wobbegongus](https://github.com/wobbegongus)** · **[Pallemz](https://github.com/Pallemz)** · **[pawbtism](https://github.com/pawbtism)**
 
-**Trofeo Vision** — **[N8ghtz](https://github.com/N8ghtz)** · **[PantherX12max](https://github.com/PantherX12max)** · **[ravensvoice](https://github.com/ravensvoice)** · **[beret21](https://github.com/beret21)** · **[jimmister1234-bit](https://github.com/jimmister1234-bit)** · **[Tavus1990](https://github.com/Tavus1990)** · **[ImlostinIKEA](https://github.com/ImlostinIKEA)** · **[ronny79privat](https://github.com/ronny79privat)**
+**Trofeo Vision** — **[N8ghtz](https://github.com/N8ghtz)** · **[PantherX12max](https://github.com/PantherX12max)** · **[ravensvoice](https://github.com/ravensvoice)** · **[beret21](https://github.com/beret21)** · **[jimmister1234-bit](https://github.com/jimmister1234-bit)** · **[Tavus1990](https://github.com/Tavus1990)** · **[ImlostinIKEA](https://github.com/ImlostinIKEA)** · **[ronny79privat](https://github.com/ronny79privat)** · **[OptimalKiller](https://github.com/OptimalKiller)**
 
 **GrandVision 360 AIO** — **[bipobuilt](https://github.com/bipobuilt)** · **[cadeon](https://github.com/cadeon)** · **[Reborn627](https://github.com/Reborn627)** · **[TheManchineel](https://github.com/TheManchineel)** · **[ImlostinIKEA](https://github.com/ImlostinIKEA)**
 
@@ -347,6 +347,8 @@ Special thanks to everyone who has contributed invaluable reports to this projec
 **Elite Vision 360** — **[tensaiteki](https://github.com/tensaiteki)**
 
 **Mjolnir Vision 360** — **[Pikarz](https://github.com/Pikarz)** · **[RonyPony1234](https://github.com/RonyPony1234)**
+
+**Peerless Assassin 140 Digital** — **[MioHorizon](https://github.com/MioHorizon)**
 
 **Peerless Vision** — **[Mr-Renegade](https://github.com/Mr-Renegade)**
 
