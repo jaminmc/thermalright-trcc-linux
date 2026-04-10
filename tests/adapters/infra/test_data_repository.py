@@ -760,10 +760,10 @@ class TestDownloadArchiveSSL(unittest.TestCase):
 class TestFindPkgDataDir(unittest.TestCase):
     """Test _find_pkg_data_dir search logic."""
 
-    def test_returns_this_dir_data_as_fallback(self):
-        """When no valid dirs exist, falls back to _THIS_DIR/data."""
-        with patch('trcc.adapters.infra.data_repository._THIS_DIR', '/fake/src/trcc'), \
-             patch('trcc.adapters.infra.data_repository.PROJECT_ROOT', '/fake'), \
+    def test_returns_pkg_data_as_fallback(self):
+        """When no valid dirs exist, falls back to _TRCC_PKG/data."""
+        with patch('trcc.adapters.infra.data_repository._TRCC_PKG', '/fake/src/trcc'), \
+             patch('trcc.adapters.infra.data_repository._PROJECT_ROOT', '/fake'), \
              patch('os.path.isdir', return_value=False):
             result = _find_pkg_data_dir()
             self.assertEqual(result, '/fake/src/trcc/data')

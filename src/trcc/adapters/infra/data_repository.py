@@ -24,6 +24,7 @@ from typing import Any, List, Optional
 
 from ...core.models import ThemeDir  # noqa: F401 — re-export for back-compat
 from ...core.paths import (
+    _TRCC_PKG,
     ASSETS_DIR,  # noqa: F401 — re-export (package resource dir)
     RESOURCES_DIR,  # noqa: F401 — re-export (package resource dir)
     USER_CONFIG_DIR,  # noqa: F401 — re-export (universal config dir)
@@ -37,9 +38,7 @@ from ...core.platform import SUBPROCESS_NO_WINDOW as _NO_WINDOW
 
 log = logging.getLogger(__name__)
 
-_THIS_DIR = str(Path(__file__).resolve().parents[2])
-SRC_DIR = str(Path(__file__).resolve().parents[3])
-PROJECT_ROOT = str(Path(__file__).resolve().parents[4])
+_PROJECT_ROOT = str(Path(_TRCC_PKG).parents[1])
 
 # =========================================================================
 # SysUtils — cross-distro system utilities
@@ -117,11 +116,11 @@ def _find_pkg_data_dir() -> str:
 
     Only used for locating .7z archives before downloading from GitHub.
     """
-    for candidate in [os.path.join(_THIS_DIR, 'data'),
-                      os.path.join(PROJECT_ROOT, 'data')]:
+    for candidate in [os.path.join(_TRCC_PKG, 'data'),
+                      os.path.join(_PROJECT_ROOT, 'data')]:
         if os.path.isdir(candidate):
             return candidate
-    return os.path.join(_THIS_DIR, 'data')
+    return os.path.join(_TRCC_PKG, 'data')
 
 
 # All runtime data goes to ~/.trcc/data/ — always writable, works on
