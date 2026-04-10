@@ -1,1 +1,1 @@
-"""macOS system adapters — IOKit SMC sensors + system_profiler hardware."""
+"""macOS system adapters — IOKit SMC (gosmc-style), HID sensor hub (Apple Silicon)."""

@@ -4,7 +4,7 @@ Shared base behavior (psutil, nvidia, computed I/O, polling, read_all)
 is tested in tests/adapters/system/conftest.py.
 
 Tests follow the app flow: discover() → read_all() → map_defaults().
-Mock at I/O boundary only: subprocess for powermetrics/diskutil, IOKit SMC.
+Mock at I/O boundary: subprocess for powermetrics/diskutil, SMCClient, HID.
 """
 from __future__ import annotations
 
@@ -34,12 +34,7 @@ DISKUTIL_OUTPUT = (
 )
 
 
-def _make_smc_response(data_type: str, value: float) -> MagicMock:
-    """Create a mock that simulates IOConnectCallStructMethod for SMC reads.
-
-    Returns a side_effect function that fills the SMCKeyData_t output struct
-    with the given data type and encoded value.
-    """
+def _make_smc_response(data_type: str, value: float) -> tuple[int, bytes]:
     dt_int = struct.unpack('>I', data_type.ljust(4).encode('ascii'))[0]
 
     match data_type.rstrip():
@@ -48,7 +43,9 @@ def _make_smc_response(data_type: str, value: float) -> MagicMock:
         case 'fpe2':
             raw = struct.pack('>H', int(value * 4))
         case 'flt':
-            raw = struct.pack('>f', value)
+            raw = struct.pack('<f', value)
+        case 'ui8':
+            raw = struct.pack('B', int(value))
         case _:
             raw = struct.pack('>H', int(value))
 
@@ -56,7 +53,7 @@ def _make_smc_response(data_type: str, value: float) -> MagicMock:
 
 
 class MockSMC:
-    """Simulates IOKit SMC reads for testing."""
+    """Simulates SMC key payloads for FakeSMCClient."""
 
     def __init__(self) -> None:
         self.keys: dict[str, tuple[int, bytes]] = {}
@@ -65,77 +62,77 @@ class MockSMC:
         dt_int, raw = _make_smc_response(data_type, value)
         self.keys[key] = (dt_int, raw)
 
-    def ioconnect_side_effect(self, conn, selector, in_ptr, in_size,
-                              out_ptr, out_size_ptr) -> int:
-        """Side effect for IOConnectCallStructMethod."""
-        from trcc.adapters.system.macos.sensors import SMCKeyData_t
 
-        cmd = ctypes.cast(in_ptr, ctypes.POINTER(SMCKeyData_t)).contents
-        out = ctypes.cast(out_ptr, ctypes.POINTER(SMCKeyData_t)).contents
+class FakeSMCClient:
+    """Maps MockSMC through smc_client.parse_smc_bytes (no real IOKit)."""
 
-        # Find which key was requested
-        key_str = struct.pack('>I', cmd.key).decode('ascii', errors='replace')
-        if key_str not in self.keys:
-            return 1  # kIOReturnError
+    def __init__(self, mock: MockSMC) -> None:
+        self._mock = mock
 
-        dt_int, raw = self.keys[key_str]
+    def open(self) -> bool:
+        return True
 
-        if cmd.data8 == 9:  # kSMCGetKeyInfo
-            out.keyInfo.dataType = dt_int
-            out.keyInfo.dataSize = len(raw)
-        elif cmd.data8 == 5:  # kSMCReadKey
-            for i, b in enumerate(raw):
-                out.bytes[i] = b
+    @property
+    def connected(self) -> bool:
+        return True
 
-        return 0  # kIOReturnSuccess
+    def read_key_float(self, key: str) -> float | None:
+        if len(key) < 4:
+            return None
+        key4 = key[:4]
+        if key4 not in self._mock.keys:
+            return None
+        from trcc.adapters.system.macos.smc_client import parse_smc_bytes
+
+        dt_int, raw = self._mock.keys[key4]
+        buf = (ctypes.c_uint8 * 32)()
+        for i, b in enumerate(raw):
+            buf[i] = b
+        return parse_smc_bytes(dt_int, buf, len(raw))
+
+    def read_key_uint32(self, key: str) -> int | None:
+        v = self.read_key_float(key)
+        return int(v) if v is not None else None
+
+    def read_fan_rpm(self, key: str) -> float | None:
+        if len(key) < 4:
+            return None
+        key4 = key[:4]
+        if key4 not in self._mock.keys:
+            return None
+        from trcc.adapters.system.macos.smc_client import decode_fan_rpm_raw
+
+        dt_int, raw = self._mock.keys[key4]
+        buf = (ctypes.c_uint8 * 32)()
+        for i, b in enumerate(raw):
+            buf[i] = b
+        return decode_fan_rpm_raw(dt_int, len(raw), buf)
+
+    def close(self) -> None:
+        pass
 
 
 @pytest.fixture
 def mock_smc():
-    """Pre-configured MockSMC with typical Apple Silicon readings."""
+    """Pre-configured MockSMC with typical Apple Silicon readings + FNum."""
     smc = MockSMC()
-    smc.add_key('Tp01', 'sp78', 45.0)   # CPU P-Core 1
-    smc.add_key('Tg0f', 'sp78', 52.0)   # GPU Die
-    smc.add_key('Tm0P', 'sp78', 38.0)   # Memory
-    smc.add_key('F0Ac', 'fpe2', 1200.0)  # Fan 0
-    smc.add_key('F1Ac', 'fpe2', 1350.0)  # Fan 1
+    smc.add_key('FNum', 'ui8', 2.0)
+    smc.add_key('Tp01', 'sp78', 45.0)
+    smc.add_key('Tg0f', 'sp78', 52.0)
+    smc.add_key('Tm0P', 'sp78', 38.0)
+    smc.add_key('F0Ac', 'fpe2', 1200.0)
+    smc.add_key('F1Ac', 'fpe2', 1350.0)
     return smc
 
 
 @pytest.fixture
-def mock_iokit(mock_smc):
-    """Mock IOKit framework with working SMC connection."""
-    iokit = MagicMock()
-    iokit.IOServiceMatching.return_value = 1  # non-NULL
-    iokit.IOServiceGetMatchingService.return_value = 1  # service handle
-    iokit.IOServiceOpen.return_value = 0  # kIOReturnSuccess
-    iokit.IOConnectCallStructMethod.side_effect = mock_smc.ioconnect_side_effect
-    iokit.IOServiceClose.return_value = 0
-    iokit.IOObjectRelease = MagicMock()
-    return iokit
-
-
-@pytest.fixture
-def mock_macos(mock_io_no_nvidia, mock_iokit):
-    """macOS Apple Silicon enumerator with mocked IOKit + subprocess."""
+def mock_macos(mock_io_no_nvidia, mock_smc):
+    """macOS Apple Silicon enumerator with fake SMC + subprocess mocks."""
     with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
-         patch(f'{MODULE}._iokit', mock_iokit), \
-         patch(f'{MODULE}.subprocess') as sub, \
-         patch(f'{MODULE}.ctypes') as mock_ctypes:
-        # Make ctypes work with our mock IOKit
-        mock_ctypes.util.find_library.return_value = 'libSystem'
-        mock_ctypes.cdll.LoadLibrary.return_value = MagicMock(
-            mach_task_self=MagicMock(return_value=0))
-        mock_ctypes.c_uint = type('c_uint', (), {
-            '__init__': lambda self, v=0: setattr(self, 'value', v),
-            'value': 0,
-        })
-        mock_ctypes.byref = lambda x: x
-        mock_ctypes.sizeof = lambda x: 80
-        mock_ctypes.c_ulong = type('c_ulong', (), {
-            '__init__': lambda self, v=0: setattr(self, 'value', v),
-            'value': 80,
-        })
+         patch(f'{MODULE}.SMCClient') as mc_cls, \
+         patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+         patch(f'{MODULE}.subprocess') as sub:
+        mc_cls.return_value = FakeSMCClient(mock_smc)
 
         def _run_side_effect(cmd, **kwargs):
             if 'powermetrics' in cmd:
@@ -150,10 +147,16 @@ def mock_macos(mock_io_no_nvidia, mock_iokit):
 
 @pytest.fixture
 def mock_macos_no_smc(mock_io_no_nvidia):
-    """macOS Apple Silicon without SMC access (no root)."""
+    """macOS Apple Silicon without SMC access."""
     with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
-         patch(f'{MODULE}._iokit', None), \
+         patch(f'{MODULE}.SMCClient') as mc_cls, \
+         patch(f'{MODULE}.hid_layer_ready', return_value=False), \
          patch(f'{MODULE}.subprocess') as sub:
+        inst = MagicMock()
+        inst.open.return_value = False
+        inst.connected = False
+        mc_cls.return_value = inst
+
         def _run_side_effect(cmd, **kwargs):
             if 'powermetrics' in cmd:
                 return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
@@ -167,10 +170,14 @@ def mock_macos_no_smc(mock_io_no_nvidia):
 
 @pytest.fixture
 def mock_macos_intel(mock_io_no_nvidia):
-    """macOS Intel enumerator without IOKit."""
+    """macOS Intel enumerator without SMC."""
     with patch(f'{MODULE}.IS_APPLE_SILICON', False), \
-         patch(f'{MODULE}._iokit', None), \
+         patch(f'{MODULE}.SMCClient') as mc_cls, \
          patch(f'{MODULE}.subprocess') as sub:
+        inst = MagicMock()
+        inst.open.return_value = False
+        inst.connected = False
+        mc_cls.return_value = inst
         sub.run.return_value = MagicMock(stdout='')
         mock_io_no_nvidia.subprocess = sub
         yield mock_io_no_nvidia
@@ -187,7 +194,16 @@ def enum_no_smc(mock_macos_no_smc):
 
 @pytest.fixture
 def enum_intel(mock_macos_intel):
-    """Discovered macOS Intel enumerator (no IOKit)."""
+    """Discovered macOS Intel enumerator (no SMC)."""
+    from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+    e = MacOSSensorEnumerator()
+    e.discover()
+    return e
+
+
+@pytest.fixture
+def enum_with_smc(mock_macos, mock_smc):
+    """Enumerator with working fake SMC (for SMC-specific assertions)."""
     from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
     e = MacOSSensorEnumerator()
     e.discover()
@@ -199,6 +215,7 @@ class TestDiscover:
 
     def test_apple_silicon_gpu_sensors_registered(self, enum_no_smc):
         ids = [s.id for s in enum_no_smc.get_sensors()]
+        assert 'iokit:cpu_power' in ids
         assert 'iokit:gpu_busy' in ids
         assert 'iokit:gpu_clock' in ids
         assert 'iokit:gpu_power' in ids
@@ -210,14 +227,20 @@ class TestDiscover:
         assert 'computed:date_year' in ids
 
     def test_no_smc_without_iokit(self, enum_no_smc):
-        """No SMC sensors when IOKit unavailable (no root)."""
+        """No SMC sensors when SMCClient.open fails."""
         assert not any(s.source == 'smc' for s in enum_no_smc.get_sensors())
 
     def test_intel_no_smc_without_iokit(self, enum_intel):
-        """Intel Mac without IOKit — no SMC sensors, psutil still works."""
+        """Intel Mac without SMC — no SMC sensors, psutil still works."""
         sensors = enum_intel.get_sensors()
         assert not any(s.source == 'smc' for s in sensors)
         assert any(s.source == 'psutil' for s in sensors)
+
+    def test_smc_sensors_when_client_works(self, enum_with_smc):
+        ids = [s.id for s in enum_with_smc.get_sensors()]
+        assert 'smc:Tp01' in ids
+        assert 'smc:F0Ac' in ids
+        assert 'smc:F1Ac' in ids
 
 
 class TestReadAll:
@@ -230,7 +253,6 @@ class TestReadAll:
         assert readings['iokit:gpu_clock'] == 1398.0
 
     def test_cpu_freq_from_powermetrics(self, enum_no_smc):
-        """Per-core max freq overrides psutil:cpu_freq."""
         readings = enum_no_smc.read_all()
         assert readings['psutil:cpu_freq'] == 2937.0
 
@@ -239,10 +261,21 @@ class TestReadAll:
         expected = round(400086323200 / 500107862016 * 100, 1)
         assert readings['computed:disk_percent'] == expected
 
+    def test_smc_readings_with_fake_client(self, enum_with_smc):
+        r = enum_with_smc.read_all()
+        assert abs(r['smc:Tp01'] - 45.0) < 0.1
+        assert r['smc:F0Ac'] == 1200.0
+
     def test_gpu_power_milliwatts(self, mock_io_no_nvidia):
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
-             patch(f'{MODULE}._iokit', None), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=False), \
              patch(f'{MODULE}.subprocess') as sub:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
             def _run(cmd, **kwargs):
                 if 'powermetrics' in cmd:
                     return MagicMock(stdout="GPU Power: 150 mW\n")
@@ -256,8 +289,14 @@ class TestReadAll:
 
     def test_powermetrics_failure_degrades_gracefully(self, mock_io_no_nvidia):
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
-             patch(f'{MODULE}._iokit', None), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=False), \
              patch(f'{MODULE}.subprocess') as sub:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
             def _run(cmd, **kwargs):
                 if 'powermetrics' in cmd:
                     raise RuntimeError("no root")
@@ -272,9 +311,15 @@ class TestReadAll:
 
     def test_diskutil_failure_falls_back_to_psutil(self, mock_io_no_nvidia):
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
-             patch(f'{MODULE}._iokit', None), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=False), \
              patch(f'{MODULE}.subprocess') as sub, \
              patch(f'{MODULE}.psutil') as mac_psutil:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
             def _run(cmd, **kwargs):
                 if 'diskutil' in cmd:
                     raise FileNotFoundError("no diskutil")
@@ -293,6 +338,7 @@ class TestMapDefaults:
 
     def test_gpu_mapping(self, enum_no_smc):
         mapping = enum_no_smc.map_defaults()
+        assert mapping['cpu_power'] == 'iokit:cpu_power'
         assert mapping['gpu_usage'] == 'iokit:gpu_busy'
         assert mapping['gpu_clock'] == 'iokit:gpu_clock'
         assert mapping['gpu_power'] == 'iokit:gpu_power'
@@ -307,37 +353,203 @@ class TestMapDefaults:
         assert mapping['net_total_up'] == 'computed:net_total_up'
         assert mapping['net_total_down'] == 'computed:net_total_down'
 
+    def test_cpu_temp_maps_smc(self, enum_with_smc):
+        m = enum_with_smc.map_defaults()
+        assert m['cpu_temp'] == 'smc:Tp01'
+
+    def test_apple_silicon_prefers_hid_over_smc_for_temps(self, mock_io_no_nvidia):
+        """Match iSMC: AS die temps come from HID hub; SMC Tp/Tg are fallback."""
+        smc = MockSMC()
+        smc.add_key('FNum', 'ui8', 0.0)
+        smc.add_key('Tp01', 'sp78', 45.0)
+        smc.add_key('Tg0f', 'sp78', 52.0)
+        hid_rows = [
+            ('hid:CPU_Perf', 'CPU Performance Core 1', 'temperature', '°C', 55.0),
+            ('hid:GPU_die', 'GPU die temp', 'temperature', '°C', 50.0),
+        ]
+        with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=True), \
+             patch(f'{MODULE}.read_hid_sensor_pairs', return_value=hid_rows), \
+             patch(f'{MODULE}.subprocess') as sub:
+            mc.return_value = FakeSMCClient(smc)
+
+            def _run(cmd, **kwargs):
+                if 'powermetrics' in cmd:
+                    return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                if 'diskutil' in cmd:
+                    return MagicMock(stdout=DISKUTIL_OUTPUT)
+                return MagicMock(stdout='')
+
+            sub.run.side_effect = _run
+            mock_io_no_nvidia.subprocess = sub
+            from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+            e = MacOSSensorEnumerator()
+            e.discover()
+            m = e.map_defaults()
+            assert m['cpu_temp'] == 'hid:CPU_Perf'
+            assert m['gpu_temp'] == 'hid:GPU_die'
+
+    def test_apple_silicon_hid_pmu_tdie_maps_cpu_gpu(self, mock_io_no_nvidia):
+        """PMU tdie HID names lack 'CPU'/'GPU' — mapping must still bind metrics."""
+        hid_rows = [
+            ('hid:PMU_tdie1', 'PMU_tdie1', 'temperature', '°C', 44.0),
+            ('hid:PMU_tdie9', 'PMU_tdie9', 'temperature', '°C', 43.0),
+        ]
+        with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=True), \
+             patch(f'{MODULE}.read_hid_sensor_pairs', return_value=hid_rows), \
+             patch(f'{MODULE}.subprocess') as sub:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
+            def _run(cmd, **kwargs):
+                if 'powermetrics' in cmd:
+                    return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                if 'diskutil' in cmd:
+                    return MagicMock(stdout=DISKUTIL_OUTPUT)
+                return MagicMock(stdout='')
+
+            sub.run.side_effect = _run
+            mock_io_no_nvidia.subprocess = sub
+            from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+            e = MacOSSensorEnumerator()
+            e.discover()
+            m = e.map_defaults()
+            assert m['cpu_temp'] == 'hid:PMU_tdie1'
+            assert m['gpu_temp'] == 'hid:PMU_tdie9'
+
 
 class TestSMCParsing:
-    """_parse_smc_bytes handles all SMC data types."""
+    """parse_smc_bytes handles SMC data types."""
 
     def test_sp78_temperature(self):
-        from trcc.adapters.system.macos.sensors import _parse_smc_bytes
+        from trcc.adapters.system.macos.smc_client import parse_smc_bytes
         dt = struct.unpack('>I', b'sp78')[0]
         raw = (ctypes.c_uint8 * 32)()
         val = struct.pack('>h', int(45.5 * 256))
         raw[0], raw[1] = val[0], val[1]
-        result = _parse_smc_bytes(dt, raw, 2)
+        result = parse_smc_bytes(dt, raw, 2)
         assert abs(result - 45.5) < 0.01
 
     def test_fpe2_fan_speed(self):
-        from trcc.adapters.system.macos.sensors import _parse_smc_bytes
+        from trcc.adapters.system.macos.smc_client import parse_smc_bytes
         dt = struct.unpack('>I', b'fpe2')[0]
         raw = (ctypes.c_uint8 * 32)()
         val = struct.pack('>H', int(1200 * 4))
         raw[0], raw[1] = val[0], val[1]
-        result = _parse_smc_bytes(dt, raw, 2)
+        result = parse_smc_bytes(dt, raw, 2)
         assert result == 1200.0
 
     def test_flt_float(self):
-        from trcc.adapters.system.macos.sensors import _parse_smc_bytes
+        from trcc.adapters.system.macos.smc_client import parse_smc_bytes
         dt = struct.unpack('>I', b'flt ')[0]
         raw = (ctypes.c_uint8 * 32)()
-        val = struct.pack('>f', 3.14)
+        val = struct.pack('<f', 3.14)
         for i, b in enumerate(val):
             raw[i] = b
-        result = _parse_smc_bytes(dt, raw, 4)
+        result = parse_smc_bytes(dt, raw, 4)
         assert abs(result - 3.14) < 0.01
+
+    def test_read_fan_rpm_fpe2_when_datatype_misparsed(self):
+        """Wrong SMC datatype can make parse_smc_bytes tiny; raw uint16/4 is RPM."""
+        from trcc.adapters.system.macos.smc_client import SMCClient
+
+        c = SMCClient()
+        buf = (ctypes.c_uint8 * 32)()
+        struct.pack_into('>H', buf, 0, int(1200 * 4))
+        dt_fp1f = struct.unpack('>I', b'fp1f')[0]
+
+        def fake_raw(_k: str):
+            return dt_fp1f, 2, buf
+
+        c._read_key_raw = fake_raw  # type: ignore[method-assign]
+        assert abs(c.read_fan_rpm('F0Ac') - 1200.0) < 0.01
+
+    def test_read_fan_rpm_prefers_fpe2_when_parsed_absurdly_high(self):
+        """Misparsed value in-band (~12k) vs fpe2 ~1.3k (matches iStat-style SMC)."""
+        from trcc.adapters.system.macos.smc_client import SMCClient
+
+        c = SMCClient()
+        buf = (ctypes.c_uint8 * 32)()
+        struct.pack_into('>H', buf, 0, int(1336 * 4))
+
+        def fake_raw(_k: str):
+            return struct.unpack('>I', b'ui16')[0], 2, buf
+
+        c._read_key_raw = fake_raw  # type: ignore[method-assign]
+        with patch(
+            'trcc.adapters.system.macos.smc_client.parse_smc_bytes',
+            return_value=12352.0,
+        ):
+            assert abs(c.read_fan_rpm('F0Ac') - 1336.0) < 0.5
+
+    def test_read_fan_rpm_literal_ui16_when_matches_raw(self):
+        from trcc.adapters.system.macos.smc_client import SMCClient
+
+        c = SMCClient()
+        buf = (ctypes.c_uint8 * 32)()
+        struct.pack_into('>H', buf, 0, 1336)
+        dt_ui16 = struct.unpack('>I', b'ui16')[0]
+
+        def fake_raw(_k: str):
+            return dt_ui16, 2, buf
+
+        c._read_key_raw = fake_raw  # type: ignore[method-assign]
+        assert abs(c.read_fan_rpm('F0Ac') - 1336.0) < 0.1
+
+    def test_read_fan_rpm_flt_apple_silicon_matches_ismc(self):
+        """F0Ac as flt (~1.3k RPM) — same encoding as ``ismc -o json``."""
+        from trcc.adapters.system.macos.smc_client import SMCClient
+
+        c = SMCClient()
+        buf = (ctypes.c_uint8 * 32)()
+        struct.pack_into('<f', buf, 0, 1339.0)
+        dt_flt = struct.unpack('>I', b'flt ')[0]
+
+        def fake_raw(_k: str):
+            return dt_flt, 4, buf
+
+        c._read_key_raw = fake_raw  # type: ignore[method-assign]
+        assert abs(c.read_fan_rpm('F0Ac') - 1339.0) < 0.5
+
+
+class TestHidDedupe:
+    def test_dedupe_hid_pairs_keeps_first_per_name(self):
+        from trcc.adapters.system.macos.hid_sensors import _dedupe_hid_pairs_by_name
+
+        pairs = [('PMU_tdie1', 40.0), ('PMU_tdie1', 41.0), ('PMU_tdie2', 39.0)]
+        assert _dedupe_hid_pairs_by_name(pairs) == [
+            ('PMU_tdie1', 40.0), ('PMU_tdie2', 39.0),
+        ]
+
+
+class TestHidThermalNormalize:
+    """Sanity bounds and sp78-style decoding for HID thermal floats."""
+
+    def test_direct_celsius(self):
+        from trcc.adapters.system.macos.hid_sensors import _normalize_hid_thermal_celsius
+
+        assert _normalize_hid_thermal_celsius('PMU_tdie1', 34.5) == 34.5
+
+    def test_tdev_raw_sp78(self):
+        from trcc.adapters.system.macos.hid_sensors import _normalize_hid_thermal_celsius
+
+        assert abs(_normalize_hid_thermal_celsius('PMU tdev2', 6400.0) - 25.0) < 0.01
+
+    def test_generic_sp78_range(self):
+        from trcc.adapters.system.macos.hid_sensors import _normalize_hid_thermal_celsius
+
+        assert abs(_normalize_hid_thermal_celsius('PMU_tdie9', 8704.0) - 34.0) < 0.01
+
+    def test_rejects_garbage_magnitude(self):
+        from trcc.adapters.system.macos.hid_sensors import _normalize_hid_thermal_celsius
+
+        assert _normalize_hid_thermal_celsius('PMU_tdie1', 1e200) is None
+        assert _normalize_hid_thermal_celsius('PMU_tdie1', float('nan')) is None
 
 
 class TestParseMetric:

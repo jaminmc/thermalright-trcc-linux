@@ -2336,6 +2336,8 @@ def format_metric(metric: str, value: float, time_format: int = 0,
         return f"{value:.0f}MB"
     elif metric.startswith('fan_'):
         return f"{value:.0f}RPM"
+    elif metric in ('cpu_power', 'gpu_power'):
+        return f"{value:.1f}W"
     elif metric == 'mem_available':
         if value >= 1024:
             return f"{value/1024:.1f}GB"

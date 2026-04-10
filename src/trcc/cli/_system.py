@@ -123,6 +123,51 @@ def show_info(builder=None, *, preview: bool = False, metric: str | None = None)
         return 1
 
 
+def list_sensors(builder=None, *, as_json: bool = False) -> int:
+    """Print all discovered sensors and current readings (macOS-focused; works on all OS)."""
+    try:
+        from trcc.cli import _ensure_system
+        from trcc.services.system import get_instance
+
+        if builder is not None:
+            _ensure_system(builder)
+        svc = get_instance()
+        svc._ensure_discovered()
+        readings = svc.read_all()
+        rows: list[dict[str, object]] = []
+        for s in sorted(svc.sensors, key=lambda x: (x.source, x.id)):
+            v = readings.get(s.id)
+            rows.append({
+                'id': s.id,
+                'name': s.name,
+                'category': s.category,
+                'unit': s.unit,
+                'source': s.source,
+                'value': v,
+            })
+        if as_json:
+            import json
+            print(json.dumps(rows, indent=2))
+            return 0
+        print(f"{'id':<40} {'category':<12} {'unit':<6} {'value':>14}  name")
+        print("=" * 100)
+        for r in rows:
+            sid = str(r['id'])[:39]
+            cat = str(r['category'])[:11]
+            unit = str(r['unit'])[:5]
+            val = r['value']
+            if isinstance(val, (int, float)):
+                disp = f"{float(val):.6g}"
+            else:
+                disp = '—'
+            print(f"{sid:<40} {cat:<12} {unit:<6} {disp:>14}  {r['name']}")
+        print(f"\n{len(rows)} sensors")
+        return 0
+    except Exception as e:
+        print(f"Error listing sensors: {e}")
+        return 1
+
+
 def setup_winusb() -> int:
     """Guide WinUSB driver installation for Thermalright USB devices (Windows only)."""
     from trcc.core.builder import ControllerBuilder

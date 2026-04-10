@@ -26,6 +26,7 @@ from ..core.models import format_metric as _format_metric
 _FLOAT_FIELDS: frozenset[str] = frozenset({
     'mem_available', 'disk_read', 'disk_write',
     'net_up', 'net_down', 'net_total_up', 'net_total_down',
+    'cpu_power', 'gpu_power',
 })
 
 if TYPE_CHECKING:

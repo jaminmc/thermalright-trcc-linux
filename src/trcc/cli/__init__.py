@@ -820,6 +820,17 @@ def _cmd_info(
     return _system.show_info(TrccApp.get(), preview=preview, metric=metric)
 
 
+@app.command("sensors", rich_help_panel="System")
+def _cmd_sensors(
+    as_json: Annotated[bool, typer.Option(
+        "--json", "-j", help="Print JSON (id, name, category, unit, source, value)",
+    )] = False,
+) -> int:
+    """List every discovered sensor and its current reading (useful on macOS / Apple Silicon)."""
+    from trcc.core.app import TrccApp
+    return _system.list_sensors(TrccApp.get(), as_json=as_json)
+
+
 @app.command("reset", rich_help_panel="LCD Display")
 def _cmd_reset(
     device: Annotated[Optional[str], typer.Option(
@@ -1295,6 +1306,7 @@ play_video = _display.play_video
 reset_device = _display.reset
 resume = _display.resume
 show_info = _system.show_info
+list_sensors = _system.list_sensors
 hid_debug = _diag.device_debug
 led_debug = _diag.led_debug_interactive
 setup_udev = _system.setup_udev
