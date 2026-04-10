@@ -26,6 +26,11 @@ jobs:
       - name: Install system dependencies
         run: |
           brew install libusb create-dmg p7zip ffmpeg
+          {
+            echo "HOMEBREW_PREFIX_LIBUSB=$(brew --prefix libusb)"
+            echo "HOMEBREW_PREFIX_P7ZIP=$(brew --prefix p7zip)"
+            echo "HOMEBREW_PREFIX_FFMPEG=$(brew --prefix ffmpeg)"
+          } >> "$GITHUB_ENV"
 
       - name: Install Python dependencies
         run: |
@@ -82,14 +87,18 @@ jobs:
       - name: Bundle dependencies
         run: |
           # Bundle 7z for theme extraction (p7zip is LGPL, redistributable)
-          cp "$(which 7z)" dist/TRCC.app/Contents/MacOS/7z
+          _7Z="${HOMEBREW_PREFIX_P7ZIP}/bin/7z"
+          if [ ! -x "$_7Z" ]; then
+            _7Z="${HOMEBREW_PREFIX_P7ZIP}/bin/7zz"
+          fi
+          cp "$_7Z" dist/TRCC.app/Contents/MacOS/7z
           # Bundle ffmpeg for video playback (LGPL, like C# app)
-          cp "$(which ffmpeg)" dist/TRCC.app/Contents/MacOS/ffmpeg
+          cp "${HOMEBREW_PREFIX_FFMPEG}/bin/ffmpeg" dist/TRCC.app/Contents/MacOS/ffmpeg
           # NOTE: no CLI symlink — macOS APFS is case-insensitive,
           # ln -sf TRCC .../trcc would DELETE the TRCC executable
 
           # Bundle libusb (pyusb loads via ctypes, PyInstaller misses it)
-          LIBUSB_DYLIB="$(brew --prefix libusb)/lib/libusb-1.0.dylib"
+          LIBUSB_DYLIB="${HOMEBREW_PREFIX_LIBUSB}/lib/libusb-1.0.dylib"
           if [ -f "$LIBUSB_DYLIB" ]; then
             cp "$LIBUSB_DYLIB" dist/TRCC.app/Contents/Frameworks/
           fi
@@ -102,9 +111,9 @@ jobs:
           echo "Python: $(python3 --version)"
           echo "PyInstaller: $(python3 -c 'import PyInstaller; print(PyInstaller.__version__)')"
           echo "PySide6: $(python3 -c 'import PySide6; print(PySide6.__version__)')"
-          echo "7z: $(which 7z || echo 'not found')"
-          echo "ffmpeg: $(which ffmpeg || echo 'not found')"
-          echo "libusb: $(brew --prefix libusb)/lib/libusb-1.0.dylib"
+          echo "7z: ${HOMEBREW_PREFIX_P7ZIP}/bin/7z (or 7zz)"
+          echo "ffmpeg: ${HOMEBREW_PREFIX_FFMPEG}/bin/ffmpeg"
+          echo "libusb: ${HOMEBREW_PREFIX_LIBUSB}/lib/libusb-1.0.dylib"
 
       - name: Verify bundled dependencies
         run: |

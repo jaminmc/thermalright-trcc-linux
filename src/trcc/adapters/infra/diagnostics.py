@@ -319,6 +319,47 @@ def _provides_search(dep: str, pm: str) -> str | None:
         return None
 
 
+def _brew_prefix(formula: str) -> str | None:
+    """Return ``brew --prefix <formula>`` stdout, or None if unavailable.
+
+    Used on macOS so dependency checks resolve Homebrew keg paths without
+    hardcoding ``/opt/homebrew`` or ``/usr/local``.
+    """
+    if sys.platform != 'darwin' or not shutil.which('brew'):
+        return None
+    try:
+        r = subprocess.run(
+            ['brew', '--prefix', formula],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if r.returncode != 0:
+            return None
+        p = r.stdout.strip()
+        return p or None
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
+def _darwin_libusb_dylib_path() -> str | None:
+    """``libusb-1.0.dylib`` under Homebrew prefix, if present."""
+    prefix = _brew_prefix('libusb')
+    if not prefix:
+        return None
+    candidate = Path(prefix) / 'lib' / 'libusb-1.0.dylib'
+    return str(candidate) if candidate.is_file() else None
+
+
+def _libusb_system_available() -> bool:
+    """True if libusb-1.0 is visible to the loader or installed under Homebrew."""
+    if ctypes.util.find_library('usb-1.0'):
+        return True
+    if sys.platform == 'darwin':
+        return _darwin_libusb_dylib_path() is not None
+    return False
+
+
 def _install_hint(dep: str, pm: str | None) -> str:
     """Build install command string, or generic fallback."""
     if pm and dep in _INSTALL_MAP and pm in _INSTALL_MAP[dep]:
@@ -386,7 +427,11 @@ def _check_library(
     label: str, so_name: str, required: bool, pm: str | None,
     dep_key: str = '',
 ) -> bool:
-    if ctypes.util.find_library(so_name):
+    if dep_key == 'libusb':
+        ok = _libusb_system_available()
+    else:
+        ok = bool(ctypes.util.find_library(so_name))
+    if ok:
         print(f"  {_OK}  {label}")
         return True
     hint = _install_hint(dep_key or label, pm)
@@ -610,7 +655,7 @@ def check_system_deps(
     ))
 
     if doctor_config.check_libusb:
-        libusb_ok = ctypes.util.find_library('usb-1.0') is not None
+        libusb_ok = _libusb_system_available()
         results.append(DepResult(
             name='libusb-1.0', ok=libusb_ok, required=True,
             install_cmd=_install_hint('libusb', pm),
