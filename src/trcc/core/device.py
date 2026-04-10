@@ -551,8 +551,14 @@ class Device:
 
     def _persist(self, field: str, value: object) -> None:
         dev = self._device_svc.selected if self._device_svc else None
-        if dev and self._lcd_config:
-            self._lcd_config.persist(dev, field, value)
+        if not dev:
+            self.log.debug("_persist: skipped %s — no device selected", field)
+            return
+        if not self._lcd_config:
+            self.log.debug("_persist: skipped %s — no lcd_config", field)
+            return
+        self._lcd_config.persist(dev, field, value)
+        self.log.debug("_persist: %s = %r", field, value)
 
     def persist_dirs(self) -> None:
         """Write device's native-resolution dirs to config."""
