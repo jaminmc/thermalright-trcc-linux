@@ -35,20 +35,6 @@ def _make_png(path: Path, w=10, h=10, color=(255, 0, 0)) -> Path:
 # =========================================================================
 
 class TestDeviceInit:
-    def test_default_no_services(self, lcd_empty):
-        assert lcd_empty.frame is lcd_empty
-        assert lcd_empty.overlay is lcd_empty
-        assert lcd_empty.video is lcd_empty
-        assert lcd_empty.theme is lcd_empty
-        assert lcd_empty.settings is lcd_empty
-
-    def test_injected_services_compose(self, lcd):
-        assert lcd.frame is lcd
-        assert lcd.overlay is lcd
-        assert lcd.video is lcd
-        assert lcd.theme is lcd
-        assert lcd.settings is lcd
-
     def test_connected_false_when_no_svc(self, lcd_empty):
         assert lcd_empty.connected is False
 
@@ -143,9 +129,8 @@ class TestDeviceConnect:
         svc.selected = dev
 
         lcd = Device(device_svc=svc, build_services_fn=_mock_build_services_fn())
-        assert lcd.frame is lcd
         lcd.connect()
-        assert lcd.frame is lcd
+        assert lcd.connected
 
 
 # =========================================================================
@@ -154,14 +139,14 @@ class TestDeviceConnect:
 
 class TestFrameOps:
     def test_send_image_missing_file(self, lcd):
-        result = lcd.frame.send_image("/nonexistent/file.png")
+        result = lcd.send_image("/nonexistent/file.png")
         assert result["success"] is False
         assert "File not found" in result["error"]
 
     def test_send_image_success(self, lcd, mock_device_svc, tmp_path):
         img_path = str(_make_png(tmp_path / "test.png", w=320, h=320))
 
-        result = lcd.frame.send_image(img_path)
+        result = lcd.send_image(img_path)
 
         assert result["success"] is True
         assert result["image"] is not None
@@ -169,7 +154,7 @@ class TestFrameOps:
         mock_device_svc.send_frame.assert_called_once()
 
     def test_send_color_success(self, lcd, mock_device_svc):
-        result = lcd.frame.send_color(255, 0, 0)
+        result = lcd.send_color(255, 0, 0)
 
         assert result["success"] is True
         assert "ff0000" in result["message"]
@@ -180,7 +165,7 @@ class TestFrameOps:
         assert r == 255 and g == 0 and b == 0
 
     def test_reset_sends_red_frame(self, lcd, mock_device_svc):
-        result = lcd.frame.reset()
+        result = lcd.reset()
 
         assert result["success"] is True
         assert "RED" in result["message"]

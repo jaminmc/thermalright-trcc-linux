@@ -79,15 +79,6 @@ def _make_real_lcd() -> tuple[Device, MagicMock]:
 class TestDeviceConstruction(unittest.TestCase):
     """Device construction and self-referencing accessors."""
 
-    def test_capability_accessors_point_to_self(self):
-        """frame/video/overlay/theme/settings all point to self."""
-        lcd = _make_lcd()
-        self.assertIs(lcd.frame, lcd)
-        self.assertIs(lcd.video, lcd)
-        self.assertIs(lcd.overlay, lcd)
-        self.assertIs(lcd.theme, lcd)
-        self.assertIs(lcd.settings, lcd)
-
     def test_stores_injected_services(self):
         svc = MagicMock()
         disp = MagicMock()
@@ -1015,10 +1006,7 @@ class TestDeviceProxyRouting:
         result = lcd.connect()
         assert result["success"]
         assert result["proxy"] == InstanceKind.GUI
-        # Capability accessors redirected to proxy
-        assert lcd.frame is proxy
-        assert lcd.theme is proxy
-        assert lcd.settings is proxy
+        assert lcd._proxy is proxy
 
     def test_connect_direct_when_no_active_instance(self):
         """When find_active_fn returns None, connect() goes direct."""

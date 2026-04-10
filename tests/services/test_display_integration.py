@@ -534,7 +534,7 @@ class TestDeviceIntegration:
         display_svc._clean_background = white
 
         with patch.object(lcd, '_persist'):
-            result = lcd.settings.set_brightness(1)  # level 1 = 25%
+            result = lcd.set_brightness(1)  # level 1 = 25%
         assert result['success'] is True
         assert result['image'] is not None
 

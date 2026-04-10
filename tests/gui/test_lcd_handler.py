@@ -356,10 +356,8 @@ class TestThemeSelection:
         path.__str__ = lambda self: '/themes/TestTheme'
 
         lcd_handler.select_theme_from_path(path, persist=True)
-        mock_settings.save_device_setting.assert_any_call(
-            'dev0', 'theme_name', path.name)
-        mock_settings.save_device_setting.assert_any_call(
-            'dev0', 'theme_type', 'local')
+        mock_settings.save_device_settings.assert_any_call(
+            'dev0', theme_name=path.name, theme_type='local', mask_id='')
 
     @patch('trcc.gui.lcd_handler.Settings')
     @patch('trcc.gui.lcd_handler.ThemeInfo')
@@ -421,12 +419,13 @@ class TestMask:
         lcd_handler._device_key = 'dev0'
         mask_info = MagicMock()
         mask_info.path = '/masks/01'
+        mask_info.is_custom = False
         mock_lcd_device.load_mask_standalone.return_value = {
             'success': True, 'image': MagicMock()}
         lcd_handler.apply_mask(mask_info)
         mock_lcd_device.load_mask_standalone.assert_called()
-        mock_settings.save_device_setting.assert_any_call(
-            'dev0', 'mask_id', '01')
+        mock_settings.save_device_settings.assert_any_call(
+            'dev0', mask_id='01', mask_custom=False)
 
     def test_apply_mask_no_path_sets_status(self, lcd_handler):
         mask_info = MagicMock()
