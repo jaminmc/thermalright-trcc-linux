@@ -262,6 +262,33 @@ class TestHidProtocol:
         assert "type=3" in repr(s)
 
     @patch("trcc.adapters.device.hid.PYUSB_AVAILABLE", True)
+    @patch("trcc.adapters.device.hid.HIDAPI_AVAILABLE", True)
+    @patch("trcc.adapters.device.hid.HidApiTransport")
+    @patch("trcc.adapters.device.hid.PyUsbTransport")
+    @patch("trcc.adapters.device.hid.HidDeviceManager.send_image")
+    def test_send_falls_back_to_hidapi_when_pyusb_permission_denied(
+        self, mock_send_hid, MockPyUsb, MockHidApi, *_,
+    ):
+        """macOS/Linux: EACCES on libusb open → hidapi (matches GUI without sudo)."""
+        import usb.core
+
+        mock_py = MagicMock()
+        mock_py.open.side_effect = usb.core.USBError('Permission denied', errno=13)
+        MockPyUsb.return_value = mock_py
+        mock_hid = MagicMock()
+        MockHidApi.return_value = mock_hid
+        mock_send_hid.return_value = True
+
+        s = HidProtocol(0x0416, 0x5302, 2)
+        result = s.send_image(b'\x00' * 100, 320, 320)
+
+        assert result is True
+        MockPyUsb.assert_called_once_with(0x0416, 0x5302)
+        MockHidApi.assert_called_once_with(0x0416, 0x5302)
+        mock_hid.open.assert_called_once()
+        mock_send_hid.assert_called_once_with(mock_hid, b'\x00' * 100, 2)
+
+    @patch("trcc.adapters.device.hid.PYUSB_AVAILABLE", True)
     @patch("trcc.adapters.device.hid.PyUsbTransport")
     @patch("trcc.adapters.device.hid.HidDeviceManager.send_image")
     def test_send_creates_pyusb_transport(self, mock_send_hid, MockPyUsb):

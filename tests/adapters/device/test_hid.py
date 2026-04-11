@@ -402,6 +402,12 @@ class TestType2FrameSend:
         dev, transport = self._init_device()
         assert dev.send_frame(b'\xFF' * 100) is True
 
+    def test_send_frame_true_when_hidapi_counts_report_id(self):
+        """macOS hidapi can return len(packet)+1 (report ID included in byte count)."""
+        dev, transport = self._init_device()
+        transport.write.return_value = TYPE2_INIT_SIZE + 1
+        assert dev.send_frame(b'\xAA' * 492) is True
+
     def test_send_frame_returns_false_on_zero_transfer(self):
         dev, transport = self._init_device()
         transport.write.return_value = 0
@@ -949,6 +955,31 @@ class TestPyUsbTransport:
 # HidApiTransport (mocked hidapi)
 # =========================================================================
 
+
+def _patch_hidapi_device_constructor(mock_dev):
+    """Patch hidapi constructor (``device`` or ``Device`` depending on hid build)."""
+    import trcc.adapters.device.hid as hid_mod
+
+    ctor = 'device' if getattr(hid_mod.hidapi, 'device', None) is not None else 'Device'
+    return patch.object(hid_mod.hidapi, ctor, return_value=mock_dev)
+
+
+class TestHidapiBlockingHelper:
+    """Regression: hidapi wheels differ on nonblocking vs set_nonblocking."""
+
+    def test_set_nonblocking_used_when_present(self):
+        from trcc.adapters.device.hid import _hidapi_set_blocking_reads
+
+        calls: list[int] = []
+
+        class Dev:
+            def set_nonblocking(self, v: int) -> None:
+                calls.append(v)
+
+        _hidapi_set_blocking_reads(Dev())
+        assert calls == [0]
+
+
 class TestHidApiTransport:
     """Test HidApiTransport with mocked hid module."""
 
@@ -965,14 +996,15 @@ class TestHidApiTransport:
 
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_open_calls_hid_device(self):
-        """open() creates hid.Device(vid, pid) directly."""
+        """open() builds ``hid.device()`` then ``open(vid, pid)`` (Cython hidapi)."""
         from trcc.adapters.device.hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev) as mock_cls:
+        with _patch_hidapi_device_constructor(mock_hid_dev) as mock_cls:
             t = HidApiTransport(0x0416, 0x5302)
             t.open()
-            mock_cls.assert_called_once_with(vid=0x0416, pid=0x5302)
+            mock_cls.assert_called_once_with()
+            mock_hid_dev.open.assert_called_once_with(0x0416, 0x5302)
             assert t.is_open
 
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
@@ -981,7 +1013,7 @@ class TestHidApiTransport:
         from trcc.adapters.device.hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev):
+        with _patch_hidapi_device_constructor(mock_hid_dev):
             t = HidApiTransport(0x0416, 0x5302)
             t.open()
             t.close()
@@ -995,7 +1027,7 @@ class TestHidApiTransport:
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.write.return_value = 5
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev):
+        with _patch_hidapi_device_constructor(mock_hid_dev):
             t = HidApiTransport(0x0416, 0x5302)
             t.open()
             t.write(EP_WRITE_02, b'\xFF\xFE\xFD\xFC')
@@ -1004,13 +1036,33 @@ class TestHidApiTransport:
             mock_hid_dev.write.assert_called_once_with(expected)
 
     @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
+    def test_darwin_type2_splits_payload_over_512_bytes(self):
+        """0416:5302 on macOS: frame-sized HID writes must be chunked (IOKit cap)."""
+        from trcc.adapters.device.hid import HidApiTransport
+
+        mock_hid_dev = MagicMock()
+        mock_hid_dev.write.side_effect = lambda rep: len(rep)
+        with (
+            _patch_hidapi_device_constructor(mock_hid_dev),
+            patch('sys.platform', 'darwin'),
+        ):
+            t = HidApiTransport(0x0416, 0x5302)
+            t.open()
+            payload = b'\xAB' * 600
+            n = t.write(EP_WRITE_02, payload, 1000)
+        assert n == 600
+        assert mock_hid_dev.write.call_count == 2
+        assert len(mock_hid_dev.write.call_args_list[0][0][0]) == 513
+        assert len(mock_hid_dev.write.call_args_list[1][0][0]) == 89
+
+    @pytest.mark.skipif(not HIDAPI_AVAILABLE, reason="hidapi not installed")
     def test_read_returns_bytes(self):
         """read() returns bytes from hid device."""
         from trcc.adapters.device.hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.read.return_value = [0xDA, 0xDB, 0xDC, 0xDD]
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev):
+        with _patch_hidapi_device_constructor(mock_hid_dev):
             t = HidApiTransport(0x0416, 0x5302)
             t.open()
             result = t.read(EP_READ_01, 512, timeout=100)
@@ -1024,7 +1076,7 @@ class TestHidApiTransport:
 
         mock_hid_dev = MagicMock()
         mock_hid_dev.read.return_value = None
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev):
+        with _patch_hidapi_device_constructor(mock_hid_dev):
             t = HidApiTransport(0x0416, 0x5302)
             t.open()
             result = t.read(EP_READ_01, 512, timeout=100)
@@ -1049,7 +1101,7 @@ class TestHidApiTransport:
         from trcc.adapters.device.hid import HidApiTransport
 
         mock_hid_dev = MagicMock()
-        with patch("trcc.adapters.device.hid.hidapi.Device", return_value=mock_hid_dev):
+        with _patch_hidapi_device_constructor(mock_hid_dev):
             with HidApiTransport(0x0416, 0x5302) as t:
                 assert t.is_open
             assert not t.is_open

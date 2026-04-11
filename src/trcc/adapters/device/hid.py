@@ -20,6 +20,7 @@ Linux dependencies (install one):
 
 import logging
 import struct
+import sys
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Set
@@ -166,6 +167,27 @@ def _ceil_to_512(n: int) -> int:
     return (n // USB_BULK_ALIGNMENT) * USB_BULK_ALIGNMENT + (
         USB_BULK_ALIGNMENT if n % USB_BULK_ALIGNMENT else 0
     )
+
+
+def _hidapi_set_blocking_reads(dev: Any) -> None:
+    """Use blocking reads where the hidapi Python binding allows it.
+
+    Some wheels expose ``set_nonblocking(0)`` only; older code used
+    ``device.nonblocking = 0`` (``hid.Device``).  Must run **after** the
+    device is opened — Cython ``hid.device`` raises ``ValueError: not open``
+    otherwise.  Missing either API is OK.
+    """
+    snb = getattr(dev, 'set_nonblocking', None)
+    if callable(snb):
+        try:
+            snb(0)
+        except ValueError:
+            pass
+        return
+    try:
+        dev.nonblocking = 0  # type: ignore[attr-defined]
+    except (AttributeError, TypeError):
+        pass
 
 
 # =========================================================================
@@ -438,7 +460,8 @@ class HidDeviceType2(HidDevice):
         # C#: Thread.Sleep(1) after frame transfer
         time.sleep(DELAY_FRAME_TYPE2_S)
 
-        return total == len(packet)
+        # hidapi on macOS may count the leading report-ID byte in the return value.
+        return total == len(packet) or total == len(packet) + 1
 
 
 # =========================================================================
@@ -839,15 +862,36 @@ class HidApiTransport(UsbTransport):
 
     def open(self) -> None:
         """Open HID device by VID/PID."""
-        kwargs: dict[str, Any] = {'vid': self._vid, 'pid': self._pid}
-        if self._serial:
-            kwargs['serial'] = self._serial
         # hidapi 0.14 uses Device (uppercase), 0.15+ uses device (lowercase)
         DeviceClass = getattr(hidapi, 'device', None) or getattr(hidapi, 'Device', None)
         if DeviceClass is None:
             raise ImportError("hidapi module has neither 'device' nor 'Device' class")
-        self._device = DeviceClass(**kwargs)
-        self._device.nonblocking = 0  # blocking reads
+
+        # Cython ``hid.device()`` is constructed closed; ``open(vid, pid, …)``
+        # must follow.  Older wheels passed vid/pid into the constructor instead.
+        try:
+            self._device = DeviceClass()
+        except TypeError:
+            kwargs: dict[str, Any] = {'vid': self._vid, 'pid': self._pid}
+            if self._serial:
+                kwargs['serial'] = self._serial
+            self._device = DeviceClass(**kwargs)
+        else:
+            open_fn = getattr(self._device, 'open', None)
+            if callable(open_fn):
+                if self._serial:
+                    try:
+                        open_fn(
+                            self._vid,
+                            self._pid,
+                            serial_number=self._serial,
+                        )
+                    except TypeError:
+                        open_fn(self._vid, self._pid, self._serial)
+                else:
+                    open_fn(self._vid, self._pid)
+
+        _hidapi_set_blocking_reads(self._device)
         self._is_open = True
 
     def close(self) -> None:
@@ -863,15 +907,37 @@ class HidApiTransport(UsbTransport):
     def write(self, endpoint: int, data: bytes, timeout: int = DEFAULT_TIMEOUT_MS) -> int:
         """Write data via HID output report.
 
-        HIDAPI write() prepends a report ID byte (0x00 for default).
-        We send the data with report ID 0.
+        HIDAPI expects a leading report ID byte (``0x00`` for the default ID).
 
-        Note: endpoint parameter is ignored — HIDAPI routes to the
-        device's single OUT endpoint.
+        On **macOS**, ``IOHIDDeviceSetReport`` for this Type 2 panel accepts only
+        the **512-byte** output payload the report descriptor declares.  A single
+        ``hid_write`` of a full padded frame (JPEG, etc.) hits
+        ``kIOReturnTimeout`` (``0xe00002d6``).  For VID/PID ``0416:5302`` we split
+        the logical payload into successive 512-byte chunks, each with the same
+        leading report ID, mirroring how a short interrupt OUT pipe carries long
+        buffers.
+
+        Note: *endpoint* is ignored — HIDAPI routes to the device's single OUT
+        endpoint.  *timeout* is accepted for API parity with :class:`PyUsbTransport`.
         """
         if not self._is_open or self._device is None:
             raise RuntimeError("Transport not open")
-        # HIDAPI expects report ID as first byte
+        if (
+            sys.platform == 'darwin'
+            and (self._vid & 0xFFFF, self._pid & 0xFFFF) == (TYPE2_VID, TYPE2_PID)
+            and len(data) > TYPE2_INIT_SIZE
+        ):
+            cap = TYPE2_INIT_SIZE
+            for off in range(0, len(data), cap):
+                chunk = data[off : off + cap]
+                report = bytes([0x00]) + chunk
+                n = self._device.write(report)
+                ok = isinstance(n, int) and n > 0 and (
+                    n == len(chunk) or n == len(chunk) + 1
+                )
+                if not ok:
+                    return int(n) if isinstance(n, int) else -1
+            return len(data)
         report = bytes([0x00]) + data
         return self._device.write(report)
 

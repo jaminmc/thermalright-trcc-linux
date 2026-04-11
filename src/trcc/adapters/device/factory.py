@@ -18,6 +18,7 @@ Usage::
     # LED: LedProtocol.send_led_data(colors, is_on, True, 100)
 """
 
+import inspect
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -37,7 +38,7 @@ _ERRNO_EACCES = 13  # Permission denied — udev rules missing.
 _ERRNO_EBUSY = 16   # Device claimed by another process (e.g. GUI).
 
 
-def _has_usb_errno(exc: Exception, errno_val: int) -> bool:
+def _has_usb_errno(exc: BaseException, errno_val: int) -> bool:
     """Check if exception chain contains a USB error with the given errno."""
     cur: Optional[BaseException] = exc
     while cur is not None:
@@ -55,6 +56,17 @@ def _permission_denied_hint() -> str:
     if MACOS:
         return "try running with sudo, or check System Settings > Privacy & Security"
     return "ensure you have permission to access USB devices"
+
+
+def _pyusb_open_should_try_hidapi(exc: BaseException) -> bool:
+    """True when PyUSB cannot access the device but the OS HID stack might."""
+    if _has_usb_errno(exc, _ERRNO_EACCES):
+        return True
+    if isinstance(exc, PermissionError):
+        return True
+    if getattr(exc, 'errno', None) == _ERRNO_EACCES:
+        return True
+    return False
 
 
 # =========================================================================
@@ -252,14 +264,36 @@ class UsbProtocol(DeviceProtocol):
         self._transport = None
 
     def _ensure_transport(self) -> None:
-        """Lazily open USB transport on first use."""
-        if self._transport is None:
-            log.debug("Opening %s transport: %04X:%04X",
-                      self.protocol_name, self._vid, self._pid)
-            self._transport = DeviceProtocolFactory.create_usb_transport(
-                self._vid, self._pid)
-            self._transport.open()
-            self._notify_state_changed("transport_open", True)
+        """Lazily open USB transport on first use.
+
+        If a previous PyUSB ``open()`` failed after assigning a transport
+        (older behaviour), or the handle was closed while the reference
+        remained, drop it and open again.  Prefer :meth:`open_usb_transport`
+        so macOS/Linux can fall back from libusb (permission denied) to
+        hidapi.
+        """
+        if self._transport is not None:
+            from .hid import HidApiTransport, PyUsbTransport
+
+            # Unit tests replace ``PyUsbTransport`` with a ``MagicMock`` instance;
+            # skip isinstance then and keep legacy "slot set == reuse" behaviour.
+            real_types = (
+                inspect.isclass(PyUsbTransport)
+                and inspect.isclass(HidApiTransport)
+                and isinstance(self._transport, (PyUsbTransport, HidApiTransport))
+            )
+            if real_types:
+                if self._transport.is_open:
+                    return
+                self._close_transport()
+            else:
+                return
+
+        log.debug("Opening %s transport: %04X:%04X",
+                  self.protocol_name, self._vid, self._pid)
+        self._transport = DeviceProtocolFactory.open_usb_transport(
+            self._vid, self._pid)
+        self._notify_state_changed("transport_open", True)
 
     def _close_transport(self) -> None:
         """Close USB transport and notify observers."""
@@ -744,8 +778,55 @@ class DeviceProtocolFactory:
         return shutil.which("sg_raw") is not None
 
     @staticmethod
+    def open_usb_transport(vid: int, pid: int):
+        """Create and open a USB transport: PyUSB first, hidapi on access errors.
+
+        libusb (PyUSB) often needs extra permissions while hidapi talks to the
+        same HID device through the OS driver — important for Type 2 LCDs on
+        macOS without raw USB access.
+        """
+        from .hid import HIDAPI_AVAILABLE, HidApiTransport, PYUSB_AVAILABLE, PyUsbTransport
+
+        if PYUSB_AVAILABLE:
+            t = PyUsbTransport(vid, pid)
+            try:
+                t.open()
+                return t
+            except BaseException as e:
+                try:
+                    t.close()
+                except BaseException:
+                    pass
+                if HIDAPI_AVAILABLE and _pyusb_open_should_try_hidapi(e):
+                    log.warning(
+                        "PyUSB open failed for %04X:%04X (%s); using hidapi instead",
+                        vid & 0xFFFF,
+                        pid & 0xFFFF,
+                        e,
+                    )
+                    t2 = HidApiTransport(vid, pid)
+                    t2.open()
+                    return t2
+                raise
+
+        if HIDAPI_AVAILABLE:
+            t2 = HidApiTransport(vid, pid)
+            t2.open()
+            return t2
+
+        raise ImportError(
+            "No USB backend available. Install pyusb or hidapi:\n"
+            "  pip install pyusb   (+ apt install libusb-1.0-0)\n"
+            "  pip install hidapi  (+ apt install libhidapi-dev)"
+        )
+
+    @staticmethod
     def create_usb_transport(vid: int, pid: int):
-        """Create the best available USB transport (pyusb preferred, hidapi fallback)."""
+        """Create an **unopened** USB transport (pyusb preferred, else hidapi).
+
+        Prefer :meth:`open_usb_transport` when you need an opened handle;
+        this factory is for callers that manage ``open()``/``close()`` themselves.
+        """
         from .hid import HIDAPI_AVAILABLE, PYUSB_AVAILABLE
         if PYUSB_AVAILABLE:
             from .hid import PyUsbTransport
