@@ -2,6 +2,9 @@
 
 ## v9.4.5
 
+### Features
+- **macOS `TRCC.app` default launch**: Opening the PyInstaller app from Finder with no subcommand now runs **`setup-gui`** on first launch and **`gui`** afterwards (instead of printing Typer help to nowhere and exiting). First run is tracked with **`~/.trcc/.macos_app_onboarding_done`**; delete that file to show the setup wizard again on the next app open.
+
 ### Fixes
 - **setup-gui freeze on macOS** (#115): Window opened behind Terminal with no `^C` support. Added SIGINT handler + `raise_()`/`activateWindow()` for window visibility. Made checks platform-aware via `DoctorPlatformConfig` — skips udev/SELinux/desktop entry on macOS.
 - **GPU shows 0 on LED after autostart** (#110): `pynvml.nvmlInit()` ran once at module import — if NVIDIA driver wasn't loaded yet (common on boot), GPU sensors were permanently unavailable. Now lazy-inits via `_ensure_nvml()` with retry each poll cycle. `_ensure_nvidia_ready()` handles late discovery + mapping invalidation.

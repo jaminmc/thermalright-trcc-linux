@@ -777,6 +777,23 @@ trcc doctor
 
 Download [`trcc-latest-macos.dmg`](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest/download/trcc-latest-macos.dmg) from the [latest release](https://github.com/Lexonight1/thermalright-trcc-linux/releases/latest), open the DMG, and drag **TRCC** to Applications.
 
+### Opening TRCC from Finder or Launchpad
+
+The **TRCC** application is a windowed PyInstaller bundle: it has no terminal, so running it without a Typer subcommand used to print help and exit (it looked like the app “closed immediately”). That launch path is now handled explicitly:
+
+| Situation | What runs |
+|-----------|-----------|
+| First time you open the app (no marker file) | **`setup-gui`** — dependency / system checks wizard |
+| Later opens | **`gui`** — main LCD Control Center |
+
+First-run completion is recorded with an empty marker file: **`~/.trcc/.macos_app_onboarding_done`**. It is created after the first auto-started **`setup-gui`** session returns (any exit code). **To show the setup wizard again on the next app launch**, delete that file:
+
+```bash
+rm -f ~/.trcc/.macos_app_onboarding_done
+```
+
+macOS may pass a **`-psn_…`** argument when you double-click a `.app`; that is ignored for deciding the default command. If you pass a real subcommand yourself (for example from Terminal), nothing is injected — see **CLI access** below.
+
 **Requirements:**
 - macOS 11+ (Big Sur or later)
 - Install `libusb`: `brew install libusb`
@@ -811,9 +828,17 @@ Allowed tokens: `thermal`, `battery`, `network`, `disk` (unknown names are ignor
 **Signing and Apple Developer Program:** Installing this helper **does not require** a paid Apple Developer account — only a local administrator password. A paid membership is for **Developer ID** signing and **notarization**, which reduces Gatekeeper prompts when users download software from the internet; it is not required to load this LaunchDaemon or use TRCC on your own Mac.
 
 **CLI access:**
+
+The executable inside the bundle is the same Typer entry point as `pip install` — pass subcommands after it (Finder does not).
+
 ```bash
 # Add to your shell profile for CLI access:
 alias trcc='/Applications/TRCC.app/Contents/MacOS/TRCC'
+
+# Examples (explicit subcommands — always use these from a shell):
+trcc gui
+trcc setup-gui
+trcc detect --all
 ```
 
 ---

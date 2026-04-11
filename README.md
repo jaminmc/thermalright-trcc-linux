@@ -79,6 +79,8 @@ Pre-built packages are available for every major distro. No pip, no venv, no PEP
 
 Each guide has a one-liner copy-paste command and step-by-step instructions. After installing, unplug and replug the USB cable, then run `trcc gui`.
 
+> **macOS (DMG):** The **TRCC** app runs the graphical setup wizard on first open, then the main GUI on later opens. From a shell, use `/Applications/TRCC.app/Contents/MacOS/TRCC` with subcommands as usual — details in the [macOS section](doc/GUIDE_INSTALL.md#macos-experimental).
+
 ### Verify your download
 
 Every release includes a `SHA256SUMS.txt` file. Download it from the same release page, then:

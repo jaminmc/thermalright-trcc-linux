@@ -29,6 +29,8 @@ logging.basicConfig(
 log = logging.getLogger('trcc.main')
 log.info("Starting TRCC — platform=%s, executable=%s", sys.platform, sys.executable)
 
+# macOS ``TRCC.app`` (PyInstaller): see ``trcc.core.macos_app_bundle_launch``.
+
 # Windows: ensure libusb-1.0.dll is findable by pyusb (ctypes).
 # PyInstaller bundles the DLL next to the exe, but Python 3.8+ on Windows
 # doesn't search the exe's directory for ctypes DLLs unless explicitly told.
@@ -48,7 +50,28 @@ try:
         sys.exit(gui() or 0)
     else:
         from trcc.cli import main
-        sys.exit(main())
+        from trcc.core.macos_app_bundle_launch import (
+            ONBOARDING_MARKER,
+            subcommand_for_bundle_double_click,
+        )
+
+        _auto = subcommand_for_bundle_double_click(
+            sys.argv,
+            platform=sys.platform,
+            frozen=getattr(sys, 'frozen', False),
+            executable=sys.executable,
+        )
+        if _auto:
+            sys.argv.append(_auto)
+        _touch_macos_onboarding = _auto == 'setup-gui'
+
+        _exit_code = main()
+        if _touch_macos_onboarding:
+            try:
+                ONBOARDING_MARKER.touch()
+            except OSError as _e:
+                log.warning('Could not write macOS .app onboarding marker: %s', _e)
+        sys.exit(_exit_code if isinstance(_exit_code, int) else 0)
 except Exception:
     log.critical("Fatal startup error", exc_info=True)
     raise

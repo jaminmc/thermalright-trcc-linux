@@ -15,6 +15,19 @@ trcc [--version] [-v] <command> [options]
 | `--version` | Show version and exit |
 | `-v` | Increase verbosity (`-v` info, `-vv` debug) |
 
+### macOS application bundle (`TRCC.app`)
+
+When the frozen **TRCC** app is started from Finder or Launchpad **with no CLI arguments**, TRCC runs **`trcc setup-gui`** once, then **`trcc gui`** on every later launch. An empty marker file **`~/.trcc/.macos_app_onboarding_done`** is written after the first **`setup-gui`** session ends; remove it if you want the wizard to open again on the next double-click. Finder may add a **`-psn_…`** argument; that does not count as a user subcommand.
+
+From Terminal you can call the executable with any command, for example:
+
+```bash
+/Applications/TRCC.app/Contents/MacOS/TRCC gui
+/Applications/TRCC.app/Contents/MacOS/TRCC detect --all
+```
+
+See also [Install Guide — macOS](GUIDE_INSTALL.md#macos-experimental).
+
 ---
 
 ## Commands
