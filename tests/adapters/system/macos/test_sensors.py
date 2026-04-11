@@ -9,6 +9,7 @@ Mock at I/O boundary: subprocess for powermetrics/diskutil, SMCClient, HID.
 from __future__ import annotations
 
 import ctypes
+import plistlib
 import struct
 from unittest.mock import MagicMock, patch
 
@@ -16,7 +17,41 @@ import pytest
 
 MODULE = 'trcc.adapters.system.macos.sensors'
 
-# powermetrics --samplers gpu_power output (no smc sampler — Tahoe compatible)
+
+def _powermetrics_plist_fixture() -> bytes:
+    """``powermetrics -f plist``-shaped sample matching prior text parser expectations."""
+    proc = {
+        'cpu_power': 1000.0,
+        'gpu_power': 4500.0,
+        'ane_power': 0.0,
+        'combined_power': 5500.0,
+        'cpu_energy': 1,
+        'gpu_energy': 1,
+        'ane_energy': 0,
+        'clusters': [
+            {'cpus': [
+                {'cpu': 0, 'freq_hz': 1690e6},
+                {'cpu': 4, 'freq_hz': 2937e6},
+            ]},
+        ],
+    }
+    gpu = {
+        'freq_hz': 1398.0,
+        'idle_ratio': 0.69,
+        'dvfm_states': [
+            {'freq': 389, 'used_ns': 1, 'used_ratio': 0.13},
+            {'freq': 648, 'used_ns': 1, 'used_ratio': 0.18},
+        ],
+        'sw_requested_state': [],
+        'gpu_energy': 1,
+    }
+    return plistlib.dumps({'processor': proc, 'gpu': gpu}, fmt=plistlib.FMT_XML)
+
+
+# powermetrics -f plist (Apple Silicon); text fallback tested separately
+POWERMETRICS_PLIST_BYTES = _powermetrics_plist_fixture()
+
+# Legacy human-readable output (text fallback path)
 POWERMETRICS_GPU_OUTPUT = (
     "GPU active residency: 31%\n"
     "GPU Power: 4.5 W\n"
@@ -131,12 +166,13 @@ def mock_macos(mock_io_no_nvidia, mock_smc):
     with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
          patch(f'{MODULE}.SMCClient') as mc_cls, \
          patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+         patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
          patch(f'{MODULE}.subprocess') as sub:
         mc_cls.return_value = FakeSMCClient(mock_smc)
 
         def _run_side_effect(cmd, **kwargs):
             if 'powermetrics' in cmd:
-                return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                return MagicMock(stdout=POWERMETRICS_PLIST_BYTES)
             if 'diskutil' in cmd:
                 return MagicMock(stdout=DISKUTIL_OUTPUT)
             return MagicMock(stdout='')
@@ -151,6 +187,7 @@ def mock_macos_no_smc(mock_io_no_nvidia):
     with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
          patch(f'{MODULE}.SMCClient') as mc_cls, \
          patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+         patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
          patch(f'{MODULE}.subprocess') as sub:
         inst = MagicMock()
         inst.open.return_value = False
@@ -159,7 +196,7 @@ def mock_macos_no_smc(mock_io_no_nvidia):
 
         def _run_side_effect(cmd, **kwargs):
             if 'powermetrics' in cmd:
-                return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                return MagicMock(stdout=POWERMETRICS_PLIST_BYTES)
             if 'diskutil' in cmd:
                 return MagicMock(stdout=DISKUTIL_OUTPUT)
             return MagicMock(stdout='')
@@ -173,6 +210,7 @@ def mock_macos_intel(mock_io_no_nvidia):
     """macOS Intel enumerator without SMC."""
     with patch(f'{MODULE}.IS_APPLE_SILICON', False), \
          patch(f'{MODULE}.SMCClient') as mc_cls, \
+         patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
          patch(f'{MODULE}.subprocess') as sub:
         inst = MagicMock()
         inst.open.return_value = False
@@ -219,6 +257,8 @@ class TestDiscover:
         assert 'iokit:gpu_busy' in ids
         assert 'iokit:gpu_clock' in ids
         assert 'iokit:gpu_power' in ids
+        assert 'iokit:ane_power' in ids
+        assert 'iokit:combined_power' in ids
 
     def test_base_sensors_registered(self, enum_no_smc):
         ids = [s.id for s in enum_no_smc.get_sensors()]
@@ -251,10 +291,41 @@ class TestReadAll:
         assert readings['iokit:gpu_busy'] == 31.0
         assert readings['iokit:gpu_power'] == 4.5
         assert readings['iokit:gpu_clock'] == 1398.0
+        assert readings['iokit:combined_power'] == pytest.approx(5.5)
+        assert readings['iokit:ane_power'] == 0.0
 
     def test_cpu_freq_from_powermetrics(self, enum_no_smc):
         readings = enum_no_smc.read_all()
         assert readings['psutil:cpu_freq'] == 2937.0
+
+    def test_powermetrics_text_fallback_when_plist_empty(self, mock_io_no_nvidia):
+        """If plist samples are empty, fall back to human-readable powermetrics."""
+        with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
+             patch(f'{MODULE}.subprocess') as sub:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
+            def _run(cmd, **kwargs):
+                if 'diskutil' in cmd:
+                    return MagicMock(stdout=DISKUTIL_OUTPUT)
+                if 'powermetrics' in cmd and isinstance(cmd, list) and '-f' in cmd:
+                    return MagicMock(stdout=b'')
+                if 'powermetrics' in cmd:
+                    return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                return MagicMock(stdout='')
+
+            sub.run.side_effect = _run
+            from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+            e = MacOSSensorEnumerator()
+            e.discover()
+            readings = e.read_all()
+            assert readings['iokit:gpu_busy'] == 31.0
+            assert readings['iokit:gpu_power'] == 4.5
 
     def test_apfs_disk_percent(self, enum_no_smc):
         readings = enum_no_smc.read_all()
@@ -270,6 +341,7 @@ class TestReadAll:
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
              patch(f'{MODULE}.SMCClient') as mc, \
              patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
              patch(f'{MODULE}.subprocess') as sub:
             inst = MagicMock()
             inst.open.return_value = False
@@ -278,7 +350,25 @@ class TestReadAll:
 
             def _run(cmd, **kwargs):
                 if 'powermetrics' in cmd:
-                    return MagicMock(stdout="GPU Power: 150 mW\n")
+                    mini = plistlib.dumps({
+                        'processor': {
+                            'gpu_power': 150.0,
+                            'cpu_power': 1.0,
+                            'ane_power': 0.0,
+                            'combined_power': 151.0,
+                            'cpu_energy': 1,
+                            'gpu_energy': 1,
+                            'ane_energy': 0,
+                        },
+                        'gpu': {
+                            'freq_hz': 500.0,
+                            'idle_ratio': 1.0,
+                            'dvfm_states': [],
+                            'sw_requested_state': [],
+                            'gpu_energy': 1,
+                        },
+                    }, fmt=plistlib.FMT_XML)
+                    return MagicMock(stdout=mini)
                 return MagicMock(stdout='')
             sub.run.side_effect = _run
             from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
@@ -291,6 +381,7 @@ class TestReadAll:
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
              patch(f'{MODULE}.SMCClient') as mc, \
              patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
              patch(f'{MODULE}.subprocess') as sub:
             inst = MagicMock()
             inst.open.return_value = False
@@ -313,6 +404,7 @@ class TestReadAll:
         with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
              patch(f'{MODULE}.SMCClient') as mc, \
              patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
              patch(f'{MODULE}.subprocess') as sub, \
              patch(f'{MODULE}.psutil') as mac_psutil:
             inst = MagicMock()
@@ -323,7 +415,7 @@ class TestReadAll:
             def _run(cmd, **kwargs):
                 if 'diskutil' in cmd:
                     raise FileNotFoundError("no diskutil")
-                return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                return MagicMock(stdout=POWERMETRICS_PLIST_BYTES)
             sub.run.side_effect = _run
             mac_psutil.disk_usage.return_value = MagicMock(percent=55.0)
             from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
@@ -371,12 +463,13 @@ class TestMapDefaults:
              patch(f'{MODULE}.SMCClient') as mc, \
              patch(f'{MODULE}.hid_layer_ready', return_value=True), \
              patch(f'{MODULE}.read_hid_sensor_pairs', return_value=hid_rows), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
              patch(f'{MODULE}.subprocess') as sub:
             mc.return_value = FakeSMCClient(smc)
 
             def _run(cmd, **kwargs):
                 if 'powermetrics' in cmd:
-                    return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                    return MagicMock(stdout=POWERMETRICS_PLIST_BYTES)
                 if 'diskutil' in cmd:
                     return MagicMock(stdout=DISKUTIL_OUTPUT)
                 return MagicMock(stdout='')
@@ -400,6 +493,7 @@ class TestMapDefaults:
              patch(f'{MODULE}.SMCClient') as mc, \
              patch(f'{MODULE}.hid_layer_ready', return_value=True), \
              patch(f'{MODULE}.read_hid_sensor_pairs', return_value=hid_rows), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=None), \
              patch(f'{MODULE}.subprocess') as sub:
             inst = MagicMock()
             inst.open.return_value = False
@@ -408,7 +502,7 @@ class TestMapDefaults:
 
             def _run(cmd, **kwargs):
                 if 'powermetrics' in cmd:
-                    return MagicMock(stdout=POWERMETRICS_GPU_OUTPUT)
+                    return MagicMock(stdout=POWERMETRICS_PLIST_BYTES)
                 if 'diskutil' in cmd:
                     return MagicMock(stdout=DISKUTIL_OUTPUT)
                 return MagicMock(stdout='')
@@ -421,6 +515,35 @@ class TestMapDefaults:
             m = e.map_defaults()
             assert m['cpu_temp'] == 'hid:PMU_tdie1'
             assert m['gpu_temp'] == 'hid:PMU_tdie9'
+
+    def test_powermetrics_helper_skips_subprocess(self, mock_io_no_nvidia):
+        """When fetch_powermetrics_bytes returns data, subprocess is not used."""
+        with patch(f'{MODULE}.IS_APPLE_SILICON', True), \
+             patch(f'{MODULE}.SMCClient') as mc, \
+             patch(f'{MODULE}.hid_layer_ready', return_value=False), \
+             patch(f'{MODULE}.fetch_powermetrics_bytes', return_value=POWERMETRICS_PLIST_BYTES), \
+             patch(f'{MODULE}.subprocess') as sub:
+            inst = MagicMock()
+            inst.open.return_value = False
+            inst.connected = False
+            mc.return_value = inst
+
+            def _run(cmd, **kwargs):
+                if 'diskutil' in cmd:
+                    return MagicMock(stdout=DISKUTIL_OUTPUT)
+                pytest.fail(f'unexpected subprocess: {cmd!r}')
+
+            sub.run.side_effect = _run
+
+            from trcc.adapters.system.macos.sensors import MacOSSensorEnumerator
+            e = MacOSSensorEnumerator()
+            e.discover()
+            readings = e.read_all()
+            assert readings['iokit:gpu_busy'] == 31.0
+            for c in sub.run.call_args_list:
+                argv = c.args[0] if c.args else ()
+                if argv and argv[0] == 'powermetrics':
+                    pytest.fail('powermetrics subprocess should not run when helper returns data')
 
 
 class TestSMCParsing:

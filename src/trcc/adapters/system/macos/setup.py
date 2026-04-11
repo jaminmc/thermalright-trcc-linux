@@ -186,7 +186,10 @@ class MacOSSetup(PlatformSetup):
         print("  Step 2/2: USB access")
         print("    SCSI devices need sudo to detach the kernel driver.")
         print("    HID devices work without root.")
-        print("    Apple Silicon: sensor reading needs sudo for powermetrics.")
+        print(
+            "    Apple Silicon: powermetrics needs root — use the optional "
+            "trcc-powermetrics-helper LaunchDaemon (native/macos/) or sudo.",
+        )
         print()
 
         _print_summary(actions)

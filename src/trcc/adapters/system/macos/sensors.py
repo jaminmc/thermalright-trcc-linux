@@ -4,14 +4,16 @@ Platform-specific sources:
 - IOKit SMC (gosmc-aligned client): temperatures, fans, and electrical rails
   (power / voltage / current tables derived from iSMC smc/sensors.go, GPL-3.0)
 - IOKit HID event client (Apple Silicon): thermal / current / voltage sensor hub
-- powermetrics: CPU/GPU power, GPU residency/clock, CPU core freqs (Apple Silicon)
+- powermetrics: CPU/GPU/ANE/combined power, GPU residency/clock, CPU core freqs (Apple Silicon),
+  parsed from ``powermetrics -f plist`` (text fallback). Optional root helper
+  (``native/macos/trcc_powermetrics_helper/``) or subprocess (sudo for the app process).
 - psutil: CPU usage/frequency, memory, disk I/O, network I/O
 - pynvml: NVIDIA GPU (rare on Mac, eGPU only)
 
 Sensor IDs:
     smc:{key}              e.g., smc:TC0P, smc:PCPT (watts), smc:VD0R (volts)
     hid:{slug}             HID product-derived id (Apple Silicon)
-    iokit:{sensor}         e.g., iokit:cpu_power, iokit:gpu_busy (powermetrics)
+    iokit:{sensor}         e.g., iokit:cpu_power, iokit:combined_power (powermetrics plist)
     psutil:{metric}        e.g., psutil:cpu_percent
     nvidia:{gpu}:{metric}  e.g., nvidia:0:temp
     computed:{metric}      e.g., computed:disk_read
@@ -19,7 +21,7 @@ Sensor IDs:
 from __future__ import annotations
 
 import logging
-import platform
+import plistlib
 import re
 import subprocess
 
@@ -31,14 +33,20 @@ from trcc.adapters.system.macos.hid_sensors import (
     poll_hid_readings,
     read_hid_sensor_pairs,
 )
+from trcc.adapters.system.macos.powermetrics_extra import (
+    extra_sensor_infos,
+    full_powermetrics_sampler_csv,
+    readings_from_powermetrics_extras,
+)
+from trcc.adapters.system.macos.powermetrics_ipc import fetch_powermetrics_bytes
+from trcc.adapters.system.macos.powermetrics_plist import parse_powermetrics_plist_root
 from trcc.adapters.system.macos.smc_client import (
     SMCClient,
     SMCKeyData_t,
-)
-from trcc.adapters.system.macos.smc_client import (
     parse_smc_bytes as _parse_smc_bytes,
 )
 from trcc.adapters.system.macos.smc_ismc_tables import ISMCSMC_ELECTRICAL_KEYS
+from trcc.adapters.system.macos.hardware import _is_apple_silicon
 from trcc.core.models import SensorInfo
 
 log = logging.getLogger(__name__)
@@ -49,7 +57,7 @@ __all__ = [
     '_parse_smc_bytes',
 ]
 
-IS_APPLE_SILICON = platform.machine() == 'arm64'
+IS_APPLE_SILICON = _is_apple_silicon()
 
 # Reject garbage SMC floats (wrong key / datatype) from discovery and poll.
 _SMC_TEMP_C_MIN = -30.0
@@ -156,6 +164,78 @@ def _parse_metric(line: str) -> float:
     return 0.0
 
 
+def _merge_powermetrics_text(readings: dict[str, float], stdout: str) -> None:
+    """Legacy line parser for ``powermetrics`` human-readable output."""
+    cpu_core_freqs: list[float] = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        lo = line.lower()
+
+        if (
+            'iokit:gpu_busy' not in readings
+            and 'gpu' in lo
+            and any(kw in lo for kw in (
+                'active residency', 'usage', 'utilization', 'busy',
+            ))
+        ):
+            m = re.search(r'([\d.]+)\s*%', line)
+            if m:
+                v = float(m.group(1))
+                if 0.0 <= v <= 100.0:
+                    readings['iokit:gpu_busy'] = v
+
+        elif (
+            'iokit:gpu_power' not in readings
+            and 'gpu' in lo
+            and 'power' in lo
+        ):
+            mw = re.search(r'([\d.]+)\s*mW', line, re.IGNORECASE)
+            w = re.search(r'([\d.]+)\s*W\b', line, re.IGNORECASE)
+            if mw:
+                readings['iokit:gpu_power'] = float(mw.group(1)) / 1000.0
+            elif w:
+                readings['iokit:gpu_power'] = float(w.group(1))
+
+        elif 'iokit:cpu_power' not in readings and (
+            'power' in lo or 'watts' in lo or re.search(r'\d\s*mW', line, re.I)
+        ):
+            if 'ane' in lo or 'neural engine' in lo:
+                pass
+            elif re.search(
+                r'\b(cpu|package|cluster|soc)\b', lo,
+            ) and not re.search(r'^\s*gpu\b', lo):
+                mw = re.search(r'([\d.]+)\s*mW', line, re.IGNORECASE)
+                w = re.search(r'([\d.]+)\s*W\b', line, re.IGNORECASE)
+                v_w: float | None = None
+                if mw:
+                    v_w = float(mw.group(1)) / 1000.0
+                elif w:
+                    v_w = float(w.group(1))
+                if v_w is not None and 0.0 <= v_w <= 500.0:
+                    readings['iokit:cpu_power'] = v_w
+
+        elif (
+            'iokit:gpu_clock' not in readings
+            and 'gpu' in lo
+            and 'mhz' in lo
+        ):
+            m = re.search(r'([\d.]+)\s*MHz', line, re.IGNORECASE)
+            if m and 100.0 <= float(m.group(1)) <= 4000.0:
+                readings['iokit:gpu_clock'] = float(m.group(1))
+
+        else:
+            m = re.match(
+                r'cpu\s+\d+\s+frequency:\s*([\d.]+)\s*mhz', lo,
+            )
+            if m:
+                v = float(m.group(1))
+                if 1.0 <= v <= 8000.0:
+                    cpu_core_freqs.append(v)
+
+    if cpu_core_freqs:
+        readings['psutil:cpu_freq'] = max(cpu_core_freqs)
+
+
 class MacOSSensorEnumerator(SensorEnumeratorBase):
     """Discovers and reads hardware sensors on macOS."""
 
@@ -258,10 +338,13 @@ class MacOSSensorEnumerator(SensorEnumeratorBase):
             ('iokit:gpu_busy', 'GPU Usage', 'gpu_busy', '%'),
             ('iokit:gpu_clock', 'GPU Clock', 'clock', 'MHz'),
             ('iokit:gpu_power', 'GPU Power', 'power', 'W'),
+            ('iokit:ane_power', 'ANE Power', 'power', 'W'),
+            ('iokit:combined_power', 'SoC Combined Power', 'power', 'W'),
         ):
             self._sensors.append(
                 SensorInfo(sid, name, category, unit, 'iokit'),
             )
+        self._sensors.extend(extra_sensor_infos())
 
     def _on_stop(self) -> None:
         self._smc.close()
@@ -303,93 +386,58 @@ class MacOSSensorEnumerator(SensorEnumeratorBase):
             if val is not None:
                 readings[sensor.id] = val
 
+    @staticmethod
+    def _subprocess_powermetrics_raw(samplers: str, *, plist: bool) -> bytes:
+        cmd = [
+            'powermetrics', '--samplers', samplers, '-n', '1', '-i', '100',
+        ]
+        if plist:
+            cmd.extend(['-f', 'plist'])
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=8,
+            )
+        except Exception:
+            return b''
+        out = result.stdout
+        return out if isinstance(out, (bytes, bytearray)) else b''
+
     def _poll_powermetrics_gpu(self, readings: dict[str, float]) -> None:
         if not IS_APPLE_SILICON:
             return
         try:
-            stdout = ''
-            for samp in ('gpu_power,cpu_power', 'gpu_power'):
-                result = subprocess.run(
-                    ['powermetrics', '--samplers', samp, '-n', '1', '-i', '100'],
-                    capture_output=True, text=True, timeout=8,
-                )
-                # Accept any non-empty stdout (tests may omit returncode on mocks).
-                if (result.stdout or '').strip():
-                    stdout = result.stdout
-                    break
-            if not stdout:
-                return
-            cpu_core_freqs: list[float] = []
-            for line in stdout.splitlines():
-                line = line.strip()
-                lo = line.lower()
+            samp = full_powermetrics_sampler_csv()
+            raw = fetch_powermetrics_bytes(samp, timeout=8.0)
+            if not raw:
+                raw = self._subprocess_powermetrics_raw(samp, plist=True)
+            if raw:
+                try:
+                    chunk = raw.split(b'\x00', 1)[0]
+                    root = plistlib.loads(chunk)
+                    merged = dict(parse_powermetrics_plist_root(root))
+                    merged.update(readings_from_powermetrics_extras(root))
+                    if merged:
+                        readings.update(merged)
+                        return
+                except Exception:
+                    log.debug('powermetrics plist parse failed', exc_info=True)
 
-                if (
-                    'iokit:gpu_busy' not in readings
-                    and 'gpu' in lo
-                    and any(kw in lo for kw in (
-                        'active residency', 'usage', 'utilization', 'busy',
-                    ))
-                ):
-                    m = re.search(r'([\d.]+)\s*%', line)
-                    if m:
-                        v = float(m.group(1))
-                        if 0.0 <= v <= 100.0:
-                            readings['iokit:gpu_busy'] = v
-
-                elif (
-                    'iokit:gpu_power' not in readings
-                    and 'gpu' in lo
-                    and 'power' in lo
-                ):
-                    mw = re.search(r'([\d.]+)\s*mW', line, re.IGNORECASE)
-                    w = re.search(r'([\d.]+)\s*W\b', line, re.IGNORECASE)
-                    if mw:
-                        readings['iokit:gpu_power'] = float(mw.group(1)) / 1000.0
-                    elif w:
-                        readings['iokit:gpu_power'] = float(w.group(1))
-
-                elif 'iokit:cpu_power' not in readings and (
-                    'power' in lo or 'watts' in lo or re.search(r'\d\s*mW', line, re.I)
-                ):
-                    if 'ane' in lo or 'neural engine' in lo:
-                        pass
-                    elif re.search(
-                        r'\b(cpu|package|cluster|soc)\b', lo,
-                    ) and not re.search(r'^\s*gpu\b', lo):
-                        mw = re.search(r'([\d.]+)\s*mW', line, re.IGNORECASE)
-                        w = re.search(r'([\d.]+)\s*W\b', line, re.IGNORECASE)
-                        v_w: float | None = None
-                        if mw:
-                            v_w = float(mw.group(1)) / 1000.0
-                        elif w:
-                            v_w = float(w.group(1))
-                        if v_w is not None and 0.0 <= v_w <= 500.0:
-                            readings['iokit:cpu_power'] = v_w
-
-                elif (
-                    'iokit:gpu_clock' not in readings
-                    and 'gpu' in lo
-                    and 'mhz' in lo
-                ):
-                    m = re.search(r'([\d.]+)\s*MHz', line, re.IGNORECASE)
-                    if m and 100.0 <= float(m.group(1)) <= 4000.0:
-                        readings['iokit:gpu_clock'] = float(m.group(1))
-
-                else:
-                    m = re.match(
-                        r'cpu\s+\d+\s+frequency:\s*([\d.]+)\s*mhz', lo,
-                    )
-                    if m:
-                        v = float(m.group(1))
-                        if 1.0 <= v <= 8000.0:
-                            cpu_core_freqs.append(v)
-
-            if cpu_core_freqs:
-                readings['psutil:cpu_freq'] = max(cpu_core_freqs)
+            result = subprocess.run(
+                [
+                    'powermetrics', '--samplers', samp, '-n', '1', '-i', '100',
+                ],
+                capture_output=True, text=True, timeout=8,
+            )
+            if (result.stdout or '').strip():
+                _merge_powermetrics_text(readings, result.stdout)
 
         except Exception:
-            log.debug('powermetrics failed (needs root)', exc_info=True)
+            log.debug(
+                'powermetrics failed (install helper or run with sudo)',
+                exc_info=True,
+            )
 
     def _poll_apfs_disk_percent(self) -> float:
         try:

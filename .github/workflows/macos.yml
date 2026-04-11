@@ -44,6 +44,9 @@ jobs:
           ver="${GITHUB_REF_NAME#v}"
           echo "VERSION=$ver" >> "$GITHUB_OUTPUT"
 
+      - name: Build powermetrics helper
+        run: make -C native/macos/trcc_powermetrics_helper CC=clang
+
       - name: Generate macOS icon
         run: |
           ICONSET=src/trcc/assets/icons/app.iconset
@@ -153,18 +156,32 @@ jobs:
           fi
           echo "PASSED — all dependencies bundled"
 
+      - name: Stage DMG contents (app + PrivilegedHelper)
+        run: |
+          mkdir -p dist/dmg_staging/PrivilegedHelper
+          cp -R dist/TRCC.app dist/dmg_staging/
+          cp native/macos/trcc_powermetrics_helper/trcc-powermetrics-helper \
+            dist/dmg_staging/PrivilegedHelper/
+          cp native/macos/trcc_powermetrics_helper/com.thermalright.trcc.powermetrics.plist \
+            dist/dmg_staging/PrivilegedHelper/
+          cp native/macos/trcc_powermetrics_helper/install-helper.sh \
+            dist/dmg_staging/PrivilegedHelper/
+          chmod +x dist/dmg_staging/PrivilegedHelper/trcc-powermetrics-helper
+          chmod +x dist/dmg_staging/PrivilegedHelper/install-helper.sh
+
       - name: Create DMG
         run: |
           create-dmg \
             --volname "TRCC ${{ steps.version.outputs.VERSION }}" \
             --window-pos 200 120 \
-            --window-size 600 400 \
+            --window-size 640 440 \
             --icon-size 100 \
             --icon "TRCC.app" 150 185 \
+            --icon "PrivilegedHelper" 150 300 \
             --app-drop-link 450 185 \
             --no-internet-enable \
             "trcc-${{ steps.version.outputs.VERSION }}-macos.dmg" \
-            dist/TRCC.app
+            dist/dmg_staging
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v7

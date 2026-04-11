@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import json
 import logging
+import platform
 import subprocess
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -58,13 +60,14 @@ def get_memory_info() -> list[dict[str, str]]:
     if not slots:
         import psutil
         mem = psutil.virtual_memory()
+        unified = _is_apple_silicon()
         slots.append({
             'manufacturer': 'Apple',
             'part_number': 'Unknown',
-            'type': 'Unified' if _is_apple_silicon() else 'Unknown',
+            'type': 'Unified' if unified else 'Unknown',
             'speed': 'Unknown',
             'size': f'{mem.total // (1024 ** 3)} GB',
-            'form_factor': 'Unified' if _is_apple_silicon() else 'Unknown',
+            'form_factor': 'Unified' if unified else 'Unknown',
             'locator': 'Total',
         })
 
@@ -110,6 +113,9 @@ def get_disk_info() -> list[dict[str, str]]:
 
 
 def _is_apple_silicon() -> bool:
-    """Check if running on Apple Silicon."""
-    import platform
-    return platform.machine() == 'arm64'
+    """True when this process is native Apple Silicon (arm64 macOS).
+
+    TRCC is not supported under Rosetta (x86_64 Python on Apple Silicon); use an
+    arm64 interpreter so IOKit/HID and sampler paths match the machine.
+    """
+    return sys.platform == 'darwin' and platform.machine() == 'arm64'

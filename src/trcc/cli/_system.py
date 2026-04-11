@@ -168,6 +168,58 @@ def list_sensors(builder=None, *, as_json: bool = False) -> int:
         return 1
 
 
+def powermetrics_helper_test() -> int:
+    """Try one fetch from the optional root powermetrics helper (macOS Apple Silicon)."""
+    from trcc.core.platform import MACOS
+
+    if not MACOS:
+        print("powermetrics-helper-test is only available on macOS.")
+        return 1
+
+    from trcc.adapters.system.macos.powermetrics_extra import full_powermetrics_sampler_csv
+    from trcc.adapters.system.macos.powermetrics_ipc import (
+        fetch_powermetrics_bytes,
+        powermetrics_socket_path,
+    )
+    from trcc.adapters.system.macos.powermetrics_plist import parse_powermetrics_plist
+
+    sock = powermetrics_socket_path()
+    samplers = full_powermetrics_sampler_csv()
+    print("powermetrics helper probe")
+    print(f"  socket: {sock!r}" if sock else "  socket: (disabled — TRCC_POWERMETRICS_SOCKET is empty)")
+    print(f"  samplers: {samplers!r}")
+    if not sock:
+        print("Set TRCC_POWERMETRICS_SOCKET to the helper socket path, or unset it to use the default.")
+        return 1
+
+    raw = fetch_powermetrics_bytes(samplers, timeout=12.0)
+    if not raw:
+        print("  fetch_powermetrics_bytes: no data (helper not running, connection failed, or error frame).")
+        print("  Install: native/macos/trcc_powermetrics_helper/install-helper.sh (see doc/GUIDE_INSTALL.md).")
+        print("  Check:   sudo launchctl print system/com.thermalright.trcc.powermetrics")
+        return 1
+
+    first = raw.split(b"\x00", 1)[0]
+    head = first[:120].replace(b"\n", b" ")
+    print(f"  received: {len(raw)} bytes (first chunk preview: {head!r}...)")
+
+    chunk = first.lstrip()
+    if chunk.startswith(b"Machine model:") or chunk.startswith(b"*** "):
+        print("  note: payload looks like human-readable powermetrics, not plist XML.")
+        print("  Reinstall the helper from this repo (make + install-helper.sh) so it runs with -f plist.")
+        print("  If it still looks like text, your macOS build may not emit plist on stdout for these samplers.")
+        return 0
+
+    parsed = parse_powermetrics_plist(raw)
+    if parsed:
+        keys = ", ".join(sorted(parsed.keys()))
+        print(f"  plist parse OK — {len(parsed)} reading(s): {keys}")
+        return 0
+
+    print("  plist parse: no GPU/CPU fields extracted (payload is not plist XML TRCC understands).")
+    return 1
+
+
 def setup_winusb() -> int:
     """Guide WinUSB driver installation for Thermalright USB devices (Windows only)."""
     from trcc.core.builder import ControllerBuilder

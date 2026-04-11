@@ -93,3 +93,24 @@ class TestGetDiskInfo:
         mock_profiler.return_value = {'SPStorageDataType': []}
         from trcc.adapters.system.macos.hardware import get_disk_info
         assert get_disk_info() == []
+
+
+class TestIsAppleSilicon:
+
+    @patch(f'{MODULE}.sys.platform', 'linux')
+    def test_false_off_darwin(self):
+        from trcc.adapters.system.macos.hardware import _is_apple_silicon
+        assert _is_apple_silicon() is False
+
+    @patch(f'{MODULE}.sys.platform', 'darwin')
+    @patch(f'{MODULE}.platform.machine', return_value='arm64')
+    def test_native_arm64(self, _mock_machine):
+        from trcc.adapters.system.macos.hardware import _is_apple_silicon
+        assert _is_apple_silicon() is True
+
+    @patch(f'{MODULE}.sys.platform', 'darwin')
+    @patch(f'{MODULE}.platform.machine', return_value='x86_64')
+    def test_x86_64_darwin_not_apple_silicon(self, _mock_machine):
+        """Intel Mac or Rosetta x86_64 — we only enable AS paths for native arm64."""
+        from trcc.adapters.system.macos.hardware import _is_apple_silicon
+        assert _is_apple_silicon() is False

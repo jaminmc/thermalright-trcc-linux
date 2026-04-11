@@ -922,6 +922,12 @@ def _cmd_report() -> int:
     return _system.report()
 
 
+@app.command("powermetrics-helper-test", rich_help_panel="Diagnostics")
+def _cmd_powermetrics_helper_test() -> int:
+    """Fetch one plist sample from the optional root powermetrics helper (macOS)."""
+    return _system.powermetrics_helper_test()
+
+
 @app.command("doctor", rich_help_panel="Diagnostics")
 def _cmd_doctor() -> int:
     """Check dependencies, libraries, and permissions."""
@@ -1307,6 +1313,7 @@ reset_device = _display.reset
 resume = _display.resume
 show_info = _system.show_info
 list_sensors = _system.list_sensors
+powermetrics_helper_test = _system.powermetrics_helper_test
 hid_debug = _diag.device_debug
 led_debug = _diag.led_debug_interactive
 setup_udev = _system.setup_udev

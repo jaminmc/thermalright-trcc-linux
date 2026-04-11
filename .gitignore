@@ -12,6 +12,7 @@ htmlcov/
 
 # Build artifacts
 dist/
+native/macos/trcc_powermetrics_helper/trcc-powermetrics-helper
 build/
 *.egg-info/
 

@@ -4,7 +4,8 @@ Ports the behavior of https://github.com/dkorunic/iSMC hid/get.go (GPL-3.0):
 matching on PrimaryUsagePage / PrimaryUsage, IOHIDEventSystemClient*, thermal and
 power events, and the PMU tdev sp78 raw-value heuristic.
 
-Requires Darwin + arm64 and exported C symbols from IOKit; if anything is missing,
+Requires Darwin on native Apple Silicon (arm64) and exported C symbols from
+IOKit; if anything is missing,
 :func:`hid_layer_ready` is False and callers skip HID (SMC + powermetrics still work).
 """
 from __future__ import annotations
@@ -12,10 +13,11 @@ from __future__ import annotations
 import ctypes
 import ctypes.util
 import logging
-import platform
 import re
 import sys
 from typing import Optional
+
+from trcc.adapters.system.macos.hardware import _is_apple_silicon
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ kCFNumberSInt32Type = 3
 
 
 def _is_as_darwin() -> bool:
-    return sys.platform == 'darwin' and platform.machine() == 'arm64'
+    return sys.platform == 'darwin' and _is_apple_silicon()
 
 
 _cf: Optional[ctypes.CDLL] = None

@@ -781,7 +781,34 @@ Download [`trcc-latest-macos.dmg`](https://github.com/Lexonight1/thermalright-tr
 - macOS 11+ (Big Sur or later)
 - Install `libusb`: `brew install libusb`
 - LCD devices using SCSI (most models) need `sudo` to detach the kernel driver — HID devices work without root
-- On Apple Silicon Macs, sensor reading requires `sudo` for `powermetrics` access
+- On Apple Silicon Macs, some metrics (GPU usage, GPU power/clock, CPU package power from `powermetrics`) need root **unless** you install the optional helper below — the main TRCC app does not need to run as root
+
+### Optional powermetrics helper (Apple Silicon, no root for the app)
+
+The DMG includes a **`PrivilegedHelper`** folder with a small **LaunchDaemon** that runs `powermetrics -f plist` as root and exposes the XML snapshot over a local Unix socket (`/var/run/trcc-powermetrics.sock`). TRCC talks to that socket as a normal user (no fragile text parsing when the helper is used).
+
+1. Open the DMG and open **`PrivilegedHelper`**.
+2. Run **`sudo ./install-helper.sh`** once (admin password). This installs the binary under `/Library/PrivilegedHelperTools/` and the plist under `/Library/LaunchDaemons/`, then loads the job.
+
+From a git checkout instead of the DMG:
+
+```bash
+cd native/macos/trcc_powermetrics_helper
+make
+sudo ./install-helper.sh
+```
+
+If you skip the helper, you can still run TRCC with **`sudo`** when you need those `powermetrics`-backed sensors, or rely on SMC/HID/psutil for everything else.
+
+**Optional extra fields (`TRCC_POWERMETRICS_EXTRA_SAMPLERS`):** TRCC uses **one** `powermetrics -f plist` call per poll with `--samplers gpu_power,cpu_power` by default. To also read **thermal pressure**, **battery %**, **network rates**, and/or **disk throughput** from the same snapshot, set a comma-separated allowlist before starting TRCC, for example:
+
+```bash
+export TRCC_POWERMETRICS_EXTRA_SAMPLERS=thermal,battery
+```
+
+Allowed tokens: `thermal`, `battery`, `network`, `disk` (unknown names are ignored). They are appended to the same sampler list for that single run (not a second process). Restart the app after changing this variable so discovery picks up the new sensors.
+
+**Signing and Apple Developer Program:** Installing this helper **does not require** a paid Apple Developer account — only a local administrator password. A paid membership is for **Developer ID** signing and **notarization**, which reduces Gatekeeper prompts when users download software from the internet; it is not required to load this LaunchDaemon or use TRCC on your own Mac.
 
 **CLI access:**
 ```bash
