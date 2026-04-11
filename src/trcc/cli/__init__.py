@@ -1252,12 +1252,19 @@ def main():
 
     trcc_app = TrccApp.init()
 
-    # gui subcommand creates its own windowed QApplication in gui/__init__.py.
-    # Don't create the offscreen one here — PySide6 holds an internal reference
-    # to the QApplication singleton that survives Python-side deletion, so
-    # creating an offscreen one first makes the windowed creation fail.
-    _positional = [a for a in sys.argv[1:] if not a.startswith('-')]
-    _renderer_factory = None if _positional[:1] == ['gui'] else _make_cli_renderer
+    # Windowed commands create a normal QApplication later. Do not create the
+    # offscreen one here — PySide6 keeps a singleton that survives Python-side
+    # deletion, so an offscreen QApplication first breaks a real GUI.
+    #
+    # ``python -m trcc <cmd>`` leaves ``trcc`` as the first non-flag argv token;
+    # the Typer subcommand is the next token (``gui``, ``setup-gui``, …).
+    _argv_cmds = [a for a in sys.argv[1:] if not a.startswith('-')]
+    if len(_argv_cmds) >= 2 and _argv_cmds[0] in ('trcc', 'trcc.cli'):
+        _argv_cmds = _argv_cmds[1:]
+    _first_cmd = _argv_cmds[0] if _argv_cmds else ''
+    _renderer_factory = (
+        None if _first_cmd in ('gui', 'setup-gui') else _make_cli_renderer
+    )
 
     # CLI (non-GUI) shows download/extraction progress via AppEvent.BOOTSTRAP_PROGRESS.
     class _CliProgressObserver(AppObserver):
@@ -1265,7 +1272,7 @@ def main():
             if event == AppEvent.BOOTSTRAP_PROGRESS:
                 print(data, flush=True)
 
-    _is_gui = _positional[:1] == ['gui']
+    _is_gui = _first_cmd in ('gui', 'setup-gui')
     _progress_obs: Optional[AppObserver] = None
     if not _is_gui:
         _progress_obs = _CliProgressObserver()

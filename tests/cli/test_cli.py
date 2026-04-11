@@ -119,6 +119,36 @@ class TestMainEntryPoint(unittest.TestCase):
             "QApplication before the windowed one crashes on PySide6"
         )
 
+    def test_gui_skips_cli_renderer_python_dash_m(self):
+        """``python -m trcc gui`` must skip offscreen (argv[2] is ``trcc``)."""
+        init_calls = []
+
+        with patch('sys.argv', ['python', '-m', 'trcc', 'gui']), \
+             patch('trcc.cli.gui', return_value=0), \
+             patch('trcc.core.app.TrccApp.init') as mock_init:
+            mock_app = MagicMock()
+            mock_app.init_platform.side_effect = lambda **kw: init_calls.append(kw)
+            mock_init.return_value = mock_app
+            main()
+
+        assert init_calls
+        assert init_calls[0].get('renderer_factory') is None
+
+    def test_setup_gui_skips_cli_renderer(self):
+        """setup-gui is windowed — same no-offscreen rule as ``trcc gui``."""
+        init_calls = []
+
+        with patch('sys.argv', ['python', '-m', 'trcc', 'setup-gui']), \
+             patch('trcc.install.gui.main', return_value=0), \
+             patch('trcc.core.app.TrccApp.init') as mock_init:
+            mock_app = MagicMock()
+            mock_app.init_platform.side_effect = lambda **kw: init_calls.append(kw)
+            mock_init.return_value = mock_app
+            main()
+
+        assert init_calls
+        assert init_calls[0].get('renderer_factory') is None
+
     def test_non_gui_command_gets_cli_renderer(self):
         """Non-gui subcommands must receive _make_cli_renderer as renderer_factory."""
         from trcc.cli import _make_cli_renderer

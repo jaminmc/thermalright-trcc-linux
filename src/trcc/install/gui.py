@@ -16,8 +16,8 @@ import os
 import shutil
 import sys
 
-from PySide6.QtCore import QProcess, Slot
-from PySide6.QtGui import QFont, QTextCursor
+from PySide6.QtCore import QProcess, QTimer, Slot
+from PySide6.QtGui import QFont, QGuiApplication, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -477,10 +477,21 @@ def main() -> int:
     """Launch the setup wizard GUI."""
     import signal
 
+    # Tests / CI / a prior broken CLI run may set offscreen; real setup needs cocoa/xcb.
+    if QApplication.instance() is None:
+        os.environ.pop('QT_QPA_PLATFORM', None)
     app = QApplication.instance() or QApplication(sys.argv)
+    # Qt's C++ event loop does not return to Python often enough for the
+    # interpreter to run signal handlers. A short periodic no-op timer lets
+    # SIGINT (Ctrl+C) run and call app.quit() while the loop is active.
+    _sig_poll = QTimer(app)
+    _sig_poll.timeout.connect(lambda: None)
+    _sig_poll.start(200)
     signal.signal(signal.SIGINT, lambda *_: app.quit())
     w = SetupWizard()
     w.show()
-    w.raise_()
+    # Offscreen/minimal QPA (e.g. if env leaked) does not implement QWidget::raise().
+    if QGuiApplication.platformName() not in ('offscreen', 'minimal'):
+        w.raise_()
     w.activateWindow()
     return app.exec()
