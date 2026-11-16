@@ -123,10 +123,15 @@ class MacOSPlatform(BaseOS, key="darwin"):
         return MacOSPaths()
 
     def _build_sensors(self) -> SensorEnumerator:
-        """SMC temperature on top of the psutil / NVML baseline.
+        """HID, SMC and IOReport on the psutil baseline. No root.
 
-        Intel keys ship enabled by default; Apple Silicon keys are gated
-        behind ``TRCC_NEXT_APPLE_SILICON_SMC=1`` until reporter-confirmed.
+        CPU temperature is the HID hub, then SMC. On Apple Silicon the
+        GPU temperature is the SMC ``Tg*`` keys, passed in explicitly —
+        the HID hub on M1 Ultra publishes no GPU temperature.
+        ``TRCC_NEXT_APPLE_SILICON_SMC`` still gates the Intel-shaped SMC
+        CPU keys. Package power, GPU residency and GPU clock come from
+        IOReport. The clock is the ``pmgr`` DVFS table, which needs
+        neither root nor a Developer ID.
         """
         log.debug("_build_sensors")
         from ..sensors.macos import build_macos_sensors

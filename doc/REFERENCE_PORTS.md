@@ -12,7 +12,7 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 |---|---|---|---|
 | [`BaseSendTask`](#basesendtask) | 1 | 4 | 5 |
 | [`Command`](#command) | 1 | 1 | 178 |
-| [`CpuSource`](#cpusource) | 1 | 5 | 11 |
+| [`CpuSource`](#cpusource) | 1 | 5 | 12 |
 | [`DataInstaller`](#datainstaller) | 1 | 0 | 1 |
 | [`HttpFetcher`](#httpfetcher) | 1 | 0 | 2 |
 | [`MetricsPort`](#metricsport) | 1 | 0 | 1 |
@@ -35,7 +35,7 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 | [`FrameSource`](#framesource) | 2 | 0 | 3 |
 | [`FramesPort`](#framesport) | 2 | 0 | 1 |
 | [`GpuPort`](#gpuport) | 2 | 0 | 1 |
-| [`IdentifiedSource`](#identifiedsource) | 2 | 0 | 25 |
+| [`IdentifiedSource`](#identifiedsource) | 2 | 0 | 26 |
 | [`Layer`](#layer) | 2 | 0 | 9 |
 | [`LedSource`](#ledsource) | 2 | 0 | 1 |
 | [`LightsPort`](#lightsport) | 2 | 0 | 1 |
@@ -58,7 +58,7 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 | [`DramSource`](#dramsource) | 3 | 0 | 1 |
 | [`FanSource`](#fansource) | 3 | 2 | 4 |
 | [`FilesPort`](#filesport) | 3 | 0 | 1 |
-| [`GpuSource`](#gpusource) | 3 | 10 | 14 |
+| [`GpuSource`](#gpusource) | 3 | 10 | 15 |
 | [`HotplugMonitor`](#hotplugmonitor) | 3 | 0 | 5 |
 | [`IpcChannel`](#ipcchannel) | 3 | 1 | 2 |
 | [`ModuleDevices`](#moduledevices) | 3 | 0 | 4 |
@@ -154,7 +154,7 @@ name() -> str
 
 **You inherit (5):** `freq` · `power` · `temp` · `temp_label` · `usage`
 
-**Implementations (11):** `CpuSourceChain` · `HwinfoCpu` · `HwmonCpu` · `LhmCpu` · `MacosHidCpu` · `PawnioCpu` · `PowermetricsCpu` · `PsutilCpu` · `SmcCpu` · `SysctlCpu` · `WmiAcpiCpu`
+**Implementations (12):** `CpuSourceChain` · `HwinfoCpu` · `HwmonCpu` · `IOReportCpu` · `LhmCpu` · `MacosHidCpu` · `PawnioCpu` · `PowermetricsCpu` · `PsutilCpu` · `SmcCpu` · `SysctlCpu` · `WmiAcpiCpu`
 
 ## DataInstaller
 
@@ -496,7 +496,7 @@ key() -> str
 name() -> str
 ```
 
-**Implementations (25):** `AdlGpu` · `AmdGpu` · `D3dkmtGpu` · `GpuSourceChain` · `HwinfoGpu` · `HwmonDisk` · `HwmonDram` · `HwmonFan` · `HwmonVoltage` · `IgclGpu` · `IntelGpu` · `LhmDisk` · `LhmGpu` · `MacosHidGpu` · `NouveauGpu` · `NvidiaGpu` · `PowermetricsGpu` · `PsutilBoardTemp` · `SmcFan` · `SmcGpu` · `SuperIoFan` · `SuperIoTemp` · `SysctlFan` · `WindowsDisk` · `WmiVideoControllerGpu`
+**Implementations (26):** `AdlGpu` · `AmdGpu` · `D3dkmtGpu` · `GpuSourceChain` · `HwinfoGpu` · `HwmonDisk` · `HwmonDram` · `HwmonFan` · `HwmonVoltage` · `IOReportGpu` · `IgclGpu` · `IntelGpu` · `LhmDisk` · `LhmGpu` · `MacosHidGpu` · `NouveauGpu` · `NvidiaGpu` · `PowermetricsGpu` · `PsutilBoardTemp` · `SmcFan` · `SmcGpu` · `SuperIoFan` · `SuperIoTemp` · `SysctlFan` · `WindowsDisk` · `WmiVideoControllerGpu`
 
 ## Layer
 
@@ -875,7 +875,7 @@ name() -> str
 
 **You inherit (10):** `clock` · `fan` · `fan_rpm` · `hotspot` · `mem_temp` · `power` · `temp` · `usage` · `vram_total` · `vram_used`
 
-**Implementations (14):** `AdlGpu` · `AmdGpu` · `D3dkmtGpu` · `GpuSourceChain` · `HwinfoGpu` · `IgclGpu` · `IntelGpu` · `LhmGpu` · `MacosHidGpu` · `NouveauGpu` · `NvidiaGpu` · `PowermetricsGpu` · `SmcGpu` · `WmiVideoControllerGpu`
+**Implementations (15):** `AdlGpu` · `AmdGpu` · `D3dkmtGpu` · `GpuSourceChain` · `HwinfoGpu` · `IOReportGpu` · `IgclGpu` · `IntelGpu` · `LhmGpu` · `MacosHidGpu` · `NouveauGpu` · `NvidiaGpu` · `PowermetricsGpu` · `SmcGpu` · `WmiVideoControllerGpu`
 
 ## HotplugMonitor
 
