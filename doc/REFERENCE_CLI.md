@@ -687,6 +687,18 @@ trcc display media-player KEY [URI]
 | `KEY` | Device key, e.g. 0402:3922 |
 | `URI` | Source: a local file path, or a web URL/stream. '' clears. *(optional)* |
 
+### `trcc display output`
+
+Show or hide the picture on every connected LCD. The tray's "Display on LCD". Off blanks every panel and holds it; on puts the saved display back. Closing a window does not do this, and the tray's Exit does not stop the App — `trcc kill` does. `sleep` blanks one device and does not hold the others.
+
+```bash
+trcc display output [STATE]
+```
+
+| Argument | Description |
+|---|---|
+| `STATE` | on or off. Omit to print whether the picture is showing. *(optional)* |
+
 ### `trcc display overlay`
 
 Toggle the metric overlay layer.

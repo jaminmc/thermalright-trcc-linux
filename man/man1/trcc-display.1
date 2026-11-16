@@ -422,6 +422,25 @@ Options:
 \fB\-\-help\fR
 Show this command's help and exit.
 .RE
+.SS output
+.PP
+\fBtrcc display output\fR [\fISTATE\fR]
+.PP
+Show or hide the picture on every connected LCD. The tray's "Display on LCD". Off blanks every panel and holds it; on puts the saved display back. Closing a window does not do this, and the tray's Exit does not stop the App  \-  trcc kill does. sleep blanks one device and does not hold the others.
+.PP
+Arguments:
+.RS 4
+.TP
+\fBSTATE\fR
+on or off. Omit to print whether the picture is showing.
+.RE
+.PP
+Options:
+.RS 4
+.TP
+\fB\-\-help\fR
+Show this command's help and exit.
+.RE
 .SS overlay
 .PP
 \fBtrcc display overlay\fR \fIKEY\fR \fISTATE\fR

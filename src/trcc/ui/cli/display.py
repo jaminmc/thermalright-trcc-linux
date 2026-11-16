@@ -26,6 +26,7 @@ from trcc.core.commands import (
     LoadImage,
     LoadTheme,
     LoadVideo,
+    PanelOutput,
     PauseVideo,
     PlaceModule,
     PlayVideo,
@@ -47,6 +48,7 @@ from trcc.core.commands import (
     SetMediaPlayer,
     SetOrientation,
     SetOverlayBackground,
+    SetPanelOutput,
     SetScreencastRegion,
     SetSlideshow,
     SetSplitMode,
@@ -1177,6 +1179,32 @@ def sleep(
     typer.echo(result.message)
     if not result.ok:
         raise typer.Exit(code=1)
+
+
+@app.command("output")
+def output(
+    state: str | None = typer.Argument(
+        None,
+        help="on or off. Omit to print whether the picture is showing.",
+    ),
+) -> None:
+    """Show or hide the picture on every connected LCD.
+
+    The tray's "Display on LCD". Off blanks every panel and holds it;
+    on puts the saved display back. Closing a window does not do this,
+    and the tray's Exit does not stop the App — ``trcc kill`` does.
+    ``sleep`` blanks one device and does not hold the others.
+    """
+    log.info("cli display output: state=%s", state)
+    if state is None:
+        dispatch_echo(PanelOutput())
+        return
+    normalized = state.lower()
+    if normalized not in ("on", "off"):
+        log.warning("cli display output: %r is not on or off", state)
+        typer.echo("state must be on or off", err=True)
+        raise typer.Exit(code=1)
+    dispatch_echo(SetPanelOutput(enabled=normalized == "on"))
 
 
 @app.command("test-lcd")

@@ -204,7 +204,7 @@ class MainWindow(QMainWindow):
             # instead of ``app.platform``, which an AppProxy does not have.
             icon=icon,
         )
-        self._tray.install()
+        self._tray.install(app=self._app, bus=self._bus, connection=qconn)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._tray.intercept_close(event):

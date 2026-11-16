@@ -23,6 +23,7 @@ from ..events import (
     DataInstalled,
     ErrorOccurred,
     FrameSent,
+    PanelOutputChanged,
     ThemeDeleted,
     ThemeExported,
     ThemeImported,
@@ -302,6 +303,19 @@ class LoadTheme(Command[ThemeResult]):
             log.info("LoadTheme: %s released from a pushed frame's hold",
                      self.key)
             app.held.discard(self.key)
+        # The tray's switch and ``held`` were two copies of "the picture is
+        # off". A theme load released the hold and lit the panel while the
+        # switch stayed off, and the next replug blanked it again. Loading
+        # a theme is asking to show it, so the switch comes back on — one
+        # fact — and every other panel the switch had blanked comes back too.
+        if not app.panel_output:
+            log.info("LoadTheme: %s turns the LCD picture on", self.key)
+            app.panel_output = True
+            app.events.publish(PanelOutputChanged(enabled=True))
+            for other in [key for key in app.held if key != self.key]:
+                log.info("LoadTheme: restoring %s now the picture is on", other)
+                app.held.discard(other)
+                app.dispatch(RestoreDeviceState(key=other))
         # Single source of truth for "stop the previous video + invalidate the
         # scene cache": ``StopVideo`` (publishes VideoStopped, unloads the
         # playback; unload-only here -- a picked load ends the choice below).

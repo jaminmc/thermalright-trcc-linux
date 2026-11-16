@@ -340,6 +340,98 @@ def test_sleep_device_blanks_lcd_with_black_frame(tmp_home: Path) -> None:
     assert "#000000" in result.message   # composed SendColor(0,0,0)
 
 
+def test_turning_the_lcd_off_blanks_and_holds_it(tmp_home: Path) -> None:
+    """The tray's switch blanks the panel and keeps the render loop off it.
+
+    Closing the window does not do this.  The App stays up; the picture stops."""
+    from trcc.core.commands import PanelOutput, SetPanelOutput
+    from trcc.core.events import PanelOutputChanged
+
+    platform = FakePlatform(tmp_home)
+    platform.scsi.read_script.append(_scsi_poll_response(100))
+    app = App(platform=platform, renderer=RecordingRenderer())
+    assert app.dispatch(ConnectDevice(key="0402:3922")).ok
+    heard: list[bool] = []
+    app.events.subscribe(
+        PanelOutputChanged, lambda event: heard.append(event.enabled))
+
+    assert app.dispatch(PanelOutput()).enabled is True
+    result = app.dispatch(SetPanelOutput(enabled=False))
+
+    assert result.ok and result.enabled is False
+    assert app.panel_output is False
+    assert "0402:3922" in app.held
+    assert heard == [False]
+
+
+def test_a_panel_that_connects_while_the_picture_is_off_stays_dark(
+        tmp_home: Path) -> None:
+    """Plugging in during an off switch must not restore the saved theme."""
+    platform = FakePlatform(tmp_home)
+    platform.scsi.read_script.append(_scsi_poll_response(100))
+    app = App(platform=platform, renderer=RecordingRenderer())
+    app._session = True
+    app.panel_output = False
+
+    assert app.dispatch(ConnectDevice(key="0402:3922")).ok
+
+    assert "0402:3922" in app.held
+    assert "0402:3922" not in app.active_themes
+
+
+def test_a_restore_with_no_theme_leaves_the_picture_off(tmp_home: Path) -> None:
+    """Turning the picture back on with nothing to show does not claim it is on."""
+    from trcc.core.commands import SetPanelOutput
+
+    platform = FakePlatform(tmp_home)
+    platform.scsi.read_script.append(_scsi_poll_response(100))
+    app = App(platform=platform, renderer=RecordingRenderer())
+    assert app.dispatch(ConnectDevice(key="0402:3922")).ok
+    assert app.dispatch(SetPanelOutput(enabled=False)).ok
+
+    result = app.dispatch(SetPanelOutput(enabled=True))
+
+    assert result.ok is False
+    assert result.enabled is False
+    assert "failed" in result.message
+    assert app.panel_output is False
+    assert "0402:3922" in app.held
+
+
+def test_loading_a_theme_turns_the_lcd_picture_back_on(
+        tmp_home: Path, tmp_path: Path) -> None:
+    """A theme load is a request to show it. The switch comes back on.
+
+    Off used to be stored twice, as ``panel_output`` and as ``held``.
+    LoadTheme released the hold and lit the panel while the tray still
+    said off, and the next replug blanked it again."""
+    from trcc.core.commands import LoadTheme, SetPanelOutput
+    from trcc.core.events import PanelOutputChanged
+
+    theme = tmp_path / "Theme1"
+    theme.mkdir()
+    (theme / "trcc.json").write_text(
+        '{"name": "Theme1", "width": 320, "height": 320, "elements": []}',
+        encoding="utf-8",
+    )
+    platform = FakePlatform(tmp_home)
+    platform.scsi.read_script.append(_scsi_poll_response(100))
+    app = App(platform=platform, renderer=RecordingRenderer())
+    assert app.dispatch(ConnectDevice(key="0402:3922")).ok
+    assert app.dispatch(SetPanelOutput(enabled=False)).ok
+    assert "0402:3922" in app.held
+    heard: list[bool] = []
+    app.events.subscribe(
+        PanelOutputChanged, lambda event: heard.append(event.enabled))
+
+    result = app.dispatch(LoadTheme(key="0402:3922", path=theme))
+
+    assert result.ok, result.message
+    assert app.panel_output is True
+    assert "0402:3922" not in app.held
+    assert heard == [True]
+
+
 def test_disconnect_blanks_the_panel_before_dropping_it(
     tmp_path: Path,
 ) -> None:

@@ -36,6 +36,7 @@ from trcc.core.commands import (
     LoadImage,
     LoadTheme,
     LoadVideo,
+    PanelOutput,
     PauseVideo,
     PlaceModule,
     PlayVideo,
@@ -58,6 +59,7 @@ from trcc.core.commands import (
     SetOrientation,
     SetOverlayBackground,
     SetOverlayConfig,
+    SetPanelOutput,
     SetScreencastRegion,
     SetSlideshow,
     SetSplitMode,
@@ -93,6 +95,7 @@ from trcc.core.results import (
     OverlayElementResult,
     OverlayLayoutResult,
     OverlayResult,
+    PanelOutputResult,
     PauseVideoResult,
     RenderResult,
     Result,
@@ -141,6 +144,7 @@ from .schemas import (
     OverlayElementAddRequest,
     OverlayElementUpdateRequest,
     OverlayRequest,
+    PanelOutputRequest,
     PauseVideoRequest,
     PlaceModuleRequest,
     PlayVideoRequest,
@@ -1270,6 +1274,35 @@ def upload_mask(key: str, body: MaskUploadRequest,
 
 
 meta_router = APIRouter(prefix="/display", tags=["display"])
+
+
+@meta_router.get("/output")
+def panel_output(request: Request) -> PanelOutputResult:
+    """Whether the picture is being sent to the LCDs.
+
+    The tray's "Display on LCD". One switch for every panel, which is
+    why this is not under ``/devices/{key}``. ``POST .../sleep`` blanks
+    one device and does not hold the others.
+    """
+    log.info("api GET /display/output")
+    return request.app.state.trcc.dispatch(PanelOutput())
+
+
+@meta_router.post("/output")
+def set_panel_output(
+    body: PanelOutputRequest, request: Request,
+) -> PanelOutputResult:
+    """Show or hide the picture on every connected LCD.
+
+    Off blanks every panel and holds it. On puts the saved display back.
+    A failed restore of every panel answers ``ok=false`` and leaves the
+    picture off.
+    """
+    log.info("api POST /display/output: enabled=%s", body.enabled)
+    result = request.app.state.trcc.dispatch(
+        SetPanelOutput(enabled=body.enabled))
+    http_error_if_failed(result)
+    return result
 
 
 @meta_router.get("/video-duration")

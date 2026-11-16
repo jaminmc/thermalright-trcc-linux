@@ -439,6 +439,11 @@ class KeepaliveRequest(BaseModel):
 
 
 # First-run + legacy migration
+class PanelOutputRequest(BaseModel):
+    """The tray's "Display on LCD", for every panel."""
+    enabled: bool
+
+
 class ColorRequest(BaseModel):
     """Solid-color frame request — three 0-255 channels."""
     r: int = Field(..., ge=0, le=255)
