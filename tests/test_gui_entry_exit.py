@@ -342,6 +342,110 @@ def test_closing_after_a_taskbar_restore_still_hides_to_the_tray(
     assert quits == [1]
 
 
+def test_macos_exit_stops_the_background_app(
+    qtbot: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The menu bar is the program on macOS.  Exit stops the App in this
+    process: sending StopDaemon through the proxy would run it inside the
+    daemon, which then waits for its own socket to disappear."""
+    import sys
+
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QWidget
+
+    import trcc.daemon as daemon_mod
+    from trcc.ui.qt_tray import TrayController
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    killed: list[bool] = []
+    monkeypatch.setattr(
+        daemon_mod, "kill_daemon", lambda **_kw: killed.append(True) or True,
+    )
+    dispatched: list[str] = []
+
+    class _App:
+        remote = True
+
+        def dispatch(self, cmd: object) -> object:
+            dispatched.append(type(cmd).__name__)
+            return type("R", (), {"message": "shown", "enabled": True, "ok": True})()
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    tray = TrayController(window, icon=QIcon())
+    tray.install(app=_App())
+    tray.request_quit()
+    assert dispatched == ["PanelOutput", "GetAutostartStatus"]
+    assert killed == [True]
+
+
+def test_other_platforms_leave_the_app_running_on_exit(
+    qtbot: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sys
+
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QWidget
+
+    from trcc.ui.qt_tray import TrayController
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    dispatched: list[str] = []
+
+    class _App:
+        def dispatch(self, cmd: object) -> object:
+            dispatched.append(type(cmd).__name__)
+            return type("R", (), {"message": "shown", "enabled": True, "ok": True})()
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    tray = TrayController(window, icon=QIcon())
+    tray.install(app=_App())
+    tray.request_quit()
+    assert dispatched == ["PanelOutput", "GetAutostartStatus"]
+
+
+def test_macos_menu_bar_quit_is_a_real_quit(
+    qtbot: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cmd+Q is a Quit event.  Hide-to-tray would cancel it and leave the
+    process up with no window."""
+    import sys
+
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget
+
+    from trcc.ui.qt_tray import TrayController
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(QSystemTrayIcon, "isSystemTrayAvailable",
+                        staticmethod(lambda: True))
+    monkeypatch.setattr(QSystemTrayIcon, "isVisible", lambda self: True)
+    quits: list[int] = []
+
+    class Window(QWidget):
+        def closeEvent(self, event: QCloseEvent) -> None:
+            if tray.intercept_close(event):
+                return
+            quits.append(1)
+            event.accept()
+
+    class _App:
+        def dispatch(self, cmd: object) -> object:
+            return type("R", (), {"message": "stopped", "enabled": True, "ok": True})()
+
+    window = Window()
+    qtbot.addWidget(window)
+    tray = TrayController(window, icon=QIcon())
+    tray.install(app=_App())
+    window.show()
+    qapp = QApplication.instance()
+    assert qapp is not None
+    qapp.sendEvent(qapp, QEvent(QEvent.Type.Quit))
+    assert quits == [1]
+
+
 def test_the_tray_display_switch_reports_the_check_once(
         qtbot: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """Unchecking dispatches once.  Putting the check back from an event
@@ -355,14 +459,14 @@ def test_the_tray_display_switch_reports_the_check_once(
                         staticmethod(lambda: True))
     window = QWidget()
     qtbot.addWidget(window)
-    from trcc.core.commands import PanelOutput, SetPanelOutput
+    from trcc.core.commands import GetAutostartStatus, PanelOutput, SetPanelOutput
     from trcc.core.results import PanelOutputResult
 
     seen: list[bool] = []
 
     class _App:
         def dispatch(self, cmd: object) -> PanelOutputResult:
-            if isinstance(cmd, PanelOutput):
+            if isinstance(cmd, (PanelOutput, GetAutostartStatus)):
                 return PanelOutputResult(
                     ok=True, enabled=True, message="LCD display on")
             assert isinstance(cmd, SetPanelOutput)
@@ -375,6 +479,7 @@ def test_the_tray_display_switch_reports_the_check_once(
     class _Bus:
         def __init__(self) -> None:
             self.panel_output_changed = type("S", (), {"connect": lambda *a, **k: None})()
+            self.app_settings_changed = type("S", (), {"connect": lambda *a, **k: None})()
 
     tray = TrayController(window, icon=QIcon())
     tray.install(app=_App(), bus=_Bus())
@@ -387,6 +492,59 @@ def test_the_tray_display_switch_reports_the_check_once(
     tray.show_lcd_display(True)
     assert seen == [False]
     assert action.isChecked()
+
+
+def test_open_at_login_installs_and_removes_the_entry(
+        qtbot: Any) -> None:
+    """The check is the App's login entry.  On installs it, off removes it,
+    and a change from another window moves the check without asking again."""
+    from PySide6.QtCore import QObject, Qt, Signal
+    from PySide6.QtGui import QIcon
+    from PySide6.QtWidgets import QWidget
+
+    from trcc.core.commands import (
+        DisableAutostart,
+        EnableAutostart,
+        GetAutostartStatus,
+        PanelOutput,
+    )
+    from trcc.core.events import AutostartChanged
+    from trcc.ui.qt_tray import TrayController
+
+    seen: list[object] = []
+
+    class _App:
+        def dispatch(self, cmd: object) -> object:
+            seen.append(cmd)
+            enabled = isinstance(cmd, EnableAutostart)
+            if isinstance(cmd, GetAutostartStatus):
+                enabled = False
+            elif isinstance(cmd, PanelOutput):
+                enabled = True
+            return type("R", (), {
+                "ok": True, "enabled": enabled, "message": type(cmd).__name__,
+            })()
+
+    class _Bus(QObject):
+        panel_output_changed = Signal(object)
+        app_settings_changed = Signal(object)
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    bus = _Bus()
+    tray = TrayController(window, icon=QIcon())
+    tray.install(app=_App(), bus=bus, connection=Qt.ConnectionType.DirectConnection)
+    action = tray._login_action
+    assert action is not None and not action.isChecked()
+
+    action.setChecked(True)
+    assert isinstance(seen[-1], EnableAutostart)
+    action.setChecked(False)
+    assert isinstance(seen[-1], DisableAutostart)
+
+    bus.app_settings_changed.emit(AutostartChanged(enabled=True))
+    assert action.isChecked()
+    assert isinstance(seen[-1], DisableAutostart)
 
 
 @pytest.mark.parametrize(("face", "module", "factory"), [

@@ -194,7 +194,8 @@ class MainWindow(QMainWindow):
 
         # Shared tray: a window-close hides to the tray (keeps the LCD running)
         # exactly like the gui skin — via the shared TrayController, not a
-        # qtgui-local reinvention.  Exit (menu) or a force-quit ends the process.
+        # qtgui-local reinvention.  Exit ends this process, and on macOS the
+        # background App too.
         icon_path = (Path(__file__).resolve().parents[2]
                      / "assets" / "icons" / "trcc.png")
         icon = QIcon(str(icon_path)) if icon_path.exists() else QIcon()

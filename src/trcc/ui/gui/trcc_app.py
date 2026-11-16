@@ -316,8 +316,8 @@ class TRCCApp(QMainWindow):
         """Build the tray and show the App's current LCD switch.
 
         A window-close hides to the tray and keeps the LCD running.  Exit
-        closes this window.  The check is the App's, so a second window
-        opens agreeing with the first.
+        closes this window, and on macOS stops the background App.  The
+        check is the App's, so a second window opens agreeing with the first.
         """
         log.info("_install_tray")
         icon_path = Path(__file__).resolve().parents[2] / 'assets' / 'icons' / 'trcc.png'

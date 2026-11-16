@@ -689,7 +689,7 @@ trcc display media-player KEY [URI]
 
 ### `trcc display output`
 
-Show or hide the picture on every connected LCD. The tray's "Display on LCD". Off blanks every panel and holds it; on puts the saved display back. Closing a window does not do this, and the tray's Exit does not stop the App — `trcc kill` does. `sleep` blanks one device and does not hold the others.
+Show or hide the picture on every connected LCD. The tray's "Display on LCD". Off blanks every panel and holds it; on puts the saved display back. Closing a window does not do this. On macOS, quitting the menu bar app stops TRCC; elsewhere the tray's Exit closes the window only and `trcc kill` stops the App. `sleep` blanks one device and does not hold the others.
 
 ```bash
 trcc display output [STATE]

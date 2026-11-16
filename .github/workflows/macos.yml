@@ -99,6 +99,8 @@ jobs:
             --exclude-module trcc.modules.visualizer \
             --hidden-import PySide6.QtSvg \
             --hidden-import pynvml \
+            --hidden-import pygments.lexer \
+            --collect-all pygments \
             --collect-all catap \
             --collect-submodules trcc \
             --osx-bundle-identifier com.thermalright.trcc \

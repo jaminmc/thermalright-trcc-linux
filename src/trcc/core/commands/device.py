@@ -841,8 +841,8 @@ class SetPanelOutput(Command[PanelOutputResult]):
     the render loop does not paint over it.  On sends
     :class:`RestoreDeviceState`, which puts the saved display back.  The App
     keeps running either way.  Closing the window does not call this.
-    The tray's Exit closes that window only.  ``trcc kill`` is what stops
-    the App.
+    On macOS the menu bar's Exit stops the App; elsewhere Exit closes
+    that window only and ``trcc kill`` stops the App.
 
     A panel that connects while the picture is off is blanked by
     ``App._prime`` and stays dark until this is turned back on.
