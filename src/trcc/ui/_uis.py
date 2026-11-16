@@ -218,14 +218,23 @@ class DaemonUI(UserInterface, key="daemon"):
         """
         log.info("DaemonUI.run: serving until shutdown")
         server, serving = self._server, self._serving
+        # The platform owns the wait. macOS pumps Finder's reopen on this
+        # thread; every other OS joins the accept thread. Apple Events are
+        # delivered on this thread, so the wait cannot move to the accept
+        # thread. ``start`` records the platform it was given; a daemon
+        # started with none uses the App's, which is the one that was built.
+        platform = self._platform
+        if platform is None:
+            platform = self._app.platform
+        log.info("DaemonUI.run: waiting via %s", type(platform).__name__)
         try:
-            # A timed join, so a stop signal still runs on this main thread --
+            # A timed wait, so a stop signal still runs on this main thread --
             # and is read HERE: the handler only sets the flag, and the
             # shutdown (locks, joins, socket writes, log lines) runs below,
             # in ordinary code, never inside the handler.
             while (serving is not None and serving.is_alive()
                    and not self._stop_requested):
-                serving.join(0.5)
+                platform.daemon_wait(serving, 0.5)
         finally:
             if server is not None:
                 server.shutdown()

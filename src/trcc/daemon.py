@@ -74,6 +74,31 @@ def run_daemon(
     return DaemonUI(renderer=renderer).start(platform)
 
 
+def _child_env() -> dict[str, str]:
+    """Environment for a process this one starts.
+
+    ``TRCC_DAEMON`` is stripped so the child cannot proxy to itself (#162).
+    A frozen Mac child also gets ``PYINSTALLER_RESET_ENVIRONMENT=1``: without
+    it PyInstaller starts that child as a worker of this process, and the
+    worker dies when this process does.  The daemon has to outlive the window.
+    The bootloader consumes the variable, so the child's Python never sees it.
+    Windows is left alone: the same flag on our exe has not been checked there.
+    """
+    from ._boot import _ENV_FLAG
+    env = {k: v for k, v in os.environ.items() if k != _ENV_FLAG}
+    # macOS only. A frozen Windows exe also starts the App as a child, and
+    # this variable is PyInstaller's "the child is a new instance" switch.
+    # It stays off there until it has been checked on Windows.
+    if sys.platform == "darwin" and getattr(sys, "frozen", False):
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        log.info("_child_env: frozen Mac child is its own instance")
+    else:
+        log.debug("_child_env: frozen=%s platform=%s",
+                  getattr(sys, "frozen", False), sys.platform)
+    return env
+
+
+
 # =========================================================================
 # Client helpers — auto-spawn + remote kill
 # =========================================================================
@@ -219,11 +244,10 @@ def ensure_daemon(*, timeout: float = _START_TIMEOUT_S,
             return answered
     cmd = _daemon_spawn_cmd()
     log.info("Spawning the shared App: %s", " ".join(cmd))
-    # Strip the daemon-mode flag from the child's env so the spawned daemon
-    # can't inherit it and try to proxy to itself — it builds the App
-    # in-process via run_daemon → _build_local_app regardless (#162).
-    from ._boot import _ENV_FLAG
-    child_env = {k: v for k, v in os.environ.items() if k != _ENV_FLAG}
+    # ``_child_env`` strips the daemon-mode flag so the child can't proxy to
+    # itself (#162).  A frozen Mac child is marked as its own instance so it
+    # outlives this window.
+    child_env = _child_env()
     # cwd="/", as daemons do: otherwise the App inherits whatever directory the
     # FIRST UI was started from — holding it open (an unmountable USB stick)
     # and resolving anything relative against it for its whole life.
@@ -438,19 +462,22 @@ def _daemon_spawn_cmd() -> list[str]:
 
     The running interpreter, not the first ``trcc`` on PATH: with two installs
     (pipx + a distro package), a UI could start a daemon of the other one --
-    and with a version check, replace it forever.  A frozen build (Windows,
-    macOS) has no ``-m``.  On Windows it is the installed ``trcc-gui.exe``,
-    the windowed twin of ``trcc.exe`` beside it: a console exe would open a
-    terminal window for the App's whole life.  macOS keeps the console-script
-    lookup until the daemon is verified there.
+    and with a version check, replace it forever.  A frozen build has no
+    ``-m``.  On Windows the windowed twin is ``trcc-gui.exe``.  On macOS the
+    one ``TRCC`` binary is the App, started as ``TRCC daemon``.
     """
     log.debug("_daemon_spawn_cmd: frozen=%s", getattr(sys, "frozen", False))
     if not getattr(sys, "frozen", False):
         return [sys.executable, "-m", "trcc", "daemon"]
+    # A frozen build has no ``-m``.  On Windows the windowed twin is
+    # ``trcc-gui.exe`` beside the console exe: a console exe would open a
+    # terminal for the App's whole life.  Everywhere else — the Mac app is
+    # one binary named ``TRCC`` — this executable is the App, and ``daemon``
+    # is a real subcommand.  ``which("trcc")`` can be a different install,
+    # and ``-m`` is not a Python flag once the file is frozen.
     windowed = Path(sys.executable).with_name("trcc-gui.exe")
     if sys.platform == "win32" and windowed.is_file():
         return [str(windowed), "daemon"]
-    from shutil import which
-    if (trcc_bin := which("trcc")) is not None:
-        return [trcc_bin, "daemon"]
-    return [sys.executable, "-m", "trcc", "daemon"]
+    log.info("_daemon_spawn_cmd: frozen %s -> %s daemon",
+             sys.platform, sys.executable)
+    return [sys.executable, "daemon"]

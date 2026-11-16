@@ -539,6 +539,10 @@ class FakePlatform(Platform):
         """Never end the test run: raise what a real exit would leave."""
         raise SystemExit(code)
 
+    def daemon_wait(self, serving: threading.Thread, timeout: float) -> None:
+        """The shared answer: join the accept thread. macOS is the override."""
+        serving.join(timeout)
+
     def worker_thread_context(self) -> AbstractContextManager[None]:
         return nullcontext()
 
