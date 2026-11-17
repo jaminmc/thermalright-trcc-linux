@@ -228,9 +228,6 @@ KNOWN_UI_ASYMMETRY: dict[str, tuple[frozenset[str], str]] = {
         "scoped: the GUIs build the App in-process and can HOST the IPC server, so "
         "they are the daemon rather than a client asking after one"
     )),
-    "StopDaemon": (frozenset({"cli", "api"}), (
-        "scoped: same: closing the window ends the process that IS the daemon"
-    )),
     "ProvideApiTls": (frozenset({"cli"}), (
         "scoped: it provisions the API server's TLS BEFORE the server starts, and "
         "`trcc api` is the only thing that starts it -- an API client cannot ask a "

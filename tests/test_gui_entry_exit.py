@@ -345,27 +345,22 @@ def test_closing_after_a_taskbar_restore_still_hides_to_the_tray(
 def test_macos_exit_stops_the_background_app(
     qtbot: Any, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The menu bar is the program on macOS.  Exit stops the App in this
-    process: sending StopDaemon through the proxy would run it inside the
-    daemon, which then waits for its own socket to disappear."""
+    """The menu bar is the program on macOS. Exit dispatches StopDaemon.
+
+    The window holds the UI, whose dispatch runs that Command in this
+    process. Sending it through the proxy would run it inside the daemon,
+    which then waits for its own socket to disappear."""
     import sys
 
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QWidget
 
-    import trcc.daemon as daemon_mod
     from trcc.ui.qt_tray import TrayController
 
     monkeypatch.setattr(sys, "platform", "darwin")
-    killed: list[bool] = []
-    monkeypatch.setattr(
-        daemon_mod, "kill_daemon", lambda **_kw: killed.append(True) or True,
-    )
     dispatched: list[str] = []
 
     class _App:
-        remote = True
-
         def dispatch(self, cmd: object) -> object:
             dispatched.append(type(cmd).__name__)
             return type("R", (), {"message": "shown", "enabled": True, "ok": True})()
@@ -375,8 +370,7 @@ def test_macos_exit_stops_the_background_app(
     tray = TrayController(window, icon=QIcon())
     tray.install(app=_App())
     tray.request_quit()
-    assert dispatched == ["PanelOutput", "GetAutostartStatus"]
-    assert killed == [True]
+    assert dispatched == ["PanelOutput", "GetAutostartStatus", "StopDaemon"]
 
 
 def test_other_platforms_leave_the_app_running_on_exit(

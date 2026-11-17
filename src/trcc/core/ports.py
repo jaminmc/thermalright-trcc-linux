@@ -4314,16 +4314,19 @@ class Platform(ABC):
         than importing a probe into ``core``.
         """
 
-    @abstractmethod
     def daemon_wait(self, serving: threading.Thread, timeout: float) -> None:
         """Pause the daemon's main loop for up to *timeout* seconds.
 
         The loop asks this instead of joining the accept thread itself, so
-        an OS can drain events that only the main thread receives.
-        :class:`BaseOS` joins *serving*. macOS pumps Finder's reopen on
-        the same wait, because a frozen Mac app will not start a second
-        process of its bundle while this one is still that app.
+        an OS can drain events that only the main thread receives. The
+        default joins *serving*. macOS pumps Finder's reopen on the same
+        wait, because a frozen Mac app will not start a second process of
+        its bundle while this one is still that app.
+
+        Called twice a second, so the line is per-frame.
         """
+        frame_log.debug("%s.daemon_wait: %.3fs", type(self).__name__, timeout)
+        serving.join(timeout)
 
     def smbuses(self) -> tuple[SmBus, ...]:
         """The chipset SMBus controllers, opened -- where RGB memory sits.

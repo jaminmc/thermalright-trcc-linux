@@ -601,15 +601,6 @@ class BaseOS(Platform):
             self._http_fetcher = UrllibHttpFetcher()
         return self._http_fetcher
 
-    def daemon_wait(self, serving: threading.Thread, timeout: float) -> None:
-        """Pause until *timeout* elapses or the accept thread ends.
-
-        macOS overrides this to pump Apple Events on the same wait.
-        The daemon calls this twice a second, so the line is per-frame.
-        """
-        frame_log.debug("%s.daemon_wait: %.3fs", type(self).__name__, timeout)
-        serving.join(timeout)
-
     def packages(self) -> PackageManager:
         if self._packages is None:
             log.info("%s.packages: building query surface",

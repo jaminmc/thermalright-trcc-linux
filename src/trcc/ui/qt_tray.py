@@ -236,12 +236,11 @@ class TrayController:
             log.info("_stop_background_app: no App")
             return
         log.info("_stop_background_app: stopping the background App")
-        cmd = StopDaemon()
         try:
-            # A remote App would run this inside the daemon and then wait for
-            # its own socket to disappear.  StopDaemon runs in the caller.
-            result = (cmd.execute(app) if getattr(app, "remote", False)
-                      else app.dispatch(cmd))
+            # The window holds the UI, and StopDaemon runs in the caller.
+            # Dispatching it on the proxy would run it inside the daemon,
+            # which then waits for its own socket to disappear.
+            result = app.dispatch(StopDaemon())
         except Exception as exc:
             log.warning("_stop_background_app: %s", exc)
             return

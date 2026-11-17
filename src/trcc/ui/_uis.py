@@ -221,11 +221,13 @@ class DaemonUI(UserInterface, key="daemon"):
         # The platform owns the wait. macOS pumps Finder's reopen on this
         # thread; every other OS joins the accept thread. Apple Events are
         # delivered on this thread, so the wait cannot move to the accept
-        # thread. ``start`` records the platform it was given; a daemon
-        # started with none uses the App's, which is the one that was built.
+        # thread. ``start`` records the platform it was given. With none,
+        # this is the host's own — the same one compose built — and it is
+        # not read off the App.
         platform = self._platform
         if platform is None:
-            platform = self._app.platform
+            from .._boot import host_platform
+            platform = host_platform(None)
         log.info("DaemonUI.run: waiting via %s", type(platform).__name__)
         try:
             # A timed wait, so a stop signal still runs on this main thread --
