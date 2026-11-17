@@ -1,7 +1,6 @@
 """/devices/{key}/display router — orientation, brightness, theme."""
 from __future__ import annotations
 
-import json
 import logging
 import shutil
 import uuid
@@ -10,13 +9,14 @@ from pathlib import Path
 from fastapi import (
     APIRouter,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from trcc.core.commands import (
     AddOverlayElement,
@@ -24,8 +24,8 @@ from trcc.core.commands import (
     BuildPreview,
     ClearInset,
     ConfigureSlideshow,
+    CreateTheme,
     DeleteOverlayElement,
-    DeviceCanvas,
     DeviceState,
     EnableOverlay,
     ExportVideoClip,
@@ -33,7 +33,6 @@ from trcc.core.commands import (
     KeepAliveLoop,
     LcdSnapshot,
     ListMasks,
-    LoadImage,
     LoadTheme,
     LoadVideo,
     PanelOutput,
@@ -754,84 +753,113 @@ _CREATE_THEME_IMG_EXTS = MEDIA.exts(MediaKind.IMAGE)
 _CREATE_THEME_VID_EXTS = MEDIA.exts(MediaKind.ANIMATED)
 
 
-def _stage_upload(upload: UploadFile, uploads_dir: Path, suffix: str,
-                  staged: list[Path]) -> Path:
-    """Write *upload* to a fresh name in ``uploads/``, recorded for cleanup."""
-    path = uploads_dir / f"{uuid.uuid4().hex}{suffix}"
-    staged.append(path)
-    with path.open("wb") as f:
-        shutil.copyfileobj(upload.file, f)
-    log.debug("_stage_upload: %s -> %s", upload.filename, path.name)
-    return path
+class _Staged:
+    """The uploads one request staged in ``uploads/``, and their cleanup.
+
+    Nothing else ever cleans ``uploads/``, so every entry is removed again
+    unless the panel still reads it (``CreateThemeResult.reads``).
+    """
+
+    def __init__(self, uploads_dir: Path) -> None:
+        log.debug("_Staged: in %s", uploads_dir)
+        self._dir = uploads_dir
+        self._entries: list[Path] = []
+
+    def file(self, upload: UploadFile, suffix: str) -> Path:
+        """*upload* under a fresh name."""
+        path = self._dir / f"{uuid.uuid4().hex}{suffix}"
+        log.debug("_Staged.file: %s as %s", upload.filename, path.name)
+        self._entries.append(path)
+        return self._write(upload, path)
+
+    def named(self, upload: UploadFile, suffix: str, fallback: str) -> Path:
+        """*upload* under its own name, in a fresh folder -- for a Command
+        that files it by that name (the mask library's ``custom_<name>``, a
+        one-file theme's ``single-image/<name>``)."""
+        folder = self._dir / uuid.uuid4().hex
+        self._entries.append(folder)
+        folder.mkdir()
+        stem = Path(Path(upload.filename or "").name).stem or fallback
+        log.debug("_Staged.named: %s as %s/%s%s", upload.filename,
+                  folder.name, stem, suffix)
+        return self._write(upload, folder / f"{stem}{suffix}")
+
+    def discard(self, kept: tuple[str, ...]) -> None:
+        """Remove every entry but *kept* -- and a folder holding one of them:
+        a ``named`` entry is its folder, and a video still playing is read
+        from inside it."""
+        keep = {Path(p) for p in kept}
+        for path in self._entries:
+            if any(k == path or path in k.parents for k in keep):
+                log.debug("_Staged.discard: kept %s -- still read", path.name)
+                continue
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+            log.debug("_Staged.discard: removed %s", path.name)
+
+    @staticmethod
+    def _write(upload: UploadFile, path: Path) -> Path:
+        with path.open("wb") as f:
+            shutil.copyfileobj(upload.file, f)
+        log.debug("_Staged: %s -> %s", upload.filename, path)
+        return path
 
 
-def _overlay_elements(overlay: UploadFile | None) -> tuple[dict, ...] | None:
-    """The ``elements`` of an uploaded overlay JSON; None when none was sent."""
-    if overlay is None or overlay.file is None:
-        log.debug("_overlay_elements: no overlay uploaded")
-        return None
-    try:
-        overlay_config = json.loads(overlay.file.read())
-    except (json.JSONDecodeError, ValueError) as e:
-        raise HTTPException(400, f"invalid overlay JSON: {e}") from e
-    if not isinstance(overlay_config, dict):
-        raise HTTPException(400, "overlay JSON must be an object")
-    raw_elements = overlay_config.get("elements", [])
-    if not isinstance(raw_elements, list):
-        raise HTTPException(
-            400, "overlay JSON 'elements' must be a list of element dicts")
-    elements = tuple(e for e in raw_elements if isinstance(e, dict))
-    log.debug("_overlay_elements: %d element(s)", len(elements))
-    return elements
-
-
-@router.post("/create-theme", response_model=CreateThemeResponse)
+@router.post(
+    "/create-theme",
+    response_model=CreateThemeResponse,
+    responses={409: {
+        "model": CreateThemeResponse,
+        "description": "A theme of that name exists — retry with "
+                       "`overwrite=true` to replace it.",
+    }},
+)
 async def create_theme(
     key: str,
     request: Request,
     background: UploadFile = File(...),
     mask: UploadFile | None = File(None),
     overlay: UploadFile | None = File(None),
-) -> CreateThemeResponse:
-    """Create + apply a custom theme from uploaded multipart files.
+    metric: list[str] = Form([]),
+    name: str = Form(""),
+    overwrite: bool = Form(False),
+) -> CreateThemeResponse | JSONResponse:
+    """Create a theme from uploaded files, show it, and save it if named.
 
-    Mirrors legacy ``POST /display/create-theme``: accept a background
-    image OR video plus an optional mask PNG and an optional overlay
-    JSON config, then route through the existing per-device Commands
-    so the wire path stays identical to a load-from-disk flow.
+    Mirrors legacy ``POST /display/create-theme``.  Dispatches
+    ``CreateTheme``, the Command ``trcc theme create`` dispatches too, with
+    every input as given; this route only checks, stages and cleans up the
+    uploads.
 
     Inputs (multipart/form-data):
       * ``background`` — required.  Image (png/jpg/jpeg/bmp/webp) or
-        video (mp4/mov/webm/mkv/avi/zt/gif).  Animated → ``PlayVideo``;
-        static → ``LoadImage``.
-      * ``mask``       — optional PNG.  Applied via ``ApplyMask`` after
-        the background lands.
+        video (mp4/mov/webm/mkv/avi/zt/gif).
+      * ``mask``       — optional picture, kept in the mask library as
+        ``custom_<file name>``.
       * ``overlay``    — optional JSON file with ``{"elements": [...]}``
-        shape.  Dispatched via ``SetOverlayConfig`` + ``EnableOverlay``.
+        shape.
+      * ``metric``     — optional, repeatable: one metric element in
+        shorthand, ``metric_key:x,y[:color[:size]]``, after the file's.
+      * ``name``       — optional: save the result as this theme.
+      * ``overwrite``  — replace a saved theme of that name.  Without it a
+        taken name answers 409 with ``target_exists``, as ``/theme/save``.
       A video background always loops, as the Windows app's does; the
       ``loop`` field this route once took is gone (an unknown form field is
       ignored, so a client still sending it is not refused).
-
-    Legacy's ``metric`` form-field shorthand (``metric=cpu_temp:10,20``)
-    is NOT supported here yet — it requires the ``build_overlay_config``
-    helper that lives on the cutover close-plan as a separate item
-    (G45).  Upload an ``overlay`` JSON file instead until that lands.
     """
     log.info(
         "api POST /devices/{key}/display/create-theme: key=%s "
-        "background=%s mask=%s overlay=%s",
+        "background=%s mask=%s overlay=%s metric=%s name=%r overwrite=%s",
         key,
         background.filename,
         mask.filename if mask is not None else None,
         overlay.filename if overlay is not None else None,
+        metric, name, overwrite,
     )
-    uploads_dir = staging_dir(request)
-    # Staged uploads a Command still reads stay: PlayVideo and ApplyMask
-    # persist the path they were given.  Everything else -- the image
-    # background LoadImage copied, anything a refused request staged --
-    # is removed: nothing else ever cleaned ``uploads/``.
-    staged: list[Path] = []
-    kept: set[Path] = set()
+    staged = _Staged(staging_dir(request))
+    reads: tuple[str, ...] = ()     # what the panel still reads stays
     try:
         bg_name = Path(background.filename or "background").name
         bg_suffix = Path(bg_name).suffix.lower() or ".jpg"
@@ -843,7 +871,10 @@ async def create_theme(
                 f"(expected image {sorted(_CREATE_THEME_IMG_EXTS)} or "
                 f"video {sorted(_CREATE_THEME_VID_EXTS)})",
             )
-        bg_path = _stage_upload(background, uploads_dir, bg_suffix, staged)
+        # Under its own name: the one-file theme is filed by the source's stem,
+        # so a fresh hex name made a new single-image/<hex> per upload of the
+        # same picture.  Named, it lands where the CLI's would.
+        bg_path = staged.named(background, bg_suffix, "background")
 
         mask_path: Path | None = None
         if mask is not None and mask.file is not None:
@@ -853,57 +884,38 @@ async def create_theme(
                     400,
                     f"unsupported mask extension {mask_suffix!r}",
                 )
-            mask_path = _stage_upload(mask, uploads_dir, mask_suffix, staged)
+            mask_path = staged.named(mask, mask_suffix, "mask")
 
-        overlay_elements = _overlay_elements(overlay)
+        overlay_path = (staged.file(overlay, ".json")
+                        if overlay is not None and overlay.file is not None
+                        else None)
 
-        animated = bg_suffix in _CREATE_THEME_VID_EXTS
-        if animated:
-            # PlayVideo persists the background path itself (#249).
-            play_result = request.app.state.trcc.dispatch(
-                PlayVideo(key=key, path=bg_path),
-            )
-            http_error_if_failed(play_result)
-            kept.add(bg_path)
-        else:
-            load_result = request.app.state.trcc.dispatch(
-                LoadImage(key=key, path=bg_path),
-            )
-            http_error_if_failed(load_result)
-
-        if mask_path is not None:
-            mask_result = request.app.state.trcc.dispatch(
-                ApplyMask(key=key, path=mask_path),
-            )
-            http_error_if_failed(mask_result)
-            kept.add(mask_path)
-
-        if overlay_elements is not None:
-            config_result = request.app.state.trcc.dispatch(
-                SetOverlayConfig(key=key, elements=overlay_elements),
-            )
-            http_error_if_failed(config_result)
-            request.app.state.trcc.dispatch(
-                EnableOverlay(key=key, enabled=True),
-            )
-
-        # The one ladder (DeviceCanvas); this route kept its own copy of it.
-        found = request.app.state.trcc.dispatch(DeviceCanvas(key=key))
-        w, h = (found.width, found.height) if found.ok else (0, 0)
-
+        created = request.app.state.trcc.dispatch(CreateTheme(
+            key=key, background=bg_path, mask=mask_path, overlay=overlay_path,
+            metrics=tuple(metric), name=name, overwrite=overwrite,
+        ))
+        reads = created.reads
+        if created.target_exists:
+            log.info("api create-theme: %r exists — 409, client may retry "
+                     "with overwrite=true", name)
+            return JSONResponse(status_code=409, content=CreateThemeResponse(
+                ok=False, key=key, theme_name=name, target_exists=True,
+                message=created.message).model_dump())
+        http_error_if_failed(created)
+        size = f"{created.width}x{created.height}"
         return CreateThemeResponse(
             ok=True,
             key=key,
-            animated=animated,
-            resolution=f"{w}x{h}",
+            animated=created.animated,
+            resolution=size,
+            theme_name=name,
             message=(f"theme created from {bg_name} "
-                     f"({'video' if animated else 'image'}, {w}x{h})"),
+                     f"({'video' if created.animated else 'image'}, {size})"
+                     + (f", saved as {name!r}" if name else "")),
         )
     finally:
-        for path in staged:
-            if path not in kept:
-                path.unlink(missing_ok=True)
-                log.debug("create_theme: removed staged %s", path.name)
+        staged.discard(reads)
+
 @router.post("/color")
 def send_color(key: str, body: ColorRequest, request: Request) -> SendResult:
     """Push a solid-color frame to a connected LCD device."""

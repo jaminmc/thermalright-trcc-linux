@@ -13,7 +13,12 @@ than eyeballed:
 
 ``compare`` exits 0 when the bytes match, 1 when they don't — and prints the
 geometry diff, so a failure says WHICH widget moved instead of just "the
-hash changed".
+hash changed".  The geometry is in creation (stacking) order, with each
+widget's visibility.
+
+``uc_led_styles`` is the LED panel once per LED style, stacked in one
+picture: the one to use for any change to the shared LED panel.
+``trcc_app`` is the whole gui window, every widget in it.
 
 Snapshots land in ``dev/.panel_snapshots/`` (git-ignored scratch).  Panels
 render against a fixed fake fleet so the result never depends on what is
@@ -70,6 +75,27 @@ def _build_uc_led_control() -> Any:
     return panel
 
 
+def _build_uc_led_styles() -> Any:
+    """Every LED style's panel, stacked in one sheet, each set up as
+    ``LEDHandler.show`` sets it up.
+
+    One panel serves all 13 styles, and each style shows a different part of
+    it -- the LC2 clock, the memory or disk panel, the gauges -- so a change
+    to the shared panel is proved for every style at once, not only style 1.
+    """
+    from PySide6.QtWidgets import QWidget
+    from trcc.core.led_models import LED_STYLES, LEGACY_STYLE_ID
+    from trcc.ui.gui.uc_led_control import PANEL_HEIGHT, PANEL_WIDTH, UCLedControl
+    sheet = QWidget()
+    sheet.resize(PANEL_WIDTH, PANEL_HEIGHT * len(LED_STYLES))
+    for row, (style, spec) in enumerate(LED_STYLES.items()):
+        panel = UCLedControl(sheet, language="en")
+        panel.move(0, row * PANEL_HEIGHT)
+        panel.initialize(LEGACY_STYLE_ID.get(style, 1), spec.zone_count,
+                         model=spec.model_name)
+    return sheet
+
+
 #: Built windows and Apps stay alive until the snapshot is taken.
 _KEEP: list[Any] = []
 
@@ -84,6 +110,12 @@ def _build_uc_theme_setting(edited: bool) -> Any:
     overlay elements and the mask hidden, so the grid, the element editor and
     the mask box show values rather than defaults.
     """
+    return _build_trcc_app(edited).uc_theme_setting
+
+
+def _build_trcc_app(edited: bool = False) -> Any:
+    """The whole gui window over one mock panel: every widget it builds,
+    hidden pages included, for a change to how the window is put together."""
     import tempfile
     sys.path.insert(0, str(REPO))
     from tests.conftest import show_a_theme
@@ -116,7 +148,7 @@ def _build_uc_theme_setting(edited: bool) -> Any:
     window = TRCCApp(app=app)
     window.replay_initial_devices()
     _KEEP.extend((app, window))
-    return window.uc_theme_setting
+    return window
 
 
 def _tile_pngs(folder: Path, names: list[str]) -> dict[str, Path]:
@@ -268,6 +300,7 @@ PANELS: dict[str, Callable[[], Any]] = {
     "uc_image_cut": _build_uc_image_cut,
     "uc_preview": _build_uc_preview,
     "uc_led_control": _build_uc_led_control,
+    "uc_led_styles": _build_uc_led_styles,
     "uc_theme_setting": lambda: _build_uc_theme_setting(edited=False),
     "uc_theme_setting_edited": lambda: _build_uc_theme_setting(edited=True),
     # The tile grid every theme tab and the Audio Visualizer stand on.
@@ -278,6 +311,7 @@ PANELS: dict[str, Callable[[], Any]] = {
     "uc_theme_mask": lambda: _build_uc_theme_mask(filled=True),
     "uc_theme_mask_empty": lambda: _build_uc_theme_mask(filled=False),
     "uc_visuals": _build_uc_visuals,
+    "trcc_app": _build_trcc_app,
 }
 
 
@@ -313,7 +347,15 @@ def capture(name: str, label: str) -> int:
 
 
 def _geometry(panel: Any) -> str:
-    """Every child's type, rect and text — so a diff explains itself."""
+    """Every child's type, rect, visibility and text — so a diff explains
+    itself.
+
+    In CREATION order, never sorted: that is the stacking order of widgets
+    that overlap, so a sorted list could not see two overlapping sections
+    swapped (the LED panel's memory and disk panels share one rect).  And
+    with visibility: a widget hidden in one state and shown in another is
+    otherwise the same line either way.
+    """
     lines: list[str] = []
     for child in panel.findChildren(object):
         if not hasattr(child, "geometry"):
@@ -328,11 +370,13 @@ def _geometry(panel: Any) -> str:
                 text = str(child.text())
             except Exception:
                 text = ""
+        shown = (child.isVisibleTo(panel) if hasattr(child, "isVisibleTo")
+                 else "-")
         lines.append(
             f"{type(child).__name__:16} "
-            f"({g.x()},{g.y()},{g.width()},{g.height()}) {text!r}"
+            f"({g.x()},{g.y()},{g.width()},{g.height()}) vis={shown} {text!r}"
         )
-    return "\n".join(sorted(lines))
+    return "\n".join(lines)
 
 
 def compare(name: str) -> int:

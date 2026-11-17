@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
-from typing import TypedDict
 
 import typer
 
 from ...core.commands import (
-    AddOverlayElement,
+    CreateTheme,
     DeleteTheme,
     DeviceCanvas,
     DownloadCloudTheme,
@@ -22,88 +20,13 @@ from ...core.commands import (
     ListThemes,
     ListWebThemes,
     LoadCloudTheme,
-    LoadImage,
     SaveTheme,
-    UploadCustomMask,
 )
+from ...core.commands.theme import METRIC_SPEC_USAGE
+from ...core.models import MEDIA, MediaKind
 from ._ctx import DeviceKey, get_app, resolution_for
 
 log = logging.getLogger(__name__)
-
-_METRIC_USAGE = (
-    "metric spec: 'metric_key:x,y[:color[:size]]' — e.g. "
-    "'cpu:temp:160,90:#ff8800:24'.  color defaults to '#ffffff', "
-    "size defaults to 16."
-)
-
-
-#: The coords field, and the only part of a ``--metric`` spec shaped like this.
-#: Anchoring on it is what makes the parse work: a metric key is itself
-#: colon-namespaced (``cpu:temp``, ``gpu:0:temp``), so counting colons from
-#: either end cannot find the boundary.
-_COORDS_RE = re.compile(r"-?\d+\s*,\s*-?\d+")
-
-
-class _MetricSpec(TypedDict):
-    """One ``--metric`` argument, as AddOverlayElement takes it."""
-
-    metric: str
-    x: int
-    y: int
-    color: str
-    size: int
-
-
-def _parse_metric_spec(spec: str) -> _MetricSpec:
-    """Parse a ``--metric`` arg into kwargs for AddOverlayElement.
-
-    Grammar: ``metric_key:x,y[:color[:size]]`` where **metric_key may contain
-    colons** — every real sensor key does (``cpu:temp``, ``gpu:0:temp``).
-
-    This used to ``split(":")`` and take ``parts[0]`` as the key, so
-    ``cpu:temp:160,90`` parsed the key as ``cpu`` and the coords as ``temp``.
-    That made ``--metric`` unusable with any actual sensor, including the
-    example printed in the command's own ``--help`` (#286).
-
-    Splitting from the right instead — the fix the reporter found — works only
-    when both optional fields are supplied; ``cpu:temp:160,90`` still breaks.
-    So the boundary is located by SHAPE: coords is the first field matching
-    ``x,y``, everything before it is the key, everything after is
-    ``[color[, size]]``.  That holds for any number of colons on either side.
-    """
-    log.debug("_parse_metric_spec: spec=%s", spec)
-    parts = spec.split(":")
-    idx = next((i for i, part in enumerate(parts)
-                if _COORDS_RE.fullmatch(part.strip())), None)
-    if idx is None or idx == 0:
-        raise typer.BadParameter(
-            f"Invalid metric spec {spec!r}; {_METRIC_USAGE}",
-        )
-    metric_key = ":".join(parts[:idx])
-    coords = parts[idx]
-    rest = parts[idx + 1:]
-    try:
-        x_str, y_str = coords.split(",")
-        x, y = int(x_str), int(y_str)
-    except (ValueError, IndexError) as e:
-        raise typer.BadParameter(
-            f"Invalid coords in {spec!r}; expected 'x,y' got {coords!r}",
-        ) from e
-    color = rest[0] if rest else "#ffffff"
-    if color and not color.startswith("#"):
-        color = f"#{color}"
-    try:
-        size = int(rest[1]) if len(rest) >= 2 else 16
-    except ValueError as e:
-        raise typer.BadParameter(
-            f"Invalid size in {spec!r}; expected int got {rest[1]!r}",
-        ) from e
-    return {
-        "metric": metric_key,
-        "x": x, "y": y,
-        "color": color,
-        "size": size,
-    }
 
 app = typer.Typer(
     help="Save / export / import themes.",
@@ -138,68 +61,58 @@ def save(
         raise typer.Exit(code=1)
 
 
+_MEDIA_HELP = (f"picture ({', '.join(sorted(MEDIA.exts(MediaKind.IMAGE)))}) or "
+               f"video ({', '.join(sorted(MEDIA.exts(MediaKind.ANIMATED)))})")
+
+
 @app.command("create")
 def create(
     key: DeviceKey,
     name: str = typer.Argument(..., help="Theme name to save as"),
     background: Path = typer.Option(
-        ..., "--bg", "-b", help="Background image (PNG/JPG/BMP/WEBP)",
+        ..., "--bg", "-b", help=f"Background {_MEDIA_HELP}",
     ),
     mask: Path | None = typer.Option(
         None, "--mask",
-        help="Optional mask PNG to overlay (custom_<name>/01.png)",
+        help="Optional mask picture; also kept in the mask library as "
+             "custom_<file name>",
+    ),
+    overlay: Path | None = typer.Option(
+        None, "--overlay",
+        help='Optional overlay file, {"elements": [...]} -- before any --metric',
     ),
     metric: list[str] = typer.Option(
-        [], "--metric", "-m", help=f"Overlay {_METRIC_USAGE}  Repeatable.",
+        [], "--metric", "-m",
+        help=f"Overlay {METRIC_SPEC_USAGE}  Repeatable.",
+    ),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Replace an existing theme of that name.",
     ),
 ) -> None:
-    """One-shot theme builder: bg + optional mask + overlay metrics → save.
+    """One-shot theme builder: background + optional mask + overlay -> save.
 
-    Mirrors legacy ``trcc theme --save``.  Dispatches a chain of
-    existing Commands: :class:`LoadImage` for the background,
-    :class:`UploadCustomMask` if ``--mask`` given,
-    :class:`AddOverlayElement` per ``--metric`` arg, then
-    :class:`SaveTheme` to persist the result.  Stops on the first
-    failure and leaves the device in whatever state was reached.
+    Mirrors legacy ``trcc theme --save``.  Dispatches :class:`CreateTheme`,
+    the Command the API's create-theme dispatches too.  The name and the
+    overlay are checked before the panel changes, so a bad one changes
+    nothing; a background or mask that will not open is found as it is
+    shown.
     """
     log.info(
-        "cli theme create: key=%s name=%s background=%s mask=%s metric=%s",
-        key, name, background, mask, metric,
+        "cli theme create: key=%s name=%s background=%s mask=%s overlay=%s "
+        "metric=%s overwrite=%s",
+        key, name, background, mask, overlay, metric, overwrite,
     )
-    app_obj = get_app()
-    # This CLI process holds no attached devices: ``LoadImage`` declares
-    # USES_DEVICE, so App.dispatch connects it first (#150).
-
-    bg_result = app_obj.dispatch(LoadImage(key=key, path=background))
-    if not bg_result.ok:
-        typer.echo(bg_result.message, err=True)
-        raise typer.Exit(code=1)
-    typer.echo(f"Loaded background: {background.name}")
-
-    if mask is not None:
-        m_result = app_obj.dispatch(UploadCustomMask(key=key, source=mask))
-        if not m_result.ok:
-            typer.echo(m_result.message, err=True)
-            raise typer.Exit(code=1)
-        typer.echo(f"Applied mask: {mask.name}")
-
-    for spec in metric:
-        kwargs = _parse_metric_spec(spec)
-        elem = app_obj.dispatch(AddOverlayElement(
-            key=key, type="metric", **kwargs,
-        ))
-        if not elem.ok:
-            typer.echo(elem.message, err=True)
-            raise typer.Exit(code=1)
-        typer.echo(
-            f"Added metric {kwargs['metric']} at "
-            f"({kwargs['x']},{kwargs['y']})",
-        )
-
-    save_result = app_obj.dispatch(SaveTheme(key=key, name=name))
-    typer.echo(save_result.message)
-    if not save_result.ok:
-        raise typer.Exit(code=1)
+    result = get_app().dispatch(CreateTheme(
+        key=key, background=background, mask=mask, overlay=overlay,
+        metrics=tuple(metric), name=name, overwrite=overwrite,
+    ))
+    if result.ok:
+        typer.echo(result.message)
+        return
+    typer.echo(result.message, err=True)
+    if result.target_exists:
+        typer.echo("Re-run with --overwrite to replace it.", err=True)
+    raise typer.Exit(code=1)
 
 
 @app.command("export")

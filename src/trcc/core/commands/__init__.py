@@ -158,6 +158,7 @@ from .system import (
     UpdateStatus,
 )
 from .theme import (
+    CreateTheme,
     DeleteTheme,
     DownloadCloudTheme,
     EnsureDataDownload,
@@ -198,6 +199,7 @@ __all__ = [
     "ConfigureSlideshow",
     "ConnectDevice",
     "ControlCenterSnapshot",
+    "CreateTheme",
     "CurrentFrame",
     "DaemonStatus",
     "DeleteOverlayElement",

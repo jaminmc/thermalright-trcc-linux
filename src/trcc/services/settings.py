@@ -23,7 +23,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Literal, TypeGuard, TypeVar, cast, get_args
 
-from ..core._colors import rgb_rows
+from ..core._colors import rgb_refusal, rgb_rows
 from ..core._safe import load_json_or_default
 from ..core.errors import ConfigError, NotADeviceKey
 from ..core.led_models import (
@@ -60,6 +60,7 @@ from ..core.models import (
     is_device_key,
 )
 from ..core.ports import Paths
+from ..core.registry import names_a_product
 
 #: What a panel keeps per theme folder (``OrientationState``), by field name --
 #: derived, so a field added there is swapped without being listed again.
@@ -1088,11 +1089,8 @@ class Settings:
     ) -> None:
         """Set the solid-color background used when background_mode='color'."""
         log.info("set_overlay_background: key=%s color=%s", key, color)
-        for label, value in zip("rgb", color, strict=False):
-            if not 0 <= value <= 255:
-                raise ValueError(
-                    f"{label} channel out of range (0-255): {value}",
-                )
+        if (why := rgb_refusal(color)) is not None:
+            raise ValueError(why)
         with self._lock:
             self.for_device(key).overlay_background = color
             self._save()
@@ -1111,11 +1109,8 @@ class Settings:
         oldest -- ``UCXiTongXianShiBackupColorSave``'s shift register.  A
         repeat is kept, as the C# keeps it."""
         log.info("remember_color: key=%s color=%s", key, color)
-        for label, value in zip("rgb", color, strict=False):
-            if not 0 <= value <= 255:
-                raise ValueError(
-                    f"{label} channel out of range (0-255): {value}",
-                )
+        if (why := rgb_refusal(color)) is not None:
+            raise ValueError(why)
         with self._lock:
             device = self.for_device(key)
             device.recent_colors = [tuple(color), *device.recent_colors][
@@ -1380,12 +1375,28 @@ def _require_device_key(key: str) -> None:
     is still empty, ``trcc display brightness "" 50`` -- filed a default entry
     under ``''`` that every later save wrote out again.  Every entry is made
     through here, so it is refused once, for all of them.
+
+    A well-formed key is not enough: ``dead:beef`` is shaped like a device
+    and names none, and was accepted until 2026-11-13.  A known product that
+    is merely unplugged still gets its entry -- it can be set up ahead.
     """
-    if is_device_key(key):
+    if (why := _why_not_a_device(key)) is None:
         return
-    log.warning("_require_device_key: no settings for %r -- not a device key",
-                key)
-    raise NotADeviceKey(f"{key!r} is not a device -- expected 'vvvv:pppp'")
+    log.warning("_require_device_key: no settings for %r -- %s", key, why)
+    raise NotADeviceKey(why)
+
+
+def _why_not_a_device(key: str) -> str | None:
+    """Why *key* names no device TRCC drives, or None when it names one."""
+    if names_a_product(key):
+        why = None
+    elif not is_device_key(key):
+        why = f"{key!r} is not a device -- expected 'vvvv:pppp'"
+    else:
+        why = (f"no TRCC device has the id {key!r} -- 'trcc device list' "
+               "shows the ones plugged in")
+    log.debug("_why_not_a_device: %r -> %s", key, why)
+    return why
 
 
 def _by_canonical_key(entries: dict[str, Any]) -> dict[str, Any]:
@@ -1396,14 +1407,14 @@ def _by_canonical_key(entries: dict[str, Any]) -> dict[str, Any]:
     brightness set through it never reached the panel.  When both exist the
     canonical one is what the panel has been using, so it wins; a lone
     non-canonical entry is kept under the canonical key.  An entry under a key
-    that names no device at all (``''``, see :func:`_require_device_key`) is
-    dropped.
+    that names no device at all (``''`` or ``dead:beef``, see
+    :func:`_require_device_key`) is dropped.
     """
     merged: dict[str, Any] = {}
     for key, data in entries.items():
-        if not is_device_key(key):
+        if (why := _why_not_a_device(key)) is not None:
             log.warning("_by_canonical_key: dropped the settings saved under "
-                        "%r -- not a device key", key)
+                        "%r -- %s", key, why)
             continue
         canonical = canonical_device_key(key)
         if canonical == key:

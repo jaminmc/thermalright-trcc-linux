@@ -135,6 +135,7 @@ from ._helpers import (
     _require_connected_device,
     _resolve_mask_path,
     _theme_directories,
+    decoded_size,
     native_canvas,
     resolve_overlay_layout,
     screencast_box,
@@ -144,7 +145,9 @@ from ._helpers import (
 
 if TYPE_CHECKING:
     from ...app import App
+    from ...services.media import Playback
     from ..ports import Device
+    from ..protocol import DeviceProfile
 
 from ..logs import per_frame
 from ..models import MEDIA, Capability, MediaKind
@@ -353,37 +356,21 @@ class ConnectDevice(Command[ConnectResult]):
             device = app.attach(vid, pid, unit=unit)
         except DeviceNotFoundError as e:
             hints = app.platform.check_permissions()
-            app.events.publish(ErrorOccurred(message=str(e), kind="not_found",
-                                             key=self.key, hints=hints))
-            result = ConnectResult(ok=False, key=self.key, message=str(e),
-                                   hints=hints)
-            app.note_connect_issue(result, permanent=True)
-            return result
+            return self._failed(app, e, "not_found", hints, permanent=True)
         except (ImportError, OSError, TransportError) as e:
-            # Building the transport can fail for reasons that are the user's
-            # environment, not a missing device: a firmware quirk selects the
-            # HID output-report transport, and hidapi may be absent or be the
-            # wrong one of the two PyPI packages that both import as ``hid``
-            # (#244, #253).  Those raise from the transport constructor, and an
-            # uncaught raise here takes the GUI down instead of telling anyone
-            # what to install — so report it like any other connect failure.
-            # ``TransportError`` is the SCSI node not existing (yet): a usb add
-            # arrives ~1 s before usb-storage creates /dev/sgN, and a panel a
-            # VM holds has none.  It used to escape this Command — and every
-            # Command that connects first — as an exception, with no issue
-            # recorded for any UI to show.
+            # The user's environment, not a missing device: hidapi absent, or
+            # the wrong one of the two PyPI packages that import as ``hid``
+            # (#244, #253) -- or a SCSI node not there yet: a usb add arrives
+            # ~1 s before usb-storage creates /dev/sgN, and a panel a VM holds
+            # has none.  Reported like any failed connect, never raised, so a
+            # UI can say what to install.  A missing library or a denied open
+            # stays until the user acts; a node not there yet does not.
             hints = app.platform.check_permissions()
             log.warning("ConnectDevice %s: transport unavailable — %s",
                         self.key, e)
-            app.events.publish(ErrorOccurred(message=str(e), kind="transport",
-                                             key=self.key, hints=hints))
-            result = ConnectResult(ok=False, key=self.key, message=str(e),
-                                   hints=hints)
-            # A missing library or a denied open stays that way until the user
-            # acts; a node that is not there yet does not.
-            app.note_connect_issue(
-                result, permanent=isinstance(e, (ImportError, PermissionError_)))
-            return result
+            return self._failed(
+                app, e, "transport", hints,
+                permanent=isinstance(e, (ImportError, PermissionError_)))
 
         try:
             handshake = self._handshake_with_quirk_retry(app, device, vid, pid,
@@ -394,23 +381,64 @@ class ConnectDevice(Command[ConnectResult]):
             # the panel is coming back to (its theme, a cast, a slideshow).
             app.release_device(self.key)
             hints = _connect_failure_hints(app, e, self.key, vid, pid, unit)
-            app.events.publish(ErrorOccurred(message=str(e), kind="handshake",
-                                             key=self.key, hints=hints))
-            result = ConnectResult(ok=False, key=self.key, message=str(e),
-                                   hints=hints)
-            app.note_connect_issue(
-                result, permanent=isinstance(e, PermissionError_))
-            return result
+            return self._failed(app, e, "handshake", hints,
+                                permanent=isinstance(e, PermissionError_))
 
-        # Variant override: handshake reveals the PM/SUB fingerprint, which
-        # disambiguates products sharing one (VID, PID).  Patch the device's
-        # ProductInfo with the resolved button_image so the GUI sidebar
-        # shows the right product picture.  Without this, every device falls
-        # back to the registry default (A1CZTV "ransom" button).
+        catalog_product = device.info.product
+        self._identify(device, handshake, vid, pid)
+        self._prepare_data(app, device, handshake)
+
+        # Hand the wire to a per-device send worker — it owns every write
+        # from here (serialization + Bulk/LY keepalive) until disconnect.
+        app.start_sender(self.key)
+
+        app.clear_connect_issue(self.key)   # it came up — drop any past failure
+        app.events.publish(DeviceConnected(
+            key=self.key, resolution=handshake.resolution,
+        ))
+        _warn_if_it_cannot_draw(app, self.key, device)
+        w, h = handshake.resolution
+        log.info("ConnectDevice %s: %s %dx%d (catalog: %s)", self.key,
+                 device.info.product, w, h, catalog_product)
+        return ConnectResult(
+            ok=True, key=self.key,
+            message=f"Connected: {device.info.product} {w}x{h}",
+            handshake=handshake,
+            product=device.info.product, catalog_product=catalog_product,
+        )
+
+    def _failed(self, app: App, error: Exception, kind: str, hints: list[str],
+                *, permanent: bool) -> ConnectResult:
+        """A connect that did not happen, said where every UI looks: an
+        ``ErrorOccurred`` for the open ones, and a connect issue the App keeps
+        for the rest -- *permanent* until the user acts, else retried."""
+        log.debug("ConnectDevice %s: -> %s failure (permanent=%s)",
+                  self.key, kind, permanent)
+        app.events.publish(ErrorOccurred(message=str(error), kind=kind,
+                                         key=self.key, hints=hints))
+        result = ConnectResult(ok=False, key=self.key, message=str(error),
+                               hints=hints)
+        app.note_connect_issue(result, permanent=permanent)
+        return result
+
+    def _identify(self, device: Device, handshake: HandshakeResult,
+                  vid: int, pid: int) -> None:
+        """Name the cooler the handshake revealed, on ``device.info``.
+
+        The PM/SUB fingerprint tells apart products that share one USB id: its
+        variant override gives the sidebar the right picture (else every
+        device shows the registry's A1CZTV default) and, when confirmed, the
+        right name -- the registry's ``product`` is one string for an id
+        covering dozens of coolers (#272).
+
+        An LED's style is resolved here too: the registry leaves it None
+        ("resolved at runtime").  The LED adapter's own resolution comes
+        first -- it reads the header fingerprint, so a Magic Qube (PM=208,
+        like CZ1) is not tagged CZ1 -- then the header/PM table from the raw
+        handshake."""
         from dataclasses import replace as _dc_replace
 
         from ..variants import get_variant_override
-        catalog_product = device.info.product
         override = get_variant_override(
             vid, pid, handshake.pm_byte, handshake.sub_byte,
         )
@@ -419,10 +447,6 @@ class ConnectDevice(Command[ConnectResult]):
             if override.button_image:
                 patch["button_image"] = override.button_image
             if override.display_name:
-                # The registry's ``product`` is one string for a USB id that
-                # covers dozens of coolers, so it names the wrong one for most
-                # of them (#272).  The handshake knows which cooler this is;
-                # when we have a confirmed name for that fingerprint, use it.
                 patch["product"] = override.display_name
             if patch:
                 device.info = _dc_replace(device.info, **patch)
@@ -432,14 +456,6 @@ class ConnectDevice(Command[ConnectResult]):
                     override.button_image or "(cutout-only)",
                 )
 
-        # LED style: enrich ``led_style`` from the handshake.  The registry
-        # leaves it None ("resolved at runtime"), so without this the LED
-        # handler reads None and falls back to a default style.  Prefer the
-        # LED adapter's already-resolved style — it honours the header
-        # fingerprint, so a Magic Qube (shares PM=208 with CZ1) isn't
-        # mis-tagged as CZ1 — and fall back to the header/PM registry from the
-        # raw handshake bytes.  resolve_* live in core, so this stays inside
-        # the hexagon.
         if device.info.wire is Wire.LED and device.info.led_style is None:
             led_hs = getattr(device, "led_handshake", None)
             led_style = getattr(led_hs, "style", None)
@@ -457,59 +473,37 @@ class ConnectDevice(Command[ConnectResult]):
                     self.key, led_style.value,
                 )
 
-        # Install theme/cloud/mask data for the HANDSHAKE-resolved resolution.
-        # This is the only install a device gets: DiscoverDevices never
-        # handshakes, so it cannot know the size or the variant library
-        # (2026-10-06).  ensure_all installs BOTH
-        # orientations for non-square panels (so portrait themes/masks exist).
-        #
-        # SUBMITTED, not called: this is the port of legacy's
-        # ``_ensure_data_background(device, w, h)`` — background is the whole
-        # point of it.  Run inline it downloaded six archives before connect
-        # returned, and since the GUI's splash waits on connect, the main
-        # window could not appear until then. (#136, #275)
-        # First boot for this panel: if the cooler bolted it in sideways, start
-        # the owner at 90 degrees instead of making them find the dial.  The
-        # SUB byte already told us at handshake; the C# spends it here too
-        # (SetThemeInfo_ThemeML seeds themeDirection).  Re-connects are a
-        # no-op — the device already has persisted settings by then.
+    def _prepare_data(self, app: App, device: Device,
+                      handshake: HandshakeResult) -> None:
+        """Ready the panel's first boot and its artwork.
+
+        A cooler that bolts its panel in sideways starts at 90 degrees, as the
+        C# seeds themeDirection from the SUB byte (SetThemeInfo_ThemeML); a
+        re-connect is a no-op, the device already has settings.
+
+        The theme, cloud and mask data for the HANDSHAKE's resolution is
+        installed from here and only here -- DiscoverDevices never handshakes.
+        Which LIBRARY, not just which size: two coolers can share a panel and
+        ship different chrome, chosen from the SUB and PM bytes
+        (FormCZTV.cs:1290, :5746), and this is the one place both bytes and the
+        size are known together.  SUBMITTED, not run: inline it downloaded six
+        archives before connect returned, and the window waited (#136, #275).
+        """
         profile = getattr(device, "profile", None)
         if profile is not None:
             app.settings.seed_mount_orientation(
                 self.key, profile.portrait_mounted)
-
         w, h = handshake.resolution
-        if w and h:
-            # Which artwork LIBRARY, not just which size.  Two coolers can
-            # share a panel and ship different chrome: the C# picks
-            # 1600720u/l/'' from the SUB byte and zt480480y from PM
-            # (FormCZTV.cs:1290, :5746).  This is the one place both bytes and
-            # the resolution are known together, so it is where the choice is
-            # made -- everything downstream takes a resolved suffix.
-            variant = artwork_variant((w, h), handshake.sub_byte)
-            masks = mask_variant((w, h), handshake.sub_byte, handshake.pm_byte)
-            log.info("ConnectDevice %s: data library %dx%d variant=%r mask=%r "
-                     "(sub=%d pm=%d)", self.key, w, h, variant, masks,
-                     handshake.sub_byte, handshake.pm_byte)
-            app.data_install_runner.submit((w, h), variant, masks)
-
-        # Hand the wire to a per-device send worker — it owns every write
-        # from here (serialization + Bulk/LY keepalive) until disconnect.
-        app.start_sender(self.key)
-
-        app.clear_connect_issue(self.key)   # it came up — drop any past failure
-        app.events.publish(DeviceConnected(
-            key=self.key, resolution=handshake.resolution,
-        ))
-        _warn_if_it_cannot_draw(app, self.key, device)
-        log.info("ConnectDevice %s: %s %dx%d (catalog: %s)", self.key,
-                 device.info.product, w, h, catalog_product)
-        return ConnectResult(
-            ok=True, key=self.key,
-            message=f"Connected: {device.info.product} {w}x{h}",
-            handshake=handshake,
-            product=device.info.product, catalog_product=catalog_product,
-        )
+        if not (w and h):
+            log.debug("ConnectDevice %s: no resolution — no data to install",
+                      self.key)
+            return
+        variant = artwork_variant((w, h), handshake.sub_byte)
+        masks = mask_variant((w, h), handshake.sub_byte, handshake.pm_byte)
+        log.info("ConnectDevice %s: data library %dx%d variant=%r mask=%r "
+                 "(sub=%d pm=%d)", self.key, w, h, variant, masks,
+                 handshake.sub_byte, handshake.pm_byte)
+        app.data_install_runner.submit((w, h), variant, masks)
 
 
 def _warn_if_it_cannot_draw(app: App, key: str, device: Any) -> None:
@@ -1459,88 +1453,20 @@ class PlayVideo(Command[VideoResult]):
         """Show the video on the panel, choosing nothing."""
         log.info("PlayVideo.play: key=%s path=%s fps=%d",
                  self.key, self.path, self.fps)
-        if MEDIA.kind_of(self.path) is not MediaKind.ANIMATED:
-            log.warning(
-                "PlayVideo.execute: unsupported extension %r (allowed=%s)",
-                self.path.suffix, sorted(MEDIA.exts(MediaKind.ANIMATED)),
-            )
-            return VideoResult(
-                ok=False, key=self.key, path=str(self.path),
-                message=(f"unsupported video extension {self.path.suffix!r} "
-                         f"(expected one of {sorted(MEDIA.exts(MediaKind.ANIMATED))})"),
-            )
-        if not self.path.exists():
-            log.warning("PlayVideo.execute: path does not exist: %s",
-                        self.path)
-            return VideoResult(
-                ok=False, key=self.key, path=str(self.path),
-                message=f"video does not exist: {self.path}",
-            )
-        if not self.path.is_file():
-            log.warning("PlayVideo.execute: path is not a regular file: %s",
-                        self.path)
-            return VideoResult(
-                ok=False, key=self.key, path=str(self.path),
-                message=f"video path is not a regular file: {self.path}",
-            )
-
+        if why := self._unplayable():
+            return self._failed(why)
         try:
             device = app.get(self.key)
         except DeviceNotFoundError as e:
             log.warning("PlayVideo.execute: device %s not found: %s",
                         self.key, e)
-            return VideoResult(ok=False, key=self.key, path=str(self.path),
-                                message=str(e))
+            return self._failed(str(e))
         if why := _lacks(app, self.key, Capability.FRAME_RENDER):
-            return VideoResult(ok=False, key=self.key, path=str(self.path),
-                               message=why)
+            return self._failed(why)
         if why := _theme_under_background(app, self.key):
-            return VideoResult(ok=False, key=self.key, path=str(self.path),
-                               message=why)
+            return self._failed(why)
 
-        if device.profile is not None:
-            canvas_size = device.profile.resolution
-        else:
-            canvas_size = device.info.native_resolution
-        # Decode at the ORIENTED canvas — at 90/270 the render composes a
-        # portrait canvas (``DisplayService._compose_geometry``), so a portrait
-        # cloud video (web/480854) must decode to 480x854, not the native
-        # landscape, or it gets squished into the wrong aspect. Same swap rule
-        # the whole orientation pipeline keys on.
-        orientation = app.settings.for_device(self.key).orientation
-        canvas_size = oriented_resolution(canvas_size, orientation)
-
-        # The user's videos decode at NATIVE so the render pipeline's
-        # fit-mode (width / height / stretch) actually has something to
-        # scale.  Program / cloud assets under ``data_dir`` are pre-authored
-        # at the device's canvas resolution, so they keep the canvas-size
-        # decode (no rescale work for ffmpeg, and ``.zt`` is fixed-size by
-        # format).  A file picked from anywhere else is the user's too — it
-        # used to decode at canvas size and play stretched (#291).
-        #
-        # ``Paths.is_user_content`` is the ONE place that question is
-        # answered — the render path asks it too, to choose between
-        # fit_mode and the canvas-sized native-or-black rule, and the two
-        # have to agree about the same file.  ``.zt`` is excluded here and
-        # only here: it is authored at canvas and rejects a native decode.
-        is_user_asset = False
-        if self.path.suffix.lower() != ".zt":
-            try:
-                is_user_asset = app.platform.paths().is_user_content(self.path)
-            except (OSError, AttributeError):
-                # ``user_content_dir`` lookup or resolve failed (broken
-                # platform paths, missing dir).  Default to canvas-size
-                # decode so we never block playback over a probe failure.
-                is_user_asset = False
-        decode_size: tuple[int, int] | None = (
-            None if is_user_asset else canvas_size
-        )
-        log.info(
-            "PlayVideo.execute: target_size=%s (profile=%s, user_asset=%s)",
-            "native" if decode_size is None else f"{decode_size[0]}x{decode_size[1]}",
-            device.profile is not None, is_user_asset,
-        )
-
+        canvas_size, decode_size = self._decode_size(app, device)
         try:
             playback = app.media.load_video(
                 device_key=self.key, path=self.path, size=decode_size,
@@ -1559,22 +1485,91 @@ class PlayVideo(Command[VideoResult]):
             app.events.publish(ErrorOccurred(
                 message=str(e), kind="video", key=self.key,
             ))
-            return VideoResult(ok=False, key=self.key, path=str(self.path),
-                                message=str(e))
+            return self._failed(str(e))
 
         # The choice is recorded by ``execute`` once this LOADS -- the
         # Command's, not its callers' (each UI once wrote it itself, and over
         # the daemon that crashed, #249).  A theme's own video records none.
-
         # Bust the scene cache so the next render picks up the override.
         _invalidate_scene(app, self.key)
+        return self._announce(app, playback)
 
-        # Animated-vs-static gate: ffmpeg decoded exactly one frame, so this
-        # "video"/gif is NOT animated.  Render it ONCE via BackgroundChanged
-        # and do NOT publish VideoStarted, so the GUI never starts the 15fps
-        # animation timer for a static background.  Restores the legacy
-        # PIL frame-count check (lost in the PIL→ffmpeg refactor) using
-        # ffmpeg's own decode count.
+    def _failed(self, message: str) -> VideoResult:
+        """The one shape of a video that does not play."""
+        log.debug("PlayVideo %s: -> not played %r", self.key, message)
+        return VideoResult(ok=False, key=self.key, path=str(self.path),
+                           message=message)
+
+    def _unplayable(self) -> str | None:
+        """Why the file itself cannot play -- not a video, not there, not a
+        regular file -- or None."""
+        if MEDIA.kind_of(self.path) is not MediaKind.ANIMATED:
+            allowed = sorted(MEDIA.exts(MediaKind.ANIMATED))
+            log.warning(
+                "PlayVideo.execute: unsupported extension %r (allowed=%s)",
+                self.path.suffix, allowed,
+            )
+            return (f"unsupported video extension {self.path.suffix!r} "
+                    f"(expected one of {allowed})")
+        if not self.path.exists():
+            log.warning("PlayVideo.execute: path does not exist: %s",
+                        self.path)
+            return f"video does not exist: {self.path}"
+        if not self.path.is_file():
+            log.warning("PlayVideo.execute: path is not a regular file: %s",
+                        self.path)
+            return f"video path is not a regular file: {self.path}"
+        return None
+
+    def _decode_size(
+        self, app: App, device: Device,
+    ) -> tuple[tuple[int, int], tuple[int, int] | None]:
+        """The panel's canvas, and the size to decode at -- None for native.
+
+        The canvas is ORIENTED: at 90/270 the render composes a portrait
+        canvas (``DisplayService._compose_geometry``), so a portrait cloud
+        video (web/480854) decodes to 480x854, not squished into the native
+        landscape.
+
+        The user's videos decode at NATIVE, so the fit mode (width / height /
+        stretch) has something to scale; a file picked from anywhere outside
+        the program's data is the user's too -- it played stretched (#291).
+        Program and cloud assets are authored at the canvas and keep the
+        canvas decode.  ``Paths.is_user_content`` is the ONE place that is
+        answered -- the render asks it too, and the two must agree.  ``.zt``
+        is excluded here only: it is canvas-sized by format and rejects a
+        native decode."""
+        if device.profile is not None:
+            canvas_size = device.profile.resolution
+        else:
+            canvas_size = device.info.native_resolution
+        orientation = app.settings.for_device(self.key).orientation
+        canvas_size = oriented_resolution(canvas_size, orientation)
+        is_user_asset = False
+        if self.path.suffix.lower() != ".zt":
+            try:
+                is_user_asset = app.platform.paths().is_user_content(self.path)
+            except (OSError, AttributeError):
+                # Broken platform paths or a missing dir: decode at the
+                # canvas rather than block playback over a probe failure.
+                is_user_asset = False
+        decode_size: tuple[int, int] | None = (
+            None if is_user_asset else canvas_size
+        )
+        log.info(
+            "PlayVideo.execute: target_size=%s (profile=%s, user_asset=%s)",
+            "native" if decode_size is None else f"{decode_size[0]}x{decode_size[1]}",
+            device.profile is not None, is_user_asset,
+        )
+        return canvas_size, decode_size
+
+    def _announce(self, app: App, playback: Playback) -> VideoResult:
+        """Tell the UIs what loaded.  One decoded frame is a still, not a
+        video: it renders ONCE through ``BackgroundChanged`` and publishes no
+        ``VideoStarted``, so no UI starts an animation timer for it -- the
+        legacy frame-count check, on ffmpeg's own count.  Otherwise
+        ``VideoStarted`` carries the cadence (``Playback.interval_ms`` owns
+        the 1000/fps clamp, so TickDisplay reports the same one)."""
         if playback.frame_count <= 1:
             log.info(
                 "PlayVideo.execute: %s is a STATIC single-frame background "
@@ -1588,10 +1583,6 @@ class PlayVideo(Command[VideoResult]):
                 frame_count=1,
                 message=f"static background (1 frame): {self.path.name}",
             )
-
-        # Per-frame interval derived from playback fps — handler observer
-        # uses this to start the Qt animation timer.  ``Playback.interval_ms``
-        # owns the 1000/fps clamp so TickDisplay reports the same cadence.
         fps = getattr(playback, "fps", 0) or 30
         interval_ms = playback.interval_ms
         log.info(
@@ -1599,7 +1590,6 @@ class PlayVideo(Command[VideoResult]):
             "(interval=%dms, VideoStarted published)",
             playback.frame_count, fps, interval_ms,
         )
-
         app.events.publish(VideoStarted(
             key=self.key, path=str(self.path),
             frame_count=playback.frame_count,
@@ -2989,6 +2979,7 @@ class TickGameMode(Command[GameModeTickResult]):
                         self.key, len(data))
         return True, f"game frame {len(data)} bytes"
 
+
 @dataclass(frozen=True, slots=True)
 class ApplyMask(Command[MaskApplyResult]):
     """Set a user-supplied mask image that overrides the active theme's mask.
@@ -3028,6 +3019,17 @@ class ApplyMask(Command[MaskApplyResult]):
             )
         resolved = str(resolved_file.resolve())
         log.info("ApplyMask: resolved %s → %s", candidate, resolved)
+        # Decoded BEFORE anything is saved: a mask saved undecodable made every
+        # render after it raise, and stayed saved across restarts (2026-11-13).
+        try:
+            mw, mh = decoded_size(app, resolved_file)
+        except TrccError as e:
+            log.warning("ApplyMask: %s does not decode (%s) — rejecting",
+                        resolved_file, e)
+            return MaskApplyResult(
+                ok=False, key=self.key, path=str(candidate),
+                message=f"mask image cannot be read: {candidate} ({e})",
+            )
         app.settings.set_mask_path(self.key, resolved)
         # Applying a mask makes it visible.  Legacy kept theme_mask_visible
         # True (Windows isDrawMbImage) and drew the mask whenever one was
@@ -3065,13 +3067,6 @@ class ApplyMask(Command[MaskApplyResult]):
         # (most of the cloud catalog) draw at (0,0) and look invisible.
         from ...services import _dc as Dc
         from ...services.overlay import OverlayService
-        try:
-            mask_img = app.display._r.open_image(resolved_file)
-            mw, mh = app.display._r.surface_size(mask_img)
-        except Exception as e:
-            log.warning("ApplyMask: failed to size %s (%s) — position skipped",
-                        resolved_file, e)
-            mw, mh = (0, 0)
         device = app.devices.get(self.key)
         canvas: tuple[int, int] = (0, 0)
         if device is not None and device.profile is not None:
@@ -4112,30 +4107,6 @@ class DeviceState(Query[DeviceStateResult]):
             connected=device.is_connected,
             is_led=device.is_led,
             needs_keepalive=device.needs_keepalive,
-            resolution=profile.resolution if profile else None,
-            jpeg=profile.jpeg if profile else None,
-            rotate=profile.rotate if profile else None,
-            widescreen=profile.widescreen if profile else None,
-            serial=getattr(handshake, "serial", "") or "",
-            byte_order=profile.byte_order if profile else "",
-            encode_base=profile.encode_base if profile else None,
-            encode_invert=profile.encode_invert if profile else None,
-            encode_baseline=profile.encode_baseline if profile else None,
-            pm_byte=handshake.pm_byte if handshake else None,
-            sub_byte=handshake.sub_byte if handshake else None,
-            # HANDSHAKE-derived, not the registry's.  Its ONE consumer
-            # (qtgui device_panel) prints it under a literal "Handshake"
-            # heading beside PM and SUB, so that is what it has always meant —
-            # while this filled it from ``info.fbl``.  They diverge exactly
-            # where it matters: the registry declares {72, 100, 192} across all
-            # ten rows, and real handshakes yield 58 (#228's Frozen Warframe SE)
-            # and 224.  ``pm_to_fbl`` is the same fallback the gui's own
-            # fingerprint line used before it moved onto this Query.
-            fbl=(
-                handshake.fbl if handshake and handshake.fbl is not None
-                else pm_to_fbl(handshake.pm_byte, handshake.sub_byte)
-                if handshake else None
-            ),
             # ``.value``, matching the declared ``str | None`` and the way
             # ``kind`` / ``wire`` are already flattened.  This stored the
             # raw ``LedStyle`` enum while claiming to be a str — harmless
@@ -4143,4 +4114,42 @@ class DeviceState(Query[DeviceStateResult]):
             # moment a consumer keys a dict by the real enum.
             led_style=(style.value if (style := info.led_style) else None),
             message=f"{info.product} ({info.wire.value})",
+            **_profile_fields(profile),
+            **_handshake_fields(handshake),
         )
+
+
+def _profile_fields(profile: DeviceProfile | None) -> dict[str, Any]:
+    """The panel geometry the handshake decided -- none before it, so the
+    Result's own defaults (None, not 0 or False) say "not asked yet"."""
+    log.debug("_profile_fields: %s", profile.resolution if profile else None)
+    if profile is None:
+        return {}
+    return {
+        "resolution": profile.resolution, "jpeg": profile.jpeg,
+        "rotate": profile.rotate, "widescreen": profile.widescreen,
+        "byte_order": profile.byte_order, "encode_base": profile.encode_base,
+        "encode_invert": profile.encode_invert,
+        "encode_baseline": profile.encode_baseline,
+    }
+
+
+def _handshake_fields(handshake: HandshakeResult | None) -> dict[str, Any]:
+    """What the device's own answer said -- none before it answered.
+
+    ``fbl`` is HANDSHAKE-derived, not the registry's.  Its ONE consumer
+    (qtgui device_panel) prints it under a literal "Handshake" heading beside
+    PM and SUB, so that is what it has always meant -- while this filled it
+    from ``info.fbl``.  They diverge exactly where it matters: the registry
+    declares {72, 100, 192} across all ten rows, and real handshakes yield 58
+    (#228's Frozen Warframe SE) and 224.  ``pm_to_fbl`` is the same fallback
+    the gui's own fingerprint line used before it moved onto this Query."""
+    log.debug("_handshake_fields: %s", "answered" if handshake else None)
+    if handshake is None:
+        return {}
+    return {
+        "serial": getattr(handshake, "serial", "") or "",
+        "pm_byte": handshake.pm_byte, "sub_byte": handshake.sub_byte,
+        "fbl": (handshake.fbl if handshake.fbl is not None
+                else pm_to_fbl(handshake.pm_byte, handshake.sub_byte)),
+    }

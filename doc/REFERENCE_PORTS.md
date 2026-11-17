@@ -11,8 +11,8 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 | port | implement | inherit | implementations |
 |---|---|---|---|
 | [`BaseSendTask`](#basesendtask) | 1 | 4 | 5 |
-| [`Command`](#command) | 1 | 1 | 180 |
-| [`CpuSource`](#cpusource) | 1 | 5 | 12 |
+| [`Command`](#command) | 1 | 1 | 181 |
+| [`CpuSource`](#cpusource) | 1 | 5 | 13 |
 | [`DataInstaller`](#datainstaller) | 1 | 0 | 1 |
 | [`HttpFetcher`](#httpfetcher) | 1 | 0 | 2 |
 | [`MetricsPort`](#metricsport) | 1 | 0 | 1 |
@@ -82,7 +82,7 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 | [`Paths`](#paths) | 4 | 15 | 5 |
 | [`SendTask`](#sendtask) | 4 | 1 | 6 |
 | [`SmBus`](#smbus) | 4 | 0 | 1 |
-| [`_InTerminal`](#_interminal) | 4 | 3 | 3 |
+| [`_InTerminal`](#_interminal) | 4 | 3 | 4 |
 | [`BaseVisual`](#basevisual) | 5 | 0 | 16 |
 | [`BulkTransport`](#bulktransport) | 5 | 2 | 2 |
 | [`DdpListener`](#ddplistener) | 5 | 0 | 1 |
@@ -96,14 +96,14 @@ Ordered **cheapest to extend first** — the ports at the top are where this cod
 | [`VisualEngine`](#visualengine) | 5 | 0 | 16 |
 | [`AutostartManager`](#autostartmanager) | 6 | 0 | 4 |
 | [`Diagnostics`](#diagnostics) | 7 | 0 | 1 |
-| [`PackageManager`](#packagemanager) | 7 | 0 | 3 |
+| [`PackageManager`](#packagemanager) | 7 | 0 | 4 |
 | [`VideoTool`](#videotool) | 8 | 0 | 1 |
 | [`RgbSkin`](#rgbskin) | 9 | 0 | 2 |
 | [`SensorEnumerator`](#sensorenumerator) | 11 | 13 | 1 |
 | [`BaseOS`](#baseos) | 12 | 20 | 8 |
 | [`Renderer`](#renderer) | 14 | 9 | 1 |
 | [`Platform`](#platform) | 26 | 11 | 8 |
-| [`ContentStore`](#contentstore) | 33 | 0 | 1 |
+| [`ContentStore`](#contentstore) | 34 | 0 | 1 |
 | [`ModuleServices`](#moduleservices) | 39 | 0 | 1 |
 
 ---
@@ -138,7 +138,7 @@ execute(app: 'App') -> R_co
 
 **You inherit (1):** `refusal`
 
-**Implementations (180):** `AddOverlayElement` · `AdvanceSlideshow` · `ApplyMask` · `BlinkAuraHeader` · `BrowseModules` · `BuildPreview` · `CaptureSourceFrame` · `CheckForUpdate` · `ClearInset` · `ClearModuleSource` · `ConfigureSlideshow` · `ConnectDevice` · `ControlCenterSnapshot` · `CurrentFrame` · `DaemonStatus` · `DeleteOverlayElement` · `DeleteTheme` · `DeviceCanvas` · `DeviceConnectionIssues` · `DeviceState` · `DisableAutostart` · `DisconnectDevice` · `DiscoverDevices` · `DownloadCloudTheme` · `EnableAutostart` · `EnableLedTestMode` · `EnableOverlay` · `EnsureConnected` · `EnsureDataDownload` · `ExportCurrentTheme` · `ExportDcTheme` · `ExportOverlay` · `ExportTheme` · `ExportVideoClip` · `GenerateDebugReport` · `GetAutostartStatus` · `GetFirstRunStatus` · `GetPaths` · `GetPlatformInfo` · `GetSensorDashboard` · `ImportTheme` · `InitializeLed` · `InstallFullFfmpeg` · `InstallModule` · `InstallModuleFolder` · `KeepAliveLoop` · `LcdSnapshot` · `LedSnapshot` · `ListCloudThemes` · `ListDevices` · `ListDiskSensors` · `ListDisks` · `ListFans` · `ListFonts` · `ListGpus` · `ListLanguages` · `ListLedModes` · `ListLedStyles` · `ListMasks` · `ListMemorySlots` · `ListModules` · `ListSensors` · `ListThemes` · `ListVisuals` · `ListWebThemes` · `LoadCloudTheme` · `LoadImage` · `LoadTheme` · `LoadVideo` · `MarkFirstRunDone` · `ModuleIcon` · `OpenRgbPorts` · `PanelOutput` · `PauseVideo` · `PlaceModule` · `PlayVideo` · `PlayVisual` · `PreviewClip` · `PreviewSize` · `ProbeVideoDuration` · `ProvideApiTls` · `RamLighting` · `ReadModuleFolder` · `ReadSensors` · `RecentColors` · `RefreshAutostart` · `RememberColor` · `RemoveModule` · `RenderAndSend` · `RenderDcStandalone` · `RenderLed` · `ResetDevice` · `ResolveOverlay` · `ResolveThemeDirectories` · `RestoreDeviceState` · `RgbFollow` · `RgbLights` · `RunDoctor` · `RunHealthCheck` · `RunQuickstart` · `RunSetup` · `RunUpgrade` · `SaveTheme` · `ScanRgbLights` · `SeekVideo` · `SelectZone` · `SendColor` · `SendFrame` · `SendImage` · `SendScreencastFrame` · `SetAuraEffect` · `SetAuraLeds` · `SetBackground` · `SetBackgroundMode` · `SetBrightness` · `SetClockFormat` · `SetDateFormat` · `SetDeveloperMode` · `SetDiskDevice` · `SetFitMode` · `SetGameMode` · `SetGpuDevice` · `SetHddEnabled` · `SetInset` · `SetLanguage` · `SetLedBrightness` · `SetLedColor` · `SetLedColors` · `SetLedLoadSource` · `SetLedMode` · `SetLedTempSource` · `SetLedZoneBrightness` · `SetLedZoneColor` · `SetLedZoneMode` · `SetLedZoneSync` · `SetLedZoneSyncInterval` · `SetLedZoneSyncZones` · `SetLinkedColor` · `SetMaskPosition` · `SetMaskVisible` · `SetMediaPlayer` · `SetMemoryRatio` · `SetModuleEnabled` · `SetOrientation` · `SetOverlayBackground` · `SetOverlayConfig` · `SetPanelOutput` · `SetRamEffect` · `SetRamLighting` · `SetRefreshInterval` · `SetRgbFollow` · `SetScreencastRegion` · `SetSensorDashboard` · `SetSlideshow` · `SetSplitMode` · `SetTempUnit` · `SetTimeFormat` · `SetVisualCenter` · `SetVisualPicture` · `SetVisualSettings` · `SetWeekStart` · `ShowBackground` · `SleepDevice` · `StartScreencast` · `StopClipPreview` · `StopDaemon` · `StopScreencast` · `StopVideo` · `TickClipPreview` · `TickDisplay` · `TickGameMode` · `ToggleLed` · `ToggleVideo` · `UnlockModuleDevices` · `UpdateOverlayElement` · `UpdateStatus` · `UploadBootAnimation` · `UploadCustomMask` · `VideoStatus` · `VisualTile`
+**Implementations (181):** `AddOverlayElement` · `AdvanceSlideshow` · `ApplyMask` · `BlinkAuraHeader` · `BrowseModules` · `BuildPreview` · `CaptureSourceFrame` · `CheckForUpdate` · `ClearInset` · `ClearModuleSource` · `ConfigureSlideshow` · `ConnectDevice` · `ControlCenterSnapshot` · `CreateTheme` · `CurrentFrame` · `DaemonStatus` · `DeleteOverlayElement` · `DeleteTheme` · `DeviceCanvas` · `DeviceConnectionIssues` · `DeviceState` · `DisableAutostart` · `DisconnectDevice` · `DiscoverDevices` · `DownloadCloudTheme` · `EnableAutostart` · `EnableLedTestMode` · `EnableOverlay` · `EnsureConnected` · `EnsureDataDownload` · `ExportCurrentTheme` · `ExportDcTheme` · `ExportOverlay` · `ExportTheme` · `ExportVideoClip` · `GenerateDebugReport` · `GetAutostartStatus` · `GetFirstRunStatus` · `GetPaths` · `GetPlatformInfo` · `GetSensorDashboard` · `ImportTheme` · `InitializeLed` · `InstallFullFfmpeg` · `InstallModule` · `InstallModuleFolder` · `KeepAliveLoop` · `LcdSnapshot` · `LedSnapshot` · `ListCloudThemes` · `ListDevices` · `ListDiskSensors` · `ListDisks` · `ListFans` · `ListFonts` · `ListGpus` · `ListLanguages` · `ListLedModes` · `ListLedStyles` · `ListMasks` · `ListMemorySlots` · `ListModules` · `ListSensors` · `ListThemes` · `ListVisuals` · `ListWebThemes` · `LoadCloudTheme` · `LoadImage` · `LoadTheme` · `LoadVideo` · `MarkFirstRunDone` · `ModuleIcon` · `OpenRgbPorts` · `PanelOutput` · `PauseVideo` · `PlaceModule` · `PlayVideo` · `PlayVisual` · `PreviewClip` · `PreviewSize` · `ProbeVideoDuration` · `ProvideApiTls` · `RamLighting` · `ReadModuleFolder` · `ReadSensors` · `RecentColors` · `RefreshAutostart` · `RememberColor` · `RemoveModule` · `RenderAndSend` · `RenderDcStandalone` · `RenderLed` · `ResetDevice` · `ResolveOverlay` · `ResolveThemeDirectories` · `RestoreDeviceState` · `RgbFollow` · `RgbLights` · `RunDoctor` · `RunHealthCheck` · `RunQuickstart` · `RunSetup` · `RunUpgrade` · `SaveTheme` · `ScanRgbLights` · `SeekVideo` · `SelectZone` · `SendColor` · `SendFrame` · `SendImage` · `SendScreencastFrame` · `SetAuraEffect` · `SetAuraLeds` · `SetBackground` · `SetBackgroundMode` · `SetBrightness` · `SetClockFormat` · `SetDateFormat` · `SetDeveloperMode` · `SetDiskDevice` · `SetFitMode` · `SetGameMode` · `SetGpuDevice` · `SetHddEnabled` · `SetInset` · `SetLanguage` · `SetLedBrightness` · `SetLedColor` · `SetLedColors` · `SetLedLoadSource` · `SetLedMode` · `SetLedTempSource` · `SetLedZoneBrightness` · `SetLedZoneColor` · `SetLedZoneMode` · `SetLedZoneSync` · `SetLedZoneSyncInterval` · `SetLedZoneSyncZones` · `SetLinkedColor` · `SetMaskPosition` · `SetMaskVisible` · `SetMediaPlayer` · `SetMemoryRatio` · `SetModuleEnabled` · `SetOrientation` · `SetOverlayBackground` · `SetOverlayConfig` · `SetPanelOutput` · `SetRamEffect` · `SetRamLighting` · `SetRefreshInterval` · `SetRgbFollow` · `SetScreencastRegion` · `SetSensorDashboard` · `SetSlideshow` · `SetSplitMode` · `SetTempUnit` · `SetTimeFormat` · `SetVisualCenter` · `SetVisualPicture` · `SetVisualSettings` · `SetWeekStart` · `ShowBackground` · `SleepDevice` · `StartScreencast` · `StopClipPreview` · `StopDaemon` · `StopScreencast` · `StopVideo` · `TickClipPreview` · `TickDisplay` · `TickGameMode` · `ToggleLed` · `ToggleVideo` · `UnlockModuleDevices` · `UpdateOverlayElement` · `UpdateStatus` · `UploadBootAnimation` · `UploadCustomMask` · `VideoStatus` · `VisualTile`
 
 ## CpuSource
 
@@ -154,7 +154,7 @@ name() -> str
 
 **You inherit (5):** `freq` · `power` · `temp` · `temp_label` · `usage`
 
-**Implementations (12):** `CpuSourceChain` · `HwinfoCpu` · `HwmonCpu` · `IOReportCpu` · `LhmCpu` · `MacosHidCpu` · `PawnioCpu` · `PowermetricsCpu` · `PsutilCpu` · `SmcCpu` · `SysctlCpu` · `WmiAcpiCpu`
+**Implementations (13):** `CpuSourceChain` · `HwinfoCpu` · `HwmonCpu` · `IOReportCpu` · `LhmCpu` · `MacosHidCpu` · `PawnioCpu` · `PdhCpu` · `PowermetricsCpu` · `PsutilCpu` · `SmcCpu` · `SysctlCpu` · `WmiAcpiCpu`
 
 ## DataInstaller
 
@@ -1291,7 +1291,7 @@ provides(path: 'str') -> str | None
 
 **You inherit (3):** `page` · `remove_line` · `run`
 
-**Implementations (3):** `NoPackageManager` · `Pacman` · `Rpm`
+**Implementations (4):** `NoPackageManager` · `Pacman` · `Rpm` · `RpmOstree`
 
 ## BaseVisual
 
@@ -1550,7 +1550,7 @@ remove_line(package: 'str') -> str
 run(steps: 'tuple[tuple[str, ...], ...]') -> int
 ```
 
-**Implementations (3):** `NoPackageManager` · `Pacman` · `Rpm`
+**Implementations (4):** `NoPackageManager` · `Pacman` · `Rpm` · `RpmOstree`
 
 ## VideoTool
 
@@ -1732,7 +1732,7 @@ worker_thread_context() -> AbstractContextManager[None]
 
 Where themes, masks, backgrounds and capture configs are kept.
 
-**You implement (33):**
+**You implement (34):**
 
 ```python
 background_config(ref: 'str') -> dict[str, Any] | None
@@ -1752,6 +1752,7 @@ mask_path(theme: 'Theme') -> Path | None
 media_player_uri(theme: 'Theme') -> str | None
 module_background(theme: 'Theme') -> tuple[str, str, dict[str, Any]] | None
 move_theme(theme_dir: 'Path', into: 'Path') -> Path
+overlay_elements(path: 'Path') -> builtins.list[dict]
 preview_path(theme: 'Theme') -> Path | None
 resolve_ref(ref: 'str') -> Path | None
 screencast_region(theme: 'Theme') -> tuple[int, int, int, int, bool] | None

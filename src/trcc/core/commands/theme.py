@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
@@ -51,6 +52,7 @@ from ..results import (
     CloudThemeEntryResult,
     CloudThemeLoadResult,
     CloudThemesListResult,
+    CreateThemeResult,
     DeleteThemeResult,
     EnsureDataDownloadResult,
     FileEntry,
@@ -78,6 +80,7 @@ from ._helpers import (
     _resolve_oriented_resolution,
     _search_theme_by_name,
     as_working_layer,
+    decoded_size,
     device_overlay_layout,
     enter_orientation,
     fit_mask_upload,
@@ -92,11 +95,14 @@ from ._helpers import (
 )
 from .device import (
     ApplyMask,
+    DeviceCanvas,
+    EnableOverlay,
     PlayVideo,
     SetBackground,
     SetBackgroundMode,
     SetMaskPosition,
     SetMediaPlayer,
+    SetOverlayConfig,
     StartScreencast,
     StopVideo,
     _publish_background,
@@ -106,6 +112,7 @@ from .device import (
 if TYPE_CHECKING:
     from ...app import App
     from ..models import DeviceSettings, Theme
+    from ..ports import Device
 
 from ..models import MEDIA, MediaKind
 
@@ -274,6 +281,8 @@ class LoadTheme(Command[ThemeResult]):
                                f"{needs}: turn it on in Modules")
 
     def _load(self, app: App) -> ThemeResult:
+        """Load in order: make the theme active, settle the panel's background
+        choice, adopt its layout, masks and cast region, then show it."""
         log.info("LoadTheme: key=%s path=%s reset_overrides=%s",
                  self.key, self.path, self.reset_overrides)
         try:
@@ -284,30 +293,53 @@ class LoadTheme(Command[ThemeResult]):
             app.events.publish(ErrorOccurred(message=str(e), kind="theme",
                                              key=self.key))
             return ThemeResult(ok=False, key=self.key, message=str(e))
+        # The absolute path: names are display strings, the path is the
+        # stable reference RestoreDeviceState needs.
+        path = str(theme.path.resolve())
+        video_path = self._make_active(app, theme, path)
+        drawing, module_bg = self._settle_background_choice(app, theme)
+        app.events.publish(ThemeLoaded(key=self.key, theme_name=theme.name))
+        log.info(
+            "LoadTheme: %s loaded — prior playback + cloud-bg override "
+            "cleared, scene cache invalidated, active theme persisted",
+            theme.name,
+        )
+        catalog = theme.path.parent.name
+        self._adopt_layout(app, theme, catalog)
+        self._apply_masks(app, theme, catalog)
+        # The theme's screencast region (the C#'s Jp*, read from every DC it
+        # loads).  AFTER the bundled mask, so the theme's own wins over its
+        # mask's; on a restore only when the device never had one, so a
+        # reconnect does not undo the user's edit.
+        if (self.reset_overrides
+                or app.settings.for_device(self.key).screencast_rect is None):
+            seed_screencast_rect(app, self.key, theme.config,
+                                 f"theme {theme.name}")
+        self._place_own_mask(app, theme)
+        return self._show(app, theme, path, video_path, module_bg, drawing)
 
-        # Persist the absolute path — names are display strings, paths
-        # are the stable reference RestoreDeviceState needs.
-        app.settings.set_current_theme(self.key, str(theme.path.resolve()))
-        # Set the new theme BEFORE StopVideo: StopVideo's VideoStopped
-        # publish is handled synchronously by _DeviceRenderObserver, which
-        # re-renders using whatever theme is currently in ``active_themes``.
-        # If the old (about-to-be-replaced) theme were still active at that
-        # point, and it had a bundled video, DisplayService._resolve_background
-        # would decode + cache that video into MediaService as a side effect
-        # of the read — then LoadTheme's own render just below would see that
-        # stale playback and use it instead of the new theme's background
-        # (animated→static switches silently kept showing the old animation
-        # until a second click finally cleared it).
+    def _make_active(self, app: App, theme: Theme, path: str) -> Path | None:
+        """Persist *theme* as the device's theme, make it active, end a pushed
+        frame's hold and stop the previous video.  Returns the theme's own
+        video, which decides the stop here and the play in :meth:`_show`.
+
+        Loading a theme asks to show it, so a picture that was switched off
+        comes back on, and every other panel that switch had blanked is
+        restored.  ``held`` stays the one-shot push hold.
+
+        Active BEFORE ``StopVideo``: its ``VideoStopped`` re-renders at once
+        from ``active_themes``, and with the old theme still there its video
+        was decoded back into the cache and shown instead of the new
+        background.  A video theme is not stopped at all -- ``PlayVideo``
+        replaces the playback in place; unloading first left a window where
+        every render re-decoded the whole video.  A restore stops nothing, so
+        the user's background and playback survive a reconnect."""
+        app.settings.set_current_theme(self.key, path)
         app.active_themes[self.key] = theme
         if self.key in app.held:     # a theme load ends a push's hold (#306)
             log.info("LoadTheme: %s released from a pushed frame's hold",
                      self.key)
             app.held.discard(self.key)
-        # The tray's switch and ``held`` were two copies of "the picture is
-        # off". A theme load released the hold and lit the panel while the
-        # switch stayed off, and the next replug blanked it again. Loading
-        # a theme is asking to show it, so the switch comes back on — one
-        # fact — and every other panel the switch had blanked comes back too.
         if not app.panel_output:
             log.info("LoadTheme: %s turns the LCD picture on", self.key)
             app.panel_output = True
@@ -316,28 +348,10 @@ class LoadTheme(Command[ThemeResult]):
                 log.info("LoadTheme: restoring %s now the picture is on", other)
                 app.held.discard(other)
                 app.dispatch(RestoreDeviceState(key=other))
-        # Single source of truth for "stop the previous video + invalidate the
-        # scene cache": ``StopVideo`` (publishes VideoStopped, unloads the
-        # playback; unload-only here -- a picked load ends the choice below).
-        # ONLY on an explicit load — on a restore (reconnect / view-switch
-        # keep-alive) the user's current cloud background + playback must
-        # survive, otherwise picking the System-Info tab silently reverted the
-        # background to the theme's bundled one (StopVideo cleared the override).
-        #
-        # A video-backed new theme is a REPLACE, not a stop-then-start, so it
-        # skips the unload: ``PlayVideo.play`` below replaces the playback in
-        # place (``MediaService.load_video`` assigns ``_playbacks[key]``).
-        # Unloading first opened a window where the device was mid-load with no
-        # playback at all — every render fired in that window (MaskApplied,
-        # MaskPositionChanged, and any SensorsUpdated off the metrics thread)
-        # found none and re-decoded the whole video just to paint one frame,
-        # which is what made one theme apply cost three full decodes.  The
-        # static path still stops, so an animated→static switch clears the old
-        # animation exactly as before.
         video_path = app.themes.video_path(theme)
         if self.reset_overrides and video_path is None:
-            # Unload only: this theme is what shows next, and a picked load
-            # ends the choice itself below (an unpicked one keeps it).
+            # Unload only: a picked load ends the choice itself, in
+            # :meth:`_settle_background_choice` (an unpicked one keeps it).
             StopVideo(key=self.key, keep_override=True).execute(app)
         elif video_path is not None:
             log.info(
@@ -345,20 +359,25 @@ class LoadTheme(Command[ThemeResult]):
                 "in place, not stopping it first",
                 theme.name, video_path.name,
             )
-        # A picked theme ends the panel's background choice: its own
-        # background takes the panel -- or the media player, module or cast
-        # it carries, each choosing itself below.  One TRCC shows by itself
-        # (``picked=False``) leaves the choice alone.  The module drawing
-        # is read FIRST: the reset is what ends it.
+        return video_path
+
+    def _settle_background_choice(
+        self, app: App, theme: Theme,
+    ) -> tuple[str | None, tuple[str, str, dict[str, Any]] | None]:
+        """A picked theme ends the panel's background choice: its own
+        background takes the panel -- or the media player, module or cast it
+        carries, each choosing itself in :meth:`_show`.  One TRCC shows by
+        itself (``picked=False``) leaves the choice alone.
+
+        A module's background (an audio visual) is a background like any
+        other: a theme picked without one ends the one drawing -- its driver
+        ends itself within a tick -- and one waiting for its module stops
+        waiting.  Returns the module that was drawing, read BEFORE the reset
+        that ends it, and the theme's own module background."""
         drawing = app.settings.for_device(self.key).chosen_module
         if self.reset_overrides and self.picked:
             app.settings.set_background(self.key, ThemeBackground())
             self._apply_background_switch(app, theme)
-        # A module's background (an audio visual) is a background like a
-        # picture or a video: a theme picked without one ends the one drawing
-        # -- its driver ends itself within a tick -- and a restart does not
-        # bring it back over the theme.  One still waiting for its module
-        # stops waiting.
         module_bg = app.themes.module_background(theme)
         if self.reset_overrides and module_bg is None and not self.picked:
             log.info("LoadTheme: %s shown by TRCC, not picked -- the panel's "
@@ -370,30 +389,19 @@ class LoadTheme(Command[ThemeResult]):
                 _publish_background(app, self.key)
             if app.settings.for_device(self.key).pending_background is not None:
                 app.settings.set_pending_background(self.key, None)
-        app.events.publish(ThemeLoaded(key=self.key, theme_name=theme.name))
-        log.info(
-            "LoadTheme: %s loaded — prior playback + cloud-bg override "
-            "cleared, scene cache invalidated, active theme persisted",
-            theme.name,
-        )
+        return drawing, module_bg
 
-        # Explicit switch establishes the theme's own overlay layout as the
-        # device's WORKING layer — the C#'s model, where loading a theme reads
-        # its config1.dc straight into the one array the editor shows, the
-        # renderer draws and the save writes back
-        # (2.1.6 FormCZTV.cs:6951 → ReadSystemConfiguration →
-        # UCXiTongXianShiSet_UCXiTongXianShiSubArray, which clears then re-adds).
-        #
-        # This REPLACED a clear-to-empty.  Both make the render show this
-        # theme's elements instead of edits made against the theme the user
-        # just left, because an empty user layer falls through to the theme —
-        # but only a populated one can tell "the user has no layout" apart from
-        # "the user emptied their layout", which is what an empty clear could
-        # never express (#276).
-        #
-        # Still skipped on restore (reset_overrides=False): a reconnect must
-        # keep the persisted edits, not overwrite them with the theme's.
-        catalog = theme.path.parent.name
+    def _adopt_layout(self, app: App, theme: Theme, catalog: str) -> None:
+        """Make the theme's overlay elements the device's WORKING layer -- the
+        C#'s model, where loading a theme reads its config1.dc straight into
+        the one array the editor shows, the renderer draws and the save writes
+        back (2.1.6 FormCZTV.cs:6951 → ReadSystemConfiguration →
+        UCXiTongXianShiSet_UCXiTongXianShiSubArray, which clears then re-adds).
+        A populated layer, not an empty one, so "the user has no layout" stays
+        apart from "the user emptied their layout" (#276).
+
+        A restore keeps the persisted edits -- unless they were laid out in
+        another catalog, where they do not fit this theme."""
         elsewhere = (None if self.reset_overrides
                      else _layer_laid_out_elsewhere(app, self.key, catalog))
         if self.reset_overrides or elsewhere:
@@ -408,8 +416,7 @@ class LoadTheme(Command[ThemeResult]):
             # Restore, and the working layer is empty — the state every
             # config written before the layer existed is in.  Seed it from the
             # theme so the device has an addressable layout on the very first
-            # reconnect after upgrading, instead of only after the user next
-            # picks a theme by hand.
+            # reconnect after upgrading.
             #
             # SAFE ONLY WHILE THE PRECEDENCE RESOLVER IS LIVE.  Empty currently
             # means "no layout of my own" and resolves to the theme's anyway,
@@ -431,261 +438,226 @@ class LoadTheme(Command[ThemeResult]):
                      "laid out in %s", self.key, catalog)
             app.settings.set_user_overlay_catalog(self.key, catalog)
 
-        # If device is attached + connected + Renderer available, send an
-        # immediate first frame.  Otherwise the theme is saved for the
-        # next connect / tick.
-        theme_path_str = str(theme.path.resolve())
+    def _apply_masks(self, app: App, theme: Theme, catalog: str) -> None:
+        """An explicit switch drops the applied-mask override, then applies
+        the mask the theme bundles.  The override goes FIRST, so a theme with
+        its own mask still gets it: dropping the override is not refusing the
+        theme's.  Otherwise the previous theme's mask bled onto the next
+        maskless one.  A restore keeps the user's mask -- re-applying the
+        theme's would replace it, and ApplyMask wipe the restored edits.
 
-        # A theme can carry an attached mask under a top-level ``mask``
-        # key — a library ref (``web/zt{w}{h}/<id>``, written by SaveTheme)
-        # or a legacy absolute path.  ``mask_path`` resolves either shape
-        # to the absolute ``01.png`` (relative refs would never load via
-        # ``Path("web/...")``, which is relative to cwd).  ``ApplyMask``
-        # then applies the image + auto-position; the mask's overlay
-        # layout, when the theme has one, lives in the theme's own inline
-        # ``elements`` — ApplyMask won't clobber it unless the resolved
-        # mask dir carries its own ``config1.dc``.
-        # On restore (reset_overrides=False) the user's last-applied mask is
-        # already persisted — do NOT re-apply the theme's bundled mask, which
-        # would override it (and ApplyMask would wipe the restored edits).
-        # An explicit theme switch drops the applied-mask override, which this
-        # Command's ``reset_overrides`` docstring has always claimed and never
-        # did.  Only the gui got it, by clearing ``mask_path`` by hand right
-        # before dispatching — so the CLI, the API and qtgui kept the previous
-        # theme's mask layered over the new theme's background.  ``SaveTheme``
-        # names the failure exactly where it clears the same field: "an
-        # override survives the next switch, so it would bleed this theme's
-        # mask onto the next maskless theme the user picks."
-        #
-        # Cleared BEFORE the embedded-mask block below, so a theme that bundles
-        # its own mask still gets it applied — dropping the OVERRIDE is not the
-        # same as refusing the theme's own.
+        The bundled ``mask`` is a library ref (``web/zt{w}{h}/<id>``, written
+        by SaveTheme) or a legacy absolute path; ``mask_path`` resolves either
+        to the absolute ``01.png``."""
         if self.reset_overrides:
             log.info("LoadTheme: %s — dropping the applied-mask override "
                      "(explicit theme switch)", self.key)
             app.settings.set_mask_path(self.key, None)
         else:
-            # The silent-skip case rule 5 asks for: on restore this is the
-            # RIGHT answer, and a reader chasing "my mask vanished" needs to
-            # see that it was kept on purpose, not that nothing happened.
+            # Kept on purpose, and said so: a reader chasing "my mask
+            # vanished" must see it was kept, not that nothing happened.
             log.info("LoadTheme: %s — keeping the applied mask (restore, "
                      "reset_overrides=False)", self.key)
         embedded_mask = theme.config.get("mask") if self.reset_overrides else None
-        if isinstance(embedded_mask, str) and embedded_mask:
-            resolved_mask = app.themes.mask_path(theme)
-            if resolved_mask is not None:
-                apply = ApplyMask(key=self.key, path=resolved_mask).execute(app)
-                if apply.ok:
-                    log.info("LoadTheme: applied mask %s → %s (%s)",
-                             embedded_mask, resolved_mask, theme.name)
-                    # ApplyMask adopts the MASK's config1.dc as the working
-                    # layer — right for a mask the user picks, wrong here.  A
-                    # theme that bundles a mask is a SAVED theme, and its
-                    # inline elements are already the final layout the user
-                    # saw (SaveTheme bakes user > mask > theme into them).  So
-                    # they win, or a saved "Game" reloads as the mask's stock
-                    # set, and the GUI editor (which reads the theme folder)
-                    # lists fields the screen does not draw (#301).  Only when
-                    # the theme HAS elements: a legacy config.json with an
-                    # empty ``dc`` keeps showing its mask's layout as before.
-                    if own := as_working_layer(theme.config.get("elements")):
-                        log.info("LoadTheme: %s keeps its own %d element(s) "
-                                 "over the bundled mask's layout",
-                                 theme.name, len(own))
-                        app.settings.set_user_overlay_elements(
-                            self.key, own, catalog)
-                else:
-                    log.warning(
-                        "LoadTheme: theme %s mask %s resolved to %s but "
-                        "ApplyMask failed: %s", theme.name, embedded_mask,
-                        resolved_mask, apply.message,
-                    )
-            else:
-                log.warning(
-                    "LoadTheme: theme %s declares mask %r but it did not "
-                    "resolve — skipping", theme.name, embedded_mask,
-                )
+        if not (isinstance(embedded_mask, str) and embedded_mask):
+            return
+        resolved_mask = app.themes.mask_path(theme)
+        if resolved_mask is None:
+            log.warning(
+                "LoadTheme: theme %s declares mask %r but it did not "
+                "resolve — skipping", theme.name, embedded_mask,
+            )
+            return
+        apply = ApplyMask(key=self.key, path=resolved_mask).execute(app)
+        if not apply.ok:
+            log.warning(
+                "LoadTheme: theme %s mask %s resolved to %s but "
+                "ApplyMask failed: %s", theme.name, embedded_mask,
+                resolved_mask, apply.message,
+            )
+            return
+        log.info("LoadTheme: applied mask %s → %s (%s)",
+                 embedded_mask, resolved_mask, theme.name)
+        # ApplyMask adopts the MASK's config1.dc as the working layer -- right
+        # for a mask the user picks, wrong here.  A theme that bundles a mask
+        # is a SAVED theme, and its inline elements are the final layout the
+        # user saw (SaveTheme bakes user > mask > theme into them), so they
+        # win (#301).  Only when it HAS elements: a legacy config.json with
+        # an empty ``dc`` keeps showing its mask's layout.
+        if own := as_working_layer(theme.config.get("elements")):
+            log.info("LoadTheme: %s keeps its own %d element(s) "
+                     "over the bundled mask's layout", theme.name, len(own))
+            app.settings.set_user_overlay_elements(self.key, own, catalog)
 
-        # Theme's OWN 01.png mask: the DC trailer's mask_position is
-        # the mask CENTER on the canvas; the renderer wants the
-        # TOP-LEFT.  Same conversion ApplyMask runs — port the legacy
-        # behavior here so a freshly-loaded theme renders its bundled
-        # mask at the right spot, not stored-center-as-top-left.
-        # The theme's screencast region (the C#'s Jp*, read from every DC it
-        # loads).  AFTER the bundled mask, so the theme's own wins over its
-        # mask's; on a restore only when the device never had one, so a
-        # reconnect does not undo the user's edit.
-        if (self.reset_overrides
-                or app.settings.for_device(self.key).screencast_rect is None):
-            seed_screencast_rect(app, self.key, theme.config,
-                                 f"theme {theme.name}")
+    def _place_own_mask(self, app: App, theme: Theme) -> None:
+        """Place the theme's OWN ``01.png``: the DC trailer stores the mask's
+        CENTER on the canvas, the renderer wants its TOP-LEFT -- the same
+        conversion ApplyMask runs, so a fresh load draws it where it belongs.
+
+        Visibility is NOT set from the theme: the DC's ``mask_visible`` is
+        design metadata ("this theme had a mask"), not a runtime switch."""
         from ...services.overlay import OverlayService
         theme_mask = ThemeDir(theme.path).mask
         pos = theme.config.get("mask_position")
-        if (
-            self.reset_overrides
-            and theme_mask.is_file() and isinstance(pos, (list, tuple))
-            and len(pos) == 2
-        ):
-            device = app.devices.get(self.key)
-            canvas: tuple[int, int] = (0, 0)
-            if device is not None and device.profile is not None:
-                canvas = device.profile.resolution
-            if canvas != (0, 0) and app._renderer is not None:
-                try:
-                    img = app._renderer.open_image(theme_mask)
-                    mw, mh = app._renderer.surface_size(img)
-                except Exception as e:
-                    log.warning(
-                        "LoadTheme: failed to size %s (%s) — using stored center",
-                        theme_mask, e,
-                    )
-                    mw, mh = (0, 0)
-                if mw > 0 and mh > 0:
-                    px, py = OverlayService.calculate_mask_position(
-                        theme.path, (mw, mh), canvas,
-                    )
-                    SetMaskPosition(key=self.key, x=px, y=py).execute(app)
-                    log.info(
-                        "LoadTheme: %s mask %dx%d on %dx%d canvas → "
-                        "top-left (%d, %d) [center stored = %r]",
-                        theme.name, mw, mh, canvas[0], canvas[1], px, py,
-                        list(pos),
-                    )
-        # NB: do NOT dispatch SetMaskVisible from theme.config here.
-        # Legacy's ``OverlayService.theme_mask_visible`` defaults True
-        # and only toggles via explicit user action — the DC trailer's
-        # ``mask_visible`` field is a theme-design metadata flag
-        # ("this theme had a mask"), not a runtime visibility override.
+        if not (self.reset_overrides and theme_mask.is_file()
+                and isinstance(pos, (list, tuple)) and len(pos) == 2):
+            return
+        device = app.devices.get(self.key)
+        canvas: tuple[int, int] = (0, 0)
+        if device is not None and device.profile is not None:
+            canvas = device.profile.resolution
+        if canvas == (0, 0) or app._renderer is None:
+            return
+        try:
+            img = app._renderer.open_image(theme_mask)
+            mw, mh = app._renderer.surface_size(img)
+        except Exception as e:
+            log.warning(
+                "LoadTheme: failed to size %s (%s) — using stored center",
+                theme_mask, e,
+            )
+            return
+        if mw <= 0 or mh <= 0:
+            return
+        px, py = OverlayService.calculate_mask_position(
+            theme.path, (mw, mh), canvas,
+        )
+        SetMaskPosition(key=self.key, x=px, y=py).execute(app)
+        log.info(
+            "LoadTheme: %s mask %dx%d on %dx%d canvas → "
+            "top-left (%d, %d) [center stored = %r]",
+            theme.name, mw, mh, canvas[0], canvas[1], px, py, list(pos),
+        )
 
+    def _show(
+        self, app: App, theme: Theme, path: str, video_path: Path | None,
+        module_bg: tuple[str, str, dict[str, Any]] | None, drawing: str | None,
+    ) -> ThemeResult:
+        """Put the loaded theme on the panel.  The first source the theme
+        carries wins: its cast, its media player, its module background, its
+        video -- else a rendered first frame.  With the panel away or no
+        Renderer the theme is only saved, for the next connect."""
         device = app.devices.get(self.key)
         if device is None or not device.is_connected:
             return self._loaded(
-                theme, theme_path_str,
-                ok=True,
+                theme, path, ok=True,
                 message=f"Theme '{theme.name}' saved (device not connected)",
             )
         if app._renderer is None:
             return self._loaded(
-                theme, theme_path_str,
-                ok=True,
+                theme, path, ok=True,
                 message=f"Theme '{theme.name}' saved (no Renderer attached)",
             )
-
-        # Screencast-backed theme: resume the saved screen-capture region as
-        # the display source (mutually exclusive with a video/image bg).
-        region = app.themes.screencast_region(theme)
-        casting = app.settings.for_device(self.key).screencast_region is not None
-        # The user's cast stays when nobody PICKED this theme -- a reconnect
-        # or restart (``RestoreDeviceState`` resumes it), or the fallback --
-        # by the module background's rule above.  Ending it there deleted the
-        # saved region, so a cast never came back (his decision 2026-11-04:
-        # it does).
-        if region is None and casting and not (
-                self.reset_overrides and self.picked):
-            # The cast IS the panel's source, so the load ends here, as a
-            # theme's own cast does below: the theme's media player, module
-            # picture or video would take the slot, and the one-source rule
-            # clear the region just kept.
-            log.info("LoadTheme: %s shown by TRCC, not picked -- the panel's "
-                     "cast stays its source", theme.name)
-            return self._loaded(theme, theme_path_str, ok=True,
-                                message=f"Theme '{theme.name}' loaded — the "
-                                        "screencast stays")
-        if region is None and casting:
-            # A theme is a display source too: without this the capture ran
-            # on behind the theme just picked, the desktop under its mask.
-            log.info("LoadTheme: %s carries no screencast — ending the "
-                     "running one", theme.name)
-            _stop_cast(app, self.key)   # this theme takes the panel
-        if region is not None:
-            x, y, w, h, audio = region
-            log.info("LoadTheme: %s carries a screencast region %s — "
-                     "dispatching StartScreencast", theme.name, region)
-            sc = app.dispatch(StartScreencast(
-                key=self.key, x=x, y=y, w=w, h=h, audio=audio,
-            ))
-            return self._loaded(
-                theme, theme_path_str,
-                ok=sc.ok,
-                message=f"Theme '{theme.name}' loaded — {sc.message}"
-                         if sc.ok else f"Theme '{theme.name}': {sc.message}",
-            )
-
-        # Media-player-backed theme: resume the saved source URI via the same
-        # Command every UI dispatches (restores the setting and plays the
-        # source: a local file, or a web URL as a live stream).
-        media_uri = app.themes.media_player_uri(theme)
-        if media_uri is not None:
-            log.info("LoadTheme: %s carries a media-player source %r — "
-                     "dispatching SetMediaPlayer", theme.name, media_uri)
-            mp = app.dispatch(SetMediaPlayer(key=self.key, uri=media_uri))
-            # The player IS the panel's source now, as a screencast is above.
-            # Going on played the theme's own video, whose ``PlayVideo`` set
-            # ``background_path`` -- and the one-source rule cleared the
-            # player it had just resumed (measured 2026-11-04).
-            return self._loaded(
-                theme, theme_path_str, ok=mp.ok,
-                message=f"Theme '{theme.name}' loaded — {mp.message}"
-                         if mp.ok else f"Theme '{theme.name}': {mp.message}",
-            )
-
-        # A theme whose background a module draws (an audio visual): the mask
-        # and metrics drawn on top.  Picked, its module plays it; on a restore
-        # the device's own choice stands (``RestoreDeviceState`` resumes it).
-        # One that cannot play leaves the mask and metrics, and says why; one
-        # whose module is off waits for it (``pending_background``).
+        if (shown := self._resume_cast(app, theme, path)) is not None:
+            return shown
+        if (shown := self._resume_media_player(app, theme, path)) is not None:
+            return shown
+        # Picked, its module plays it; on a restore the device's own choice
+        # stands (``RestoreDeviceState`` resumes it).  One whose module is off
+        # waits for it (``pending_background``).
         if module_bg is not None and self.reset_overrides:
             played = self._play_module_background(app, theme, *module_bg)
             if played is not None and played.ok:
                 return self._loaded(
-                    theme, theme_path_str, ok=True,
+                    theme, path, ok=True,
                     message=f"Theme '{theme.name}' loaded — {played.message}")
-            # A refused play recorded no choice, so the one that was drawing
-            # still stood: the status kept naming it and the next reconnect
-            # brought it back over this theme.
-            # ``drawing``, read before a picked load reset the choice: after
-            # it the choice is the theme's, and the UIs were never told.
+            # A refused play recorded no choice, so the one drawing still
+            # stood: the status kept naming it and the next reconnect brought
+            # it back over this theme.  ``drawing`` was read before the reset.
             if drawing is not None:
                 log.info("LoadTheme: %s — ending the %s background that "
                          "was drawing", theme.name, drawing)
                 app.settings.end_background(self.key, ModuleBackground)
                 _publish_background(app, self.key)
-
-        # Video-backed themes (Theme.{mp4,mov,webm,zt}) go through the
-        # PlayVideo pipeline so the same VideoStarted event fires for
-        # local + cloud + user-loaded videos — UI handler subscribes
-        # once and starts its animation timer for any of them.  Static
-        # themes (00.png) keep the build-frame-and-send path below.
-        # ``video_path`` was resolved up top — it decides both the
-        # stop-vs-replace branch and this dispatch, so it is read once.
         if video_path is not None:
-            log.info(
-                "LoadTheme: %s has bundled video %s — dispatching PlayVideo",
-                theme.name, video_path.name,
-            )
-            # The theme's own video: it plays, and chooses nothing.
-            play = PlayVideo(key=self.key, path=video_path).play(app)
-            if not play.ok:
-                return self._loaded(
-                theme, theme_path_str,
-                ok=False,
-                message=f"Theme '{theme.name}': {play.message}",
-            )
-            return self._loaded(
-                theme, theme_path_str,
-                ok=True,
-                message=f"Theme '{theme.name}' loaded — playing "
-                         f"{video_path.name} ({play.frame_count} frame(s))",
-            )
+            return self._play_own_video(app, theme, path, video_path)
+        return self._render_first_frame(app, theme, path, device)
 
-        # Read live sensors so the first frame the device sees after a
-        # theme load has real metric values painted, not the no-sensor
-        # warning at every overlay element.  RenderAndSend takes over
-        # from the next tick onward.  Personalize via the same helper
-        # used by MetricsLoop + ReadSensors + RenderAndSend so this
-        # one-shot first-frame matches the cadence the periodic
-        # broadcast will deliver.
+    def _resume_cast(
+        self, app: App, theme: Theme, path: str,
+    ) -> ThemeResult | None:
+        """The theme's saved screencast region becomes the panel's source.
+
+        A theme without one ends a running cast when it was PICKED -- a theme
+        is a display source too, and the capture would run on behind it.  When
+        nobody picked it (a reconnect, a restart, the fallback) the user's cast
+        stays the source and the load ends here: the theme's own player,
+        module or video would take the slot, and the one-source rule clear the
+        region just kept (his decision 2026-11-04: a cast comes back).
+        None when the load goes on."""
+        region = app.themes.screencast_region(theme)
+        casting = app.settings.for_device(self.key).screencast_region is not None
+        if region is None and casting and not (
+                self.reset_overrides and self.picked):
+            log.info("LoadTheme: %s shown by TRCC, not picked -- the panel's "
+                     "cast stays its source", theme.name)
+            return self._loaded(theme, path, ok=True,
+                                message=f"Theme '{theme.name}' loaded — the "
+                                        "screencast stays")
+        if region is None:
+            if casting:
+                log.info("LoadTheme: %s carries no screencast — ending the "
+                         "running one", theme.name)
+                _stop_cast(app, self.key)   # this theme takes the panel
+            return None
+        x, y, w, h, audio = region
+        log.info("LoadTheme: %s carries a screencast region %s — "
+                 "dispatching StartScreencast", theme.name, region)
+        sc = app.dispatch(StartScreencast(
+            key=self.key, x=x, y=y, w=w, h=h, audio=audio,
+        ))
+        return self._loaded(
+            theme, path, ok=sc.ok,
+            message=f"Theme '{theme.name}' loaded — {sc.message}"
+                     if sc.ok else f"Theme '{theme.name}': {sc.message}",
+        )
+
+    def _resume_media_player(
+        self, app: App, theme: Theme, path: str,
+    ) -> ThemeResult | None:
+        """The theme's saved media-player source, through the Command every UI
+        dispatches (a local file, or a web URL as a live stream).  The player
+        IS the panel's source then, so the load ends here: going on played
+        the theme's own video, and the one-source rule cleared the player just
+        resumed (measured 2026-11-04).  None when the theme has no player."""
+        media_uri = app.themes.media_player_uri(theme)
+        if media_uri is None:
+            return None
+        log.info("LoadTheme: %s carries a media-player source %r — "
+                 "dispatching SetMediaPlayer", theme.name, media_uri)
+        mp = app.dispatch(SetMediaPlayer(key=self.key, uri=media_uri))
+        return self._loaded(
+            theme, path, ok=mp.ok,
+            message=f"Theme '{theme.name}' loaded — {mp.message}"
+                     if mp.ok else f"Theme '{theme.name}': {mp.message}",
+        )
+
+    def _play_own_video(
+        self, app: App, theme: Theme, path: str, video_path: Path,
+    ) -> ThemeResult:
+        """The theme's bundled video (``Theme.{mp4,mov,webm,zt}``), through
+        the PlayVideo pipeline so the same VideoStarted fires for local, cloud
+        and user videos.  It plays, and chooses nothing."""
+        log.info(
+            "LoadTheme: %s has bundled video %s — dispatching PlayVideo",
+            theme.name, video_path.name,
+        )
+        play = PlayVideo(key=self.key, path=video_path).play(app)
+        if not play.ok:
+            return self._loaded(theme, path, ok=False,
+                                message=f"Theme '{theme.name}': {play.message}")
+        return self._loaded(
+            theme, path, ok=True,
+            message=f"Theme '{theme.name}' loaded — playing "
+                     f"{video_path.name} ({play.frame_count} frame(s))",
+        )
+
+    def _render_first_frame(
+        self, app: App, theme: Theme, path: str, device: Device,
+    ) -> ThemeResult:
+        """Render and send a static theme's first frame now, with live
+        sensors, so the panel shows real readings rather than the no-sensor
+        mark; RenderAndSend takes over from the next tick."""
         try:
             sensors = _live_sensors(app)
         except Exception as e:
@@ -705,15 +677,11 @@ class LoadTheme(Command[ThemeResult]):
             app.events.publish(ErrorOccurred(message=str(e), kind="render",
                                              key=self.key))
             _publish_if_disconnect(app, self.key, e)
-            return self._loaded(
-                theme, theme_path_str,
-                ok=False,
-                message=f"Render/send failed: {e}",
-            )
-
+            return self._loaded(theme, path, ok=False,
+                                message=f"Render/send failed: {e}")
         if sent:
-            # Carry the rendered surface so the preview shows the loaded
-            # theme's first frame without re-rendering it.
+            # The rendered surface rides along, so the preview shows this
+            # first frame without rendering it again.
             app.events.publish(FrameSent(
                 key=self.key, bytes_sent=len(frame),
                 surface=app.display.rendered_surface(self.key),
@@ -724,19 +692,17 @@ class LoadTheme(Command[ThemeResult]):
                 else device.info.native_resolution
             )
             encoding = "jpeg" if (prof is not None and prof.jpeg) else "rgb565"
-            # Resolved wire dims + encoding, not just the byte count: a
-            # devicePixelRatio blow-up (#220) shows here as bytes != wire w*h*2
-            # for rgb565 — self-evident against the stated dims.
+            # Wire dims + encoding, not just the byte count: a
+            # devicePixelRatio blow-up (#220) shows as bytes != wire w*h*2.
             log.info(
                 "LoadTheme: %s rendered + sent - wire %dx%d %s (%d bytes) from %s",
-                theme.name, wire_w, wire_h, encoding, len(frame), theme_path_str,
+                theme.name, wire_w, wire_h, encoding, len(frame), path,
             )
         return self._loaded(
-                theme, theme_path_str,
-                ok=sent,
-                message=f"Theme '{theme.name}' loaded and sent ({len(frame)} bytes)"
+            theme, path, ok=sent,
+            message=f"Theme '{theme.name}' loaded and sent ({len(frame)} bytes)"
                      if sent else f"Theme '{theme.name}' rendered but send failed",
-            )
+        )
 
 def _module_picture(app: App, key: str, module: str,
                     size: tuple[int, int]) -> bytes | None:
@@ -913,38 +879,24 @@ class SaveTheme(Command[ThemeResult]):
     def execute(self, app: App) -> ThemeResult:
         log.info("SaveTheme: key=%s name=%s overwrite=%s",
                  self.key, self.name, self.overwrite)
-        if not is_safe_user_name(self.name):
+        if (refusal := theme_name_refusal(self.name)) is not None:
             log.warning("SaveTheme: rejected unsafe name %r", self.name)
-            return ThemeResult(
-                ok=False, key=self.key, theme_name=self.name,
-                message=(f"invalid theme name {self.name!r} "
-                         "(no path separators, '..', leading '.', or NUL bytes)"),
-            )
-
+            return self._failed(refusal)
         theme = app.active_themes.get(self.key)
         if theme is None:
             log.warning("SaveTheme: no active theme for %s — refusing to save",
                         self.key)
-            return ThemeResult(
-                ok=False, key=self.key, theme_name=self.name,
-                message=(f"no active theme for {self.key} — load one first"),
-            )
-
+            return self._failed(f"no active theme for {self.key} — load one first")
         device_settings = app.settings.for_device(self.key)
-        resolution = _composed_resolution(
-            app, self.key, theme, device_settings,
-        )
+        resolution = _composed_resolution(app, self.key, theme, device_settings)
         if resolution is None:
             log.warning(
                 "SaveTheme: cannot resolve resolution for %s "
                 "— device must be connected with a known profile",
                 self.key,
             )
-            return ThemeResult(
-                ok=False, key=self.key, theme_name=self.name,
-                message=(f"cannot resolve resolution for {self.key} "
-                         "(connect the device first)"),
-            )
+            return self._failed(f"cannot resolve resolution for {self.key} "
+                                "(connect the device first)")
         w, h = resolution
 
         # A theme whose background a module draws is kept with that module:
@@ -967,18 +919,12 @@ class SaveTheme(Command[ThemeResult]):
         if (target.exists() or same_name) and not self.overwrite:
             log.info("SaveTheme: %r is taken (%s) — overwrite confirmation "
                      "needed", self.name, same_name or [target])
-            return ThemeResult(
-                ok=False, key=self.key, theme_name=self.name,
-                target_exists=True,
-                message=f"A theme named {self.name!r} already exists.",
-            )
+            return self._failed(f"A theme named {self.name!r} already exists.",
+                                target_exists=True)
 
-        # Assemble into a staging dir that the store swaps over the target on
-        # a clean exit and discards on any failure.  The three hand-rolled
-        # try/except arms this replaces — create, assemble, finalize — each
-        # repeated ``rmtree(staging)`` and each returned its own wording for
-        # what is one outcome: the save did not happen and the previous theme
-        # is untouched.
+        # Assembled in a staging dir the store swaps over the target on a
+        # clean exit and discards on any failure: the save either happened,
+        # or the previous theme is untouched.
         try:
             with app.themes.stage(target) as staging:
                 manifest = self._build_manifest(
@@ -987,57 +933,16 @@ class SaveTheme(Command[ThemeResult]):
                 self._write_manifest(app, staging, manifest)
                 self._write_thumbnail(app, staging, theme)
         except (OSError, ThemeError, TrccError) as e:
-            return ThemeResult(
-                ok=False, key=self.key, theme_name=self.name,
-                message=f"failed to save theme: {e}",
-            )
+            log.warning("SaveTheme: %r not saved to %s: %s",
+                        self.name, target, e)
+            return self._failed(f"failed to save theme: {e}")
         # Overwritten: the one theme of that name is the one just saved, even
         # when the old one was kept in the other folder.
         for old in (o for o in same_name if o != target):
             log.info("SaveTheme: replacing %s, kept in another folder", old)
             app.themes.delete(old.parent, old.name)
 
-        # The device's overrides pointed at the SOURCE theme's assets.  They
-        # are captured inside the saved theme now, so drop them before the
-        # switch — this part IS SaveTheme's own business ("what I just baked
-        # in is no longer an override").  The background CHOICE needs no
-        # clearing: the switch below is a picked load, which ends it.
-        app.settings.set_mask_path(self.key, None)
-        # Establishing the saved theme as the device's live state is EXACTLY a
-        # theme switch, so dispatch the Command that owns one.
-        #
-        # This used to hand-roll LoadTheme — its own comment admitted it
-        # ("same switch LoadTheme performs") — re-pointing ``active_themes``,
-        # writing ``current_theme`` and busting the cache itself.  Two copies
-        # of one rule, already drifted: the copy never applied the theme's own
-        # bundled mask and never restarted a video background, and when
-        # LoadTheme learned to adopt the overlay layout into the working layer
-        # the copy had to be taught the same thing separately.  One writer of
-        # ``active_themes`` means the working layer cannot disagree with the
-        # theme that is actually loaded, structurally rather than by hand.
-        switched = LoadTheme(key=self.key, path=target).execute(app)
-        if not switched.ok:
-            log.warning(
-                "SaveTheme: %s written to %s but the switch to it failed "
-                "(%s) — the theme is on disk, the device still shows the "
-                "previous one", self.name, target, switched.message,
-            )
-        # ...and re-assert self-containment afterwards.  ``mask_path`` is an
-        # OVERRIDE field ("use this instead of the theme's"), and LoadTheme
-        # writes it as a side effect of
-        # applying a theme's bundled mask — so a theme that bundles its own
-        # mask comes back holding an override that points at itself.  Harmless
-        # to render (the renderer resolves the same image either way) but not
-        # harmless to keep: an override survives the next switch, so it would
-        # bleed this theme's mask onto the next maskless theme the user picks.
-        # A saved theme owns its assets; the device overrides nothing.
-        app.settings.set_mask_path(self.key, None)
-        _invalidate_scene(app, self.key)
-        log.info(
-            "SaveTheme: %s — cleared overrides + switched the device to %s",
-            self.name, target,
-        )
-
+        self._switch_to(app, target)
         app.events.publish(ThemeSaved(
             key=self.key, theme_name=self.name, path=str(target),
         ))
@@ -1045,6 +950,43 @@ class SaveTheme(Command[ThemeResult]):
             ok=True, key=self.key, theme_name=self.name,
             theme_path=str(target),
             message=f"theme saved as '{self.name}' at {target}",
+        )
+
+    def _failed(self, message: str, *, target_exists: bool = False) -> ThemeResult:
+        """The one shape of a save that did not happen."""
+        log.debug("SaveTheme %s: -> not saved %r", self.key, message)
+        return ThemeResult(ok=False, key=self.key, theme_name=self.name,
+                           target_exists=target_exists, message=message)
+
+    def _switch_to(self, app: App, target: Path) -> None:
+        """Make the saved theme the device's live state.
+
+        The device's overrides pointed at the SOURCE theme's assets, and are
+        baked into the saved theme now, so they go.  The background choice
+        needs no clearing: the switch is a picked load, which ends it.
+
+        The switch is a theme switch, so it is LoadTheme's: one writer of
+        ``active_themes`` keeps the working layer and the loaded theme from
+        disagreeing.  A hand-rolled copy here had already drifted -- it never
+        applied the theme's bundled mask or restarted a video background.
+
+        ``mask_path`` is cleared again AFTER it: LoadTheme writes it when it
+        applies a theme's bundled mask, so a theme with its own mask came back
+        holding an override pointing at itself -- which survives the next
+        switch and bleeds this mask onto the next maskless theme."""
+        app.settings.set_mask_path(self.key, None)
+        switched = LoadTheme(key=self.key, path=target).execute(app)
+        if not switched.ok:
+            log.warning(
+                "SaveTheme: %s written to %s but the switch to it failed "
+                "(%s) — the theme is on disk, the device still shows the "
+                "previous one", self.name, target, switched.message,
+            )
+        app.settings.set_mask_path(self.key, None)
+        _invalidate_scene(app, self.key)
+        log.info(
+            "SaveTheme: %s — cleared overrides + switched the device to %s",
+            self.name, target,
         )
 
     # ── Manifest assembly (called by execute, error-rolled-back as a unit) ──
@@ -2540,6 +2482,19 @@ class LoadImage(Command[ThemeResult]):
                     f"Supported: {', '.join(sorted(MEDIA.exts(MediaKind.IMAGE)))}."
                 ),
             )
+        # Decoded BEFORE it is staged: LoadTheme makes a theme current before
+        # it shows it (so an unplugged panel keeps the choice), so a picture
+        # that would not decode became the current theme, every render after
+        # it raised, and a restart restored it (2026-11-13).
+        try:
+            decoded_size(app, self.path)
+        except TrccError as e:
+            log.warning("LoadImage: %s does not decode (%s) — rejecting",
+                        self.path, e)
+            return ThemeResult(
+                ok=False, key=self.key,
+                message=f"image cannot be read: {self.path} ({e})",
+            )
         # ALWAYS install as 00.png — the strict theme-dir convention the
         # background resolver reads (sibling LoadVideo installs Theme.zt for
         # the same reason).  Keeping the source basename produced a dir the
@@ -2557,6 +2512,190 @@ class LoadImage(Command[ThemeResult]):
                 message=f"Failed to stage image as theme: {e}",
             )
         return app.dispatch(LoadTheme(key=self.key, path=theme_dir))
+
+def theme_name_refusal(name: str) -> str | None:
+    """Why *name* cannot name a saved theme, or None."""
+    if is_safe_user_name(name):
+        return None
+    log.debug("theme_name_refusal: %r is unsafe", name)
+    return (f"invalid theme name {name!r} "
+            "(no path separators, '..', leading '.', or NUL bytes)")
+
+
+#: How one metric element is written in shorthand -- the CLI's ``--metric``.
+METRIC_SPEC_USAGE = (
+    "metric spec: 'metric_key:x,y[:color[:size]]' — e.g. "
+    "'cpu:temp:160,90:#ff8800:24'.  color defaults to '#ffffff', "
+    "size defaults to 16."
+)
+
+#: The coords field, and the only part of a metric spec shaped like this.
+#: Anchoring on it is what makes the parse work: a metric key is itself
+#: colon-namespaced (``cpu:temp``, ``gpu:0:temp``), so counting colons from
+#: either end cannot find the boundary.
+_COORDS_RE = re.compile(r"-?\d+\s*,\s*-?\d+")
+
+
+def metric_element(spec: str) -> dict[str, Any]:
+    """One metric overlay element from its shorthand; ``ValueError`` if bad.
+
+    Grammar: ``metric_key:x,y[:color[:size]]`` where **metric_key may contain
+    colons** — every real sensor key does (``cpu:temp``, ``gpu:0:temp``).
+
+    This used to ``split(":")`` and take ``parts[0]`` as the key, so
+    ``cpu:temp:160,90`` parsed the key as ``cpu`` and the coords as ``temp``.
+    That made ``--metric`` unusable with any actual sensor, including the
+    example printed in the command's own ``--help`` (#286).
+
+    Splitting from the right instead — the fix the reporter found — works only
+    when both optional fields are supplied; ``cpu:temp:160,90`` still breaks.
+    So the boundary is located by SHAPE: coords is the first field matching
+    ``x,y``, everything before it is the key, everything after is
+    ``[color[, size]]``.  That holds for any number of colons on either side.
+    """
+    log.debug("metric_element: spec=%s", spec)
+    parts = spec.split(":")
+    idx = next((i for i, part in enumerate(parts)
+                if _COORDS_RE.fullmatch(part.strip())), None)
+    if idx is None or idx == 0:
+        raise ValueError(f"Invalid metric spec {spec!r}; {METRIC_SPEC_USAGE}")
+    coords = parts[idx]
+    rest = parts[idx + 1:]
+    try:
+        x_str, y_str = coords.split(",")
+        x, y = int(x_str), int(y_str)
+    except (ValueError, IndexError) as e:
+        raise ValueError(
+            f"Invalid coords in {spec!r}; expected 'x,y' got {coords!r}") from e
+    color = rest[0] if rest else "#ffffff"
+    if color and not color.startswith("#"):
+        color = f"#{color}"
+    try:
+        size = int(rest[1]) if len(rest) >= 2 else 16
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid size in {spec!r}; expected int got {rest[1]!r}") from e
+    return {"type": "metric", "metric": ":".join(parts[:idx]),
+            "x": x, "y": y, "color": color, "size": size}
+
+
+@dataclass(frozen=True, slots=True)
+class CreateTheme(Command[CreateThemeResult]):
+    """Show a background, with an optional mask and overlay, and save it.
+
+    The background becomes a one-file theme -- ``LoadImage`` for a picture,
+    ``LoadVideo`` for a video -- so the panel starts clean either way, and a
+    video needs no theme already showing.  It played over the CURRENT theme
+    (``PlayVideo``) until 2026-11-13: refused on a panel showing nothing, and
+    the old theme's mask and overlay stayed.  Then the
+    mask, stored in the user's mask library under its file's name and shown
+    (``UploadCustomMask``), then the overlay (``SetOverlayConfig``,
+    ``EnableOverlay``): the *overlay* file's elements, then one per *metrics*
+    shorthand (:data:`METRIC_SPEC_USAGE`).  Neither leaves the overlay as it
+    is.  Given a *name*, the result is saved as that theme (``SaveTheme``).
+
+    Every UI passes its inputs as given.  The name and the overlay are read
+    first, so a bad one changes nothing; the background and the mask are
+    read by the step that shows them.  The first step that refuses ends it,
+    with that step's message; the steps before it stay done.  Each step gates and connects its device itself, as it does when
+    dispatched on its own.  ``reads`` names the given files the panel still
+    reads, so a caller that staged them deletes only the rest.
+    """
+    key: str
+    background: Path
+    mask: Path | None = None
+    #: A JSON file, ``{"elements": [...]}``, each a flat dict as
+    #: ``SetOverlayConfig`` takes them.
+    overlay: Path | None = None
+    #: Metric elements in shorthand, added after the file's.
+    metrics: tuple[str, ...] = ()
+    #: Save the result as this theme; "" shows it without saving.
+    name: str = ""
+    #: Replace a saved theme of that name.
+    overwrite: bool = False
+
+    def execute(self, app: App) -> CreateThemeResult:
+        log.info("CreateTheme: key=%s background=%s mask=%s overlay=%s "
+                 "metrics=%s name=%r overwrite=%s", self.key,
+                 self.background.name, self.mask.name if self.mask else None,
+                 self.overlay.name if self.overlay else None, self.metrics,
+                 self.name, self.overwrite)
+        try:
+            elements = self._read_inputs(app)
+        except (ValueError, ThemeError) as e:
+            return self._failed(app, str(e))
+        animated = MEDIA.kind_of(self.background) is MediaKind.ANIMATED
+        done: Result = Result()
+        for step in self._steps(animated, elements):
+            done = app.dispatch(step)
+            if not done.ok:
+                return self._failed(app, done.message, target_exists=(
+                    isinstance(done, ThemeResult) and done.target_exists))
+        canvas = app.dispatch(DeviceCanvas(key=self.key))
+        width, height = (canvas.width, canvas.height) if canvas.ok else (0, 0)
+        theme_path = (done.theme_path
+                      if self.name and isinstance(done, ThemeResult) else "")
+        log.info("CreateTheme: %s shown (%s, %dx%d), saved to %r",
+                 self.background.name, "video" if animated else "image",
+                 width, height, theme_path)
+        return CreateThemeResult(
+            ok=True, key=self.key, animated=animated, width=width,
+            height=height, reads=self._still_read(app), theme_path=theme_path,
+            message=(f"Theme created from {self.background.name} "
+                     f"({'video' if animated else 'image'}, {width}x{height})"
+                     + (f", saved as {self.name!r} at {theme_path}"
+                        if self.name else "")),
+        )
+
+    def _read_inputs(self, app: App) -> tuple[dict, ...] | None:
+        """Everything given that must be read, before the panel changes: the
+        name, then the overlay to set (None leaves it).  ``ValueError`` (the
+        name, a metric) or ``ThemeError`` (the file) if bad."""
+        if self.name and (refusal := theme_name_refusal(self.name)):
+            raise ValueError(refusal)
+        if self.overlay is None and not self.metrics:
+            log.debug("CreateTheme._read_inputs: no overlay given")
+            return None
+        from_file = (app.themes.overlay_elements(self.overlay)
+                     if self.overlay is not None else [])
+        layout = (*from_file, *map(metric_element, self.metrics))
+        log.debug("CreateTheme._read_inputs: %d from the file, %d metric(s)",
+                  len(from_file), len(self.metrics))
+        return layout
+
+    def _steps(self, animated: bool,
+               elements: tuple[dict, ...] | None) -> Iterator[Command[Any]]:
+        """What creating it dispatches, in order."""
+        log.debug("CreateTheme._steps: animated=%s overlay=%s", animated,
+                  elements is not None)
+        yield (LoadVideo(key=self.key, path=self.background) if animated
+               else LoadImage(key=self.key, path=self.background))
+        if self.mask is not None:
+            yield UploadCustomMask(key=self.key, source=self.mask)
+        if elements is not None:
+            yield SetOverlayConfig(key=self.key, elements=elements)
+            yield EnableOverlay(key=self.key, enabled=True)
+        if self.name:
+            yield SaveTheme(key=self.key, name=self.name,
+                            overwrite=self.overwrite)
+
+    def _still_read(self, app: App) -> tuple[str, ...]:
+        """The given background, while the panel reads it.  Every step copies
+        what it is given -- a picture, a video, a mask -- so this is ``()``;
+        it is asked of the device rather than assumed, so a step that plays a
+        file in place (``PlayVideo`` did, #249) keeps its file."""
+        chosen = app.settings.for_device(self.key).chosen_file
+        reads = (str(self.background),) if chosen == str(self.background) else ()
+        log.debug("CreateTheme._still_read: chosen=%s -> %s", chosen, reads)
+        return reads
+
+    def _failed(self, app: App, message: str, *,
+                target_exists: bool = False) -> CreateThemeResult:
+        """A refusal's message, with the files the panel reads by then."""
+        reads = self._still_read(app)
+        log.warning("CreateTheme: stopped (%s); still reads %s", message, reads)
+        return CreateThemeResult(ok=False, key=self.key, message=message,
+                                 reads=reads, target_exists=target_exists)
 
 @dataclass(frozen=True, slots=True)
 class ProbeVideoDuration(Query[VideoDurationResult]):
@@ -2914,13 +3053,21 @@ class LoadVideo(Command[ThemeResult]):
         # replaces each returned their own wording for the same outcome — the
         # video was not staged.
         cut = (self.start_ms, self.end_ms, self.rotation) != (0, None, 0)
+        as_is = not cut or self.path.suffix.lower() == ".zt"
         log.info("LoadVideo: %s %s", self.path.name,
                  f"cut {self.start_ms}-{self.end_ms} ms rot {self.rotation}"
                  if cut else "as it is")
+        # A file that goes in as it is is checked first, as LoadImage's is: a
+        # clip that would not play became the current theme, and a restart
+        # restored it (2026-11-13).  A cut needs no check -- a clip ffmpeg
+        # cannot read fails the export, before anything becomes current.
+        if as_is and (why := app.media.why_unplayable(self.path)) is not None:
+            log.warning("LoadVideo: %s will not play — rejecting", self.path)
+            return ThemeResult(ok=False, key=self.key, message=why)
         try:
             with app.themes.single_file_theme(self.path, "video") as unit:
                 theme_dir = unit.path
-                if not cut or self.path.suffix.lower() == ".zt":
+                if as_is:
                     unit.install(self.path, ThemeDir.video(self.path.suffix))
                 else:
                     end_ms = (self.end_ms if self.end_ms is not None

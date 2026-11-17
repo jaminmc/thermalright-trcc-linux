@@ -1682,8 +1682,8 @@ class SingleFileTheme(ABC):
     :meth:`ContentStore.single_file_theme`.
 
     ``LoadImage`` and ``LoadVideo`` each turn an arbitrary file the user
-    picked into a minimal theme so it lists like any other and the ordinary
-    ``LoadTheme`` path renders it.  Both hand-rolled the same twenty lines;
+    picked into a minimal theme so the ordinary ``LoadTheme`` path renders
+    it.  It is not listed in ``theme list``.  Both hand-rolled the same twenty lines;
     this is the seam those lines collapsed into.
     """
 
@@ -1733,7 +1733,7 @@ class ContentStore(ABC):
 
         Yields the unit; the caller installs its one payload file.  The theme
         marker is written LAST, on a clean exit, so a payload that fails
-        half-way leaves a markerless directory the listing skips.
+        half-way leaves a markerless directory ``is_theme_dir`` refuses.
         """
 
     @abstractmethod
@@ -1832,6 +1832,14 @@ class ContentStore(ABC):
         The store mints refs, so the store resolves them — a caller that has
         just stored something must not re-derive where it went by spelling the
         library layout a second time.
+        """
+
+    @abstractmethod
+    def overlay_elements(self, path: Path) -> builtins.list[dict]:
+        """The elements of an overlay file a user gave, ``{"elements": [...]}``.
+
+        Entries that are not objects are skipped.  Raises ``ThemeError`` when
+        the file cannot be read or is not that shape.
         """
 
     @abstractmethod

@@ -270,16 +270,19 @@ class FileContentStore(ContentStore):
         """A theme directory wrapping ONE file — an image or a video.
 
         ``LoadImage`` and ``LoadVideo`` turn an arbitrary file the user picked
-        into a minimal theme so it appears in ``theme list`` like any other and
-        the ordinary ``LoadTheme`` path can render it.  ``LoadVideo``'s own
+        into a minimal theme so the ordinary ``LoadTheme`` path can render it,
+        and a saved ``image:<name>`` resolves back to it.  It is NOT listed:
+        ``theme list`` reads the per-resolution theme folders, never
+        ``single-<kind>/`` (measured 2026-11-13).  The directory is named by
+        the source's stem, so the same file loaded again reuses it.  ``LoadVideo``'s own
         docstring called itself "conceptually parallel to LoadImage"; they had
         the same twenty lines each, and this is those lines.
 
         Yields the unit; the caller installs its one payload file.  The
         ``trcc.json`` marker is written LAST, on a clean exit — deliberately,
         because a payload that fails half-way then leaves a directory with no
-        marker, which ``_has_theme_marker`` skips, so a broken load never
-        shows up in the theme list.  An exception leaves that markerless
+        marker, which ``is_theme_dir`` refuses, so a broken load is never
+        taken for a theme.  An exception leaves that markerless
         directory behind exactly as the hand-written versions did.
         """
         if self._paths is None:
@@ -388,6 +391,22 @@ class FileContentStore(ContentStore):
                  "yes" if dc is not None else "no",
                  "name" if name is not None else "content", dest_dir, ref)
         return ref
+
+    def overlay_elements(self, path: Path) -> list[dict]:
+        log.debug("overlay_elements: %s", path.name)
+        try:
+            config = json.loads(path.read_bytes())
+        except OSError as e:
+            raise ThemeError(f"cannot read overlay {path.name}: {e}") from e
+        except ValueError as e:
+            raise ThemeError(f"invalid overlay JSON: {e}") from e
+        if not isinstance(config, dict):
+            raise ThemeError("overlay JSON must be an object")
+        elements = config.get("elements", [])
+        if not isinstance(elements, list):
+            raise ThemeError(
+                "overlay JSON 'elements' must be a list of element dicts")
+        return [e for e in elements if isinstance(e, dict)]
 
     def resolve_ref(self, ref: str) -> Path | None:
         """Resolve a ref minted by a ``store_*`` method back to a path."""

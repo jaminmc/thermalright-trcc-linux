@@ -22,6 +22,7 @@ import subprocess
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -463,6 +464,25 @@ class LinuxFamily:
 
 
 
+#: The rpm families' tools -- Fedora, EL and Fedora Atomic name the same ones.
+#: Advised by BINARY PATH, not package name.  Both shared names are wrong here
+#: and both fail in a way that looks like success:
+#:   p7zip  -> 7zip-standalone, ships ['7za'] and NO 7z
+#:   ffmpeg -> not in stock Fedora at all (that is RPM Fusion)
+#: A corrected NAME only trades one wrong answer for another, because which
+#: package owns the binary depends on the user's repos:
+#:   /usr/bin/ffmpeg  stock -> ffmpeg-free  ·  +RPM Fusion -> ffmpeg
+#: On RHEL/Rocky/Alma both are EPEL-only (el9/el10_2/el10_3).  Measured on
+#: Fedora CoreOS 45 (2026-11-12): ``rpm-ostree install /usr/bin/7z`` -> 7zip.
+#: Read-only: three records share it.
+_RPM_PACKAGES: Mapping[str, str] = MappingProxyType({
+    "pynvml": "python3-pynvml",
+    "7z": "/usr/bin/7z",
+    "ffmpeg": "/usr/bin/ffmpeg",
+    # By name: Fedora ships it in /usr/bin, EL in /usr/sbin (AppStream).
+    "sensors-detect": "lm_sensors",
+})
+
 #: Probe order, first match wins.  Preserved exactly from the class tuple it
 #: replaced: it is NOT definition order, and a machine with two managers gets
 #: the first listed.
@@ -474,19 +494,7 @@ _FAMILIES: tuple[LinuxFamily, ...] = (
         # built for this Fedora, as doc/GUIDE_INSTALL.md does.
         package_upgrade=(f"sudo dnf install {RELEASES_URL}/download/"
                          "trcc-linux-latest.fc$(rpm -E %fedora).noarch.rpm"),
-        # Advised by BINARY PATH, not package name.  Both shared names are
-        # wrong here and both fail in a way that looks like success:
-        #   p7zip  -> 7zip-standalone, ships ['7za'] and NO 7z
-        #   ffmpeg -> not in stock Fedora at all (that is RPM Fusion)
-        # A corrected NAME only trades one wrong answer for another, because
-        # which package owns the binary depends on the user's repos:
-        #   /usr/bin/ffmpeg  stock -> ffmpeg-free  ·  +RPM Fusion -> ffmpeg
-        # On RHEL/Rocky/Alma both are EPEL-only (el9/el10_2/el10_3).
-        packages={"pynvml": "python3-pynvml",
-                  "7z": "/usr/bin/7z",
-                  "ffmpeg": "/usr/bin/ffmpeg",
-                  # By name: Fedora ships it in /usr/bin, EL in /usr/sbin.
-                  "sensors-detect": "lm_sensors"},
+        packages=_RPM_PACKAGES,
         # Stock ffmpeg-free cannot decode HEVC (measured 2026-11-05, Fedora
         # 42 and 44: "no decoder found for: hevc").  RPM Fusion's own two
         # steps, rpmfusion.org/Configuration and /Howto/Multimedia.
@@ -557,10 +565,7 @@ _FAMILIES: tuple[LinuxFamily, ...] = (
 _EL_FAMILY = LinuxFamily(
     name="EL-family", manager="dnf",
     install_cmd="sudo dnf install {pkg}",
-    packages={"pynvml": "python3-pynvml",
-              "7z": "/usr/bin/7z",
-              "ffmpeg": "/usr/bin/ffmpeg",
-              "sensors-detect": "lm_sensors"},     # AppStream, /usr/sbin
+    packages=_RPM_PACKAGES,
     # EPEL's ffmpeg-free leaves out HEVC as Fedora's does.  RPM Fusion's EL
     # repo (rpmfusion.org/Configuration) and the same swap; measured on Rocky
     # 9 to play HEVC, 2026-11-05.  EPEL and CRB are already on wherever
@@ -570,6 +575,25 @@ _EL_FAMILY = LinuxFamily(
          "rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm"),
         ("sudo", "dnf", "swap", "ffmpeg-free", "ffmpeg", "--allowerasing")),
 )
+
+#: Fedora Atomic -- Silverblue, Kinoite, Bazzite, Bluefin, Aurora.  dnf may be
+#: there, but the root is an image: a package is LAYERED with rpm-ostree and
+#: arrives at the next boot, so ``sudo dnf install`` fails and the RPM Fusion
+#: swap cannot run (#338).  A layered TRCC is swapped, never upgraded in place:
+#: ``uninstall --install`` is one transaction (rpm-ostree's
+#: rpmostree-pkg-builtins.cxx; not yet run here).  Bazzite ships a full ffmpeg;
+#: a Silverblue that does not is not offered a swap it cannot make.
+_ATOMIC_FAMILY = LinuxFamily(
+    name="Fedora-Atomic", manager="rpm-ostree",
+    install_cmd="rpm-ostree install {pkg} && systemctl reboot",
+    package_upgrade=(f"rpm-ostree uninstall trcc-linux --install {RELEASES_URL}/download/"
+                     "trcc-linux-latest.fc$(rpm -E %fedora).noarch.rpm && systemctl reboot"),
+    packages=_RPM_PACKAGES,
+)
+
+#: Written at boot on an ostree-booted root (ostree-prepare-root); a tool that
+#: must know whether the root is an image tests for it.
+_OSTREE_BOOTED = Path("/run/ostree-booted")
 
 #: ``ID=`` values that mean Enterprise Linux, and the ``ID_LIKE`` token that
 #: covers the rebuilds this list does not name.
@@ -626,6 +650,14 @@ def _os_release_ids(text: str | None = None) -> tuple[str, str]:
             like = line[8:].strip().strip('"')
     log.debug("_os_release_ids: ID=%r ID_LIKE=%r", ident, like)
     return ident, like
+
+
+def _is_ostree_booted(marker: Path = _OSTREE_BOOTED) -> bool:
+    """Is the running root an ostree image -- Fedora Atomic, Bazzite?  The
+    package-manager probe cannot tell: dnf may be on PATH there too."""
+    booted = marker.exists() and shutil.which("rpm-ostree") is not None
+    log.debug("_is_ostree_booted: %s -> %s", marker, booted)
+    return booted
 
 
 def _is_enterprise_linux(text: str | None = None) -> bool:
@@ -1035,8 +1067,12 @@ class LinuxOS(BaseOS, key="linux"):
 
         ``sys.platform`` is "linux" on every distro, so the manager is the only
         thing that distinguishes them.  Hundreds of distros, a handful of
-        managers.
+        managers.  An ostree-booted root comes first: it layers packages
+        whichever managers are on PATH (#338).
         """
+        if _is_ostree_booted():
+            log.info("LinuxOS._detect_family: ostree-booted -- Fedora Atomic")
+            return _ATOMIC_FAMILY
         for candidate in _FAMILIES:
             if shutil.which(candidate.manager):
                 log.debug("LinuxOS._detect_family: found %s",
@@ -1072,7 +1108,11 @@ class LinuxOS(BaseOS, key="linux"):
         writing them from documentation is what put four wrong package names
         in the tables this replaces.
         """
-        from ._packages import NoPackageManager, Pacman, Rpm
+        from ._packages import NoPackageManager, Pacman, Rpm, RpmOstree
+        if self._family.manager == "rpm-ostree":
+            log.info("%s._build_packages: rpm, layered with rpm-ostree",
+                     type(self).__name__)
+            return RpmOstree()
         if self._family.manager == "dnf":
             log.info("%s._build_packages: rpm", type(self).__name__)
             return Rpm()

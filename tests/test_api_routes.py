@@ -128,9 +128,39 @@ def api_client(fake_platform: FakePlatform) -> Iterator[TestClient]:
 # =========================================================================
 
 
+def test_root_lists_exactly_the_routes_the_app_serves(
+    api_client: TestClient,
+) -> None:
+    """``GET /`` names every route the app serves, and nothing else.
+
+    Both directions, because each one caught a real drift: the list was
+    hand-written, named 28 of 165 routes, and two of the 28
+    (``/theme/export``, ``/theme/import``) did not exist.
+    """
+    from fastapi.routing import APIRoute, APIWebSocketRoute
+    from starlette.routing import Route
+
+    from trcc.ui.api.main import api_routes
+
+    # Not ``app.routes``: from FastAPI 0.141 it holds one pathless
+    # placeholder per included router, and the routers' routes are not there.
+    routes = api_routes(cast(FastAPI, api_client.app))
+    sockets = {("WS", r.path) for r in routes if isinstance(r, APIWebSocketRoute)}
+    api_routes = {(m, r.path) for r in routes if isinstance(r, APIRoute)
+                  for m in r.methods or ()}
+    # Any HTTP route at all -- FastAPI's own /docs and /openapi.json too.
+    any_route = {(m, r.path) for r in routes if isinstance(r, Route)
+                 for m in r.methods or ()}
+    listed = [tuple(e.split(maxsplit=1))
+              for e in api_client.get("/").json()["endpoints"]]
+    assert len(listed) == len(set(listed)), "an endpoint is listed twice"
+    assert set(listed) - any_route - sockets == set(), "listed, not served"
+    assert (api_routes | sockets) - set(listed) == set(), "served, not listed"
+
+
 def test_root_returns_endpoint_directory(api_client: TestClient) -> None:
-    """``GET /`` lists every documented endpoint — proves the app
-    constructs + every router included successfully."""
+    """``GET /`` answers with the API's name, version and the canonical
+    routes."""
     resp = api_client.get("/")
     assert resp.status_code == 200
     body = resp.json()
@@ -1620,7 +1650,7 @@ def test_create_theme_keeps_only_what_a_command_still_reads(tmp_path: Path) -> N
     """``create-theme`` staged every upload in ``uploads/`` and never removed
     one.  An image background is COPIED by LoadImage, so its staged file is
     debris at once; a refused request left everything it had staged.  A mask
-    stays: ApplyMask persists the path it was given.
+    is copied too, into the mask library under its upload's name.
     MUTATION CHECK: drop the ``finally`` cleanup -> both halves fail.
     """
     from trcc.adapters.render.qt import QtRenderer
@@ -1647,9 +1677,14 @@ def test_create_theme_keeps_only_what_a_command_still_reads(tmp_path: Path) -> N
         assert with_mask.status_code == 200, with_mask.text
 
     uploads = trcc.platform.paths().user_content_dir() / "uploads"
-    mask = trcc.settings.for_device("0402:3922").mask_path
-    assert mask is not None
-    assert [p.name for p in uploads.iterdir()] == [Path(mask).name]
+    library = trcc.platform.paths().user_mask_dir(320, 320)
+    assert list(uploads.iterdir()) == []
+    # Filed under the upload's own name, as the CLI's file is: five uploads
+    # of bg.png made five single-image/<hex> copies before (2026-11-13).
+    single = trcc.platform.paths().user_content_dir() / "single-image"
+    assert sorted(d.name for d in single.iterdir()) == ["bg"]
+    assert trcc.settings.for_device("0402:3922").mask_path == str(
+        library / "custom_mask" / "01.png")
 
 
 

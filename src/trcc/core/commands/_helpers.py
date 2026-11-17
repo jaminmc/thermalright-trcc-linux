@@ -295,16 +295,6 @@ def persist_user_mask_dc(app: App, key: str) -> None:
         log.warning("persist_user_mask_dc: write failed (%s)", e)
 
 
-_UPGRADE_COMMANDS: dict[str, tuple[str, ...]] = {
-    "dnf":          ("sudo", "dnf", "upgrade", "-y", "trcc-linux"),
-    "apt":          ("sudo", "apt", "upgrade", "-y", "trcc-linux"),
-    "pacman":       ("sudo", "pacman", "-Syu", "--noconfirm", "trcc-linux"),
-    "zypper":       ("sudo", "zypper", "update", "-y", "trcc-linux"),
-    "xbps-install": ("sudo", "xbps-install", "-u", "trcc-linux"),
-    "apk":          ("sudo", "apk", "upgrade", "trcc-linux"),
-}
-
-
 def _require_connected_device(app: App, key: str, *, level: int) -> Any:
     """Fetch a connected device by key, or raise.
 
@@ -442,6 +432,25 @@ def _resolve_oriented_resolution(app: App, key: str,
     if degrees is None:
         degrees = app.settings.for_device(key).orientation
     return oriented_resolution(native, degrees)
+
+
+def decoded_size(app: App, path: Path) -> tuple[int, int]:
+    """*path*'s pixel size, decoded by the renderer every frame will use.
+
+    Asked before a picture is kept -- a mask (``ApplyMask``), a one-image
+    theme (``LoadImage``) -- because one kept undecodable made every render
+    after it raise, and stayed kept across restarts (2026-11-13).  Raises
+    ``TrccError`` when the renderer cannot decode it.  ``(0, 0)`` when no
+    renderer is attached: nothing renders then, so there is nothing to check.
+    """
+    try:
+        renderer = app.renderer
+    except RuntimeError as e:
+        log.warning("decoded_size: %s not measured (%s)", path, e)
+        return (0, 0)
+    size = renderer.surface_size(renderer.open_image(path))
+    log.debug("decoded_size: %s -> %dx%d", path, *size)
+    return size
 
 
 def _resolve_mask_path(path: Path) -> Path | None:
